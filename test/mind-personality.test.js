@@ -552,3 +552,26 @@ test('分寸：秘密和别处私聊里的事，在群里想起时标明', async
   assert.match(wm.text, /甲说他喜欢乙.*（这是别人私下跟你说的秘密，别在这里说）/)
   assert.match(wm.text, /减肥.*（私聊里的事，在群里说之前想想合不合适）/)
 })
+
+test('调试模式：照常想起和回话，但不往心智里写——不记消息、不加强记忆、不记感受、工具不真写', async () => {
+  let cfg = { ownerQQ: '1', debug: true }
+  let t = T0
+  const a = createMindAdapter({ memoryDb: true, getConfig: () => cfg, now: () => t, random: () => 0.5,
+    fetch: async (url, init) => ({ ok: true, json: async () => ({ data: fakeVec(JSON.parse(init.body).input).map((embedding, index) => ({ index, embedding })) }) }), embedKey: () => 'k' })
+  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '主人不吃香菜', kind: 'fact', importance: 0.8 })
+  await a.mind.memory.embedEpisodes([id])
+  const before = a.mind.memory.row(id).stability
+  assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '主人', text: '调试里说的话', messageId: 'd1' }), false)
+  assert.equal(a.mind.history('qq:private:1').length, 0, '没记进感知记录')
+  const chat = { chatId: 'private:1', kind: 'private', userId: '1' }
+  await a.beforeTurn(chat, '主人不吃香菜吗', ['1'])
+  assert.match(a.contextFor({ chat }), /香菜/, '照样想得起来')
+  assert.equal(a.mind.memory.row(id).stability, before, '但没被加强')
+  assert.equal(a.feel('private:1', '好<feel>{"e":[{"n":"快乐","i":0.8}]}</feel>'), '好', '感受照样不发出去')
+  assert.equal(a.mind.emotion.state().active.length, 0, '但没记下')
+  const tools = Object.fromEntries(a.tools({ chat }).map((x) => [x.name, x]))
+  assert.match((await tools.mind_remember.execute({ text: '调试时记的事' })).message, /调试模式/)
+  assert.equal(a.mind.memory.list({ q: '调试时记的事' }).length, 0)
+  cfg = { ownerQQ: '1', debug: false }
+  assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '主人', text: '正式说的话', messageId: 'd2' }), true, '关掉调试就照常记')
+})

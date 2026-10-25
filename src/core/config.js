@@ -8,7 +8,8 @@ import { DIARY_AUDIENCES } from '../features/qzone-audience.js'
 
 export const DEFAULTS = {
   enabled: false, // 总开关：关着一句都不发
-  dryRun: true, // 试运行：只记日志不真发
+  dryRun: true, // 试运行：只记日志不真发（记忆照写）
+  debug: false, // 调试：不真发 + 什么都不写进记忆/流水，只在日志里看（和试运行互斥）
   setupDone: false, // 首次使用向导走完了没有
   communityMigrated: {}, // 搬到社区库的模块处理过没有（id → installed / skipped / kept），只处理一次
   botQQ: '', // 机器人 QQ 号（向导里填）
@@ -325,6 +326,10 @@ export function normalize(raw) {
   const c = deepMerge(DEFAULTS, raw)
   c.enabled = bool(c.enabled, false)
   c.dryRun = bool(c.dryRun, true)
+  c.debug = bool(c.debug, false)
+  // 调试比试运行更严：它本身就包含「不真发」，所以内部一律当成 dryRun（下面所有 dryRun 判断都自动生效）。
+  // 面板上两个开关互斥，「试运行」显示的是 dryRun && !debug。
+  if (c.debug) c.dryRun = true
   c.botQQ = qq(c.botQQ)
   c.ownerQQ = qq(c.ownerQQ)
   c.approvalNotify = bool(c.approvalNotify, true)
@@ -694,6 +699,8 @@ export function saveConfig(cfg) {
 /** 给面板看的版本：密码 / token 不回传原文，只告诉有没有填。 */
 export function publicConfig(cfg) {
   const c = structuredClone(cfg)
+  // 面板上的「试运行」只表示「试运行但不调试」：调试开着时它显示为关，两个开关天然互斥
+  c.dryRun = Boolean(c.dryRun && !c.debug)
   for (const [g, k] of HINTED) c[g][`${k}Hint`] = c[g][k] ? '…' + String(c[g][k]).slice(-4) : ''
   for (const path of allSecrets()) {
     const p = parentOf(c, path, false)

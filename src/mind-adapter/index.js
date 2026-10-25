@@ -90,6 +90,8 @@ export function createMindAdapter(opts) {
     const qq = String(opts.getConfig()?.ownerQQ || '')
     return qq ? personOf(qq) : ''
   }
+  // 调试模式（面板开关）：她照常想、照常回，但不往心智里写任何东西——试人格不污染她
+  const debug = () => opts.getConfig()?.debug === true
   const mind = createMind({ dir: opts.dir, ownerId: ownerOf(), now, log, memoryDb: opts.memoryDb, random: opts.random })
   const trashDir = opts.trashDir || join(homedir(), '.Trash')
   const mem = mind.memory
@@ -124,6 +126,7 @@ export function createMindAdapter(opts) {
 
   /** 收到的一条 QQ 消息（已经过白名单）。 */
   function perceive(msg) {
+    if (debug()) return false
     try {
       syncOwner()
       // 只有找她的（私聊）才把注意力拉过来；群里别人在聊不算，她自己插话时由 noteTurn / said 算
@@ -145,6 +148,7 @@ export function createMindAdapter(opts) {
 
   /** 她真发出去的一条消息。 */
   function said({ chatId, message, note, messageId, kind = 'reply' }) {
+    if (debug()) return false
     try {
       lastChatAt = now()
       const text = segmentsText(message, note)
@@ -346,7 +350,7 @@ export function createMindAdapter(opts) {
     if (!chatId || chat.kind === 'system') return
     speakersOf.set(chatId, speakers.filter(Boolean).map(String))
     try {
-      const work = mem.workingMemory({ cue: String(text || '').slice(-600), window: windowOf(chatId), people: speakers.filter(Boolean).map(personOf) })
+      const work = mem.workingMemory({ cue: String(text || '').slice(-600), window: windowOf(chatId), people: speakers.filter(Boolean).map(personOf), readOnly: debug() })
       const wm = await Promise.race([work, new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))])
       working.set(chatId, wm ? { text: wm.text, at: now() } : { text: '', at: now() })
     } catch (error) {
@@ -358,6 +362,12 @@ export function createMindAdapter(opts) {
   // ---------- 记忆：她自己用的工具 ----------
   function tools({ chat, ownerTurn } = {}) {
     if (!chat || chat.kind === 'system') return []
+    const list = buildTools(chat, ownerTurn)
+    // 调试模式：会改她的工具照样给（她照常会想用），但不真的写进心智
+    const writes = new Set(['mind_remember', 'mind_want', 'mind_request_permission', 'mind_change_self', 'mind_promise_done'])
+    return list.map((t) => (writes.has(t.name) ? { ...t, execute: async (...a) => (debug() ? { ok: true, message: '（调试模式：这次没有真的写进她的心智）' } : t.execute(...a)) } : t))
+  }
+  function buildTools(chat, ownerTurn) {
     const window = windowOf(chat.chatId)
     return [
       defineTool({
@@ -367,7 +377,7 @@ export function createMindAdapter(opts) {
         required: ['query'],
         execute: async ({ query }) => {
           const got = await mem.recall({ cue: String(query || ''), window, deliberate: true, limit: 8 })
-          if (got.length) mem.strengthen(got.map((m) => m.id))
+          if (got.length && !debug()) mem.strengthen(got.map((m) => m.id))
           const tz = mind.identity().timezone
           const day = (at) => (dayKey(at, tz) === mind.today() ? '今天' : dayKey(at, tz))
           return { ok: true, message: got.length ? got.map((m) => `- ${day(m.at)} ${m.text}`).join('\n') : '想不起来了' }
@@ -504,7 +514,7 @@ export function createMindAdapter(opts) {
    * 想的时候冒出的打算够强就去做（犯懒是动力不够时自然出现的）。
    */
   async function innerTick() {
-    if (closed || doing || mind.setting('attention.inner') === false) return null
+    if (closed || doing || debug() || mind.setting('attention.inner') === false) return null
     const b = mind.body.state()
     if (b.asleep) return null
     const at = now()
@@ -664,7 +674,7 @@ export function createMindAdapter(opts) {
   let encoding = false
   let sleeping = false
   async function encodeTick() {
-    if (encoding || closed || !opts.ask) return
+    if (encoding || closed || !opts.ask || debug()) return
     encoding = true
     try { await mem.encodePending() } catch (error) { log.warn('记经历出错：', error.message) } finally { encoding = false }
   }
@@ -738,6 +748,7 @@ export function createMindAdapter(opts) {
 
   /** 一轮聊完：花一点精力；和主人聊着就会熬夜。 */
   function noteTurn(chatId, senders = []) {
+    if (debug()) return
     try {
       lastChatAt = now()
       mind.body.spend(Number(mind.setting('body.energyPerTurn')) || 0)
@@ -788,6 +799,7 @@ export function createMindAdapter(opts) {
     const raw = String(text || '')
     const blocks = [...raw.matchAll(/<feel>([\s\S]*?)<\/feel>/gi)]
     const clean = raw.replace(/<feel>[\s\S]*?<\/feel>/gi, '').replace(/<feel>[\s\S]*$/i, '').trim()
+    if (debug()) return clean // 调试：感受照样收走（不发出去），但不记
     for (const b of blocks) {
       let j
       try { j = JSON.parse(b[1].trim()) } catch { continue }

@@ -307,6 +307,8 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
       every: (ms, fn, label = '定时任务') => {
         const t = setInterval(() => {
           if (!active()) return
+          // 调试模式不跑定时任务：刷 B 站、逛空间这些都别在调试里自己动
+          if (getConfig().debug) return
           Promise.resolve().then(() => { if (active()) return fn() }).catch((error) => note(id, label, error))
         }, Math.max(1000, Number(ms) || 60_000))
         t.unref?.()

@@ -387,7 +387,7 @@ export function createMemory(deps) {
    * 这一轮的工作记忆：想起来的事 + 惦记着的要做的事，按字数上限裁。
    * 想起来的会被加强（她真的想起来了）。
    */
-  async function workingMemory({ cue, window, people = [] } = {}) {
+  async function workingMemory({ cue, window, people = [], readOnly = false } = {}) {
     const max = Number(S('workingChars')) || 1800
     const got = await recall({ cue, window, people })
     const lines = []
@@ -405,7 +405,8 @@ export function createMemory(deps) {
       used.push(m.id)
     }
     const todo = dueIntentions({ window }).map((e) => `- ${e.gist}${e.data.due ? `（${shortTime(e.data.due, deps.tz())} 前）` : ''}`)
-    if (used.length) {
+    // readOnly（调试模式）：只想起来，不加强、不重新点燃情绪，不留下痕迹
+    if (used.length && !readOnly) {
       strengthen(used)
       // 想起带着情绪的事，当时的情绪会重新冒出来一点
       try { deps.onRecalled?.(got.filter((m) => used.includes(m.id) && m.level !== 'tip'), { window }) } catch {}

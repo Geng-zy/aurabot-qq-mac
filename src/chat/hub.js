@@ -296,6 +296,11 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   }
 
   function logChat(chatId, who, text, uid = '', { via, at } = {}) {
+    // 调试模式：不写聊天流水，只进插件日志（来自原项目 48b36fc）
+    if (getConfig().debug) {
+      log.info(`[调试] ${who}${uid ? '（' + uid + '）' : ''} → ${chatId}：${String(text || '').slice(0, 300)}`)
+      return
+    }
     try {
       // noteVia 直接写入其他平台的流水；QQ 回复已在投递路径清洗。
       if (who === 'bot' && via) {
@@ -481,7 +486,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     // 旧实例在创建或改名期间卸载时，不能覆盖新实例的会话映射。
     assertActive()
     const m = map()
-    m.chats[chat.chatId] = { sessionId: sid, preset, level, createdAt: Date.now(), title: titleFor(chat) }
+    m.chats[chat.chatId] = { sessionId: sid, preset, level, createdAt: Date.now(), title: titleFor(chat), mode: getConfig().debug ? 'debug' : 'live' }
     saveMap(m)
     log.info(`为 ${chat.chatId} 新建了 DSH 会话 ${sid.slice(-8)}（${preset}）`)
     return sid
@@ -502,7 +507,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const level = chat.kind === 'system' ? (chat.noTools ? 'chat' : 'social') : levelFor(cfg, chat)
     const preset = presetFor(level, cfg)
     const entry = map().chats[chat.chatId]
-    let sid = entry && entry.preset === preset && entry.level === level ? entry.sessionId : ''
+    // 调试和正式用不同的会话：不然切回正式时，调试期间那些对话还在上下文里，等于被她"记住"了
+    const mode = cfg.debug ? 'debug' : 'live'
+    let sid = entry && entry.preset === preset && entry.level === level && (entry.mode || 'live') === mode ? entry.sessionId : ''
     let agent = null
     if (sid) {
       try {
@@ -769,6 +776,11 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       cap.push({ chatId, note, message })
       if (outputScope.getStore()?.chatId === chatId) outputScope.getStore().sent++
       return { message_id: 'sim-' + cap.length }
+    }
+    // 调试模式什么都不发（连 force 的命令回复也不发），只在日志里能看到
+    if (cfg.debug) {
+      log.info(`调试（没真发）→ ${chatId}：${note}`)
+      return null
     }
     if (force) {}
     else if (!cfg.enabled) {
