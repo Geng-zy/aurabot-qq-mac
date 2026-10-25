@@ -639,7 +639,12 @@ export function apply(ctx) {
       }
       if (!unloaded) setPendingModules(left)
     }).catch((error) => log.warn('恢复模块失败：', error.message))
-  booted.then(() => { if (!unloaded) bridge.refresh() })
+  booted.then(() => {
+    if (unloaded) return
+    bridge.refresh()
+    // 启动时就开着调试的，顺手把调试会话建出来（没建过才会建）
+    if (getConfig().debug) hub.ensureDebugSession().catch((error) => log.warn('建调试会话失败：', error.message))
+  })
 
   // ---------- 审批请求：DSH 要授权时把请求发到 QQ ----------
   // 说明：DSH 的批准动作只能由界面回答（host 拿不到应答通道），所以这里只做通知。
@@ -798,9 +803,28 @@ export function apply(ctx) {
     if (changedConn && onebot.state !== 'stopped') onebot.restart()
     if (!before.enabled && cfg.enabled) setTimeout(safe(watchdog, '看门狗'), 100)
     if (before.enabled && !cfg.enabled) onebot.stop()
-    log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun ? '开' : '关'}`)
+    log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun && !cfg.debug ? '开' : '关'}｜调试 ${cfg.debug ? '开' : '关'}`)
     await mods.sync().catch(() => {})
-    return { ...(await overview()), message: '保存好了' }
+    // 一开调试就把主人私聊的调试会话建出来，省得你还得先发条 QQ 消息才有会话说
+    let debugNote = ''
+    if (cfg.debug) {
+      try {
+        const d = await hub.ensureDebugSession()
+        debugNote = d.created ? '，调试会话已建好' : ''
+      } catch (error) {
+        log.debug('建调试会话失败：', error.message)
+      }
+    }
+    return { ...(await overview()), message: '保存好了' + debugNote }
+  })
+
+  // 手动把调试会话建出来（默认一开调试就自动建，这个是为了重开面板后能再确认一次）
+  route('/debug/session', async () => {
+    try {
+      return await hub.ensureDebugSession()
+    } catch (error) {
+      return { ok: false, message: error.message }
+    }
   })
 
   // ---------- 面板代理：桌宠 ----------
