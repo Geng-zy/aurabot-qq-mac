@@ -225,7 +225,10 @@ export const DEFAULTS = {
     maxPerDay: 8, // 每天最多评论几条（点赞不算）
     intervalMin: 30, // 多久逛一次空间
   },
-  chat: { seedHistory: false, seedHistoryCount: 20 }, // seedHistory：新会话第一次说话时先补最近几条历史（默认关）
+  // seedHistory：新会话第一次说话时先补最近几条历史（默认关）
+  // everyStep：一轮里她分几段说就发几条（默认关 = 只发最后一段）
+  // rescueFromThinking：整轮一段正文都没写时，从思考里捞出她自己定稿的那段（默认关，捞不到就不发）
+  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false },
   // 聊天流水 chatlog/ 留多久（记忆本身在心智核心里）
   memory: { keepChatlogDays: 7, keepChatlogSet: false },
   song: {
@@ -509,6 +512,8 @@ export function normalize(raw) {
   c.chat = c.chat || {}
   c.chat.seedHistory = bool(c.chat.seedHistory, false)
   c.chat.seedHistoryCount = num(c.chat.seedHistoryCount, 20, 1, BIG)
+  c.chat.everyStep = bool(c.chat.everyStep, false)
+  c.chat.rescueFromThinking = bool(c.chat.rescueFromThinking, false)
   // 老版本的 0 是当时的默认值，不是谁选的：升级后改成留 7 天，以后面板里再选 0 才算数
   const keepUnset = raw?.memory?.keepChatlogDays === 0 && !raw.memory.keepChatlogSet
   c.memory.keepChatlogDays = keepUnset ? 7 : num(c.memory.keepChatlogDays, 7, -1, 3650)
