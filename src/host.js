@@ -1889,6 +1889,39 @@ export function apply(ctx) {
     send(res, 200, src, 'text/javascript; charset=utf-8')
   })
 
+  // 贴表情：面板要展示「当前有哪些表情可以贴」——内置常用 + 网关系统表情目录（取不到就只用内置）
+  // emoji 走 Unicode 码点，QQ 老表情走它自己那套编号，两套在 set_msg_emoji_like 里都能直接用。
+  const REACT_EMOJIS = [
+    { char: '👍', name: '赞', id: '128077' },
+    { char: '❤️', name: '爱心', id: '10084' },
+    { char: '😂', name: '笑哭', id: '128514' },
+    { char: '😭', name: '大哭', id: '128557' },
+    { char: '🤔', name: '思考', id: '129300' },
+    { char: '😅', name: '冷汗', id: '128517' },
+    { char: '😳', name: '脸红', id: '128563' },
+    { char: '🥺', name: '委屈', id: '129402' },
+    { char: '🎉', name: '庆祝', id: '127881' },
+    { char: '🌹', name: '玫瑰', id: '127801' },
+    { char: '🍬', name: '糖', id: '127852' },
+    { char: '✨', name: '闪', id: '10024' },
+    { char: '🔥', name: '火', id: '128293' },
+    { char: '🙏', name: '拜托', id: '128591' },
+  ]
+  route('/panel/faces', async () => {
+    let byId = new Map(Object.entries(COMMON_FACES).map(([name, id]) => [String(id), name]))
+    try {
+      const r = await onebot.call('fetch_sys_faces', {}, { timeoutMs: 8000 })
+      const built = buildFaceIndex(r?.packs ? r : r?.data)
+      if (built.byId.size) byId = new Map([...byId, ...built.byId])
+    } catch (error) {
+      logger.child('faces').debug('取系统表情目录失败，只用内置的：', error.message)
+    }
+    const faces = [...byId.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => Number(a.id) - Number(b.id))
+    return { ok: true, faces, emojis: REACT_EMOJIS }
+  })
+
   // 联动
   route('/bridge/token', async () => ({ ok: true, token: cfg.bridge.http ? bridge.ensureToken() : '' }))
   route('/bridge/token/reset', async () => ({ ok: true, token: bridge.resetToken(), message: '换了新密钥，旧的立刻失效' }))
