@@ -448,3 +448,16 @@ test('模块状态带标签状态点：写了 flag 用它，有 enabled 设置�
   assert.equal((await mod('plain')).flag, '')
 })
 
+
+test('模块面板：panel.js 从模块自己的文件夹读，写成 ../ 想读外面的文件一律不给（移植自原项目 83b23b0）', async () => {
+  const code = (panel) => `export default { id: 'paneltest', name: '面板测试', version: '1.0.0', api: 1, panel: ${JSON.stringify(panel)}, setup() {} }`
+  writeMod('paneltest', code('panel.js'))
+  writeFileSync(join(modDir('paneltest'), 'panel.js'), 'export default () => null // 面板')
+  await fake.call('/modules/reload', { id: 'paneltest' })
+  const ok = await fake.call('/modules/panel?id=paneltest')
+  assert.equal(ok.status, 200)
+  assert.match(ok.raw(), /面板/)
+  writeMod('paneltest', code('../../config.json'))
+  await fake.call('/modules/reload', { id: 'paneltest' })
+  assert.equal((await fake.call('/modules/panel?id=paneltest')).status, 404)
+})
