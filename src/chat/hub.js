@@ -79,7 +79,7 @@ export function assistantReplyText (message) {
   return message.content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n').trim()
 }
 
-export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf, mind, trashDir }) {
+export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf, mind, trashDir }) {
   // 心情对行为的影响（表情 / 语音概率、回复快慢、插话积极程度），没接就是 1
   const mood = () => (typeof moodEffects === 'function' ? moodEffects() : null) || { sticker: 1, voice: 1, delay: 1, chatty: 1 }
   const mapFile = () => dataDir('sessions.json')
@@ -854,6 +854,16 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       if (outputScope.getStore()?.chatId === chatId) outputScope.getStore().sent++
       return r
     } catch (error) {
+      // 网关预热/短暂不可达：确定没发出去的消息放进补发队列，连上后按 TTL 补发。
+      // 超时（uncertain）不入队，避免同一条消息发两次。
+      if (outbox && isDefiniteFailure(error)) {
+        const q = outbox.add({ action, params, chatId, note })
+        if (q.ok) {
+          log.warn(`发到 ${chatId} 时网关还没就绪，已排队补发：${note || error.message}`)
+          return { queued: true, queuedId: q.id }
+        }
+        log.warn(`发到 ${chatId} 失败，且无法入队（${q.message}）：`, error.message)
+      }
       bump('errors')
       log.warn(`发到 ${chatId} 失败：`, error.message)
       if (throwOnError) throw error
