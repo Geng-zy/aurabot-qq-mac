@@ -1,5 +1,5 @@
 > **这是 macOS 适配分叉。** 基于 [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)（MIT），让 Aurabot 在 macOS（Apple 芯片）上完整可用：翻唱一键安装、系统语音兜底、Docker 网关下发大文件、面板按系统显示等。Windows 行为与原项目一致。
-> 改了什么、怎么同步原项目更新、怎么部署：见 [docs/MACOS-FORK.md](docs/MACOS-FORK.md)。
+> 与原项目的差异见提交记录；新加的 macOS 逻辑都有中文注释，`test/macos.test.js`、`test/file-relay.test.js` 覆盖了按系统分支的行为。
 >
 > Mac 上安装：`"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac`，装完重启 DSH。
 
