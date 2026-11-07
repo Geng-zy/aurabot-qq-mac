@@ -155,3 +155,28 @@ test('本地原唱：按「歌名 - 歌手[专辑]」认文件；歌名对上就
   const first = findLocalSong('演员', { dir }).path
   assert.equal(findLocalSong('演员', { dir, skip: ['local:' + first] }), null, '试过不行的不再用')
 })
+
+test('换声用的 Python：Applio 自己的 .venv 优先，没有就用翻唱环境', () => {
+  const p = studio.pathsOf('/r', 'darwin')
+  assert.equal(studio.applioPython(p, { platform: 'darwin', exists: () => true }), '/r/Applio/.venv/bin/python')
+  assert.equal(studio.applioPython(p, { platform: 'darwin', exists: () => false }), '/r/env/bin/python')
+  const w = studio.pathsOf('C:\\r', 'win32')
+  assert.match(studio.applioPython(w, { platform: 'win32', exists: () => true }), /\.venv[\\/]Scripts[\\/]python\.exe$/)
+})
+
+test('rubberband：翻唱环境 bin/、PATH、Homebrew 依次找，找不到返回空', () => {
+  const p = studio.pathsOf('/r', 'darwin')
+  assert.equal(studio.findRubberband(p, { pathEnv: '/usr/bin', platform: 'darwin', exists: (x) => x === '/opt/homebrew/bin/rubberband' }), '/opt/homebrew/bin/rubberband')
+  assert.equal(studio.findRubberband(p, { pathEnv: '/x', platform: 'darwin', exists: (x) => x === '/x/rubberband' }), '/x/rubberband')
+  assert.equal(studio.findRubberband(p, { pathEnv: '', platform: 'darwin', exists: () => false }), '')
+})
+
+test('音色列表带出音色档案（<音色>.profile.json）', () => {
+  const { mkdirSync, writeFileSync } = require_fs()
+  const dir = join(root, 'models')
+  mkdirSync(dir, { recursive: true })
+  for (const n of ['a.pth', 'a.index', 'a.profile.json', 'b.pth']) writeFileSync(join(dir, n), 'x')
+  const v = studio.listVoices(dir)
+  assert.equal(v.find((x) => x.id === 'a').profile, join(dir, 'a.profile.json'))
+  assert.equal(v.find((x) => x.id === 'b').profile, '')
+})

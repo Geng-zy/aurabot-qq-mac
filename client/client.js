@@ -3319,9 +3319,16 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, u),
             h(Btn, { small: true, kind: 'ghost', onClick: () => { navigator.clipboard.writeText(u); toast('复制了', 'ok') } }, '复制')))) : null,
         s.voices.length && !s.enabled ? h('div', { className: 'ab-note warn', style: { marginTop: 10 } }, '音色导入好了，但翻唱开关还没开（这一页最上面），打开并保存后ta才会唱。') : null,
+        s.profileJob ? h('div', { className: cx('ab-note', s.profileJob.ok === false && 'err'), style: { marginTop: 10 } }, (s.profileJob.running ? '⏳ ' : '') + '音色档案「' + s.profileJob.id + '」：' + s.profileJob.message) : null,
         s.voices.length === 0 ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '还没有音色。') :
           h('div', { className: 'ab-list', style: { marginTop: 10 } }, s.voices.map((v) => h('div', { key: v.id, className: 'ab-li' },
-            h('div', { className: 'body' }, h('b', null, v.id), v.hasIndex ? h('span', { className: 'ab-muted ab-small' }, ' · 带 index') : null),
+            h('div', { className: 'body' }, h('b', null, v.id), v.hasIndex ? h('span', { className: 'ab-muted ab-small' }, ' · 带 index') : null,
+              h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
+            h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: async () => {
+              const folder = prompt('「' + v.id + '」的数据集文件夹（这个音色本人的干声录音，wav / flac / mp3，完整路径）：')
+              if (!folder) return
+              const r = await post('/song/voice/profile', { id: v.id, folder }); toast(r.message, r.ok ? 'ok' : 'err'); onChange()
+            } }, v.hasProfile ? '重新生成档案' : '生成音色档案'),
             h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？')) return; const r = await post('/song/voice/delete', { id: v.id }); toast(r.message, r.ok ? 'ok' : 'err'); onChange() } }, '删除')))))
     }
 
@@ -3430,6 +3437,18 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '人声音量' }, f.range('song.vocalVolume', 0.2, 2, 0.05, (v) => Math.round(v * 100) + '%')),
           h(Row, { label: '伴奏音量' }, f.range('song.instVolume', 0.1, 2, 0.05, (v) => Math.round(v * 100) + '%')),
           h(Row, { label: '只有主人能点歌' }, f.sw('song.ownerOnly')),
+        ),
+        h(Card, { title: '翻唱效果', right: f.sw('song.enhance.enabled'), desc: '换声前后的处理。关掉总开关就是最简单的「整条人声换一遍」。自动定调和音色校正要这个音色有「音色档案」（上面音色列表里生成）。本地接口接管翻唱时，这里的设置不起作用。' },
+          draft.song.enhance && draft.song.enhance.enabled !== false ? h(Fragment, null,
+            h(Row, { label: '去混响', hint: '分离出的人声先去掉混响、回声再换声；去完反而变噪的段落自动换回原人声' }, f.sw('song.enhance.dereverb')),
+            h(Row, { label: '拆主唱和伴唱', hint: '两个人同时唱（和声、合唱）时各自换声再合起来，不容易破音；多花两三分钟' }, f.sw('song.enhance.splitBacking')),
+            h(Row, { label: '对唱时分男女声', hint: '点歌说了「对唱」时，先把男声、女声分开各自换，换人处不破音（会先确认真的是男女对唱）' }, f.sw('song.enhance.duetSplit')),
+            h(Row, { label: '自动定调、挪八度', hint: '按音色档案里的音域整首挪调（伴奏跟着挪，要装 rubberband），离音域太远的段落（比如对唱里的男声）挪整八度' }, f.sw('song.enhance.autoKey')),
+            h(Row, { label: '音色校正', hint: '按音色档案里本人的声音逐首校正频段（换声出来常常发闷）' }, f.sw('song.enhance.toneMatch')),
+            h(Row, { label: '伴唱音量跟原来走', hint: '0 = 完全跟原来的音量（背景和声、戏腔原本很轻，换完不会变得和主唱一样响）' }, f.range('song.enhance.backEnvelope', 0, 1, 0.05, (v) => v.toFixed(2)))) : null,
+          h(Row, { label: '特征检索比例', hint: '越高越像模型里的音色，太高可能含糊；没有 .index 时不起作用' }, f.range('song.indexRate', 0, 1, 0.05, (v) => v.toFixed(2))),
+          h(Row, { label: '音量包络', hint: '0 = 跟原唱的音量起伏，1 = 用换声出来的' }, f.range('song.volumeEnvelope', 0, 1, 0.05, (v) => v.toFixed(2))),
+          h(Row, { label: '清辅音保护', hint: '保护「s、sh、呼吸声」不被换得发怪；0.5 = 不保护' }, f.range('song.protect', 0, 0.5, 0.01, (v) => v.toFixed(2))),
         ),
         h(Card, { title: '网易云', desc: '不登录也能唱免费歌；会员歌、版权歌要填网易云的 Cookie。' },
           h(Row, { label: 'Cookie（MUSIC_U）', hint: '电脑浏览器登录 music.163.com → F12 → 应用 / 存储 → Cookie → 复制 MUSIC_U 的值。只存在本机，不显示' },

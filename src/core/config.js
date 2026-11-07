@@ -266,6 +266,12 @@ export const DEFAULTS = {
     pypiMirror: 'auto', // 安装时用的下载源：auto = 先测一下，官方源慢就用国内镜像；cn = 一直用国内镜像；off = 只用官方源
     localMusic: true, // 点歌先在本地音乐文件夹里找原唱（文件名「歌名 - 歌手[专辑]」），找不到再去网易云
     localMusicDir: '', // 本地音乐文件夹，留空 = 用户目录下的「音乐 / Music」
+    // 换声参数（Applio）：特征检索比例、音量包络（主唱）、清辅音保护
+    indexRate: 0.3,
+    volumeEnvelope: 0.5,
+    protect: 0.33,
+    // 翻唱增强流程（src/song/pipeline.js）：去混响、拆主唱伴唱 / 男女声、自动定调和挪八度、音色校正。后两项要音色档案
+    enhance: { enabled: true, dereverb: true, splitBacking: true, duetSplit: true, autoKey: true, toneMatch: true, backEnvelope: 0 },
   },
   tabs: {}, // 面板记住的小偏好
   // 模块：内置的和数据目录 modules/ 里自己写的。{ 模块id: { enabled, useBuiltin } }，没写的算开着
@@ -635,6 +641,12 @@ export function normalize(raw) {
   c.song.root = String(c.song.root || '').trim()
   c.song.localMusic = bool(c.song.localMusic, true)
   c.song.localMusicDir = String(c.song.localMusicDir || '').trim()
+  c.song.indexRate = num(c.song.indexRate, 0.3, 0, 1)
+  c.song.volumeEnvelope = num(c.song.volumeEnvelope, 0.5, 0, 1)
+  c.song.protect = num(c.song.protect, 0.33, 0, 0.5)
+  if (!isObj(c.song.enhance)) c.song.enhance = {}
+  for (const k of ['enabled', 'dereverb', 'splitBacking', 'duetSplit', 'autoKey', 'toneMatch']) c.song.enhance[k] = bool(c.song.enhance[k], true)
+  c.song.enhance.backEnvelope = num(c.song.enhance.backEnvelope, 0, 0, 1)
   if (!isObj(c.modules)) c.modules = {}
   for (const [id, m] of Object.entries(c.modules)) {
     if (!isObj(m)) { delete c.modules[id]; continue }

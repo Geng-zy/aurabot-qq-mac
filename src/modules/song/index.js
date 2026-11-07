@@ -67,6 +67,7 @@ export default {
       }
     })
     api.route('/song/voice/delete', async (req) => song.deleteVoice(String((await http.body(req)).id || '')))
+    api.route('/song/voice/profile', async (req) => { const b = await http.body(req); return song.buildProfile(String(b.id || ''), String(b.folder || '')) })
     // 面板里试唱：发到主人私聊
     api.route('/song/request', async (req) => {
       const b = await http.body(req)

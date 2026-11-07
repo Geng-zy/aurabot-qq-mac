@@ -12,6 +12,7 @@ import { searchSongs, songUrl, account } from './netease.js'
 import { readZip } from './zip.js'
 import { findLocalSong, MUSIC_DIR } from './local_music.js'
 import { findFfmpeg } from '../core/img.js'
+import { runPipeline, ENHANCE_DEFAULTS } from './pipeline.js'
 
 export const APPLIO_REPO = 'https://github.com/IAHispano/Applio.git'
 export const APPLIO_COMMIT = 'c817f1f83f689ef72e0dfeb1c17ae990b9248506'
@@ -341,8 +342,27 @@ export function listVoices(modelsDir) {
   return names.filter((n) => n.toLowerCase().endsWith('.pth')).sort().map((n) => {
     const id = n.slice(0, -4)
     const idx = names.find((m) => m.toLowerCase().endsWith('.index') && m.toLowerCase().includes(id.toLowerCase()))
-    return { id, pth: join(modelsDir, n), index: idx ? join(modelsDir, idx) : '' }
+    // 音色档案（音域 + 音色参照，voice_profile.py 生成）：<音色>.profile.json，有它才自动定调、挪八度、校正音色
+    const prof = join(modelsDir, id + '.profile.json')
+    return { id, pth: join(modelsDir, n), index: idx ? join(modelsDir, idx) : '', profile: existsSync(prof) ? prof : '' }
   })
+}
+
+/**
+ * 换声用哪个 Python：Applio 自己的环境（Applio 文件夹里的 .venv，按 Applio 官方安装脚本装的）优先，
+ * 没有就用翻唱环境 env/（一键安装把 Applio 依赖和人声分离装在同一个环境里）。
+ */
+export function applioPython(p, { platform = process.platform, exists = existsSync } = {}) {
+  const own = join(p.applio, '.venv', platform === 'win32' ? 'Scripts' : 'bin', exeName('python', platform))
+  return exists(own) ? own : p.python
+}
+
+/** 找 rubberband（伴奏变调用）：翻唱环境 bin/、PATH、Homebrew 常见位置。找不到返回 ''（自动定调时只挪八度，整首不挪）。 */
+export function findRubberband(p, { pathEnv = process.env.PATH || '', exists = existsSync, platform = process.platform } = {}) {
+  const name = exeName('rubberband', platform)
+  const cands = [join(p.bin, name), ...String(pathEnv).split(platform === 'win32' ? ';' : ':').filter(Boolean).map((d) => join(d, name)),
+    ...(platform === 'win32' ? [] : ['/opt/homebrew/bin/rubberband', '/usr/local/bin/rubberband'])]
+  return cands.find((c) => { try { return exists(c) } catch (error) { return false } }) || ''
 }
 
 /** 像不像 RVC 模型：PyTorch 存的 .pth 要么是 zip 格式（PK 开头），要么是老的 pickle（0x80 开头）。 */
@@ -489,6 +509,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   let current = null // 正在做的翻唱
   let history = [] // 最近做过的 [{at, title, voice, ok, message, file}]
   let install = { running: false, step: '', log: [], ok: null, message: '' }
+  let profileJob = null // 正在生成的音色档案 {id, folder, running, ok, message, at}
 
   function status() {
     const p = P()
@@ -512,7 +533,8 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       rootCheck: checkRoot(p.root),
       pypiMirror: cfg().pypiMirror || 'auto',
       parts,
-      voices: voices.map((v) => ({ id: v.id, hasIndex: Boolean(v.index) })),
+      voices: voices.map((v) => ({ id: v.id, hasIndex: Boolean(v.index), hasProfile: Boolean(v.profile) })),
+      profileJob: profileJob ? { ...profileJob } : null,
       separatorLinks: parts.separatorModel ? [] : separatorLinks(cfg().separatorModel),
       voice: cfg().voice,
       install: { ...install, log: install.log.slice(-30) },
@@ -814,7 +836,38 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return { vocals: join(dir, vocals), inst: join(dir, inst) }
   }
 
-  async function convert(vocals, dir, voice, pitch, duet = false) {
+  /**
+   * 从数据集生成音色档案（models/<音色>.profile.json）：音域给自动定调 / 挪八度用，音色参照给音色校正用。
+   * 要跑几分钟（逐个文件测音高），在后台做，面板看 status().profileJob。
+   */
+  function buildProfile(id, folder) {
+    const p = P()
+    const v = listVoices(p.models).find((x) => x.id === id)
+    if (!v) return { ok: false, message: '没有这个音色' }
+    const dir = String(folder || '').trim()
+    if (!dir || !isAbsolute(dir) || !existsSync(dir)) return { ok: false, message: '数据集文件夹要填完整路径，并且要存在' }
+    if (!existsSync(join(p.applio, 'core.py'))) return { ok: false, message: '要先装好 Applio（生成档案要用它的音高模型）' }
+    if (profileJob?.running) return { ok: false, message: '上一个档案还在生成' }
+    profileJob = { id, folder: dir, running: true, ok: null, message: '正在生成（几分钟）…', at: Date.now() }
+    const out = join(p.models, id + '.profile.json')
+    run(applioPython(p), [fileURLToPath(new URL('./pipeline/voice_profile.py', import.meta.url)), dir, out],
+      { cwd: p.applio, log, env: { ...pyEnv(), AURABOT_APPLIO: p.applio }, timeoutMs: 60 * 60_000 })
+      .then((tail) => { profileJob = { ...profileJob, running: false, ok: true, message: '音色档案生成好了 ' + (tail.trim().split('\n').pop() || '') } ; log.info(`音色「${id}」的档案生成好了：${out}`) })
+      .catch((error) => { profileJob = { ...profileJob, running: false, ok: false, message: '生成失败：' + error.message.slice(0, 300) } ; log.warn('音色档案生成失败：', error.message) })
+    return { ok: true, message: '开始生成音色档案，要几分钟' }
+  }
+
+  /** 换声参数：特征检索比例、音量包络、清辅音保护和增强流程开关（面板「翻唱」页可调）。 */
+  function convertSettings() {
+    const c = cfg()
+    return { indexRate: c.indexRate, volumeEnvelope: c.volumeEnvelope, protect: c.protect, enhance: { ...ENHANCE_DEFAULTS, ...(c.enhance || {}) } }
+  }
+
+  /**
+   * 人声 → 她的声音。本地接口接管时交给本地脚本；否则走内置的增强流程（pipeline.js）。
+   * speech：语音条（说话），只换声，不去混响、不拆、不定调、不校正音色。
+   */
+  async function convert(vocals, dir, voice, pitch, duet = false, { speech = false } = {}) {
     const p = P()
     const out = join(dir, 'vocals_rvc.wav')
     if (local?.active('song')) {
@@ -825,11 +878,19 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       if (!existsSync(file)) throw new Error('本地换声脚本没写出文件：' + file)
       return file
     }
-    await run(p.python, ['core.py', 'infer', '--input-path', vocals, '--output-path', out, '--pth-path', voice.pth, '--index-path', voice.index || '',
-      '--pitch', String(pitch), '--index-rate', voice.index ? '0.5' : '0', '--protect', '0.33', '--f0-method', 'rmvpe', '--export-format', 'WAV'],
-    { cwd: p.applio, log, env: pyEnv(), timeoutMs: 20 * 60_000 })
-    if (!existsSync(out)) throw new Error('变声没产出文件')
-    return out
+    const settings = convertSettings()
+    if (speech) settings.enhance = { ...settings.enhance, enabled: false }
+    const env = {
+      python: applioPython(p), applio: p.applio, separator: (args) => separatorCommand(p, args), separatorModels: p.separatorModels,
+      ffmpeg: p.ffmpeg, rubberband: findRubberband(p), model: voice.pth, index: voice.index || '', profile: voice.profile || '',
+    }
+    const r = await runPipeline({
+      input: vocals, output: out, pitch, duet, env, settings, log,
+      run: (cmd, args, o = {}) => run(cmd, args, { cwd: o.cwd || p.applio, log, env: { ...pyEnv(), ...(o.env || {}) }, timeoutMs: 20 * 60_000 }),
+    })
+    const tag = r.shift ? (r.shift > 0 ? '+' : '') + r.shift : ''
+    log.info(`换声完成（${speech ? '语音条，' : ''}${voice.id}，变调 ${pitch}${tag}${r.octave ? '，人声另挪 ' + r.octave : ''}）${r.notes.length ? ' ' + r.notes.join('；') : ''}`)
+    return r.file
   }
 
   /**
@@ -859,7 +920,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       }
     }
     const n = Math.max(-24, Math.min(24, Math.round(Number(pitch) || 0)))
-    return convert(source, dir, v, n)
+    return convert(source, dir, v, n, false, { speech: true })
   }
 
   async function mix(vocals, inst, dir) {
@@ -985,5 +1046,6 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     importModels: (filename, buf) => (/\.ckpt$/i.test(filename) ? importSeparator(P().separatorModels, filename, buf) : importModels(P().models, filename, buf)),
     separatorLinks: () => separatorLinks(cfg().separatorModel),
     deleteVoice: (id) => deleteVoice(P().models, id),
+    buildProfile,
   }
 }
