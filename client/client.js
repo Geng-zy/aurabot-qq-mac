@@ -1033,9 +1033,13 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
 
     /** 用什么接 QQ：插件帮你管 SnowLuma，或接你已有的 OneBot v11 机器人。 */
     function GatewayChoice({ draft, setDraft }) {
+      // SnowLuma 只有 Windows 版插件能管；macOS / Linux 上不给这个选项，只接自己的 OneBot（比如 Docker 里的 SnowLuma）
+      useEffect(() => { if (!onWin() && draft.gateway !== 'onebot') setDraft(setPath(draft, 'gateway', 'onebot')) }, [draft.gateway])
+      if (!onWin()) return h('div', { className: 'ab-desc' }, '接你自己跑的 OneBot v11 网关：Docker / OrbStack 里的 SnowLuma，或者 NapCat、LLOneBot、Lagrange 等。' +
+        (onMac() ? 'SnowLuma 没有 macOS 版，Mac 上一般用 Docker 跑它的 Linux 镜像，把端口映射出来后在下面填地址。' : ''))
       return h(Choices, { value: draft.gateway || 'snowluma', onChange: (v) => setDraft(setPath(draft, 'gateway', v)), options: [
-        { value: 'snowluma', label: onWin() ? '用 SnowLuma（Windows，推荐）' : '用 SnowLuma（只支持 Windows）', desc: onWin() ? '插件帮你启动、接入机器人号、断线重连' : '插件只会管理 Windows 版 SnowLuma；这台电脑请选下面那项，用 Docker 跑 SnowLuma' },
-        { value: 'onebot', label: onWin() ? '接我已有的 OneBot 机器人' : '接我已有的 OneBot 机器人（推荐）', desc: 'NapCat、LLOneBot、Lagrange、Docker 里的 SnowLuma 等任何 OneBot v11 实现；macOS / Linux / Docker 部署选这个' },
+        { value: 'snowluma', label: '用 SnowLuma（Windows，推荐）', desc: '插件帮你启动、接入机器人号、断线重连' },
+        { value: 'onebot', label: '接我已有的 OneBot 机器人', desc: 'NapCat、LLOneBot、Lagrange、Docker 里的 SnowLuma 等任何 OneBot v11 实现；Linux / Docker 部署选这个' },
       ] })
     }
 
@@ -1059,7 +1063,8 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const loadProcs = async () => { const r = await get('/snowluma/processes'); setProcs(r.list || []); if (!r.ok) toast(r.message) }
       const act = (p) => async () => { const r = await post(p); toast(r.message || (r.ok ? '好了' : '没成功')); reload() }
       const login = st.onebot.login
-      const external = draft.gateway === 'onebot'
+      // 不是 Windows 时只能接自己的 OneBot，SnowLuma 的下载 / 启动 / 协议步骤都不显示
+      const external = draft.gateway === 'onebot' || !onWin()
       const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 8 } },
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
@@ -4837,7 +4842,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const [auto, setAuto] = useState(true)
       const load = useCallback(() => get('/logs?limit=400&level=' + level + '&area=' + area).then((r) => setItems(r.entries || [])), [level, area])
       useEffect(() => { load(); if (!auto) return; const t = setInterval(load, 3000); return () => clearInterval(t) }, [load, auto])
-      return h(Card, { title: '日志', desc: '所有后台动作都在这里，令牌和密码已自动打码。完整日志文件在 %USERPROFILE%\\.dsh\\plugins-data\\aurabot\\logs\\。',
+      return h(Card, { title: '日志', desc: '所有后台动作都在这里，令牌和密码已自动打码。完整日志文件在 ' + (onWin() ? '%USERPROFILE%\\.dsh\\plugins-data\\aurabot\\logs\\' : '~/.dsh/plugins-data/aurabot/logs/') + '。',
         right: h('div', { className: 'ab-flex' },
           h(Select, { value: level, onChange: setLevel, width: 110, options: [['debug', '全部'], ['info', '一般'], ['warn', '警告'], ['error', '错误']].map(([value, label]) => ({ value, label })) }),
           h(Select, { value: area, onChange: setArea, width: 130, options: [['', '所有模块'], ['core', '核心'], ['chat', '聊天'], ['onebot', 'QQ 网关'], ['snowluma', 'SnowLuma'], ['sticker', '表情'], ['qzone', '空间'], ['voice', '语音'], ['imagegen', '生图'], ['speakup', '搭话']].map(([value, label]) => ({ value, label })) }),
@@ -4859,7 +4864,8 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const [procs, setProcs] = useState(null)
       const [live, setLive] = useState('dry')
       const qqOk = /^\d{5,11}$/.test(draft.botQQ || '') && /^\d{5,11}$/.test(draft.ownerQQ || '') && draft.botQQ !== draft.ownerQQ
-      const external = draft.gateway === 'onebot'
+      // 不是 Windows 时只能接自己的 OneBot，SnowLuma 的下载 / 启动 / 协议步骤都不显示
+      const external = draft.gateway === 'onebot' || !onWin()
       const verified = conn && login && String(login.uin) === String(st.config.botQQ) && !st.onebot.problem
       const canNext = [qqOk, external ? Boolean(draft.snowluma.wsUrl || st.config.snowluma.wsUrl) : sl.installed, external || (sl.running && sl.consented), verified, true][step]
       const next = async () => {
@@ -4879,7 +4885,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '机器人 QQ 号', hint: '强烈建议用小号：非官方 QQ 工具有被限制的风险' }, f.text('botQQ', { placeholder: '例如 123456789' })),
           h(Row, { label: '你的 QQ 号（主人）', hint: '群管、操作电脑这些只听主人的' }, f.text('ownerQQ', { placeholder: '你的大号' })),
           h(Row, { label: 'ta怎么称呼你' }, f.text('ownerName', { placeholder: '主人' })),
-          h(Row, { label: '工作区文件夹', hint: 'ta在 QQ 会话里读写文件的地方，C 盘空间紧就放到别的盘，比如 ' + exPath('D:\\Aurabot\\qq-chats', 'Aurabot/qq-chats') + '。填完整路径，留空用默认位置。以后想换，在「连接」页能搬。聊天记录和记忆在用户目录的 .dsh 里，不在这个文件夹' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
+          h(Row, { label: '工作区文件夹', hint: 'ta在 QQ 会话里读写文件的地方，' + (onWin() ? 'C 盘空间紧就放到别的盘' : '想放在别处就填完整路径') + '，比如 ' + exPath('D:\\Aurabot\\qq-chats', 'Aurabot/qq-chats') + '。填完整路径，留空用默认位置。以后想换，在「连接」页能搬。聊天记录和记忆在用户目录的 .dsh 里，不在这个文件夹' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
           draft.botQQ && draft.ownerQQ && draft.botQQ === draft.ownerQQ ? h('div', { className: 'ab-note err' }, '机器人号和主人号不能是同一个。') : null),
         // 1. SnowLuma，或接已有的 OneBot 机器人
         external ? h('div', null,
