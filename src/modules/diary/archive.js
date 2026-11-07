@@ -11,14 +11,23 @@ export function archiveDate(at) {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(at)).replaceAll('-', '')
 }
 
-/** 路径的已有各层均不能是链接；输出目录只允许显式的绝对路径。 */
+/**
+ * 系统自带的链接（macOS 的 /var、/tmp、/etc 指向 /private/…）归 root 所有，普通用户造不出来，
+ * 放行它们不会让归档写到别处；用户自己建的链接仍然拒绝。Windows 的 lstat 不给 uid（总是 0），不放行。
+ */
+export function isSystemLink(stat, platform = process.platform) {
+  return platform !== 'win32' && stat.uid === 0
+}
+
+/** 路径的已有各层均不能是（用户建的）链接；输出目录只允许显式的绝对路径。 */
 function outputFolder(value) {
   const folder = String(value || '').trim()
   if (!folder || !isAbsolute(folder) || resolve(folder) === parse(resolve(folder)).root) throw new Error('请先指定归档文件夹的完整路径，不能使用磁盘根目录')
   const root = resolve(folder)
   let current = root
   for (;;) {
-    if (existsSync(current) && lstatSync(current).isSymbolicLink()) throw new Error('归档路径不能包含目录链接')
+    const stat = existsSync(current) ? lstatSync(current) : null
+    if (stat && stat.isSymbolicLink() && !isSystemLink(stat)) throw new Error('归档路径不能包含目录链接')
     const parent = dirname(current)
     if (parent === current) break
     current = parent
