@@ -31,6 +31,7 @@ import { isDefiniteFailure } from '../onebot/client.js'
 import { grantOwner } from '../core/workspace-move.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
 import { noticeText } from './notices.js'
+import { createFileRelay } from './file-relay.js'
 import { matchesMemoryKeyword, parseMemoryCommand } from '../features/memory.js'
 
 // QQ 会话的工作区目录，第一次收到消息时自动创建。面板「连接」页能改（config.workspaceDir，#32）；
@@ -196,6 +197,8 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   }
 
   let disposed = false
+  // 大文件下载口：网关在 Docker / 虚拟机里看不到本机路径、文件又大到不能塞 base64 时用（见 file-relay.js）
+  const fileRelay = createFileRelay({ host: () => getConfig().files?.relayHost, log })
   const disposedError = () => Object.assign(new Error('Aurabot 插件已卸载'), { code: 'AURABOT_DISPOSED' })
   const assertActive = () => { if (disposed) throw disposedError() }
 
@@ -816,6 +819,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       ? { group_id: Number(tgt.id), file: src, name: label }
       : { user_id: Number(tgt.id), file: src, name: label }
     const srcLabel = external ? (src.startsWith('base64://') ? 'base64' : '外部地址') : size < 1024 ? size + ' B' : Math.round(size / 1024) + ' KB'
+    let first
     try {
       const r = await onebot.call(action, params, { timeoutMs: FILE_TIMEOUT_MS })
       if (disposed) return null
@@ -825,25 +829,36 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     } catch (error) {
       if (disposed) return null
       // 只有明确失败时才回落：超时或断线可能已经发出，再发会重复。
-      const canRetryBase64 = isDefiniteFailure(error) && !external && size <= Math.min(FILE_BASE64_MAX, maxBytes)
-      if (!canRetryBase64) {
+      if (external || !isDefiniteFailure(error)) {
         bump('errors')
         log.warn(`${chatId}：发文件「${label}」失败${isDefiniteFailure(error) ? '' : '，发送结果不确定，不再重发'}：`, error.message)
         throw new Error(`发文件失败：${error.message}`)
       }
-      try {
-        const b64 = 'base64://' + readFileSync(src).toString('base64')
-        const r = await onebot.call(action, { ...params, file: b64 }, { timeoutMs: FILE_TIMEOUT_MS })
-        if (disposed) return null
-        bump('sent')
-        log.info(`${chatId}：发文件「${label}」（网关看不到本机路径，改走 base64）`)
-        return r
-      } catch (error2) {
-        if (disposed) return null
-        bump('errors')
-        log.warn(`${chatId}：发文件「${label}」失败：`, error2.message || error.message)
-        throw new Error(`发文件失败：${error2.message || error.message}`)
-      }
+      first = error
+    }
+    // 网关看不到本机路径。小文件：直接把内容塞给网关；大文件（base64 太大）：开下载口让网关来取
+    const viaRelay = size > Math.min(FILE_BASE64_MAX, maxBytes)
+    if (viaRelay && cfg.files?.relay === false) {
+      bump('errors')
+      const why = first.message
+      log.warn(`${chatId}：发文件「${label}」失败：${why}；文件超过 ${FILE_BASE64_MAX / 1024 / 1024} MB，且「大文件下载口」关着`)
+      throw new Error(`发文件失败：${why}`)
+    }
+    let url = ''
+    try {
+      const file = viaRelay ? (url = await fileRelay.offer(src, label)) : 'base64://' + readFileSync(src).toString('base64')
+      const r = await onebot.call(action, { ...params, file }, { timeoutMs: FILE_TIMEOUT_MS })
+      if (disposed) return null
+      bump('sent')
+      log.info(`${chatId}：发文件「${label}」（${srcLabel}，网关看不到本机路径，改走${viaRelay ? '本机下载口' : ' base64'}）`)
+      return r
+    } catch (error2) {
+      if (disposed) return null
+      bump('errors')
+      log.warn(`${chatId}：发文件「${label}」失败：`, error2.message || first.message)
+      throw new Error(`发文件失败：${error2.message || first.message}`)
+    } finally {
+      if (url) fileRelay.revoke(url)
     }
   }
 
@@ -2351,6 +2366,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   function dispose() {
     if (disposed) return
     disposed = true
+    fileRelay.close()
     // 三审 #177：常驻的子智能体父级 agent 一并置空——插件重装/重启后下次 spawn 重新建，
     // 别攥着旧句柄不放（旧的父会话交给 DSH 自己的会话回收去清）。
     subagentParentAgent = null

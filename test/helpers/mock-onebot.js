@@ -60,7 +60,15 @@ export async function startMockOneBot({ selfId = '20000002', token = 'mock-token
       case 'upload_group_file':
         if (!params.file) throw new Error('file 不能空')
         // 模拟「网关在另一台机器上，看不到本机路径」：只认 base64，路径直接报错（用来测自动改走 base64）
-        if (state.failUploadPath && !String(params.file).startsWith('base64://')) throw new Error('file not found: ' + params.file)
+        if (state.failUploadPath && !/^(base64|https?):\/\//.test(String(params.file))) throw new Error('file not found: ' + params.file)
+        // 网址：像真网关一样去下载（测「大文件下载口」能不能取到），记下取到的字节数
+        if (/^https?:\/\//.test(String(params.file))) {
+          return fetch(params.file).then(async (r) => {
+            if (!r.ok) throw new Error('download failed: HTTP ' + r.status)
+            state.relayFetched = (await r.arrayBuffer()).byteLength
+            return { file_id: 'file-' + ++msgSeq, file_name: params.name || '' }
+          })
+        }
         return { file_id: 'file-' + ++msgSeq, file_name: params.name || '' }
       case 'send_private_msg':
       case 'send_group_msg':
@@ -127,7 +135,7 @@ export async function startMockOneBot({ selfId = '20000002', token = 'mock-token
     try {
       calls.push({ action, params, t: Date.now() }) // 记「收到请求」的时间，不是延迟之后
       await waitLogin(action)
-      const data = handle(action, params)
+      const data = await handle(action, params)
       res.end(JSON.stringify({ status: 'ok', retcode: 0, data }))
     } catch (error) {
       res.end(JSON.stringify({ status: 'failed', retcode: 100, message: error.message }))

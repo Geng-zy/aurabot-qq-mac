@@ -73,6 +73,10 @@ async function brain({ preset, text, images, callTool }) {
     const r = await callTool('qq_send_file', { file: sendFilePath, name: '发个文件.txt', target: 'group:999' })
     return r && r.ok ? '居然发了' : '发文件失败：' + (r && r.message)
   }
+  if (text.includes('发大文件测试')) {
+    const r = await callTool('qq_send_file', { file: relayFilePath, name: '大文件.bin' })
+    return r && r.ok ? '大文件发出去啦' : '发文件失败：' + (r ? r.message : '没有这个工具')
+  }
   if (text.includes('发文件测试')) {
     const r = await callTool('qq_send_file', { file: sendFilePath, name: '发个文件.txt' })
     return r && r.ok ? '文件发出去啦' : '发文件失败：' + (r ? r.message : '没有这个工具')
@@ -98,6 +102,7 @@ let dataDir
 let sendFilePath
 let bigFilePath
 let outsideFilePath
+let relayFilePath
 
 before(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'aurabot-e2e-'))
@@ -107,6 +112,7 @@ before(async () => {
   sendFilePath = join(dataDir, 'ws', '发个文件.txt')
   bigFilePath = join(dataDir, 'ws', '太大了.bin')
   outsideFilePath = join(dataDir, '外面的文件.txt')
+  relayFilePath = join(dataDir, 'ws', '大文件.bin')
   writeFileSync(sendFilePath, '这是一个测试文件')
   writeFileSync(bigFilePath, Buffer.alloc(2 * 1024 * 1024))
   writeFileSync(outsideFilePath, '不在工作区里的文件')
@@ -1039,6 +1045,44 @@ test('#52 发文件：网关看不到本机路径时，小文件自动改走 bas
     await until(() => sentTo('private', OWNER).some((c) => c.params.message.some((s) => s.type === 'text' && s.data.text === '文件发出去啦')))
   } finally {
     mock.state.failUploadPath = false
+  }
+})
+
+test('发文件：网关看不到本机路径、文件超过 30 MB 时，开本机下载口让网关来取', async () => {
+  writeFileSync(relayFilePath, Buffer.alloc(31 * 1024 * 1024, 9))
+  await fake.call('/save', { files: { relay: true, relayHost: '127.0.0.1', maxMB: 50 } })
+  mock.state.relayFetched = 0
+  mock.state.failUploadPath = true
+  try {
+    const before = mock.sent('upload_private_file').length
+    mock.push(priv(OWNER, text('发大文件测试')))
+    await until(() => mock.sent('upload_private_file').length >= before + 2)
+    const tried = mock.sent('upload_private_file').slice(before)
+    assert.equal(tried[0].params.file, relayFilePath, '先按本机路径发')
+    const url = String(tried[1].params.file)
+    assert.match(url, /^http:\/\/127\.0\.0\.1:\d+\/f\/[a-f0-9]{32}\//, '再给网关一个本机下载地址')
+    await until(() => sentTo('private', OWNER).some((c) => c.params.message.some((s) => s.type === 'text' && s.data.text === '大文件发出去啦')))
+    assert.equal(mock.state.relayFetched, 31 * 1024 * 1024, '网关从下载口取到了完整文件')
+    // 发完口令收回，地址作废
+    assert.equal((await fetch(url)).status, 404)
+  } finally {
+    mock.state.failUploadPath = false
+    await fake.call('/save', { files: { relayHost: 'host.docker.internal', maxMB: 1 } })
+  }
+})
+
+test('发文件：「大文件下载口」关掉时，超过 30 MB 又看不到路径就明确失败，不乱发', async () => {
+  writeFileSync(relayFilePath, Buffer.alloc(31 * 1024 * 1024, 9))
+  await fake.call('/save', { files: { relay: false, maxMB: 50 } })
+  mock.state.failUploadPath = true
+  try {
+    const before = mock.sent('upload_private_file').length
+    mock.push(priv(OWNER, text('发大文件测试二')))
+    await until(() => sentTo('private', OWNER).some((c) => c.params.message.some((s) => s.type === 'text' && String(s.data.text).startsWith('发文件失败'))))
+    assert.equal(mock.sent('upload_private_file').length, before + 1, '只试了本机路径，没有再发')
+  } finally {
+    mock.state.failUploadPath = false
+    await fake.call('/save', { files: { relay: true, maxMB: 1 } })
   }
 })
 
