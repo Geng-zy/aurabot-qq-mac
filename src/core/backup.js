@@ -22,6 +22,8 @@ const STORE_EXT = /\.(png|jpe?g|gif|webp|mp3|mp4|m4a|ogg|opus|webm|zip|7z|rar|pt
  * 带过去也用不了。市场模块不打包，恢复后按名单重新下载。
  */
 const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'archive-cache', 'douyin/edge-profile']
+// 仅配置备份：媒体、聊天流水和 DSH 会话都不进包，WebDAV 小空间用
+const CONFIG_ONLY_SKIP = ['imagegen', 'stickers', 'bili-shots', 'douyin', 'chatlog']
 const skipped = (rel) => SKIP.some((s) => rel === s || rel.startsWith(s + '/')) || rel.split('/').includes('node_modules') || rel.endsWith('.tmp') || rel === 'memory.sqlite-shm' || rel.startsWith('memory.sqlite.migrating')
 
 /**
@@ -29,6 +31,21 @@ const skipped = (rel) => SKIP.some((s) => rel === s || rel.startsWith(s + '/')) 
  * 恢复一份带着它们的备份时整套一起换，不让新旧两代混在一起。
  */
 const MEMORY_FILES = ['memory.sqlite', 'memory.sqlite-wal', 'memory.sqlite-shm', 'memories.json', 'memory-json-fallback.json']
+
+async function walk(root, rel = '', out = [], market = [], extraSkip = []) {
+  for (const item of await readdir(join(root, rel), { withFileTypes: true })) {
+    const path = rel ? `${rel}/${item.name}` : item.name
+    if (skipped(path) || extraSkip.some((s) => path === s || path.startsWith(s + '/')) || item.isSymbolicLink()) continue
+    // 从市场装的模块：只记名字，恢复时下载最新版
+    if (item.isDirectory() && /^modules\/[^/]+$/.test(path) && existsSync(join(root, path, SOURCE_FILE))) {
+      market.push(item.name)
+      continue
+    }
+    if (item.isDirectory()) await walk(root, path, out, market, extraSkip)
+    else if (item.isFile()) out.push(path)
+  }
+  return out
+}
 
 const backupsDir = () => dataDir('backups')
 const stageDir = () => dataDir('.restore')
@@ -49,21 +66,6 @@ export function sessionDirName(cwd) {
 function safeName(name) {
   if (!name || name.includes('\\') || name.includes('\0') || name.startsWith('/') || /^[a-zA-Z]:/.test(name)) return false
   return name.split('/').every((seg) => seg && seg !== '.' && seg !== '..')
-}
-
-async function walk(root, rel = '', out = [], market = []) {
-  for (const item of await readdir(join(root, rel), { withFileTypes: true })) {
-    const path = rel ? `${rel}/${item.name}` : item.name
-    if (skipped(path) || item.isSymbolicLink()) continue
-    // 从市场装的模块：只记名字，恢复时下载最新版
-    if (item.isDirectory() && /^modules\/[^/]+$/.test(path) && existsSync(join(root, path, SOURCE_FILE))) {
-      market.push(item.name)
-      continue
-    }
-    if (item.isDirectory()) await walk(root, path, out, market)
-    else if (item.isFile()) out.push(path)
-  }
-  return out
 }
 
 const dosTime = (d) => ({ time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() })
@@ -102,7 +104,7 @@ function centralHeader(entry) {
   return Buffer.concat([h, name])
 }
 
-/** 打包数据目录，返回 { file, name, files, bytes, skipped }。 */
+/** 打包数据目录，返回 { file, name, files, bytes, skipped }。configOnly = 只带配置、心智核心、人格等文本数据，不带画作、表情包这些媒体。 */
 /**
  * 心智核心的数据目录（相对数据目录）。目录里的文件不直接拷：库由 captureMind 给一份完整的，
  * 快照和 WAL 不带。
@@ -114,15 +116,15 @@ const inMind = (rel) => rel === MIND_DIR || rel.startsWith(MIND_DIR + '/')
  * captureMind：返回 Map<相对路径, Buffer>，由宿主接上心智核心（没接就不带心智数据）。
  * 拿不到完整的库就让备份失败，不能把缺一半的心智当成功交给主人。
  */
-export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {}, captureMind = null } = {}) {
+export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {}, captureMind = null, configOnly = false } = {}) {
   const root = dataDir()
   await mkdir(backupsDir(), { recursive: true })
   const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 13)
-  const name = `aurabot-backup-${stamp}.zip`
+  const name = `aurabot-${configOnly ? 'config' : 'backup'}-${stamp}.zip`
   const final = join(backupsDir(), name)
   const tmp = final + '.tmp'
   const market = []
-  const walked = await walk(root, '', [], market)
+  const walked = await walk(root, '', [], market, configOnly ? CONFIG_ONLY_SKIP : [])
   // 心智库在同一个同步临界区取完整字节，后续异步打包只读这份。
   // 拿不到必须让备份失败，不能把缺一半的心智当成功交给主人。
   const memoryFiles = new Map()
@@ -172,7 +174,7 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
       onProgress({ done: ++done, total })
       await new Promise((r) => setImmediate(r))
     }
-    const manifest = { schema: SCHEMA, app: 'aurabot', version, createdAt: now.toISOString(), dataDir: root, home: homedir(), workspaceDir, market, sessions: sessionFiles.length, platform: process.platform, files: entries.length, bytes, skipped: tooBig }
+    const manifest = { schema: SCHEMA, app: 'aurabot', version, createdAt: now.toISOString(), configOnly: Boolean(configOnly), dataDir: root, home: homedir(), workspaceDir, market, sessions: sessionFiles.length, platform: process.platform, files: entries.length, bytes, skipped: tooBig, excluded: configOnly ? CONFIG_ONLY_SKIP : [] }
     await put(MANIFEST, Buffer.from(JSON.stringify(manifest, null, 2)), now)
     if (entries.length > 0xffff) throw new Error('文件太多，一个备份放不下')
     const central = Buffer.concat(entries.map(centralHeader))
@@ -185,7 +187,7 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
     await fh.write(Buffer.concat([central, end]))
     await fh.close()
     await rename(tmp, final)
-    return { file: final, name, files: entries.length - 1, bytes, skipped: tooBig, market, sessions: sessionFiles.length }
+    return { file: final, name, files: entries.length - 1, bytes, skipped: tooBig, market, sessions: sessionFiles.length, configOnly: Boolean(configOnly) }
   } catch (error) {
     await fh.close().catch(() => {})
     await rm(tmp, { force: true }).catch(() => {})
