@@ -10,6 +10,8 @@ import { createHash } from 'node:crypto'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { searchSongs, songUrl, account } from './netease.js'
 import { readZip } from './zip.js'
+import { findLocalSong, MUSIC_DIR } from './local_music.js'
+import { findFfmpeg } from '../core/img.js'
 
 export const APPLIO_REPO = 'https://github.com/IAHispano/Applio.git'
 export const APPLIO_COMMIT = 'c817f1f83f689ef72e0dfeb1c17ae990b9248506'
@@ -230,6 +232,26 @@ export const SEPARATOR_FILES = {
   ],
 }
 const BUNDLED_SEP = fileURLToPath(new URL('./separator/', import.meta.url))
+const SEPARATOR_RUN = fileURLToPath(new URL('./separator_run.py', import.meta.url))
+
+/**
+ * 安装目录 bin/ 里没有 ffmpeg 时，用系统里装好的（PATH、Homebrew 等常见位置，见 core/img.js）。
+ * macOS 上很多人已经用 Homebrew 装了 ffmpeg，不必再复制一份。都找不到就保持原路径（面板显示「缺 ffmpeg」）。
+ */
+export function withSystemFfmpeg(p, { exists = existsSync, find = findFfmpeg } = {}) {
+  if (exists(p.ffmpeg)) return p
+  const sys = find()
+  return sys ? { ...p, ffmpeg: sys } : p
+}
+
+/**
+ * 怎么调人声分离：分离模型文件夹里有 extra-models.json（登记了清单外的模型，比如 Leap Xe）时，
+ * 用环境里的 Python 跑插件自带的 separator_run.py，它先把这些模型补进 audio-separator 的清单；没有就直接调 audio-separator。
+ * @returns {[string, string[]]} [程序, 参数]
+ */
+export function separatorCommand(p, args) {
+  return existsSync(join(p.separatorModels, 'extra-models.json')) ? [p.python, [SEPARATOR_RUN, ...args]] : [p.separatorExe, args]
+}
 
 /** 手动下载用的地址（面板里给用户复制，用浏览器或下载工具下好再拖进来）。 */
 export function separatorLinks(model) {
@@ -389,7 +411,8 @@ export const VOCAL_MIN_DB = -50
 /** 混音的 ffmpeg 参数。没有 inst 就是清唱，只留她的人声。 */
 export function mixArgs({ vocals, inst, vol, iv, out }) {
   const head = ['-y', '-hide_banner', '-loglevel', 'error', '-i', vocals]
-  const tail = ['-ac', '2', '-ar', '44100', '-b:a', '192k', out]
+  // 320k：发出去的是 QQ 语音条，QQ 还会再压一遍，源头码率高一点听着没那么「劣质」
+  const tail = ['-ac', '2', '-ar', '44100', '-b:a', '320k', out]
   if (!inst) return [...head, '-af', `volume=${vol},alimiter=limit=0.95`, ...tail]
   return [...head, '-i', inst, '-filter_complex', `[0:a]volume=${vol}[v];[1:a]volume=${iv}[i];[v][i]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95`, ...tail]
 }
@@ -456,7 +479,7 @@ export function explainSongError(message) {
 
 export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSung, local }) {
   const cfg = () => getConfig().song
-  const P = () => pathsOf(cfg().root || defaultRoot())
+  const P = () => withSystemFfmpeg(pathsOf(cfg().root || defaultRoot()))
   const work = () => dataDir('songs')
   // 确认过没有人声的歌（网易云 id），下次直接跳过，不用再花几分钟分离一遍
   const noVocalFile = () => join(work(), 'no-vocals.json')
@@ -703,7 +726,9 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   // PATH 分隔符：Windows 是「;」，macOS / Linux 是「:」（用错了人声分离找不到 ffmpeg）
   const pyEnv = () => {
     const p = P()
-    return { PATH: p.bin + delimiter + process.env.PATH, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
+    // ffmpeg 用的是系统里的（不在 bin/）时，把它所在的文件夹也放进 PATH，人声分离才找得到
+    const dirs = [p.bin, ...(dirname(p.ffmpeg) !== p.bin ? [dirname(p.ffmpeg)] : [])]
+    return { PATH: [...dirs, process.env.PATH].join(delimiter), PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
   }
 
   async function ffprobeDuration(file) {
@@ -734,6 +759,16 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   async function download(job, dir) {
     const c = cfg()
     if (job.songId && noVocals().includes(String(job.songId))) throw new Error('这首没有人声（像是纯音乐或伴奏版），换一首吧')
+    // 先在本地音乐文件夹里找原唱：找到就用本地文件（音质好、不用会员），找不到再去网易云
+    if (!job.songId && c.localMusic !== false) {
+      const hit = findLocalSong(job.query, { dir: c.localMusicDir || MUSIC_DIR, skip: job.skip || [] })
+      if (hit) {
+        job.title = hit.artists ? `${hit.title} - ${hit.artists}` : hit.title
+        job.songKey = 'local:' + hit.path
+        log.info(`翻唱：「${job.query}」用本地原唱 ${hit.path}${hit.artistHit ? '' : '（歌手没对上，按歌名用）'}`)
+        return hit.path
+      }
+    }
     let pick = job.songId ? { id: job.songId, name: job.query, artists: '' } : null
     if (!pick) {
       const found = await searchSongs(job.query, { cookie: c.neteaseCookie, limit: 10 })
@@ -769,7 +804,9 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     mkdirSync(p.separatorModels, { recursive: true })
     const model = cfg().separatorModel
     await ensureReadable((SEPARATOR_FILES[model] || [[model]]).map(([n]) => join(p.separatorModels, n)))
-    await run(p.separatorExe, [input, '--model_filename', model, '--model_file_dir', p.separatorModels, '--output_dir', dir, '--output_format', 'WAV'], { log, env: pyEnv(), timeoutMs: 20 * 60_000 })
+    const args = [input, '--model_filename', model, '--model_file_dir', p.separatorModels, '--output_dir', dir, '--output_format', 'WAV']
+    const [cmd, argv] = separatorCommand(p, args)
+    await run(cmd, argv, { log, env: pyEnv(), timeoutMs: 20 * 60_000 })
     const files = readdirSync(dir)
     const vocals = files.find((f) => /\(vocals\)/i.test(f))
     const inst = files.find((f) => /\(instrumental\)/i.test(f) || /\(other\)/i.test(f))
@@ -777,12 +814,13 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return { vocals: join(dir, vocals), inst: join(dir, inst) }
   }
 
-  async function convert(vocals, dir, voice, pitch) {
+  async function convert(vocals, dir, voice, pitch, duet = false) {
     const p = P()
     const out = join(dir, 'vocals_rvc.wav')
     if (local?.active('song')) {
       const { fileOf } = await import('../local/local.js')
-      const r = await local.call('song', { input: vocals, output: out, pitch, voice: voice?.id || '', voiceFile: voice?.pth || '', indexFile: voice?.index || '' })
+      // duet：点歌时说了「对唱」，本地换声脚本可以先分男女声再换（脚本不认这个参数就忽略）
+      const r = await local.call('song', { input: vocals, output: out, pitch, duet, voice: voice?.id || '', voiceFile: voice?.pth || '', indexFile: voice?.index || '' })
       const file = fileOf(r) || out
       if (!existsSync(file)) throw new Error('本地换声脚本没写出文件：' + file)
       return file
@@ -848,7 +886,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   async function fade(mixed, dir, length) {
     const out = join(dir, 'voice.mp3')
     await run(P().ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', mixed,
-      '-af', `afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, length - 3)}:d=3`, '-b:a', '128k', out], { log })
+      '-af', `afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, length - 3)}:d=3`, '-b:a', '320k', out], { log })
     return out
   }
 
@@ -863,7 +901,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     const song = job.file || (await download(job, dir))
     // 同一首歌、同一个音色、音高和截取方式做过的，直接复用
     // v2：0.6.2 起才检查有没有人声，之前缓存的可能是只有伴奏的成品，一律不用
-    const key = createHash('md5').update(['v2', job.songKey || song, local?.active('song') ? 'local:' + (voice?.id || '') : voice.id, pitch, c.maxVoiceSec, c.clipStart, ...(job.acapella ? ['acapella'] : [])].join('|')).digest('hex').slice(0, 16)
+    const key = createHash('md5').update(['v2', job.songKey || song, local?.active('song') ? 'local:' + (voice?.id || '') : voice.id, pitch, c.maxVoiceSec, c.clipStart, ...(job.acapella ? ['acapella'] : []), ...(job.duet ? ['duet'] : [])].join('|')).digest('hex').slice(0, 16)
     const cached = join(work(), 'cache', key + '.mp3')
     if (existsSync(cached)) {
       log.info(`翻唱：「${job.title}」做过了，直接用缓存`)
@@ -886,7 +924,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       return process1(job)
     }
     current.stage = '换成她的声音'
-    const converted = await convert(vocals, dir, voice, pitch)
+    const converted = await convert(vocals, dir, voice, pitch, job.duet)
     current.stage = '混音'
     const mixed = await mix(converted, job.acapella ? null : inst, dir)
     const out = part.cut ? await fade(mixed, dir, part.length) : mixed
@@ -922,14 +960,14 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   }
 
   /** 点一首：马上返回，做好了自己发到聊天里。 */
-  function request({ song, songId, file, pitch, voice, chatId, acapella }) {
+  function request({ song, songId, file, pitch, voice, chatId, acapella, duet }) {
     const c = cfg()
     if (!c.enabled) return { ok: false, message: '翻唱还没打开（面板「翻唱」标签里开）' }
     const st = status()
     if (!st.ready) return { ok: false, message: '翻唱环境还没装好：' + st.message }
     if (!song && !songId && !file) return { ok: false, message: '要说唱哪首歌' }
     if (queue.length >= 5) return { ok: false, message: '排队的歌太多了，等会儿再点' }
-    queue.push({ query: song || basename(file || ''), songId, file, pitch, voice, chatId, acapella: Boolean(acapella) })
+    queue.push({ query: song || basename(file || ''), songId, file, pitch, voice, chatId, acapella: Boolean(acapella), duet: Boolean(duet) })
     const ahead = queue.length - 1 + (current ? 1 : 0)
     pump()
     return { ok: true, message: `开始准备「${song || basename(file || '')}」，大概要两三分钟${ahead ? `（前面还有 ${ahead} 首）` : ''}，做好了会直接发语音` }

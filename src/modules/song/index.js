@@ -35,13 +35,13 @@ export default {
     // 面板里打开了才给她（没开就别让她答应唱歌）
     api.tool(({ chat, sessionId }) => (api.config().song.enabled && chat.kind !== 'system' ? defineTool({
       name: 'qq_song_cover',
-      description: '用你自己的声音翻唱一首歌，做好后自动以语音条发到当前聊天（要两三分钟，调用后先简单回一句「等我一下」就好）。song 照点歌的人原话写：只说了歌名就只写歌名（会用网易云搜索结果的第一首），说了歌手或版本（比如「小幸运 田馥甄」「Live 版」）才带上，不要自己猜着加歌手。pitch 是变调半音：你是女声，原唱是男声时一般 +12，原唱是女声时 0。别人说清唱、不要伴奏时 acapella 填 true。',
-      properties: { song: str('歌名；对方说了歌手 / 版本才带上，别自己加'), pitch: int('变调半音：原唱男声 +12，女声 0'), acapella: bool('清唱：只留人声，不要伴奏') },
+      description: '用你自己的声音翻唱一首歌，做好后自动以语音条发到当前聊天（要两三分钟，调用后先简单回一句「等我一下」就好）。song 照点歌的人原话写：只说了歌名就只写歌名（会用网易云搜索结果的第一首），说了歌手或版本（比如「小幸运 田馥甄」「Live 版」）才带上，不要自己猜着加歌手。pitch 是变调半音：你是女声，原唱是男声时一般 +12，原唱是女声时 0。别人说清唱、不要伴奏时 acapella 填 true。点歌的人明确说了「对唱」「男女对唱」时 duet 填 true（本地换声脚本会先把男声、女声分开各自唱，换人处不破音，多花两三分钟）；没说就别填。',
+      properties: { song: str('歌名；对方说了歌手 / 版本才带上，别自己加'), pitch: int('变调半音：原唱男声 +12，女声 0'), acapella: bool('清唱：只留人声，不要伴奏'), duet: bool('男女对唱：点歌的人说了「对唱」「男女对唱」才填 true') },
       required: ['song'],
       slow: '好，我这就去弄，稍等一会儿（做好了发你）。',
-      execute: async ({ song: name, pitch, acapella }) => {
+      execute: async ({ song: name, pitch, acapella, duet }) => {
         if (api.config().song.ownerOnly && !hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人能点歌' }
-        return song.request({ song: name, pitch, acapella, chatId: chat.chatId })
+        return song.request({ song: name, pitch, acapella, duet, chatId: chat.chatId })
       },
     }) : []))
 

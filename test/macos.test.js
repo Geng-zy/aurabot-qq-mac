@@ -5,6 +5,8 @@ import { mkdtempSync, rmSync, existsSync, statSync, readFileSync } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { deflateRawSync } from 'node:zlib'
+import * as fsMod from 'node:fs'
+const require_fs = () => fsMod
 
 const root = mkdtempSync(join(tmpdir(), 'aurabot-macos-'))
 process.env.AURABOT_DATA_DIR = root
@@ -116,4 +118,40 @@ test('归档路径：放行系统自带（root 的）链接，用户建的链接
   assert.equal(isSystemLink({ uid: 0 }, 'darwin'), true)
   assert.equal(isSystemLink({ uid: 501 }, 'darwin'), false)
   assert.equal(isSystemLink({ uid: 0 }, 'win32'), false)
+})
+
+test('自定义分离模型：有 extra-models.json 才走插件自带的 separator_run.py，否则直接调 audio-separator', () => {
+  const { mkdirSync, writeFileSync } = require_fs()
+  const p = studio.pathsOf(join(root, 'rvc-sep'), 'darwin')
+  mkdirSync(p.separatorModels, { recursive: true })
+  const args = ['in.wav', '--model_filename', 'm.ckpt']
+  assert.deepEqual(studio.separatorCommand(p, args), [p.separatorExe, args])
+  writeFileSync(join(p.separatorModels, 'extra-models.json'), '{}')
+  const [cmd, argv] = studio.separatorCommand(p, args)
+  assert.equal(cmd, p.python)
+  assert.match(argv[0], /separator_run\.py$/)
+  assert.deepEqual(argv.slice(1), args)
+})
+
+test('ffmpeg：安装目录里没有就用系统里的，都没有保持原样', () => {
+  const p = studio.pathsOf('/x/rvc', 'darwin')
+  assert.equal(studio.withSystemFfmpeg(p, { exists: () => true, find: () => '/opt/homebrew/bin/ffmpeg' }).ffmpeg, '/x/rvc/bin/ffmpeg')
+  assert.equal(studio.withSystemFfmpeg(p, { exists: () => false, find: () => '/opt/homebrew/bin/ffmpeg' }).ffmpeg, '/opt/homebrew/bin/ffmpeg')
+  assert.equal(studio.withSystemFfmpeg(p, { exists: () => false, find: () => '' }).ffmpeg, '/x/rvc/bin/ffmpeg')
+})
+
+test('本地原唱：按「歌名 - 歌手[专辑]」认文件；歌名对上就用，同名优先歌手对上的；不误配前缀相同的歌', async () => {
+  const { mkdirSync, writeFileSync } = require_fs()
+  const { findLocalSong, parseName } = await import('../src/song/local_music.js')
+  const dir = join(root, 'music')
+  mkdirSync(join(dir, 'sub'), { recursive: true })
+  for (const n of ['小幸运 - 田馥甄[我的少女时代].flac', '演员 - 薛之谦[绅士].flac', '演员表 - 某人.mp3', 'sub/小幸运 - 翻唱者.mp3', 'note.txt']) writeFileSync(join(dir, n), 'x')
+  assert.deepEqual(parseName('春娇与志明 - 街道办GDC&欧阳耀莹[春娇与志明].flac').title, '春娇与志明')
+  assert.match(findLocalSong('小幸运', { dir }).path, /小幸运/)
+  assert.match(findLocalSong('小幸运 田馥甄', { dir }).path, /田馥甄/)
+  assert.match(findLocalSong('演员', { dir }).path, /演员 - 薛之谦/)
+  assert.match(findLocalSong('演员表', { dir }).path, /演员表/)
+  assert.equal(findLocalSong('不存在的歌', { dir }), null)
+  const first = findLocalSong('演员', { dir }).path
+  assert.equal(findLocalSong('演员', { dir, skip: ['local:' + first] }), null, '试过不行的不再用')
 })

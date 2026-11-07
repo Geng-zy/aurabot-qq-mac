@@ -264,6 +264,8 @@ export const DEFAULTS = {
     ownerOnly: true, // 只有主人能点歌
     keepWork: false, // 留着中间文件（调试用）
     pypiMirror: 'auto', // 安装时用的下载源：auto = 先测一下，官方源慢就用国内镜像；cn = 一直用国内镜像；off = 只用官方源
+    localMusic: true, // 点歌先在本地音乐文件夹里找原唱（文件名「歌名 - 歌手[专辑]」），找不到再去网易云
+    localMusicDir: '', // 本地音乐文件夹，留空 = 用户目录下的「音乐 / Music」
   },
   tabs: {}, // 面板记住的小偏好
   // 模块：内置的和数据目录 modules/ 里自己写的。{ 模块id: { enabled, useBuiltin } }，没写的算开着
@@ -631,6 +633,8 @@ export function normalize(raw) {
   c.song.pypiMirror = { '': 'auto', tuna: 'cn' }[c.song.pypiMirror] ?? c.song.pypiMirror
   if (!['auto', 'cn', 'off'].includes(c.song.pypiMirror)) c.song.pypiMirror = 'auto'
   c.song.root = String(c.song.root || '').trim()
+  c.song.localMusic = bool(c.song.localMusic, true)
+  c.song.localMusicDir = String(c.song.localMusicDir || '').trim()
   if (!isObj(c.modules)) c.modules = {}
   for (const [id, m] of Object.entries(c.modules)) {
     if (!isObj(m)) { delete c.modules[id]; continue }
