@@ -29,9 +29,15 @@ export function repoOf(pkg) {
   return m ? `${m[1]}/${m[2]}` : ''
 }
 
-/** 更新命令：把安装命令再跑一次就会拉到最新版。 */
-export function updateCommand(repo, channel = 'main') {
-  return `& "$env:LOCALAPPDATA\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd" plugin --profile desktop add github:${repo}${channel === 'main' ? '' : '#' + channel}`
+/**
+ * 更新命令：把安装命令再跑一次就会拉到最新版。
+ * Windows 给 PowerShell 命令；macOS 用 DSH.app 自带的命令行（终端里直接粘贴）；Linux 假设 dsh 在 PATH 里。
+ */
+export function updateCommand(repo, channel = 'main', platform = process.platform) {
+  const args = `plugin --profile desktop add github:${repo}${channel === 'main' ? '' : '#' + channel}`
+  if (platform === 'win32') return `& "$env:LOCALAPPDATA\\Programs\\DeepSeek Harness\\resources\\runtime\\cli\\bin\\dsh.cmd" ${args}`
+  if (platform === 'darwin') return `"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" ${args}`
+  return `dsh ${args}`
 }
 
 export function createUpdateChecker({ pkg, log, fetchImpl = fetch, unstable = () => null }) {

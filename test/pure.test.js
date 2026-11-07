@@ -372,12 +372,15 @@ test('#6 头像来源：显式网址直接给网关；「刚才那张」和「�
   assert.equal(avatarSource('base64://AAAA').ok, false)
 })
 
-test('#28 QQ 网关：默认 SnowLuma；接自己的 OneBot 机器人时用 onebot；乱填的回到 SnowLuma', async () => {
+test('#28 QQ 网关：Windows 默认 SnowLuma、macOS / Linux 默认 onebot；接自己的 OneBot 机器人时用 onebot；乱填的回到默认', async () => {
   const { normalize } = await import('../src/core/config.js')
-  assert.equal(normalize({}).gateway, 'snowluma')
+  // SnowLuma 只有 Windows 版插件能管；别的系统默认接自己的 OneBot（比如 Docker 里的 SnowLuma）
+  const def = process.platform === 'win32' ? 'snowluma' : 'onebot'
+  assert.equal(normalize({}).gateway, def)
+  assert.equal(normalize({ gateway: 'snowluma' }).gateway, 'snowluma')
   assert.equal(normalize({ gateway: 'onebot', snowluma: { wsUrl: 'ws://napcat:3001' } }).gateway, 'onebot')
   assert.equal(normalize({ gateway: 'onebot', snowluma: { wsUrl: 'ws://napcat:3001' } }).snowluma.wsUrl, 'ws://napcat:3001')
-  assert.equal(normalize({ gateway: 'whatever' }).gateway, 'snowluma')
+  assert.equal(normalize({ gateway: 'whatever' }).gateway, def)
 })
 
 test('#32 工作区位置：面板填的绝对路径优先，相对路径 / 乱填的当没填', async () => {

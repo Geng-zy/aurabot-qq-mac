@@ -1,6 +1,6 @@
 // 文字 → 语音文件。
 //   首选：edge-tts（微软在线朗读，音色好），装在插件自己的 Python 虚拟环境 C:\Aurabot\pyenv 里，不污染系统。
-//   兜底：Windows 自带的中文语音（System.Speech / Huihui），什么都不装也能用（只有 Windows 有）。
+//   兜底：系统自带的中文语音，什么都不装也能用——Windows 是 System.Speech / Huihui，macOS 是 say（Tingting 等）。
 // 管线：文字 → TTS → 文件路径。任何一步失败由调用方退回发文字。（RVC 音色目前用在翻唱上，见 src/song/）
 
 import { spawn } from 'node:child_process'
@@ -13,8 +13,11 @@ import { dataDir } from '../core/store.js'
 
 // edge-tts 的私有 Python 环境，一键安装时自动创建。老安装沿用 C:\Aurabot\pyenv；新安装放在用户目录下
 const LEGACY_PYENV = 'C:\\Aurabot\\pyenv'
-export const PYENV_DIR = process.env.AURABOT_PYENV || (existsSync(LEGACY_PYENV) ? LEGACY_PYENV : join(homedir(), 'Aurabot', 'pyenv'))
 const WIN = process.platform === 'win32'
+const MAC = process.platform === 'darwin'
+export const PYENV_DIR = process.env.AURABOT_PYENV || (WIN && existsSync(LEGACY_PYENV) ? LEGACY_PYENV : join(homedir(), 'Aurabot', 'pyenv'))
+/** 兜底用的系统语音叫什么（写日志 / 提示用）。 */
+const SYSTEM_VOICE = MAC ? ' macOS 自带语音' : ' Windows 语音'
 // 虚拟环境的目录结构 Windows 和 Linux / macOS 不一样
 const pyExe = () => (WIN ? join(PYENV_DIR, 'Scripts', 'python.exe') : join(PYENV_DIR, 'bin', 'python'))
 
@@ -107,8 +110,9 @@ export async function installEdge(log) {
 async function findOrFetchUv(log) {
   if (process.env.AURABOT_UV) return process.env.AURABOT_UV
   if ((await run('uv', ['--version'], { timeoutMs: 15000 })).code === 0) return 'uv'
-  // Linux / macOS：只找装好的（官方安装脚本默认放 ~/.local/bin 或 ~/.cargo/bin），不自动下载
-  if (!WIN) return [join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')].find((p) => existsSync(p)) || ''
+  // Linux / macOS：只找装好的（官方安装脚本默认放 ~/.local/bin 或 ~/.cargo/bin；Homebrew 放 /opt/homebrew/bin 或 /usr/local/bin；
+  // 翻唱一键安装下的放 ~/Aurabot/rvc/bin），不自动下载。从程序坞打开的 DSH，PATH 里通常没有 Homebrew。
+  if (!WIN) return [join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv'), '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), 'Aurabot', 'rvc', 'bin', 'uv')].find((p) => existsSync(p)) || ''
   const local = join(dirname(PYENV_DIR), 'bin', 'uv.exe')
   for (const p of [local, join('C:\\Aurabot', 'rvc', 'bin', 'uv.exe'), join(homedir(), 'Aurabot', 'rvc', 'bin', 'uv.exe')]) if (existsSync(p)) return p
   log?.info('下载 uv …')
@@ -140,6 +144,26 @@ async function edgeSynth(text, voice, rate, pitch) {
   if (r.code !== 0 || !existsSync(file) || statSync(file).size < 500) {
     throw new Error('edge-tts 失败：' + (r.err || r.out).slice(-200))
   }
+  return file
+}
+
+/** 从 `say -v '?'` 的输出里挑一个中文（中国大陆）声音：优先 Tingting（女声），再按列表顺序。没有返回 ''。 */
+export function pickMacVoice(list) {
+  const zh = String(list || '').split('\n').filter((l) => /\bzh_CN\b/.test(l)).map((l) => l.split(/\s{2,}|\s+zh_/)[0].trim()).filter(Boolean)
+  return zh.find((v) => /^Tingting\b/i.test(v)) || zh[0] || ''
+}
+
+/** macOS 自带语音：say 念成 AIFF，再用 afconvert 转成 24 kHz 16 位 WAV（两个都是系统自带命令）。 */
+async function macSynth(text) {
+  const id = randomUUID()
+  const aiff = join(outDir(), `${id}.aiff`)
+  const file = join(outDir(), `${id}.wav`)
+  const voice = pickMacVoice((await run('say', ['-v', '?'], { timeoutMs: 15000 })).out)
+  const r = await run('say', [...(voice ? ['-v', voice] : []), '-o', aiff, '-f', '-'], { timeoutMs: 60000, input: text })
+  if (!existsSync(aiff)) throw new Error('macOS 语音失败：' + r.err.slice(-200))
+  const c = await run('afconvert', ['-f', 'WAVE', '-d', 'LEI16@24000', aiff, file], { timeoutMs: 60000 })
+  try { unlinkSync(aiff) } catch (error) {}
+  if (!existsSync(file) || statSync(file).size < 1000) throw new Error('macOS 语音转换失败：' + (c.err || r.err).slice(-200))
   return file
 }
 
@@ -293,19 +317,24 @@ export async function textToSpeech(text, opt = {}, log) {
       file = await local(clean, opt[opt.engine] || {})
       engine = opt.engine
     } catch (error) {
-      log?.warn(`${opt.engine} 失败：${error.message} → 改用 Windows 语音`)
+      log?.warn(`${opt.engine} 失败：${error.message} → 改用${SYSTEM_VOICE}`)
     }
   } else if (opt.engine !== 'windows' && edgeInstalled()) {
     try {
       file = await edgeSynth(clean, opt.voice || 'zh-CN-XiaoyiNeural', opt.rate, opt.pitch)
       engine = 'edge'
     } catch (error) {
-      log?.warn(error.message, '→ 改用 Windows 语音')
+      log?.warn(error.message, '→ 改用' + SYSTEM_VOICE)
     }
   }
   if (!file) {
-    if (!WIN) throw new Error('语音没合成出来：Linux / macOS 上没有 Windows 自带语音可以兜底，先在「语音」页装好 edge-tts，或者用本地 TTS 服务')
-    file = await windowsSynth(clean)
+    // 系统自带语音兜底：Windows 是 System.Speech，macOS 是 say（配置里的引擎名仍叫 windows，兼容老配置）
+    if (MAC) {
+      file = await macSynth(clean)
+    } else {
+      if (!WIN) throw new Error('语音没合成出来：Linux 上没有系统自带语音可以兜底，先在「语音」页装好 edge-tts，或者用本地 TTS 服务')
+      file = await windowsSynth(clean)
+    }
     engine = 'windows'
   }
   for (const conv of voiceConverters) {

@@ -2,8 +2,8 @@
 // 推理引擎用 Applio（MIT，固定版本），人声分离用 audio-separator，都装在一个独立的 Python 环境里，不碰系统环境。
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync } from 'node:fs'
-import { join, basename, dirname, isAbsolute } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync, chmodSync } from 'node:fs'
+import { join, basename, dirname, isAbsolute, delimiter, resolve as resolvePath, sep, win32 as winPath } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import { createHash } from 'node:crypto'
@@ -56,13 +56,47 @@ async function downloadWithMirror(python, rel, dest, note, log, onProgress) {
   return fetchFile(python, dest, HF_HOSTS.map((host) => `${host}/IAHispano/Applio/resolve/main/Resources/${rel}`), note, log, onProgress, rel)
 }
 
-// uv 的下载源：PyPI 上的 uv 安装包（固定版本，里面带 uv.exe）走国内镜像，最后才试 GitHub。
-const UV_WHEEL = 'packages/32/ea/771744a784b16aa21d195cb5d5d5a2878d72fa00fc26f11ea3f9646994fe/uv-0.13.5-py3-none-win_amd64.whl'
-export const UV_SOURCES = [
-  { url: `https://mirrors.aliyun.com/pypi/${UV_WHEEL}`, sha256: '1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f' },
-  { url: `https://files.pythonhosted.org/${UV_WHEEL}`, sha256: '1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f' },
-  { url: 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip' },
-]
+// uv 的下载源：PyPI 上的 uv 安装包（固定版本 0.13.5，wheel 就是 zip，里面带 uv 程序）走国内镜像，最后才试 GitHub。
+// Windows / macOS（Apple 芯片、Intel）各一份，校验值取自 PyPI 官方。
+const UV_WHEELS = {
+  'win32-x64': ['packages/32/ea/771744a784b16aa21d195cb5d5d5a2878d72fa00fc26f11ea3f9646994fe/uv-0.13.5-py3-none-win_amd64.whl', '1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f', 'uv-x86_64-pc-windows-msvc.zip'],
+  'darwin-arm64': ['packages/d2/26/9ac45211123244ea68be852775093af487a64debc13621a2de239f8ebe73/uv-0.13.5-py3-none-macosx_11_0_arm64.whl', 'a42c85fa8156e1e5e2cecdbc77bb818ea1dcf5f78b8e2a8f84c7fe4f16f0702e', ''],
+  'darwin-x64': ['packages/e3/2a/dcae794203261e49564bb9ff7c4b64a093f69ac73476cc8ce54c1deed3a1/uv-0.13.5-py3-none-macosx_10_12_x86_64.whl', '337a14829bb499e114989df4f908f134ff37f1fb6c33497541cfb05b28080e39', ''],
+}
+/** 这台电脑能用的 uv 下载源（按顺序试）；没有对应的安装包时返回空数组。 */
+export function uvSources(platform = process.platform, arch = process.arch) {
+  const hit = UV_WHEELS[`${platform}-${arch}`] || (platform === 'win32' ? UV_WHEELS['win32-x64'] : null)
+  if (!hit) return []
+  const [wheel, sha256, ghZip] = hit
+  return [
+    { url: `https://mirrors.aliyun.com/pypi/${wheel}`, sha256 },
+    { url: `https://files.pythonhosted.org/${wheel}`, sha256 },
+    ...(ghZip ? [{ url: `https://github.com/astral-sh/uv/releases/latest/download/${ghZip}` }] : []),
+  ]
+}
+export const UV_SOURCES = uvSources()
+
+const IS_WIN = process.platform === 'win32'
+/** 可执行文件名：Windows 带 .exe，macOS / Linux 不带。 */
+export const exeName = (name, platform = process.platform) => (platform === 'win32' ? name + '.exe' : name)
+
+/**
+ * 把 zip 解到目录里（不靠 PowerShell，各系统通用）。拒绝跳出目标目录的路径；
+ * bin/ 里的文件和没有扩展名的程序（uv、ffmpeg 等）加上可执行权限。
+ */
+export function extractZip(buf, dir) {
+  const root = resolvePath(dir)
+  mkdirSync(root, { recursive: true })
+  for (const f of readZip(buf)) {
+    const dest = resolvePath(root, f.name.replace(/\\/g, '/'))
+    if (dest !== root && !dest.startsWith(root + sep)) throw new Error(`压缩包里有越界路径：${f.name}`)
+    mkdirSync(dirname(dest), { recursive: true })
+    writeFileSync(dest, f.data)
+    if (!IS_WIN && (/(^|\/)(bin|scripts)\//i.test(f.name) || !/\.[a-z0-9]{1,5}$/i.test(basename(f.name)))) {
+      try { chmodSync(dest, 0o755) } catch (error) {}
+    }
+  }
+}
 
 /** 在目录里（含子目录）找一个文件名。 */
 function findFile(dir, name) {
@@ -144,9 +178,9 @@ export function dirSize(dir) {
   return total
 }
 
-/** 翻唱环境的根目录：老安装沿用 C:\Aurabot\rvc，新安装放用户目录下。 */
+/** 翻唱环境的根目录：Windows 老安装沿用 C:\Aurabot\rvc，新安装放用户目录下（macOS 是 ~/Aurabot/rvc）。 */
 export function defaultRoot() {
-  return existsSync(LEGACY_ROOT) ? LEGACY_ROOT : join(homedir(), 'Aurabot', 'rvc')
+  return IS_WIN && existsSync(LEGACY_ROOT) ? LEGACY_ROOT : join(homedir(), 'Aurabot', 'rvc')
 }
 
 /**
@@ -163,6 +197,16 @@ export function explainInstallError(msg) {
   if (/CUDA|nvidia|GPU/i.test(m)) return '和显卡驱动有关，可能需要更新 NVIDIA 驱动。' + m.slice(0, 160)
   return m.slice(0, 300)
 }
+
+/**
+ * 人声分离装哪个版本：Windows 用 [gpu]（NVIDIA 显卡加速）；macOS 没有 NVIDIA 显卡，[gpu] 依赖的 onnxruntime-gpu
+ * 在 Mac 上根本装不了，用 [cpu]（PyTorch 在 Apple 芯片上仍会走 MPS 加速）。
+ */
+export const installExtras = (platform = process.platform) => [platform === 'darwin' ? 'audio-separator[cpu]' : 'audio-separator[gpu]']
+
+/** PyTorch 从哪下：CUDA 版只有 Windows / Linux 有；macOS 用 PyPI 上的官方版（自带 Apple 芯片加速）。 */
+export const torchSource = (cn, platform = process.platform) =>
+  platform === 'darwin' ? [] : cn ? ['--find-links', CN_TORCH] : ['--extra-index-url', TORCH_INDEX]
 
 /** 安装的几步（面板按这个画步骤条）。 */
 export const INSTALL_STEPS = ['创建 Python 环境', '下载 Applio（RVC 推理引擎）', '安装 PyTorch、RVC 和人声分离（最大的一步）', '准备 ffmpeg', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
@@ -213,8 +257,10 @@ export function importSeparator(dir, filename, buf) {
 const SEPARATOR_LIST = ['download_checks.json', ['https://raw.githubusercontent.com/TRvlvr/application_data/main/filelists/download_checks.json', 'https://cdn.jsdelivr.net/gh/TRvlvr/application_data@main/filelists/download_checks.json']]
 
 /** 电脑上的盘和剩余空间，给面板「装到哪个盘」用：[{drive, root, freeGB, totalGB}] */
-export function listDrives() {
+export function listDrives(platform = process.platform) {
   const out = []
+  // 只有 Windows 有盘符；macOS / Linux 面板里直接填路径
+  if (platform !== 'win32') return out
   for (const L of 'CDEFGHIJKLMNOPQRSTUVWXYZ') {
     const d = `${L}:\\`
     try {
@@ -228,10 +274,14 @@ export function listDrives() {
   return out
 }
 
-export function checkRoot(path) {
+/** 面板里「装到哪里」的示例路径。 */
+export const rootExample = (platform = process.platform) => (platform === 'win32' ? 'D:\\Aurabot\\rvc' : join(homedir(), 'Aurabot', 'rvc'))
+
+export function checkRoot(path, platform = process.platform) {
   const p = String(path || '').trim()
   if (!p) return { ok: true, path: '', message: '', warn: '', freeGB: null }
-  if (!isAbsolute(p) || !/^[A-Za-z]:\\/.test(p.replace(/\//g, '\\'))) return { ok: false, path: p, message: '要写完整路径，比如 D:\\Aurabot\\rvc', warn: '', freeGB: null }
+  const absolute = platform === 'win32' ? winPath.isAbsolute(p) && /^[A-Za-z]:\\/.test(p.replace(/\//g, '\\')) : p.startsWith('/')
+  if (!absolute) return { ok: false, path: p, message: `要写完整路径，比如 ${rootExample(platform)}`, warn: '', freeGB: null }
   const warn = /[^\x21-\x7e]/.test(p) ? '路径里有中文或空格，个别工具可能出问题，最好换成全英文、不带空格的路径' : ''
   let freeGB = null
   try {
@@ -244,16 +294,19 @@ export function checkRoot(path) {
   return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个盘只剩 ${freeGB} GB，装完要 8 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
 }
 
-export function pathsOf(root) {
+/** 翻唱环境里各个程序的位置。Windows 的虚拟环境放在 Scripts\，macOS / Linux 放在 bin/。 */
+export function pathsOf(root, platform = process.platform) {
+  const win = platform === 'win32'
+  const envBin = join(root, 'env', win ? 'Scripts' : 'bin')
   return {
     root,
-    python: join(root, 'env', 'Scripts', 'python.exe'),
-    separatorExe: join(root, 'env', 'Scripts', 'audio-separator.exe'),
+    python: join(envBin, exeName('python', platform)),
+    separatorExe: join(envBin, exeName('audio-separator', platform)),
     applio: join(root, 'Applio'),
     models: join(root, 'models'),
     separatorModels: join(root, 'separator-models'),
     bin: join(root, 'bin'),
-    ffmpeg: join(root, 'bin', 'ffmpeg.exe'),
+    ffmpeg: join(root, 'bin', exeName('ffmpeg', platform)),
     rmvpe: join(root, 'Applio', 'rvc', 'models', 'predictors', 'rmvpe.pt'),
     contentvec: join(root, 'Applio', 'rvc', 'models', 'embedders', 'contentvec', 'pytorch_model.bin'),
   }
@@ -510,8 +563,8 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       await step('安装 PyTorch、RVC 和人声分离（最大的一步）', '要下载约 3~4 GB，看网速一般 10~40 分钟；下面的「已下载」在涨就说明没卡住', async () => {
         const stop = watchDownload(cacheDir)
         try {
-          await run(uv, ['pip', 'install', '--python', p.python, '-r', join(p.applio, 'requirements-engine.txt'), 'audio-separator[gpu]', 'imageio-ffmpeg',
-            ...mirror, ...(cn ? ['--find-links', CN_TORCH] : ['--extra-index-url', TORCH_INDEX]), '--index-strategy', 'unsafe-best-match'], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+          await run(uv, ['pip', 'install', '--python', p.python, '-r', join(p.applio, 'requirements-engine.txt'), ...installExtras(), 'imageio-ffmpeg',
+            ...mirror, ...torchSource(cn), '--index-strategy', 'unsafe-best-match'], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
         } finally {
           stop()
         }
@@ -554,46 +607,62 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     rmSync(dest, { force: true })
     const stop = watchDownload(dirname(dest))
     try {
-      await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-        "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri $env:AB_URL -OutFile $env:AB_OUT -UseBasicParsing -TimeoutSec $env:AB_TIMEOUT"],
-      { log, env: { AB_URL: url, AB_OUT: dest, AB_TIMEOUT: String(timeoutSec) }, timeoutMs: (timeoutSec + 60) * 1000 })
+      if (IS_WIN) {
+        await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+          "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri $env:AB_URL -OutFile $env:AB_OUT -UseBasicParsing -TimeoutSec $env:AB_TIMEOUT"],
+        { log, env: { AB_URL: url, AB_OUT: dest, AB_TIMEOUT: String(timeoutSec) }, timeoutMs: (timeoutSec + 60) * 1000 })
+      } else {
+        // macOS / Linux 自带 curl（同样走系统代理环境变量）
+        await run('curl', ['-fL', '--retry', '3', '--max-time', String(timeoutSec), '-o', dest, url], { log, timeoutMs: (timeoutSec + 60) * 1000 })
+      }
     } finally {
       stop()
     }
     if (!existsSync(dest) || !statSync(dest).size) throw new Error('下载失败：' + url)
   }
 
-  /** 解压 zip（用 Windows 自带的 Expand-Archive）。 */
+  /** 解压 zip：Windows 用自带的 Expand-Archive；macOS / Linux 用插件自带的解压（不依赖外部工具）。 */
   async function expandZip(zip, dir) {
     mkdirSync(dir, { recursive: true })
+    if (!IS_WIN) return extractZip(readFileSync(zip), dir)
     await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Expand-Archive -LiteralPath $env:AB_ZIP -DestinationPath $env:AB_DIR -Force'],
       { log, env: { AB_ZIP: zip, AB_DIR: dir }, timeoutMs: 10 * 60_000 })
   }
 
-  /** 准备 uv（装 Python 和各种包的工具）：电脑上有就用，没有就下一个放进安装目录。 */
+  /**
+   * 准备 uv（装 Python 和各种包的工具）：电脑上有就用，没有就下一个放进安装目录。
+   * macOS 上 DSH 是从程序坞打开的，PATH 里通常没有 Homebrew，所以再看看几个常见位置。
+   */
   async function ensureUv(note) {
     if (process.env.AURABOT_UV) return process.env.AURABOT_UV
     const p = P()
-    const local = join(p.bin, 'uv.exe')
+    const local = join(p.bin, exeName('uv'))
     if (existsSync(local)) return local
-    try {
-      await run('uv', ['--version'], { log, timeoutMs: 15_000 })
-      return 'uv'
-    } catch (error) {}
+    const cands = ['uv', ...(IS_WIN ? [] : ['/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')])]
+    for (const c of cands) {
+      if (c !== 'uv' && !existsSync(c)) continue
+      try {
+        await run(c, ['--version'], { log, timeoutMs: 15_000 })
+        return c
+      } catch (error) {}
+    }
+    const sources = uvSources()
+    if (!sources.length) throw new Error(`没有适合这台电脑（${process.platform}-${process.arch}）的 uv 安装包，请先自己装好 uv（https://docs.astral.sh/uv/）`)
     note('  电脑上没有 uv，下载一个放进安装目录')
     const zip = join(p.root, 'downloads', 'uv.zip')
     const tmp = join(p.root, 'downloads', 'uv')
     let lastError = null
-    for (const src of UV_SOURCES) {
+    for (const src of sources) {
       try {
         await fetchWithProgress(src.url, zip, 5 * 60)
         if (src.sha256 && createHash('sha256').update(readFileSync(zip)).digest('hex') !== src.sha256) throw new Error('下载的文件校验对不上')
         rmSync(tmp, { recursive: true, force: true })
         await expandZip(zip, tmp)
-        const exe = findFile(tmp, 'uv.exe')
-        if (!exe) throw new Error('里面没找到 uv.exe')
+        const exe = findFile(tmp, exeName('uv'))
+        if (!exe) throw new Error(`里面没找到 ${exeName('uv')}`)
         mkdirSync(p.bin, { recursive: true })
         copyFileSync(exe, local)
+        if (!IS_WIN) chmodSync(local, 0o755)
         rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
         return local
       } catch (error) {
@@ -619,7 +688,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return () => clearInterval(t)
   }
 
-  /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin\ffmpeg.exe（人声分离要在 PATH 里找到 ffmpeg）。 */
+  /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg(.exe)（人声分离要在 PATH 里找到 ffmpeg）。 */
   async function setupFfmpeg() {
     const p = P()
     if (existsSync(p.ffmpeg)) return
@@ -627,12 +696,14 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     const src = out.trim().split(/\r?\n/).pop()
     mkdirSync(p.bin, { recursive: true })
     copyFileSync(src, p.ffmpeg)
+    if (!IS_WIN) chmodSync(p.ffmpeg, 0o755)
   }
 
   // ---------- 做一首 ----------
+  // PATH 分隔符：Windows 是「;」，macOS / Linux 是「:」（用错了人声分离找不到 ffmpeg）
   const pyEnv = () => {
     const p = P()
-    return { PATH: p.bin + ';' + process.env.PATH, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
+    return { PATH: p.bin + delimiter + process.env.PATH, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
   }
 
   async function ffprobeDuration(file) {

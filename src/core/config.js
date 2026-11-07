@@ -26,7 +26,8 @@ export const DEFAULTS = {
   allow: { private: [], groups: [] }, // 主人永远能私聊，不用写进白名单
   // 用什么接 QQ：snowluma = 插件帮你管 SnowLuma（Windows）；onebot = 接你已有的 OneBot v11 机器人（NapCat、LLOneBot、Lagrange、Docker 里的 SnowLuma……），
   // 这时只按下面 snowluma.httpUrl / wsUrl / token 去连，不启动、不注入任何东西
-  gateway: 'snowluma',
+  // macOS / Linux 没有 SnowLuma 的原生版，插件管不了它，默认接自己的 OneBot（比如 Docker 里的 SnowLuma）
+  gateway: process.platform === 'win32' ? 'snowluma' : 'onebot',
   workspaceDir: '', // QQ 会话放在哪个文件夹（DSH 里的「Aurabot · QQ」工作区）；留空 = 默认（用户目录下 Aurabot\\qq-chats）
   // 发文件（#52）：默认开但限制很多——她只能把 QQ 工作区（workspaceDir）和 dirs 里列的目录中的文件当文件发出去；
   // 单个文件有大小上限；主人私聊里能触发，群里只在主人开口那一轮能触发（可以发给白名单里的人和群）。日志里会记下发了什么。
@@ -45,7 +46,7 @@ export const DEFAULTS = {
   cost: { offPeak: false, offPeakHolidays: [] },
   update: { unstable: null }, // 订阅不稳定版本（beta、rc）；null = 没选过，按正在用的版本定
   snowluma: {
-    dir: 'C:\\Aurabot\\snowluma', // 主人自己下载解压到这里（EULA 不允许自动部署）
+    dir: process.platform === 'win32' ? 'C:\\Aurabot\\snowluma' : '', // 主人自己下载解压到这里（EULA 不允许自动部署）；只有 Windows 版
     autoStart: true, // 随 DSH 启动它（只启动主人已安装并同意过协议的副本）
     webuiPort: 5099,
     webuiPassword: '', // 插件自动生成并保存（第一次启动 SnowLuma 时）；用来调 /api/processes 只给机器人号注入
@@ -330,7 +331,7 @@ export function normalize(raw) {
   c.approvalNotify = bool(c.approvalNotify, true)
   c.approvalViaQQ = bool(c.approvalViaQQ, true)
   c.qqApi.enabled = bool(c.qqApi.enabled, true)
-  c.gateway = c.gateway === 'onebot' ? 'onebot' : 'snowluma'
+  c.gateway = c.gateway === 'onebot' || c.gateway === 'snowluma' ? c.gateway : DEFAULTS.gateway
   // 只认绝对路径（Windows 的 D:\\… 或 Linux 的 /…），别的当没填
   c.workspaceDir = String(c.workspaceDir || '').trim()
   if (c.workspaceDir && !/^([a-zA-Z]:[\\/]|\/)/.test(c.workspaceDir)) c.workspaceDir = ''
