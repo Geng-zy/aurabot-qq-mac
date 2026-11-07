@@ -51,9 +51,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/aureth-labs/dsh-aurabot-qq.git"
+    "url": "https://github.com/Geng-zy/aurabot-qq-mac.git"
   },
-  "homepage": "https://github.com/aureth-labs/dsh-aurabot-qq",
+  "homepage": "https://github.com/Geng-zy/aurabot-qq-mac",
   "engines": {
     "node": ">=22.13.0"
   }
