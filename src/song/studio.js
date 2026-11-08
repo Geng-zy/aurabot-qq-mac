@@ -12,7 +12,7 @@ import { searchSongs, songUrl, account } from './netease.js'
 import { readZip } from './zip.js'
 import { findLocalSong, MUSIC_DIR } from './local_music.js'
 import { findFfmpeg } from '../core/img.js'
-import { runPipeline, ENHANCE_DEFAULTS } from './pipeline.js'
+import { runPipeline, ENHANCE_DEFAULTS, PIPELINE_MODELS } from './pipeline.js'
 
 export const APPLIO_REPO = 'https://github.com/IAHispano/Applio.git'
 export const APPLIO_COMMIT = 'c817f1f83f689ef72e0dfeb1c17ae990b9248506'
@@ -137,6 +137,8 @@ function findFile(dir, name) {
 export function separatorReady(dir, model) {
   const files = SEPARATOR_FILES[model]
   if (!files) return existsSync(join(dir, model))
+  const extra = EXTRA_SEPARATORS[model]
+  if (extra && !readJson(join(dir, 'extra-models.json'), () => ({}))[extra.key]) return false
   return files.every(([name]) => existsSync(join(dir, name)) && statSync(join(dir, name)).size > 0)
 }
 
@@ -228,7 +230,9 @@ export const torchSource = (cn, platform = process.platform) =>
   platform === 'darwin' ? [] : cn ? ['--find-links', CN_TORCH] : ['--extra-index-url', TORCH_INDEX]
 
 /** 安装的几步（面板按这个画步骤条）。 */
-export const INSTALL_STEPS = ['创建 Python 环境', '下载 Applio（RVC 推理引擎）', '安装 PyTorch、RVC 和人声分离（最大的一步）', '准备 ffmpeg', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
+export const installSteps = (platform = process.platform) => ['创建 Python 环境', '下载 Applio（RVC 推理引擎）', '安装 PyTorch、RVC 和人声分离（最大的一步）',
+  platform === 'darwin' ? '准备 ffmpeg 和 rubberband' : '准备 ffmpeg', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
+export const INSTALL_STEPS = installSteps()
 
 // 默认人声分离模型要的文件：[文件名, 下载地址（按顺序试）, sha256]。提前下好，免得第一次点歌时卡着不动。
 // 模型 640 MB，GitHub 在国内经常下不动：先走 HuggingFace 镜像（有人转存了同一个文件，校验值一样），再试官方。
@@ -237,6 +241,25 @@ const GH_UVR = 'https://github.com/TRvlvr/model_repo/releases/download/all_publi
 const GH_AS = 'https://github.com/nomadkaraoke/python-audio-separator/releases/download/model-configs'
 const HF_SEP = ['Politrees/UVR_resources/resolve/main/models/Roformer/BandSplit', 'datasets/SayanoAI/RVC-Studio/resolve/main/UVR']
 const BS_ROFORMER = 'model_bs_roformer_ep_317_sdr_12.9755'
+// macOS 默认的主分离模型：unwa 的 BS-Roformer Leap Xe（不在 audio-separator 自带清单里，从作者的 Hugging Face 仓库按固定版本下，带校验）
+export const LEAP_XE = 'bs_leap_xe_voc.ckpt'
+const LEAP_REPO = 'pcunwa/BS-Roformer-Leap/resolve/4e47d6662ae82eaa8b4ac4329fe66099a843b48e/Xe'
+const leapUrls = (name) => [`https://hf-mirror.com/${LEAP_REPO}/${name}`, `https://huggingface.co/${LEAP_REPO}/${name}`]
+/** 清单外的分离模型：选中时插件把它登记进 separator-models/extra-models.json（separator_run.py 读这个文件补清单）。 */
+export const EXTRA_SEPARATORS = {
+  [LEAP_XE]: {
+    key: 'Roformer Model: BS-Roformer Leap Xe Vocals by unwa',
+    entry: { filename: LEAP_XE, config: 'leap_xe_config_voc.yaml', sha256: 'b739c1d2d87a81cd3dd3844ed9ad0bd678708c7a0a761a03a1aaff9af79a096d', source: 'https://huggingface.co/pcunwa/BS-Roformer-Leap' },
+  },
+}
+/**
+ * macOS 上翻唱增强流程要的工具：Rubber Band 官方的 macOS 命令行程序 4.0.0（苹果公证过，只依赖系统自带的库，
+ * Apple 芯片 / Intel 通用）。伴奏跟着定调变调用。和 ffmpeg 一样放进安装目录的 bin/。
+ */
+export const RUBBERBAND_MAC = {
+  url: 'https://breakfastquay.com/files/releases/rubberband-4.0.0-gpl-executable-macos.tar.bz2',
+  sha256: '0dc91509a31a94c1144436cc20e6f1d165bdab39fe125f9be7d46139921b733f',
+}
 export const SEPARATOR_FILES = {
   [`${BS_ROFORMER}.ckpt`]: [
     [`${BS_ROFORMER}.ckpt`, [
@@ -246,6 +269,10 @@ export const SEPARATOR_FILES = {
       `${GH_AS}/${BS_ROFORMER}.ckpt`,
     ], '5b84f37e8d444c8cb30c79d77f613a41c05868ff9c9ac6c7049c00aefae115aa'],
     [`${BS_ROFORMER}.yaml`, [`${GH_AS}/${BS_ROFORMER}.yaml`], '2bfdd16c656bd9519aba757cc4f8834b7ede675eb1e00ec4772d74ae1c41af7f'],
+  ],
+  [LEAP_XE]: [
+    [LEAP_XE, leapUrls(LEAP_XE), 'b739c1d2d87a81cd3dd3844ed9ad0bd678708c7a0a761a03a1aaff9af79a096d'],
+    ['leap_xe_config_voc.yaml', leapUrls('leap_xe_config_voc.yaml'), 'd3cb8c84be2e9bcbc64c1086e2256dc097ab5addebc5ce507818e90ff8cbdc25'],
   ],
 }
 const BUNDLED_SEP = fileURLToPath(new URL('./separator/', import.meta.url))
@@ -279,6 +306,18 @@ export function separatorLinks(model) {
  * 导入手动下好的分离模型：核对 sha256，对得上才放进去。
  * @returns {{ok:boolean, message:string}}
  */
+/** 清单外的分离模型（如 Leap Xe）登记进 extra-models.json；已登记或不是清单外的模型就什么也不做。 */
+export function registerExtraSeparator(dir, model) {
+  const extra = EXTRA_SEPARATORS[model]
+  if (!extra) return false
+  const file = join(dir, 'extra-models.json')
+  const list = readJson(file, () => ({}))
+  if (list[extra.key]) return false
+  mkdirSync(dir, { recursive: true })
+  writeJson(file, { ...list, [extra.key]: extra.entry })
+  return true
+}
+
 export function importSeparator(dir, filename, buf) {
   const sha = createHash('sha256').update(buf).digest('hex')
   for (const files of Object.values(SEPARATOR_FILES)) {
@@ -287,6 +326,7 @@ export function importSeparator(dir, filename, buf) {
       mkdirSync(dir, { recursive: true })
       writeFileSync(join(dir, hit[0]), buf)
       rmSync(join(dir, hit[0] + '.download'), { force: true })
+      registerExtraSeparator(dir, hit[0])
       return { ok: true, message: `人声分离模型导入好了（${hit[0]}）` }
     }
   }
@@ -670,7 +710,10 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
           stop()
         }
       })
-      await step('准备 ffmpeg', '几秒钟', async () => setupFfmpeg())
+      await step(INSTALL_STEPS[3], IS_MAC ? '几秒钟（rubberband 约 1.5 MB）' : '几秒钟', async () => {
+        await setupFfmpeg()
+        if (IS_MAC) await setupRubberband(note)
+      })
       await step('下载 RVC 需要的预训练文件（音高、音色特征）', '约 560 MB，看网速几分钟', async () => {
         for (const [rel, dest] of PREREQS) {
           await downloadWithMirror(p.python, rel, join(p.applio, dest), note, log, (done, total) => {
@@ -678,7 +721,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
           })
         }
       })
-      await step('下载人声分离模型', '约 640 MB，看网速几分钟；下好以后第一次点歌就不用再等', async () => {
+      await step('下载人声分离模型', IS_MAC ? '主分离加翻唱增强要的 3 个模型，共约 1.9 GB，看网速十几分钟；下好以后第一次点歌就不用再等' : '约 640 MB，看网速几分钟；下好以后第一次点歌就不用再等', async () => {
         // 配置文件插件自带，先放进去
         mkdirSync(p.separatorModels, { recursive: true })
         const files = [...(SEPARATOR_FILES[cfg().separatorModel] || []), SEPARATOR_LIST]
@@ -689,6 +732,22 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
           await fetchFile(p.python, join(p.separatorModels, name), urls, note, log, (done, total) => {
             install.progress = { kind: 'file', name, done, total }
           }, name, sha || '')
+        }
+        // 清单外的模型（Leap Xe）：登记进 extra-models.json，separator_run.py 才认得
+        registerExtraSeparator(p.separatorModels, cfg().separatorModel)
+        // macOS：翻唱增强流程（去混响、拆主唱伴唱、分男女声）的模型也先下好，都在 audio-separator 自带清单里，用它自己的下载
+        if (IS_MAC) {
+          for (const m of Object.values(PIPELINE_MODELS)) {
+            if (existsSync(join(p.separatorModels, m))) continue
+            note(`  下载翻唱增强模型 ${m}`)
+            const stop = watchDownload(p.separatorModels)
+            try {
+              const [cmd, args] = separatorCommand(p, ['--model_filename', m, '--model_file_dir', p.separatorModels, '--download_model_only'])
+              await run(cmd, args, { log, onLine: note, env: pyEnv(), timeoutMs: 2 * 3600_000 })
+            } finally {
+              stop()
+            }
+          }
         }
       })
       // 下载缓存用完删掉（几个 GB）；环境里的文件是硬链接 / 复制过去的，删缓存不影响
@@ -792,6 +851,29 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   }
 
   /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg(.exe)（人声分离要在 PATH 里找到 ffmpeg）。 */
+  /**
+   * macOS：把 Rubber Band 官方的命令行程序放进安装目录的 bin/（看 bin/ 本身，和 ffmpeg 一样；系统里有也照放，翻唱只用这一份）。
+   * 下载有固定校验值；解压用系统自带的 tar。
+   */
+  async function setupRubberband(note) {
+    const p = pathsOf(cfg().root || defaultRoot())
+    const dest = join(p.bin, 'rubberband')
+    if (existsSync(dest)) return
+    const tmp = join(p.root, 'downloads', 'rubberband')
+    const tarball = join(tmp, 'rubberband.tar.bz2')
+    mkdirSync(tmp, { recursive: true })
+    await fetchFile(p.python, tarball, [RUBBERBAND_MAC.url], note, log, (done, total) => {
+      install.progress = { kind: 'file', name: 'rubberband', done, total }
+    }, 'rubberband', RUBBERBAND_MAC.sha256)
+    await run('tar', ['-xjf', tarball, '-C', tmp], { log, timeoutMs: 60_000 })
+    const exe = findFile(tmp, 'rubberband')
+    if (!exe) throw new Error('rubberband 压缩包里没找到程序')
+    mkdirSync(p.bin, { recursive: true })
+    copyFileSync(exe, dest)
+    chmodSync(dest, 0o755)
+    rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
+  }
+
   async function setupFfmpeg() {
     // 和原版一样总是放一份进安装目录的 bin/（看的是 bin/ 本身，不看系统里有没有）；
     // 系统 ffmpeg 只在复制不成时兜底（withSystemFfmpeg）

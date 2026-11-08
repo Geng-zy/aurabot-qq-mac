@@ -258,7 +258,7 @@ export const DEFAULTS = {
     voice: '', // 用哪个音色（models 目录里的 .pth 文件名），留空 = 第一个
     pitch: 0, // 默认变调（半音）；她点歌时会按原唱是男声还是女声自己定
     neteaseCookie: '', // 网易云 Cookie（MUSIC_U），下会员歌用
-    separatorModel: 'model_bs_roformer_ep_317_sdr_12.9755.ckpt', // 人声分离模型
+    separatorModel: process.platform === 'darwin' ? 'bs_leap_xe_voc.ckpt' : 'model_bs_roformer_ep_317_sdr_12.9755.ckpt', // 人声分离模型（macOS 默认 Leap Xe，Apple 芯片上实测跑通的组合）
     maxVoiceSec: 120, // 语音条最长多少秒，歌更长就截一段
     clipStart: 'auto', // auto = 从副歌附近截；head = 从头截
     vocalVolume: 1,

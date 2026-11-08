@@ -199,3 +199,38 @@ test('macOS 一键安装的版本固定为本机跑通的组合：Python 3.12.16
   assert.equal(st.applioCommit('win32'), st.APPLIO_COMMIT)
   assert.deepEqual(st.MAC_STACK.applioExtras, ['python-ffmpeg==2.0.12'])
 })
+
+test('macOS 一键安装自动备齐翻唱要的全部东西：默认 Leap Xe（固定版本、带校验）、增强模型、官方 rubberband；Windows 照原版', async () => {
+  const st = await import('../src/song/studio.js')
+  const { DEFAULTS } = await import('../src/core/config.js')
+  assert.equal(DEFAULTS.song.separatorModel, process.platform === 'darwin' ? st.LEAP_XE : 'model_bs_roformer_ep_317_sdr_12.9755.ckpt')
+  assert.deepEqual(st.installSteps('darwin')[3], '准备 ffmpeg 和 rubberband')
+  assert.deepEqual(st.installSteps('win32')[3], '准备 ffmpeg')
+  assert.equal(st.installSteps('darwin').length, 6)
+  assert.match(st.RUBBERBAND_MAC.url, /^https:\/\/breakfastquay\.com\/.*rubberband-4\.0\.0-gpl-executable-macos\.tar\.bz2$/)
+  assert.match(st.RUBBERBAND_MAC.sha256, /^[0-9a-f]{64}$/)
+  const leap = st.SEPARATOR_FILES[st.LEAP_XE]
+  assert.deepEqual(leap.map(([n]) => n), ['bs_leap_xe_voc.ckpt', 'leap_xe_config_voc.yaml'])
+  assert.ok(leap.every(([, urls, sha]) => urls.every((u) => u.includes('/resolve/4e47d6662ae82eaa8b4ac4329fe66099a843b48e/Xe/')) && /^[0-9a-f]{64}$/.test(sha)))
+})
+
+test('清单外的分离模型：文件齐了还要登记进 extra-models.json 才算就绪；登记不覆盖已有的', async () => {
+  const st = await import('../src/song/studio.js')
+  const { writeFileSync, readFileSync } = await import('node:fs')
+  const dir = mkdtempSync(join(tmpdir(), 'aurabot-sep-'))
+  try {
+    writeFileSync(join(dir, 'bs_leap_xe_voc.ckpt'), 'x')
+    writeFileSync(join(dir, 'leap_xe_config_voc.yaml'), 'y')
+    assert.equal(st.separatorReady(dir, st.LEAP_XE), false, '没登记')
+    writeFileSync(join(dir, 'extra-models.json'), JSON.stringify({ 别的模型: { filename: 'a.ckpt' } }))
+    assert.equal(st.registerExtraSeparator(dir, st.LEAP_XE), true)
+    assert.equal(st.registerExtraSeparator(dir, st.LEAP_XE), false, '登记过就不再写')
+    const list = JSON.parse(readFileSync(join(dir, 'extra-models.json'), 'utf8'))
+    assert.ok(list['别的模型'], '原来的登记还在')
+    assert.equal(list[st.EXTRA_SEPARATORS[st.LEAP_XE].key].filename, 'bs_leap_xe_voc.ckpt')
+    assert.equal(st.separatorReady(dir, st.LEAP_XE), true)
+    assert.equal(st.registerExtraSeparator(dir, 'model_bs_roformer_ep_317_sdr_12.9755.ckpt'), false, '清单里的模型不用登记')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
