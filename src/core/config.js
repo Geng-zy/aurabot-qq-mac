@@ -33,6 +33,7 @@ export const DEFAULTS = {
   // 单个文件有大小上限；主人私聊里能触发，群里只在主人开口那一轮能触发（可以发给白名单里的人和群）。日志里会记下发了什么。
   // imageByPath（#169）：本地图片先按路径直发，被网关明确拒绝才改用 base64；网关和 NapCat 没共享挂载时会自动回退。
   // macOS / Linux 默认关：这些系统上网关跑在 Docker / 虚拟机里，读不到本机路径，按路径发必定失败（慢一拍，结果不确定时还会丢图）。
+  // macOS / Linux 上关着时，发文件也不先按路径试（hub.js sendFile）；Windows 上它只管图片，和原版一样。
   // relay：网关看不到本机路径（Docker / 虚拟机）且文件超过 base64 能塞的大小时，临时开一个只对本机开放的下载口让网关来取；
   // relayHost 是网关那边访问宿主机用的地址（OrbStack / Docker Desktop 都是 host.docker.internal）
   files: { enabled: true, maxMB: 50, imageByPath: process.platform === 'win32', dirs: [], relay: true, relayHost: 'host.docker.internal' },

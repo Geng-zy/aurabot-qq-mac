@@ -819,28 +819,34 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       ? { group_id: Number(tgt.id), file: src, name: label }
       : { user_id: Number(tgt.id), file: src, name: label }
     const srcLabel = external ? (src.startsWith('base64://') ? 'base64' : '外部地址') : size < 1024 ? size + ' B' : Math.round(size / 1024) + ' KB'
-    let first
-    try {
-      const r = await onebot.call(action, params, { timeoutMs: FILE_TIMEOUT_MS })
-      if (disposed) return null
-      bump('sent')
-      log.info(`${chatId}：发文件「${label}」（${srcLabel}）`)
-      return r
-    } catch (error) {
-      if (disposed) return null
-      // 只有明确失败时才回落：超时或断线可能已经发出，再发会重复。
-      if (external || !isDefiniteFailure(error)) {
-        bump('errors')
-        log.warn(`${chatId}：发文件「${label}」失败${isDefiniteFailure(error) ? '' : '，发送结果不确定，不再重发'}：`, error.message)
-        throw new Error(`发文件失败：${error.message}`)
+    // macOS / Linux 上「按路径直发」关着（默认）：网关在 Docker 里读不到本机路径，不先按路径试一次，
+    // 直接走 base64 / 下载口——按路径试必定失败，结果不确定时还不能重发，文件就丢了。Windows 照原样先按路径发。
+    const byPath = external || process.platform === 'win32' || cfg.files?.imageByPath !== false
+    let first = null
+    if (byPath) {
+      try {
+        const r = await onebot.call(action, params, { timeoutMs: FILE_TIMEOUT_MS })
+        if (disposed) return null
+        bump('sent')
+        log.info(`${chatId}：发文件「${label}」（${srcLabel}）`)
+        return r
+      } catch (error) {
+        if (disposed) return null
+        // 只有明确失败时才回落：超时或断线可能已经发出，再发会重复。
+        if (external || !isDefiniteFailure(error)) {
+          bump('errors')
+          log.warn(`${chatId}：发文件「${label}」失败${isDefiniteFailure(error) ? '' : '，发送结果不确定，不再重发'}：`, error.message)
+          throw new Error(`发文件失败：${error.message}`)
+        }
+        first = error
       }
-      first = error
     }
+    const firstWhy = first?.message || '网关读不到本机路径（「按路径直发」关着）'
     // 网关看不到本机路径。小文件：直接把内容塞给网关；大文件（base64 太大）：开下载口让网关来取
     const viaRelay = size > Math.min(FILE_BASE64_MAX, maxBytes)
     if (viaRelay && cfg.files?.relay === false) {
       bump('errors')
-      const why = first.message
+      const why = firstWhy
       log.warn(`${chatId}：发文件「${label}」失败：${why}；文件超过 ${FILE_BASE64_MAX / 1024 / 1024} MB，且「大文件下载口」关着`)
       throw new Error(`发文件失败：${why}`)
     }
@@ -850,13 +856,13 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       const r = await onebot.call(action, { ...params, file }, { timeoutMs: FILE_TIMEOUT_MS })
       if (disposed) return null
       bump('sent')
-      log.info(`${chatId}：发文件「${label}」（${srcLabel}，网关看不到本机路径，改走${viaRelay ? '本机下载口' : ' base64'}）`)
+      log.info(`${chatId}：发文件「${label}」（${srcLabel}，${first ? '网关看不到本机路径，改走' : '走'}${viaRelay ? '本机下载口' : ' base64'}）`)
       return r
     } catch (error2) {
       if (disposed) return null
       bump('errors')
-      log.warn(`${chatId}：发文件「${label}」失败：`, error2.message || first.message)
-      throw new Error(`发文件失败：${error2.message || first.message}`)
+      log.warn(`${chatId}：发文件「${label}」失败：`, error2.message || firstWhy)
+      throw new Error(`发文件失败：${error2.message || firstWhy}`)
     } finally {
       if (url) fileRelay.revoke(url)
     }

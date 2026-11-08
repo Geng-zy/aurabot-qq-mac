@@ -137,7 +137,7 @@ before(async () => {
     diary: { enabled: true },
     qzoneSocial: { friendChance: 1, ownerChance: 1, intervalMin: 1440 },
     merge: { waitSec: 0.4, maxSec: 3, groupWaitSec: 0.4, groupMaxSec: 3 },
-    files: { enabled: true, maxMB: 1, dirs: [] },
+    files: { enabled: true, maxMB: 1, dirs: [], imageByPath: true },
   }))
   fake = createFakeDsh({ brain })
   const host = await import('../src/host.js')
@@ -1083,6 +1083,28 @@ test('发文件：「大文件下载口」关掉时，超过 30 MB 又看不到�
   } finally {
     mock.state.failUploadPath = false
     await fake.call('/save', { files: { relay: true, maxMB: 1 } })
+  }
+})
+
+test('发文件（macOS / Linux）：「按路径直发」关着时不先按路径试——小文件直接 base64，大文件直接走下载口', { skip: process.platform === 'win32' }, async () => {
+  await fake.call('/save', { files: { imageByPath: false, relay: true, relayHost: '127.0.0.1', maxMB: 50 } })
+  try {
+    let before = mock.sent('upload_private_file').length
+    mock.push(priv(OWNER, text('发文件测试四')))
+    await until(() => sentTo('private', OWNER).filter((c) => c.params.message.some((s) => s.type === 'text' && s.data.text === '文件发出去啦')).length > 0 && mock.sent('upload_private_file').length > before)
+    let tried = mock.sent('upload_private_file').slice(before)
+    assert.equal(tried.length, 1, '只发一次')
+    assert.match(String(tried[0].params.file), /^base64:\/\//, '小文件直接 base64')
+    writeFileSync(relayFilePath, Buffer.alloc(31 * 1024 * 1024, 9))
+    mock.state.relayFetched = 0
+    before = mock.sent('upload_private_file').length
+    mock.push(priv(OWNER, text('发大文件测试三')))
+    await until(() => mock.sent('upload_private_file').length > before && mock.state.relayFetched > 0)
+    tried = mock.sent('upload_private_file').slice(before)
+    assert.equal(tried.length, 1, '只发一次')
+    assert.match(String(tried[0].params.file), /^http:\/\/127\.0\.0\.1:\d+\/f\//, '大文件直接给下载地址')
+  } finally {
+    await fake.call('/save', { files: { imageByPath: true, relayHost: 'host.docker.internal', maxMB: 1 } })
   }
 })
 

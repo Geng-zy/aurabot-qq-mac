@@ -83,7 +83,7 @@ before(async () => {
     merge: { waitSec: 0.2, maxSec: 2 },
     bili: { enabled: true },
     modules: { bili: { enabled: false } },
-    files: { enabled: true, maxMB: 5, dirs: [dataDir] },
+    files: { enabled: true, maxMB: 5, dirs: [dataDir], imageByPath: true },
   }))
   writeMod('echo', echoCode('pong'))
   const flagCode = (id, extra) => `export default { id: '${id}', ${extra} setup() {} }`
