@@ -21,14 +21,17 @@ export const APPLIO_COMMIT_MAC = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
 export const applioCommit = (platform = process.platform) => (platform === 'darwin' ? APPLIO_COMMIT_MAC : APPLIO_COMMIT)
 /**
  * macOS 一键安装装的版本（2026-11-08 在 Apple 芯片 Mac 上实际跑通整套翻唱的组合）。两套环境：
- * - Applio/.venv：照 Applio 3.7.1 官方 run-install.sh 的 Mac 做法（uv venv + python-ffmpeg + requirements.txt，torch 2.11）
+ * - Applio/.venv：照 Applio 3.7.1 官方 run-install.sh 的 Mac 做法（uv venv + python-ffmpeg + requirements.txt，torch 2.11），
+ *   只是 Python 用 3.13（官方脚本写 3.12；实测分离结果逐样本相同，换声差异和同一环境连跑两次的随机差异一样）
  * - env/：只装人声分离。audio-separator 0.48 在 Apple 芯片上要 torch ≥ 2.13，和 Applio 锁的 torch 2.11 装不到一起；
  *   硬装进一套会退到 audio-separator 0.45，实测 Leap Xe 等 Roformer 模型分离直接失败。
  */
 export const MAC_STACK = {
-  python: '3.12.16',
+  // Python 3.13（主人选的：比 Applio 官方脚本写的 3.12 新一档，两套环境都用它）
+  python: '3.13.18',
   applioExtras: ['python-ffmpeg==2.0.12'],
-  separator: ['audio-separator[cpu]==0.48.0', 'librosa==0.11.0', 'imageio-ffmpeg==0.8.1'],
+  // librosa 1.0 不再带 audioread，而 audio-separator 0.48 还在直接 import 它，所以显式补装
+  separator: ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'],
 }
 export const pythonVersion = (platform = process.platform) => (platform === 'darwin' ? MAC_STACK.python : '3.12')
 const TORCH_INDEX = 'https://download.pytorch.org/whl/cu128'

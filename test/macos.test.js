@@ -46,7 +46,7 @@ test('uv 下载源：按系统和芯片挑官方安装包，带校验值；没�
 })
 
 test('安装参数：macOS 装 CPU 版人声分离、不走 CUDA 的 PyTorch 源；Windows 不变', () => {
-  assert.deepEqual(studio.installExtras('darwin'), ['audio-separator[cpu]==0.48.0', 'librosa==0.11.0', 'imageio-ffmpeg==0.8.1'])
+  assert.deepEqual(studio.installExtras('darwin'), ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'])
   assert.deepEqual(studio.installExtras('win32'), ['audio-separator[gpu]'])
   assert.deepEqual(studio.torchSource(false, 'darwin'), [])
   assert.deepEqual(studio.torchSource(true, 'darwin'), [])
@@ -191,9 +191,9 @@ test('图片按路径直发：Windows 默认开，macOS / Linux 默认关（网�
   assert.equal(normalize({ files: { imageByPath: false } }).files.imageByPath, false)
 })
 
-test('macOS 一键安装的版本固定为本机跑通的组合：Python 3.12.16、Applio 3.7.1、Applio 自己的环境；Windows 照原版', async () => {
+test('macOS 一键安装的版本固定为本机跑通的组合：Python 3.13.18、Applio 3.7.1、Applio 自己的环境；Windows 照原版', async () => {
   const st = await import('../src/song/studio.js')
-  assert.equal(st.pythonVersion('darwin'), '3.12.16')
+  assert.equal(st.pythonVersion('darwin'), '3.13.18')
   assert.equal(st.pythonVersion('win32'), '3.12')
   assert.equal(st.applioCommit('darwin'), '6f69726b140c615c8cc6831a7db8b7c5e48ba8af')
   assert.equal(st.applioCommit('win32'), st.APPLIO_COMMIT)

@@ -1,5 +1,5 @@
 > **这是 macOS 适配分叉。** 基于 [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)（MIT），让 Aurabot 在 macOS（Apple 芯片）上完整可用：翻唱一键安装、系统语音兜底、Docker 网关下发大文件、面板按系统显示等。Windows 行为与原项目一致。
-> macOS 翻唱一键安装固定为实测跑通的组合：Python 3.12.16、Applio 3.7.1（自己的环境，torch 2.11）、人声分离单独一套环境（audio-separator 0.48.0 CPU 版、torch 2.15）、uv 0.13.7。两套环境是必须的：硬装进一套会退到 audio-separator 0.45，Roformer 模型分离会因显存不足失败。
+> macOS 翻唱一键安装固定为实测跑通的组合，并自动备齐翻唱要的全部东西：Python 3.13.18、Applio 3.7.1（自己的环境，torch 2.11）、人声分离单独一套环境（audio-separator 0.48.0 CPU 版、librosa 1.0.0 + audioread、torch 2.15）、uv 0.13.7、Rubber Band 4.0.0、默认主分离模型 Leap Xe 和翻唱增强用的 3 个模型。两套环境是必须的：硬装进一套会退到 audio-separator 0.45，Roformer 模型分离会因显存不足失败。
 > 与原项目的差异见提交记录；新加的 macOS 逻辑都有中文注释，`test/macos.test.js`、`test/file-relay.test.js` 覆盖了按系统分支的行为。
 >
 > Mac 上安装：`"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac`，装完重启 DSH。
