@@ -16,6 +16,21 @@ import { runPipeline, ENHANCE_DEFAULTS } from './pipeline.js'
 
 export const APPLIO_REPO = 'https://github.com/IAHispano/Applio.git'
 export const APPLIO_COMMIT = 'c817f1f83f689ef72e0dfeb1c17ae990b9248506'
+// macOS 用 Applio 3.7.1 正式版（tag 3.7.1 的提交），并按 Applio 官方 Mac 安装方式给它建自己的环境（见 MAC_STACK）
+export const APPLIO_COMMIT_MAC = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
+export const applioCommit = (platform = process.platform) => (platform === 'darwin' ? APPLIO_COMMIT_MAC : APPLIO_COMMIT)
+/**
+ * macOS 一键安装装的版本（2026-11-08 在 Apple 芯片 Mac 上实际跑通整套翻唱的组合）。两套环境：
+ * - Applio/.venv：照 Applio 3.7.1 官方 run-install.sh 的 Mac 做法（uv venv + python-ffmpeg + requirements.txt，torch 2.11）
+ * - env/：只装人声分离。audio-separator 0.48 在 Apple 芯片上要 torch ≥ 2.13，和 Applio 锁的 torch 2.11 装不到一起；
+ *   硬装进一套会退到 audio-separator 0.45，实测 Leap Xe 等 Roformer 模型分离直接失败。
+ */
+export const MAC_STACK = {
+  python: '3.12.16',
+  applioExtras: ['python-ffmpeg==2.0.12'],
+  separator: ['audio-separator[cpu]==0.48.0', 'librosa==0.11.0', 'imageio-ffmpeg==0.8.1'],
+}
+export const pythonVersion = (platform = process.platform) => (platform === 'darwin' ? MAC_STACK.python : '3.12')
 const TORCH_INDEX = 'https://download.pytorch.org/whl/cu128'
 // 国内镜像：PyPI 和 PyTorch 都用阿里云（PyTorch 那边是文件列表，用 --find-links；Applio 固定了 torch 版本，挑得到 cu128 的），Python 本体用 npmmirror
 const CN_PYPI = 'https://mirrors.aliyun.com/pypi/simple'
@@ -59,12 +74,12 @@ async function downloadWithMirror(python, rel, dest, note, log, onProgress) {
   return fetchFile(python, dest, HF_HOSTS.map((host) => `${host}/IAHispano/Applio/resolve/main/Resources/${rel}`), note, log, onProgress, rel)
 }
 
-// uv 的下载源：PyPI 上的 uv 安装包（固定版本 0.13.5，wheel 就是 zip，里面带 uv 程序）走国内镜像，最后才试 GitHub。
+// uv 的下载源：PyPI 上的 uv 安装包（Windows 固定 0.13.5 同原版；macOS 固定 0.13.7，是 Mac 上实际跑通的版本。wheel 就是 zip，里面带 uv 程序）走国内镜像，最后才试 GitHub。
 // Windows / macOS（Apple 芯片、Intel）各一份，校验值取自 PyPI 官方。
 const UV_WHEELS = {
   'win32-x64': ['packages/32/ea/771744a784b16aa21d195cb5d5d5a2878d72fa00fc26f11ea3f9646994fe/uv-0.13.5-py3-none-win_amd64.whl', '1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f', 'uv-x86_64-pc-windows-msvc.zip'],
-  'darwin-arm64': ['packages/d2/26/9ac45211123244ea68be852775093af487a64debc13621a2de239f8ebe73/uv-0.13.5-py3-none-macosx_11_0_arm64.whl', 'a42c85fa8156e1e5e2cecdbc77bb818ea1dcf5f78b8e2a8f84c7fe4f16f0702e', ''],
-  'darwin-x64': ['packages/e3/2a/dcae794203261e49564bb9ff7c4b64a093f69ac73476cc8ce54c1deed3a1/uv-0.13.5-py3-none-macosx_10_12_x86_64.whl', '337a14829bb499e114989df4f908f134ff37f1fb6c33497541cfb05b28080e39', ''],
+  'darwin-arm64': ['packages/40/a5/8756c38ace102fa13fd4e653e8bc40e1f65924f1c0a0d23350339dac97e5/uv-0.13.7-py3-none-macosx_11_0_arm64.whl', 'f91a229093163eefca89ea1b220a221d64c3beade05d03519a6584d1797a5a5f', ''],
+  'darwin-x64': ['packages/3d/5b/e0379e7b172659420b1ec99a8e8229830aa85ea59684847c80b1c959a056/uv-0.13.7-py3-none-macosx_10_12_x86_64.whl', 'fd04bf01ba5f2829f4f94ca8f0c24a743f21e73d75045613ed6fc2fd66fc7bda', ''],
 }
 /** 这台电脑能用的 uv 下载源（按顺序试）；没有对应的安装包时返回空数组。 */
 export function uvSources(platform = process.platform, arch = process.arch) {
@@ -80,6 +95,7 @@ export function uvSources(platform = process.platform, arch = process.arch) {
 export const UV_SOURCES = uvSources()
 
 const IS_WIN = process.platform === 'win32'
+const IS_MAC = process.platform === 'darwin'
 /** 可执行文件名：Windows 带 .exe，macOS / Linux 不带。 */
 export const exeName = (name, platform = process.platform) => (platform === 'win32' ? name + '.exe' : name)
 
@@ -205,7 +221,7 @@ export function explainInstallError(msg) {
  * 人声分离装哪个版本：Windows 用 [gpu]（NVIDIA 显卡加速）；macOS 没有 NVIDIA 显卡，[gpu] 依赖的 onnxruntime-gpu
  * 在 Mac 上根本装不了，用 [cpu]（PyTorch 在 Apple 芯片上仍会走 MPS 加速）。
  */
-export const installExtras = (platform = process.platform) => [platform === 'darwin' ? 'audio-separator[cpu]' : 'audio-separator[gpu]']
+export const installExtras = (platform = process.platform) => (platform === 'darwin' ? [...MAC_STACK.separator] : ['audio-separator[gpu]'])
 
 /** PyTorch 从哪下：CUDA 版只有 Windows / Linux 有；macOS 用 PyPI 上的官方版（自带 Apple 芯片加速）。 */
 export const torchSource = (cn, platform = process.platform) =>
@@ -589,7 +605,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         if (existsSync(p.python)) return note('  已经有了，跳过')
         const stop = watchDownload(join(p.root, 'python'))
         try {
-          await run(uv, ['venv', '-q', join(p.root, 'env'), '--python', '3.12'], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
+          await run(uv, ['venv', '-q', join(p.root, 'env'), '--python', pythonVersion()], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
         } finally {
           stop()
         }
@@ -600,12 +616,12 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         const zip = join(p.root, 'downloads', 'applio.zip')
         // 用环境里的 Python 下（断了能接着下、走系统代理）；万一不行再用 PowerShell 下
         try {
-          await fetchFile(p.python, zip, [`https://github.com/IAHispano/Applio/archive/${APPLIO_COMMIT}.zip`, `https://codeload.github.com/IAHispano/Applio/zip/${APPLIO_COMMIT}`], note, log, (done, total) => {
+          await fetchFile(p.python, zip, [`https://github.com/IAHispano/Applio/archive/${applioCommit()}.zip`, `https://codeload.github.com/IAHispano/Applio/zip/${applioCommit()}`], note, log, (done, total) => {
             install.progress = { kind: 'file', name: 'Applio', done, total }
           })
         } catch (error) {
           note('  换个方式再下一次')
-          await fetchWithProgress(`https://github.com/IAHispano/Applio/archive/${APPLIO_COMMIT}.zip`, zip)
+          await fetchWithProgress(`https://github.com/IAHispano/Applio/archive/${applioCommit()}.zip`, zip)
         }
         const tmp = join(p.root, 'downloads', 'applio-src')
         rmSync(tmp, { recursive: true, force: true })
@@ -618,19 +634,35 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       })
       await step('安装 PyTorch、RVC 和人声分离（最大的一步）', '要下载约 3~4 GB，看网速一般 10~40 分钟；下面的「已下载」在涨就说明没卡住', async () => {
         // 先检查：要用的包都能导入就跳过。「重新检查 / 修复安装」只修坏了的，不重装、不降级能用的环境
-        const engine = applioPython(p)
-        const twoEnv = engine !== p.python
-        const engineOk = await canImport(engine, ['torch', 'faiss', 'librosa', 'soundfile'])
-        const sepOk = await canImport(p.python, ['audio_separator'])
-        if (engineOk && sepOk) return note('  换声和人声分离要的包都在，跳过')
-        if (twoEnv) {
-          // Applio 有自己的环境（Applio/.venv，按 Applio 官方安装脚本装的）：换声用它，插件不往里装东西，
-          // 也不往人声分离环境里装 Applio 的依赖（两边要的 torch 版本可能不一样，装到一起会把人声分离降级）
-          if (!engineOk) throw new Error('Applio 自己的环境（Applio/.venv）缺包：请在 Applio 文件夹里重新运行 Applio 的官方安装脚本')
-          note('  Applio 用它自己的环境；人声分离环境里只补装人声分离')
-        }
         const stop = watchDownload(cacheDir)
         try {
+          if (IS_MAC) {
+            // macOS：两套环境（见 MAC_STACK）。Applio/.venv 照 Applio 官方 Mac 安装方式建；env/ 只装人声分离
+            const venv = join(p.applio, '.venv')
+            const vpy = join(venv, 'bin', 'python')
+            if (!(existsSync(vpy) && await canImport(vpy, ['torch', 'faiss', 'librosa', 'soundfile']))) {
+              note('  建 Applio 自己的环境（Applio/.venv，和 Applio 官方 Mac 安装方式一样）')
+              if (!existsSync(vpy)) await run(uv, ['venv', '-q', venv, '--python', pythonVersion()], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
+              await run(uv, ['pip', 'install', '--python', vpy, ...MAC_STACK.applioExtras, '-r', join(p.applio, 'requirements.txt'), ...mirror],
+                { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+            } else note('  Applio 的环境已经能用，跳过')
+            if (!(await canImport(p.python, ['audio_separator', 'imageio_ffmpeg']))) {
+              note('  人声分离环境（env/）只装人声分离')
+              await run(uv, ['pip', 'install', '--python', p.python, ...installExtras(), ...mirror], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+            } else note('  人声分离的包都在，跳过')
+            return
+          }
+          const engine = applioPython(p)
+          const twoEnv = engine !== p.python
+          const engineOk = await canImport(engine, ['torch', 'faiss', 'librosa', 'soundfile'])
+          const sepOk = await canImport(p.python, ['audio_separator'])
+          if (engineOk && sepOk) return note('  换声和人声分离要的包都在，跳过')
+          if (twoEnv) {
+            // Applio 有自己的环境（Applio/.venv，按 Applio 官方安装脚本装的）：换声用它，插件不往里装东西，
+            // 也不往人声分离环境里装 Applio 的依赖（两边要的 torch 版本可能不一样，装到一起会把人声分离降级）
+            if (!engineOk) throw new Error('Applio 自己的环境（Applio/.venv）缺包：请在 Applio 文件夹里重新运行 Applio 的官方安装脚本')
+            note('  Applio 用它自己的环境；人声分离环境里只补装人声分离')
+          }
           const pkgs = twoEnv ? [...installExtras(), 'imageio-ffmpeg'] : ['-r', join(p.applio, 'requirements-engine.txt'), ...installExtras(), 'imageio-ffmpeg']
           await run(uv, ['pip', 'install', '--python', p.python, ...pkgs,
             ...mirror, ...(twoEnv ? [] : torchSource(cn)), '--index-strategy', 'unsafe-best-match'], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
@@ -761,13 +793,20 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
 
   /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg(.exe)（人声分离要在 PATH 里找到 ffmpeg）。 */
   async function setupFfmpeg() {
-    const p = P()
+    // 和原版一样总是放一份进安装目录的 bin/（看的是 bin/ 本身，不看系统里有没有）；
+    // 系统 ffmpeg 只在复制不成时兜底（withSystemFfmpeg）
+    const p = pathsOf(cfg().root || defaultRoot())
     if (existsSync(p.ffmpeg)) return
-    const out = await run(p.python, ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'], { log })
-    const src = out.trim().split(/\r?\n/).pop()
-    mkdirSync(p.bin, { recursive: true })
-    copyFileSync(src, p.ffmpeg)
-    if (!IS_WIN) chmodSync(p.ffmpeg, 0o755)
+    try {
+      const out = await run(p.python, ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'], { log })
+      const src = out.trim().split(/\r?\n/).pop()
+      mkdirSync(p.bin, { recursive: true })
+      copyFileSync(src, p.ffmpeg)
+      if (!IS_WIN) chmodSync(p.ffmpeg, 0o755)
+    } catch (error) {
+      if (P().ffmpeg === p.ffmpeg) throw error
+      log.warn('没能把 imageio-ffmpeg 的 ffmpeg 放进安装目录，先用系统里的：', error.message)
+    }
   }
 
   // ---------- 做一首 ----------
