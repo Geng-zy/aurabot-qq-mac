@@ -34,7 +34,7 @@ before(async () => {
     ownerQQ: OWNER,
     allow: { private: [OWNER], groups: [] },
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'no-snowluma') },
-    voice: { engine: 'windows', autoChance: 0 },
+    voice: { engine: 'system', autoChance: 0 },
     stickers: { autoChance: 0 },
     bridge: { dshTools: false, http: true, token: 'a'.repeat(32) },
   }))

@@ -684,12 +684,10 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     }
 
     // ---------------- 按插件所在系统显示示例 ----------------
-    // 插件跑在哪个系统（/state 带回来）：示例路径、命令、说明按系统换写法。还没读到时按 Windows 显示（老行为）。
-    const HOST = { platform: 'win32', home: '' }
-    const onWin = () => HOST.platform === 'win32'
-    const onMac = () => HOST.platform === 'darwin'
-    /** 示例路径：Windows 用给定的写法；macOS / Linux 放在主目录下（rel 是相对主目录的路径）。 */
-    const exPath = (win, rel) => (onWin() ? win : (HOST.home || (onMac() ? '/Users/你' : '/home/你')) + '/' + rel)
+    // 主目录（/state 带回来），示例路径用它写
+    const HOST = { home: '' }
+    /** 示例路径：主目录下的 rel。 */
+    const exPath = (rel) => (HOST.home || '/Users/你') + '/' + rel
 
     // ---------------- 标签页 ----------------
     const TABS = [
@@ -844,7 +842,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h('div', { className: 'ab-flex' }, h('b', null, '已更新到 v' + st.version), h('div', { className: 'ab-spacer' }), h(Btn, { small: true, kind: 'ghost', onClick: dismiss }, '知道了')),
           h('div', { style: { whiteSpace: 'pre-wrap', marginTop: 6 } }, notes)) : null,
         upd && upd.newer ? h('div', { className: 'ab-note warn' },
-          h('div', null, h('b', null, '有新版本 v' + upd.latest), '（现在是 v' + upd.current + '）。在' + (onWin() ? ' PowerShell ' : '「终端」') + '里运行下面这行，然后重启 DSH；设置、人格、记忆都会保留。'),
+          h('div', null, h('b', null, '有新版本 v' + upd.latest), '（现在是 v' + upd.current + '）。在「终端」里运行下面这行，然后重启 DSH；设置、人格、记忆都会保留。'),
           h('div', { className: 'ab-flex', style: { marginTop: 6 } },
             h('code', { style: { flex: '1 1 300px', fontSize: 11.5, wordBreak: 'break-all' } }, upd.command),
             h(Btn, { small: true, onClick: () => { try { navigator.clipboard.writeText(upd.command); toast('复制好了', 'ok') } catch (e) { toast('复制失败，手动选中复制吧', 'err') } } }, '复制'))) : null)
@@ -981,68 +979,6 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       return h('div', { className: cx('ab-log', e.level) }, h('span', { className: 't' }, e.time), h('span', { className: 'a' }, e.area), h('span', { className: 'm' }, e.text))
     }
 
-    /** 控制台密码状态：插件自动管理；登不上时给「重置为自动密码」。 */
-    function SnowLumaAuth({ running, toast, onChange }) {
-      const [s, setS] = useState(null)
-      const load = () => get('/snowluma/login-check').then(setS)
-      useEffect(() => { if (running) load() }, [running])
-      if (!running) return h('span', { className: 'ab-muted ab-small' }, '启动后插件会自动管理控制台密码，你不用设置。')
-      if (!s) return h('span', { className: 'ab-muted ab-small' }, h('i', { className: 'ab-spin' }), ' 检查中…')
-      if (s.ok) return h(PasswordPeek, { toast, auto: s.passwordAuto })
-      return h('div', null,
-        h('div', { className: 'ab-small', style: { color: 'var(--ab-warn)' } }, '插件登不上 SnowLuma 控制台：' + (s.message || '') + '。多半是之前手动设过密码。'),
-        h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, kind: 'primary', onClick: async () => {
-          if (!confirm('会先停掉 SnowLuma、清掉它的旧控制台密码，再用插件生成的新密码重新启动。机器人号需要稍后重新接入。继续吗？')) return
-          const r = await post('/snowluma/reset-password'); toast(r.message); load(); onChange && onChange()
-        } }, '重置为自动密码')))
-    }
-
-    /** 控制台密码：插件登得上时显示状态，能看一眼、复制（打开 SnowLuma 自己的控制台要用）。 */
-    function PasswordPeek({ toast, auto }) {
-      const [pw, setPw] = useState('')
-      const peek = async () => { const r = await get('/snowluma/password'); setPw(r.password || '（还没有）') }
-      return h('div', { className: 'ab-flex' },
-        h('span', { className: 'ab-small', style: { color: 'var(--ab-ok)' } }, auto ? '✓ 控制台密码由插件自动管理' : '✓ 用的是你设的控制台密码'),
-        pw ? h('code', { className: 'ab-small' }, pw) : null,
-        h(Btn, { small: true, kind: 'ghost', onClick: () => (pw ? setPw('') : peek()) }, pw ? '隐藏' : '显示密码'),
-        h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await get('/snowluma/password'); copy(r.password || '', toast, '密码复制好了，打开 SnowLuma 控制台时粘贴') } }, '复制密码'))
-    }
-
-    /** 在面板里阅读并同意 SnowLuma 的用户协议和隐私说明（必须由用户本人勾选、点击）。 */
-    function Agreement({ running, toast, onChange }) {
-      const [a, setA] = useState(null)
-      const [tab, setTab] = useState(0)
-      const [agree, setAgree] = useState(false)
-      const load = () => get('/snowluma/agreements').then(setA)
-      useEffect(() => { if (running) load() }, [running])
-      if (!running) return h('span', { className: 'ab-muted ab-small' }, '先启动 SnowLuma。')
-      if (!a) return h('span', { className: 'ab-muted ab-small' }, h('i', { className: 'ab-spin' }), ' 读取协议…')
-      if (!a.ok) return h('span', { className: 'ab-small', style: { color: 'var(--ab-warn)' } }, '读不到协议：' + a.message)
-      if (!a.consentRequired) return h('span', { className: 'ab-small', style: { color: 'var(--ab-ok)' } }, '✓ 已同意 SnowLuma 的用户协议和隐私说明（版本 ' + a.version + '）')
-      const doc = a.documents[tab] || a.documents[0]
-      return h('div', { style: { width: '100%' } },
-        h('div', { className: 'ab-seg', style: { marginBottom: 8 } }, a.documents.map((d, i) => h('button', { key: d.id, type: 'button', className: i === tab ? 'on' : '', onClick: () => setTab(i) }, d.title.split('/')[0].trim()))),
-        doc ? h('div', { className: 'ab-logs', style: { maxHeight: 260, padding: '12px 14px', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.7, whiteSpace: 'pre-wrap' } }, doc.text) : null,
-        h('label', { className: 'ab-flex', style: { marginTop: 10, cursor: 'pointer' } },
-          h('input', { type: 'checkbox', checked: agree, onChange: (e) => setAgree(e.target.checked), style: { accentColor: 'var(--ab-sea)', width: 16, height: 16 } }),
-          h('span', null, '我已阅读并同意以上 SnowLuma 用户协议和隐私说明')),
-        h('div', { className: 'ab-flex', style: { marginTop: 8 } },
-          h(Btn, { kind: 'primary', small: true, disabled: !agree, onClick: async () => { const r = await post('/snowluma/consent', { version: a.version, agree: true }); toast(r.ok ? '已同意' : r.message, r.ok ? 'ok' : 'err'); load(); onChange && onChange() } }, '同意'),
-          h('span', { className: 'ab-muted ab-small' }, 'SnowLuma 是独立的第三方项目，仅限个人非商业使用；使用非官方 QQ 工具有账号风险，请用小号。')))
-    }
-
-    /** 用什么接 QQ：插件帮你管 SnowLuma，或接你已有的 OneBot v11 机器人。 */
-    function GatewayChoice({ draft, setDraft }) {
-      // SnowLuma 只有 Windows 版插件能管；macOS / Linux 上不给这个选项，只接自己的 OneBot（比如 Docker 里的 SnowLuma）
-      useEffect(() => { if (!onWin() && draft.gateway !== 'onebot') setDraft(setPath(draft, 'gateway', 'onebot')) }, [draft.gateway])
-      if (!onWin()) return h('div', { className: 'ab-desc' }, '接你自己跑的 OneBot v11 网关：Docker / OrbStack 里的 SnowLuma，或者 NapCat、LLOneBot、Lagrange 等。' +
-        (onMac() ? 'SnowLuma 没有 macOS 版，Mac 上一般用 Docker 跑它的 Linux 镜像，把端口映射出来后在下面填地址。' : ''))
-      return h(Choices, { value: draft.gateway || 'snowluma', onChange: (v) => setDraft(setPath(draft, 'gateway', v)), options: [
-        { value: 'snowluma', label: '用 SnowLuma（Windows，推荐）', desc: '插件帮你启动、接入机器人号、断线重连' },
-        { value: 'onebot', label: '接我已有的 OneBot 机器人', desc: 'NapCat、LLOneBot、Lagrange、Docker 里的 SnowLuma 等任何 OneBot v11 实现；Linux / Docker 部署选这个' },
-      ] })
-    }
-
     /** 已有 OneBot 机器人的地址和令牌。 */
     function OneBotFields({ draft, f }) {
       return h(Fragment, null,
@@ -1054,66 +990,26 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
 
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
       const f = useField(draft, setDraft)
-      const sl = st.snowluma
-      const [procs, setProcs] = useState(null)
       const [moveTo, setMoveTo] = useState('')
       // 远端桌宠直连：对外地址的本地编辑态（null = 跟着服务端当前值显示）
       const [pubBase, setPubBase] = useState(null)
       const conn = st.onebot.state === 'connected'
-      const loadProcs = async () => { const r = await get('/snowluma/processes'); setProcs(r.list || []); if (!r.ok) toast(r.message) }
-      const act = (p) => async () => { const r = await post(p); toast(r.message || (r.ok ? '好了' : '没成功')); reload() }
       const login = st.onebot.login
-      // 不是 Windows 时只能接自己的 OneBot，SnowLuma 的下载 / 启动 / 协议步骤都不显示
-      const external = draft.gateway === 'onebot' || !onWin()
       const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 8 } },
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '用什么接 QQ', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null }, h(GatewayChoice, { draft, setDraft })),
-        external ? h(Card, { title: '接上 QQ（已有的 OneBot 机器人）', desc: '让你的 OneBot 服务登录机器人号 ' + (draft.botQQ || '') + '，把它的正向 WebSocket 地址填在这里，保存后插件就会去连。插件只连接，不会启动或注入任何东西；连上后会先核对登录的是不是机器人号，不是就断开。' },
+        h(Card, { title: '接上 QQ', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
+          desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
           h(Row, { label: '机器人 QQ 号' }, f.text('botQQ')),
-          testBtns) :
-        h(Card, { title: '接上 QQ（SnowLuma）', desc: 'SnowLuma 是让机器人号上线的 QQ 网关。按协议规定它需要你自己下载、解压并同意它的用户协议；控制台密码、启动、接入、断线重连都交给 Aurabot。',
-          },
-          h('div', { className: 'ab-steps' },
-            h('div', { className: cx('ab-step', sl.installed && 'done') }, h('div', null,
-              h('b', null, '下载 SnowLuma'), h('div', { className: 'ab-muted ab-small' }, '打开官方发布页，下载 Windows 完整版（名字类似 SnowLuma-v2.x.x-win-x64.zip，不带 lite）。'),
-              h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, onClick: () => window.open(sl.downloadPage, '_blank') }, '打开下载页 ↗')))),
-            h('div', { className: cx('ab-step', sl.installed && 'done') }, h('div', null,
-              h('b', null, '解压到一个纯英文的目录'), h('div', { className: 'ab-muted ab-small' }, '推荐 C:\\Aurabot\\snowluma。解压后这个目录里应该直接能看到 index.mjs 和 node.exe。'),
-              h('div', { className: 'ab-flex', style: { marginTop: 6 } }, f.text('snowluma.dir', { size: 'wide', placeholder: 'C:\\Aurabot\\snowluma' })),
-              !sl.installed && sl.reason ? h('div', { className: 'ab-small', style: { color: 'var(--ab-warn)', marginTop: 4 } }, sl.reason) : sl.installed ? h('div', { className: 'ab-small', style: { color: 'var(--ab-ok)', marginTop: 4 } }, '找到了 SnowLuma v' + sl.version) : null)),
-            h('div', { className: cx('ab-step', sl.running && 'done') }, h('div', null,
-              h('b', null, '启动'), h('div', { className: 'ab-muted ab-small' }, '后台运行，不弹窗口；以后会跟着 DSH 自动启动。'),
-              h('div', { className: 'ab-flex', style: { marginTop: 6 } },
-                h(Btn, { small: true, kind: 'primary', disabled: !sl.installed || sl.running, onClick: act('/snowluma/start') }, sl.running ? '已在运行' : '启动'),
-                sl.owns ? h(Btn, { small: true, kind: 'danger', onClick: act('/snowluma/stop') }, '停止') : null),
-              h('div', { style: { marginTop: 6 } }, h(SnowLumaAuth, { running: sl.running, toast, onChange: reload })))),
-            h('div', { className: cx('ab-step', sl.consented && 'done') }, h('div', null,
-              h('b', null, '阅读并同意 SnowLuma 的用户协议'), h('div', { className: 'ab-muted ab-small', style: { marginBottom: 6 } }, '同意之前 SnowLuma 不会工作。'),
-              h(Agreement, { running: sl.running, toast, onChange: reload }))),
-            h('div', { className: cx('ab-step', conn && login && login.uin === draft.botQQ && 'done') }, h('div', null,
-              h('b', null, '登录机器人号并接入'), h('div', { className: 'ab-muted ab-small' }, '在电脑上另开一个 QQ 登录机器人号 ' + draft.botQQ + '（可以最小化），然后点「接入机器人号」。'),
-              h('div', { className: 'ab-flex', style: { marginTop: 6 } },
-                h(Btn, { small: true, kind: 'primary', disabled: !sl.running, onClick: act('/snowluma/attach') }, '接入机器人号'),
-                h(Btn, { small: true, disabled: !sl.running, onClick: loadProcs }, '看看有哪些 QQ 进程'),
-                h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接')),
-              sl.lastAttach && sl.lastAttach.at ? h('div', { className: 'ab-small', style: { marginTop: 4, color: sl.lastAttach.ok ? 'var(--ab-ok)' : 'var(--ab-warn)' } }, timeAgo(sl.lastAttach.at) + '：' + sl.lastAttach.message) : null)),
-          ),
-          procs ? h('div', { style: { marginTop: 14 } }, procs.length === 0 ? h('div', { className: 'ab-muted' }, '没找到 QQ 进程。') :
-            h('table', { className: 'ab-table' }, h('thead', null, h('tr', null, ['进程', '登录的号', '昵称', '状态', ''].map((x) => h('th', { key: x }, x)))),
-              h('tbody', null, procs.map((p) => h('tr', { key: p.pid },
-                h('td', null, p.pid), h('td', null, p.uin || '识别不出'), h('td', null, p.nickname || '—'),
-                h('td', null, p.injected ? (p.connected ? '已接入' : '已注入，连接中') : '未接入'),
-                h('td', null, p.isBot ? h('span', { className: 'ab-badge' }, '机器人号') : h('span', { className: 'ab-muted ab-small' }, '不会碰'))))))) : null,
-        ),
+          testBtns),
         h(Card, { title: 'QQ 会话放在哪', desc: '每个 QQ 私聊 / 群都是 DSH 里「Aurabot · QQ」工作区下的一个会话，ta在会话里读写文件也在这个文件夹。改了以后新开的会话放到新位置；已有的会话还在原来的地方，想全部挪过去就在「概览」点「重新开始所有 QQ 会话」。' },
-          h(Row, { label: '工作区文件夹', hint: '填完整路径（比如 ' + exPath('D:\\Aurabot\\qq-chats', 'Aurabot/qq-chats') + '）；留空 = 默认位置' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
+          h(Row, { label: '工作区文件夹', hint: '填完整路径（比如 ' + exPath('Aurabot/qq-chats') + '）；留空 = 默认位置' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
           h('div', { className: 'ab-muted ab-small' }, '现在用的：' + (st.workspaceDir || '—') + (st.workspaceReal && st.workspaceReal !== st.workspaceDir ? '（文件实际在 ' + st.workspaceReal + '）' : '')),
           h(Row, { label: '把现有文件搬过去', hint: '填一个空文件夹的完整路径。已有会话照常接着聊，原路径留一个联接指过去；聊天记录和记忆在用户目录的 .dsh 里，不跟着搬。她正在跑命令时搬不了' },
             h('div', { className: 'ab-flex' },
-              h('input', { className: 'ab-input', value: moveTo, placeholder: exPath('D:\\Aurabot\\qq-chats', 'Aurabot/qq-chats'), onChange: (e) => setMoveTo(e.target.value) }),
+              h('input', { className: 'ab-input', value: moveTo, placeholder: exPath('Aurabot/qq-chats'), onChange: (e) => setMoveTo(e.target.value) }),
               h(Btn, { small: true, disabled: !moveTo.trim(), onClick: async () => {
                 const r = await post('/workspace/move', { to: moveTo.trim() })
                 toast(r.message, r.ok ? 'ok' : 'err')
@@ -1157,18 +1053,6 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
                   if (r.ok) { setPubBase(null); reload() }
                 } }, '关闭远端直连') : null)))
         })(),
-        external ? null : h(Card, { title: '高级', desc: '一般不用动：地址和令牌会自动从 SnowLuma 的配置里读。' },
-          h(Row, { label: '机器人 QQ 号' }, f.text('botQQ')),
-          h(Row, { label: '控制台端口' }, f.num('snowluma.webuiPort', { min: 1, max: 65535 })),
-          h(Row, { label: '控制台密码', hint: '默认由插件自动生成，上面「显示密码」能看到。想自己定一个就填在这里，保存后会真的改到 SnowLuma 上（至少 10 位，要有大小写字母和符号，不能有空格）' }, f.text('snowluma.webuiPassword', { type: 'password', placeholder: draft.snowluma.webuiPasswordSet ? (draft.snowluma.passwordAuto ? '自动管理中（不改就留空）' : '已保存（不改就留空）') : '留空 = 自动' })),
-          h(Row, { label: 'SnowLuma 自己的控制台', hint: '一般用不到，想看它的原始界面时用' }, h(Btn, { small: true, disabled: !sl.running, onClick: () => window.open(sl.webui, '_blank') }, '打开 ↗')),
-          h(Row, { label: '随 DSH 自动启动 SnowLuma' }, f.sw('snowluma.autoStart')),
-          h(Row, { label: '自动接入机器人号', hint: '断线后自动重新接入，只接机器人号。' }, f.sw('snowluma.autoAttach')),
-          h(Row, { label: '手动 HTTP 地址', hint: '留空 = 自动' }, f.text('snowluma.httpUrl', { placeholder: 'http://127.0.0.1:3000' })),
-          h(Row, { label: '手动 WS 地址', hint: '留空 = 自动' }, f.text('snowluma.wsUrl', { placeholder: 'ws://127.0.0.1:3001' })),
-          h(Row, { label: '手动 HTTP 令牌' }, f.text('snowluma.httpToken', { type: 'password', placeholder: draft.snowluma.httpTokenSet ? '已保存' : '留空 = 自动' })),
-          h(Row, { label: '手动 WS 令牌' }, f.text('snowluma.wsToken', { type: 'password', placeholder: draft.snowluma.wsTokenSet ? '已保存' : '留空 = 自动' })),
-        ),
       )
     }
 
@@ -1559,8 +1443,8 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
         h(OwnerBrief, { draft, setDraft }),
         h(Card, { title: '发文件', right: f.sw('files.enabled'), desc: '打开后，你可以让ta把本机文件发到 QQ：图片会直接显示成图，其它当文件发。私聊里随时能发，群里只在你自己开口那一轮能发；也能按你说的发给白名单里的人或群。ta只能发 QQ 工作区和下面目录里的文件；单个文件有大小上限；发过什么会记在日志里。' },
           h(Row, { label: '单个文件最大' }, f.num('files.maxMB', { min: 1, max: 2048 }), h('span', { className: 'ab-muted' }, ' MB')),
-          h(Row, { label: '额外允许的目录', hint: '一行一个完整路径。QQ 工作区里的文件一直允许，不用写；留空 = 只能发工作区里的' }, f.list('files.dirs', { placeholder: exPath('D:\\Aurabot\\要发的文件', 'Desktop') })),
-          h(Row, { label: onWin() ? '图片按路径直发' : '图片和文件按路径直发', hint: '网关和 NapCat 在同一台机器或共享挂载时，直接把路径交给网关，省掉读盘和 base64 膨胀；网关读不到会自动改用 base64。' + (onWin ? '默认开。' : 'Mac 上网关在 Docker 里读不到本机路径，默认关，建议保持关；关着时发文件也不先按路径试，直接走 base64 / 下载口。') }, f.sw('files.imageByPath')),
+          h(Row, { label: '额外允许的目录', hint: '一行一个完整路径。QQ 工作区里的文件一直允许，不用写；留空 = 只能发工作区里的' }, f.list('files.dirs', { placeholder: exPath('Desktop') })),
+          h(Row, { label: '图片和文件按路径直发', hint: '网关和插件在同一台机器或共享挂载时，直接把路径交给网关，省掉读盘和 base64 膨胀。Mac 上网关在 Docker / OrbStack 里读不到本机路径，默认关，建议保持关；关着时图片和文件都直接走 base64 / 下载口。' }, f.sw('files.imageByPath')),
           h(Row, { label: '大文件下载口', hint: '网关跑在 Docker / 虚拟机里看不到本机文件时，超过 30 MB 的文件会临时开一个只对本机开放的下载地址让网关来取（随机口令，15 分钟作废）。关掉后这种情况下大文件发不出去' }, f.sw('files.relay')),
           draft.files.relay !== false ? h(Row, { label: '网关访问本机用的地址', hint: 'OrbStack、Docker Desktop 都是 host.docker.internal；网关在别的电脑上时这招不管用' }, f.text('files.relayHost', { placeholder: 'host.docker.internal' })) : null,
         ),
@@ -1736,12 +1620,12 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '说话（文字转语音）', right: f.sw('voice.enabled'), desc: '回复里写了 <voice>…</voice> 的部分会变成 QQ 语音条；对方明确要语音时一定发语音；短回复也有一定概率整条变语音。' },
           h('div', { style: { margin: '4px 0 12px' } }, f.choices('voice.engine', [
-            { value: 'auto', label: '自动', desc: 'edge-tts 优先，不行用' + (onMac() ? ' macOS 自带语音' : ' Windows 语音') },
+            { value: 'auto', label: '自动', desc: 'edge-tts 优先，不行用 macOS 自带语音' },
             { value: 'edge', label: '微软 edge-tts', desc: st.voice.edgeInstalled ? '在线，音色自然（已装好）' : '在线，音色自然（还没装）' },
             { value: 'cosyvoice', label: '本地 CosyVoice', desc: '自己部署的 CosyVoice 服务，可克隆音色' },
             { value: 'gptsovits', label: '本地 GPT-SoVITS', desc: 'GPT-SoVITS api_v2，用参考音频定音色' },
             { value: 'http', label: '其他 HTTP 接口', desc: '任意返回音频的地址' },
-            { value: 'windows', label: onMac() ? 'macOS 自带' : 'Windows 自带', desc: '离线可用，机械感重一些' },
+            { value: 'system', label: 'macOS 自带', desc: '离线可用，机械感重一些' },
           ])),
           ['auto', 'edge'].includes(draft.voice.engine) ? [
             !st.voice.edgeInstalled ? h(Row, { key: 'i', label: 'edge-tts', hint: '装在插件自己的 Python 环境里，不影响系统' }, h(Btn, { small: true, onClick: async () => { toast('正在安装，可能要一两分钟…'); const r = await post('/voice/install'); toast(r.message); reload() } }, '安装 edge-tts')) : null,
@@ -2771,7 +2655,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
               ? (work.label || work.state) + (work.task ? '：' + work.task : '') + '（' + timeAgo(work.at) + '）'
               : '空闲（ta自己在玩）')),
           h(Row, { label: '完工弹一句气泡' }, h(Switch, { on: pet && pet.workBubble === false ? false : true, onChange: (v) => savePet({ workBubble: v }) })),
-          h(Row, { label: '完工发系统通知', hint: (onMac() ? '屏幕右上角通知' : 'Windows 右下角通知') + '；不喜欢可以关掉只留气泡' }, h(Switch, { on: pet && pet.workNotify === false ? false : true, onChange: (v) => savePet({ workNotify: v }) })),
+          h(Row, { label: '完工发系统通知', hint: '屏幕右上角通知；不喜欢可以关掉只留气泡' }, h(Switch, { on: pet && pet.workNotify === false ? false : true, onChange: (v) => savePet({ workNotify: v }) })),
           h(Row, { label: '动画对应', hint: '按形象包里的「工作状态-*」自动对；可在 <包名>-config.json 的 events.workStatus 覆盖' },
             h('span', { className: 'ab-muted ab-small' }, (() => {
               const map = pet && pet.workAnimMap
@@ -3335,13 +3219,11 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     const fmtBytes = (n) => (n >= 1024 ** 3 ? (n / 1024 ** 3).toFixed(2) + ' GB' : (n / 1024 ** 2).toFixed(n >= 100 * 1024 ** 2 ? 0 : 1) + ' MB')
     const fmtDur = (ms) => { const sec = Math.max(0, Math.round(ms / 1000)); return sec >= 60 ? Math.floor(sec / 60) + ' 分 ' + (sec % 60) + ' 秒' : sec + ' 秒' }
 
-    /** 装到哪里：列出每个盘和剩余空间，点一下选；也可以自己填路径。 */
+    /** 装到哪里：默认位置一键选回；也可以自己填路径。 */
     function RootPicker({ draft, setDraft, s }) {
       const val = draft.song.root || ''
       const cur = val || s.defaultRoot
-      const [drives, setDrives] = useState([])
       const [chk, setChk] = useState(null)
-      useEffect(() => { get('/song/drives').then((r) => setDrives(r.list || [])) }, [])
       useEffect(() => {
         const t = setTimeout(() => get('/song/root/check?path=' + encodeURIComponent(cur)).then(setChk), 300)
         return () => clearTimeout(t)
@@ -3349,10 +3231,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const pick = (root) => setDraft(setPath(draft, 'song.root', root === s.defaultRoot ? '' : root))
       return h('div', { style: { width: '100%' } },
         h('div', { className: 'ab-drives' },
-          h('button', { type: 'button', className: cx('ab-drive', !val && 'on'), onClick: () => pick(s.defaultRoot) }, h('b', null, '默认位置'), h('small', null, s.defaultRoot)),
-          drives.map((d) => h('button', { key: d.drive, type: 'button', className: cx('ab-drive', val.toLowerCase() === d.root.toLowerCase() && 'on', d.freeGB < 10 && 'low'), onClick: () => pick(d.root) },
-            h('b', null, d.drive + ' 盘'), h('small', null, '剩 ' + d.freeGB + ' GB / 共 ' + Math.round(d.totalGB) + ' GB'),
-            h('span', { className: 'bar' }, h('i', { style: { width: Math.round((1 - d.freeGB / d.totalGB) * 100) + '%' } }))))),
+          h('button', { type: 'button', className: cx('ab-drive', !val && 'on'), onClick: () => pick(s.defaultRoot) }, h('b', null, '默认位置'), h('small', null, s.defaultRoot))),
         h('input', { className: 'ab-input wide', style: { marginTop: 8 }, value: val, placeholder: '或者自己填路径，留空 = 默认位置（' + s.defaultRoot + '）', onChange: (e) => setDraft(setPath(draft, 'song.root', e.target.value)) }),
         chk ? h('div', { className: 'ab-small', style: { marginTop: 4, color: !chk.ok || chk.warn ? 'var(--ab-warn)' : 'var(--ab-sub)' } },
           !chk.ok ? chk.message : ['装在 ' + cur, chk.freeGB !== null ? '这个盘还剩 ' + chk.freeGB + ' GB' : '', chk.warn].filter(Boolean).join('；')) : null,
@@ -3414,7 +3293,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h('div', { className: 'ab-flex', style: { marginTop: 12 } },
             h(Btn, { kind: 'primary', small: true, disabled: s.install.running || (draft.song.root || '') !== (st.config.song.root || ''), onClick: async () => { const r = await post('/song/install'); toast(r.message); setTimeout(load, 800) } },
               s.install.running ? h(Fragment, null, h('i', { className: 'ab-spin' }), ' 正在安装…') : Object.values(s.parts).every(Boolean) ? '重新检查 / 修复安装' : '一键安装'),
-            h('span', { className: 'ab-muted ab-small' }, (draft.song.root || '') !== (st.config.song.root || '') ? '安装位置改了，先保存设置' : (onMac() ? 'Apple 芯片用 MPS 加速（Intel Mac 只能用 CPU，会很慢）' : '需要 NVIDIA 显卡') + '；装在 ' + s.root)),
+            h('span', { className: 'ab-muted ab-small' }, (draft.song.root || '') !== (st.config.song.root || '') ? '安装位置改了，先保存设置' : 'Apple 芯片用 MPS 加速（Intel Mac 只能用 CPU，会很慢）' + '；装在 ' + s.root)),
           s.install.running ? h(InstallProgress, { inst: s.install }) : null,
           s.install.ok === true && !s.install.running ? h('div', { className: 'ab-note', style: { marginTop: 8 } }, '✓ ' + s.install.message) : null,
           s.install.log.length ? h('details', { style: { marginTop: 8 } }, h('summary', { className: 'ab-muted ab-small', style: { cursor: 'pointer' } }, '详细日志'),
@@ -3880,7 +3759,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '每个视频抽几帧' }, f.range('bili.visionFrames', 2, 12, 1, (v) => v + ' 帧')),
           h(Row, { label: '刷完顺手发张截图', hint: '概率；跟发一张表情包一样默认 35%，0 = 从不。截图都存在本机，你让ta发ta也能挑' }, f.range('bili.shotChance', 0, 1, 0.05, (v) => Math.round(v * 100) + '%')),
           h(Row, { label: '截图库最多存', hint: '超过就自动删最旧的；下面的截图库里也能一张张手动删' }, f.num('bili.shotLibrary', { min: 20, max: 2000 }), h('span', { className: 'ab-muted' }, '张')),
-          h(Row, { label: 'ffmpeg 路径', hint: '留空就自己在 PATH 里找；找不到就填绝对路径' }, f.text('bili.ffmpegPath', { placeholder: onWin() ? 'C:\\ffmpeg\\bin\\ffmpeg.exe' : '/opt/homebrew/bin/ffmpeg' })),
+          h(Row, { label: 'ffmpeg 路径', hint: '留空就自己在 PATH 里找；找不到就填绝对路径' }, f.text('bili.ffmpegPath', { placeholder: '/opt/homebrew/bin/ffmpeg' })),
           s && s.vision ? h('div', { className: 'ab-small', style: { marginTop: 4, color: s.vision.ffmpeg ? 'var(--ab-ok)' : 'var(--ab-warn)' } }, (s.vision.ffmpeg ? '✓ 已找到 ffmpeg：' + s.vision.ffmpeg : '✗ 没找到 ffmpeg：抽帧会被跳过，装一个或者在上面填路径') + (s.shots ? '　·　手上存了 ' + s.shots.count + ' 张截图' : '')) : null,
         ),
         h(Card, { title: '截图库' + (shots ? '（' + shots.length + ' / ' + ((draft.bili && draft.bili.shotLibrary) || 300) + '）' : ''), right: h('div', { className: 'ab-flex' },
@@ -4025,7 +3904,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h('div', { className: 'ab-flex' },
               h(Btn, { small: true, onClick: act('/douyin/window', 'win', { visible: true }), disabled: !!busy }, '显示浏览器窗口'),
               h(Btn, { small: true, onClick: act('/douyin/window', 'win', { visible: false }), disabled: !!busy }, '收起窗口'))),
-          h(Row, { label: '浏览器路径', hint: '留空 = 自动找 Edge（找不到再找 Chrome / Chromium）' }, f.text('douyin.browserPath', { size: 'wide', placeholder: onWin() ? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe' : onMac() ? '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge' : '/usr/bin/microsoft-edge' })),
+          h(Row, { label: '浏览器路径', hint: '留空 = 自动找 Edge（找不到再找 Chrome / Chromium）' }, f.text('douyin.browserPath', { size: 'wide', placeholder: '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge' })),
         ),
         h(Card, { title: '主人抖音号', desc: '填你的抖音号或主页链接，点「核对」。核对过之后，ta刷到特别想让你看的视频，会在评论里真的 @你（用抖音自己的 @ 选人，按你的账号 id 认人，你会收到抖音通知；认不出你就不发，不会发假 @）。改了输入要重新核对。' },
           h(Row, { label: '你的抖音号 / 主页链接' }, f.text('douyin.owner.input', { size: 'wide', placeholder: '抖音号，或 https://www.douyin.com/user/…' })),
@@ -4792,7 +4671,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
               onDragOver: (e) => { e.preventDefault(); setOver(true) }, onDragLeave: () => setOver(false),
               onDrop: (e) => { e.preventDefault(); setOver(false); upload(e.dataTransfer.files[0]) } }, busy ? '导入中…' : '把备份 zip 拖到这里，或点这里选择文件'),
             h('div', { key: 'p', className: 'ab-flex', style: { marginTop: 10 } },
-              h('input', { className: 'ab-input', placeholder: '文件很大时填完整路径，如 ' + exPath('D:\\aurabot-backup.zip', 'Desktop/aurabot-backup.zip'), value: path, onChange: (e) => setPath(e.target.value) }),
+              h('input', { className: 'ab-input', placeholder: '文件很大时填完整路径，如 ' + exPath('Desktop/aurabot-backup.zip'), value: path, onChange: (e) => setPath(e.target.value) }),
               h(Btn, { small: true, disabled: busy || !path.trim(), onClick: async () => { if (!confirm('导入这个备份？重启 DSH 后会替换这台电脑上的数据。')) return; setBusy(true); try { after(await call('/backup/restore-path', { path })) } finally { setBusy(false) } } }, '导入')),
           ]),
         h(Card, { title: '不会带过去的', desc: '这些要在新电脑上重新弄一下。' },
@@ -4863,7 +4742,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const [auto, setAuto] = useState(true)
       const load = useCallback(() => get('/logs?limit=400&level=' + level + '&area=' + area).then((r) => setItems(r.entries || [])), [level, area])
       useEffect(() => { load(); if (!auto) return; const t = setInterval(load, 3000); return () => clearInterval(t) }, [load, auto])
-      return h(Card, { title: '日志', desc: '所有后台动作都在这里，令牌和密码已自动打码。完整日志文件在 ' + (onWin() ? '%USERPROFILE%\\.dsh\\plugins-data\\aurabot\\logs\\' : '~/.dsh/plugins-data/aurabot/logs/') + '。',
+      return h(Card, { title: '日志', desc: '所有后台动作都在这里，令牌和密码已自动打码。完整日志文件在 ' + '~/.dsh/plugins-data/aurabot/logs/' + '。',
         right: h('div', { className: 'ab-flex' },
           h(Select, { value: level, onChange: setLevel, width: 110, options: [['debug', '全部'], ['info', '一般'], ['warn', '警告'], ['error', '错误']].map(([value, label]) => ({ value, label })) }),
           h(Select, { value: area, onChange: setArea, width: 130, options: [['', '所有模块'], ['core', '核心'], ['chat', '聊天'], ['onebot', 'QQ 网关'], ['snowluma', 'SnowLuma'], ['sticker', '表情'], ['qzone', '空间'], ['voice', '语音'], ['imagegen', '生图'], ['speakup', '搭话']].map(([value, label]) => ({ value, label })) }),
@@ -4873,22 +4752,18 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     }
 
     // ---------------- 首次使用向导 ----------------
-    const WIZ_STEPS = ['你们的 QQ 号', '接 QQ 网关', '启动并同意协议', '连上机器人号', '完成']
+    const WIZ_STEPS = ['你们的 QQ 号', '接 QQ 网关', '连上机器人号', '完成']
 
     function Wizard({ st, draft, setDraft, save, toast, reload, onClose }) {
       const [step, setStep] = useState(() => { try { return Number(localStorage.getItem('aurabot.wiz') || 0) } catch (e) { return 0 } })
       const go = (i) => { setStep(i); try { localStorage.setItem('aurabot.wiz', String(i)) } catch (e) {} }
       const f = useField(draft, setDraft)
-      const sl = st.snowluma
       const conn = st.onebot.state === 'connected'
       const login = st.onebot.login
-      const [procs, setProcs] = useState(null)
       const [live, setLive] = useState('dry')
       const qqOk = /^\d{5,11}$/.test(draft.botQQ || '') && /^\d{5,11}$/.test(draft.ownerQQ || '') && draft.botQQ !== draft.ownerQQ
-      // 不是 Windows 时只能接自己的 OneBot，SnowLuma 的下载 / 启动 / 协议步骤都不显示
-      const external = draft.gateway === 'onebot' || !onWin()
       const verified = conn && login && String(login.uin) === String(st.config.botQQ) && !st.onebot.problem
-      const canNext = [qqOk, external ? Boolean(draft.snowluma.wsUrl || st.config.snowluma.wsUrl) : sl.installed, external || (sl.running && sl.consented), verified, true][step]
+      const canNext = [qqOk, Boolean(draft.snowluma.wsUrl || st.config.snowluma.wsUrl), verified, true][step]
       const next = async () => {
         if ((step === 0 || step === 1) && !(await save({ ...draft, enabled: true }))) return
         go(Math.min(step + 1, WIZ_STEPS.length - 1))
@@ -4906,45 +4781,20 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '机器人 QQ 号', hint: '强烈建议用小号：非官方 QQ 工具有被限制的风险' }, f.text('botQQ', { placeholder: '例如 123456789' })),
           h(Row, { label: '你的 QQ 号（主人）', hint: '群管、操作电脑这些只听主人的' }, f.text('ownerQQ', { placeholder: '你的大号' })),
           h(Row, { label: 'ta怎么称呼你' }, f.text('ownerName', { placeholder: '主人' })),
-          h(Row, { label: '工作区文件夹', hint: 'ta在 QQ 会话里读写文件的地方，' + (onWin() ? 'C 盘空间紧就放到别的盘' : '想放在别处就填完整路径') + '，比如 ' + exPath('D:\\Aurabot\\qq-chats', 'Aurabot/qq-chats') + '。填完整路径，留空用默认位置。以后想换，在「连接」页能搬。聊天记录和记忆在用户目录的 .dsh 里，不在这个文件夹' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
+          h(Row, { label: '工作区文件夹', hint: 'ta在 QQ 会话里读写文件的地方，' + '想放在别处就填完整路径' + '，比如 ' + exPath('Aurabot/qq-chats') + '。填完整路径，留空用默认位置。以后想换，在「连接」页能搬。聊天记录和记忆在用户目录的 .dsh 里，不在这个文件夹' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
           draft.botQQ && draft.ownerQQ && draft.botQQ === draft.ownerQQ ? h('div', { className: 'ab-note err' }, '机器人号和主人号不能是同一个。') : null),
-        // 1. SnowLuma，或接已有的 OneBot 机器人
-        external ? h('div', null,
-          h(GatewayChoice, { draft, setDraft }),
-          h('p', { className: 'ab-desc', style: { marginTop: 10 } }, '让你的 OneBot 服务（NapCat、LLOneBot、Lagrange、Docker 里的 SnowLuma……）登录机器人号，把它的正向 WebSocket 地址填在下面。插件只连接，不会启动或注入任何东西。'),
-          h(OneBotFields, { draft, f })) :
+        // 1. 接 QQ 网关：你自己跑的 OneBot（macOS 上一般是 OrbStack 里的 SnowLuma）
         h('div', null,
-          h(GatewayChoice, { draft, setDraft }),
-          h('p', { className: 'ab-desc', style: { marginTop: 10 } }, 'SnowLuma 是让机器人号上线的 QQ 网关。它的协议不允许别的程序自动下载安装，所以这一步要你自己来（只用做一次）。'),
-          h('div', { className: 'ab-steps' },
-            h('div', { className: 'ab-step' }, h('div', null, h('b', null, '下载'), h('div', { className: 'ab-muted ab-small' }, '下载 Windows 完整版，文件名类似 SnowLuma-v2.x.x-win-x64.zip（不带 lite）。'),
-              h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, onClick: () => window.open(sl.downloadPage, '_blank') }, '打开下载页 ↗')))),
-            h('div', { className: cx('ab-step', sl.installed && 'done') }, h('div', null, h('b', null, '解压到纯英文目录'), h('div', { className: 'ab-muted ab-small' }, '推荐 C:\\Aurabot\\snowluma，解压后目录里能直接看到 index.mjs。'),
-              h('div', { className: 'ab-flex', style: { marginTop: 6 } }, f.text('snowluma.dir', { size: 'wide', placeholder: 'C:\\Aurabot\\snowluma' }), h(Btn, { small: true, onClick: async () => { await save(draft); reload() } }, '检查')),
-              h('div', { className: 'ab-small', style: { marginTop: 4, color: sl.installed ? 'var(--ab-ok)' : 'var(--ab-warn)' } }, sl.installed ? '✓ 找到了 SnowLuma v' + sl.version : sl.reason))))),
-        // 2. 启动 + 协议（接自己的 OneBot 时不用）
-        external ? h('div', null, h('p', { className: 'ab-desc' }, '用的是你自己的 OneBot 服务，这一步不用做，直接下一步。')) :
+          h('p', { className: 'ab-desc' }, 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里用它官方的 docker-compose.yml 跑起来，打开它的远程桌面登录机器人号，再把 OneBot 的正向 WebSocket 地址（一般是 ws://127.0.0.1:3001）和令牌填在下面。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不会启动或注入任何东西。'),
+          h(OneBotFields, { draft, f })),
+        // 2. 连上机器人号
         h('div', null,
-          h('p', { className: 'ab-desc' }, '点启动后它在后台运行（不弹窗口），控制台密码由插件自动生成和保存，你不用记。'),
-          h('div', { className: 'ab-flex', style: { marginBottom: 10 } },
-            h(Btn, { kind: 'primary', small: true, disabled: sl.running, onClick: async () => { toast('正在启动…'); const r = await post('/snowluma/start'); toast(r.message); reload() } }, sl.running ? '✓ 已在运行' : '启动 SnowLuma'),
-            h(SnowLumaAuth, { running: sl.running, toast, onChange: reload })),
-          h(Agreement, { running: sl.running, toast, onChange: reload })),
-        // 3. 接入
-        h('div', null,
-          external ? h('p', { className: 'ab-desc' }, '确认你的 OneBot 服务登录的是机器人号 ' + (st.config.botQQ || '') + '，然后点「测试连接」。插件连上后会先核对登录的号，不是机器人号就断开。') :
-          h('p', { className: 'ab-desc' }, '在这台电脑上另开一个 QQ，登录机器人号 ' + (st.config.botQQ || '') + '（可以最小化）。你的大号 QQ 照常开着就行——插件只会接入机器人号，绝不碰别的号。'),
-          external ? h('div', { className: 'ab-flex' },
-            h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '连接'),
-            h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接')) :
+          h('p', { className: 'ab-desc' }, '确认你的 OneBot 服务登录的是机器人号 ' + (st.config.botQQ || '') + '，然后点「连接」。插件连上后会先核对登录的号，不是机器人号就断开。'),
           h('div', { className: 'ab-flex' },
-            h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/snowluma/attach'); toast(r.message); setTimeout(reload, 1500) } }, '接入机器人号'),
-            h(Btn, { small: true, onClick: async () => { const r = await get('/snowluma/processes'); setProcs(r.list || []); if (!r.ok) toast(r.message) } }, '看看有哪些 QQ 进程'),
+            h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '连接'),
             h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接')),
-          sl.lastAttach && sl.lastAttach.at ? h('div', { className: 'ab-small', style: { marginTop: 8, color: sl.lastAttach.ok ? 'var(--ab-ok)' : 'var(--ab-warn)' } }, sl.lastAttach.message) : null,
-          conn && login ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, login.uin === st.config.botQQ ? '✓ 连上了：' + login.nickname + '（' + login.uin + '）' : '⚠ 连上的是 ' + login.uin + '，不是机器人号') : h('div', { className: 'ab-muted ab-small', style: { marginTop: 10 } }, '接入后需要十几秒识别登录状态，稍等一下会自动刷新。'),
-          procs ? h('table', { className: 'ab-table', style: { marginTop: 10 } }, h('tbody', null, procs.map((p) => h('tr', { key: p.pid }, h('td', null, p.pid), h('td', null, p.uin || '识别不出'), h('td', null, p.nickname || ''), h('td', null, p.isBot ? h('span', { className: 'ab-badge' }, '机器人号') : h('span', { className: 'ab-muted ab-small' }, '不会碰')))))) : null),
-        // 4. 完成
+          conn && login ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, login.uin === st.config.botQQ ? '✓ 连上了：' + login.nickname + '（' + login.uin + '）' : '⚠ 连上的是 ' + login.uin + '，不是机器人号') : h('div', { className: 'ab-muted ab-small', style: { marginTop: 10 } }, '点「连接」后稍等几秒，连上了这里会显示。')),
+        // 3. 完成
         h('div', null,
           h('p', { className: 'ab-desc' }, '都准备好了！最后选一下ta怎么上线：'),
           h(Choices, { value: live, onChange: setLive, options: [
@@ -5010,7 +4860,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
         const r = await get('/state')
         if (!r || r.ok === false) { setErr(r && r.message ? r.message : '读不到插件状态'); return }
         setErr('')
-        if (r.platform) { HOST.platform = r.platform; HOST.home = r.home || '' }
+        if (r.home) HOST.home = r.home
         setSt(r)
         if (!dirtyRef.current) setDraft(clone(r.config))
       }, [])
@@ -5098,7 +4948,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
               h('div', { className: 'ab-pills' },
                 h('span', { className: 'ab-pill' }, h('i', { className: cx('ab-dot', status.cls) }), status.text),
                 // 接的是自己的 OneBot（Docker / 别的机器）时，插件不管 SnowLuma，别显示「未安装」误导人
-                h('span', { className: 'ab-pill' }, (st.config.gateway || 'snowluma') === 'onebot' ? '网关：自己的 OneBot' : 'SnowLuma ' + (st.snowluma.installed ? (st.snowluma.running ? '运行中' : '没启动') : '未安装')),
+                h('span', { className: 'ab-pill' }, '网关：OneBot'),
                 h('span', { className: 'ab-pill' }, 'Aurabot v' + st.version))),
             h('div', { className: 'ab-hero-side' },
               h('div', { className: 'ab-switch-row' }, h('span', null, '总开关'), h(Switch, { on: cfg.enabled, onChange: (v) => quickToggle('enabled', v) })),

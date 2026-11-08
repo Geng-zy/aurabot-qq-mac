@@ -130,7 +130,7 @@ before(async () => {
     // 556 专门测按头衔不理
     titleFilter: { enabled: true, groups: ['556'], title: '大肥鱼' },
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'no-snowluma') },
-    voice: { engine: 'windows', autoChance: 0 },
+    voice: { engine: 'system', autoChance: 0 },
     stickers: { autoChance: 0 },
     // 大多数用例要的是「每次都回」，刹车放宽；558/559 专门测一段一回和刹车
     group: { interjectChance: 0, burstMax: 50, overrides: { 557: { interjectChance: 1, minRelevance: 0, minRecentMessages: 0, cooldownSec: 0, quietHours: [0, 0] }, 559: { burstMax: 2 } } },
@@ -519,16 +519,32 @@ test('普通照片不收进表情库', async () => {
   assert.equal(mock.sent('add_custom_face').length, 1, '数量没变')
 })
 
-test('语音：回复里的 <voice> 变成 QQ 语音条', { skip: process.platform !== 'win32' && '依赖 Windows TTS 引擎' }, async () => {
-  mock.push(priv(OWNER, text('晚安')))
-  await until(() => sentTo('private', OWNER).some((c) => c.params.message[0].type === 'record'), 20000)
-  const rec = sentTo('private', OWNER).find((c) => c.params.message[0].type === 'record')
-  assert.match(rec.params.message[0].data.file, /^base64:\/\//)
+/** 本地临时起一个 HTTP 语音服务给测试用（快、稳定，不依赖系统语音）；跑完恢复成系统语音。 */
+async function withHttpTts(fn) {
+  const http = await import('node:http')
+  const srv = http.createServer((req, res) => { res.setHeader('content-type', 'audio/wav'); res.end(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(2000)])) })
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r))
+  await fake.call('/save', { voice: { engine: 'http', http: { urlTemplate: `http://127.0.0.1:${srv.address().port}/tts?text={text}` } } })
+  try {
+    await fn()
+  } finally {
+    srv.close()
+    await fake.call('/save', { voice: { engine: 'system' } })
+  }
+}
+
+test('语音：回复里的 <voice> 变成 QQ 语音条', async () => {
+  await withHttpTts(async () => {
+    mock.push(priv(OWNER, text('晚安')))
+    await until(() => sentTo('private', OWNER).some((c) => c.params.message[0].type === 'record'), 20000)
+    const rec = sentTo('private', OWNER).find((c) => c.params.message[0].type === 'record')
+    assert.match(rec.params.message[0].data.file, /^base64:\/\//)
+  })
 })
 
 test('引用 + 语音：语音条单独一条发，不和引用/@ 拼在同一条（issue #103）', async () => {
   const http = await import('node:http')
-  // 用本地 HTTP TTS 避免依赖各平台的 TTS（Windows 语音在 Linux 上不可用）
+  // 用本地 HTTP TTS，不依赖系统语音
   const srv = http.createServer((req, res) => { res.setHeader('content-type', 'audio/wav'); res.end(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(2000)])) })
   await new Promise((r) => srv.listen(0, '127.0.0.1', r))
   await fake.call('/save', { voice: { engine: 'http', http: { urlTemplate: `http://127.0.0.1:${srv.address().port}/tts?text={text}` } } })
@@ -542,7 +558,7 @@ test('引用 + 语音：语音条单独一条发，不和引用/@ 拼在同一�
     assert.deepEqual(recs[0].params.message.map((s) => s.type), ['record'], '语音条必须单独一条，不能带引用/@：' + JSON.stringify(recs[0].params.message.map((s) => s.type)))
   } finally {
     srv.close()
-    await fake.call('/save', { voice: { engine: 'windows' } })
+    await fake.call('/save', { voice: { engine: 'system' } })
   }
 })
 
@@ -560,7 +576,7 @@ test('语音条不把 QQ 表情/emoji 念出来（face 标签和 emoji 在 TTS �
     assert.doesNotMatch(spoken, /呲牙|face:|😁|在读/, '表情标签和 emoji 不能念出来：' + spoken)
   } finally {
     srv.close()
-    await fake.call('/save', { voice: { engine: 'windows' } })
+    await fake.call('/save', { voice: { engine: 'system' } })
   }
 })
 
@@ -776,11 +792,13 @@ test('语音发不出去时退回成发文字', async () => {
   mock.state.failRecord = false
 })
 
-test('明确要语音但她只打了字：插件强制转成语音', { skip: process.platform !== 'win32' && '依赖 Windows TTS 引擎' }, async () => {
-  const n = sentTo('private', OWNER).length
-  mock.push(priv(OWNER, text('用语音说你好')))
-  await until(() => sentTo('private', OWNER).slice(n).some((c) => c.params.message[0].type === 'record'), 20000)
-  assert.ok(!sentTo('private', OWNER).slice(n).some((c) => c.params.message[0].type === 'text' && c.params.message[0].data.text === '你好呀'))
+test('明确要语音但她只打了字：插件强制转成语音', async () => {
+  await withHttpTts(async () => {
+    const n = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('用语音说你好')))
+    await until(() => sentTo('private', OWNER).slice(n).some((c) => c.params.message[0].type === 'record'), 20000)
+    assert.ok(!sentTo('private', OWNER).slice(n).some((c) => c.params.message[0].type === 'text' && c.params.message[0].data.text === '你好呀'))
+  })
 })
 
 test('连发合并：一口气发两句，她只回一次', async () => {
@@ -807,7 +825,7 @@ test('本地 CosyVoice：裸 PCM 包成 WAV 发出语音', async () => {
   await fake.call('/save', { voice: { engine: 'cosyvoice', cosyvoice: { url: `http://127.0.0.1:${srv.address().port}`, spkId: '中文女' } } })
   const r = (await fake.call('/voice/test', { text: '你好呀' })).json()
   srv.close()
-  await fake.call('/save', { voice: { engine: 'windows' } })
+  await fake.call('/save', { voice: { engine: 'system' } })
   assert.equal(r.ok, true, r.message)
   assert.equal(r.engine, 'cosyvoice')
   assert.equal(got.url, '/inference_sft')
@@ -1086,7 +1104,7 @@ test('发文件：「大文件下载口」关掉时，超过 30 MB 又看不到�
   }
 })
 
-test('发文件（macOS / Linux）：「按路径直发」关着时不先按路径试——小文件直接 base64，大文件直接走下载口', { skip: process.platform === 'win32' }, async () => {
+test('发文件：「按路径直发」关着时不先按路径试——小文件直接 base64，大文件直接走下载口', async () => {
   await fake.call('/save', { files: { imageByPath: false, relay: true, relayHost: '127.0.0.1', maxMB: 50 } })
   try {
     let before = mock.sent('upload_private_file').length
@@ -1400,7 +1418,7 @@ test('语音里的表情和语音分开发：表情单独补一条文字气泡�
     for (let i = 0; i < 24 && last !== mock.calls.length; i++) { last = mock.calls.length; await sleep(250) }
   } finally {
     srv.close()
-    await fake.call('/save', { voice: { engine: 'windows', emojiSeparate: true } })
+    await fake.call('/save', { voice: { engine: 'system', emojiSeparate: true } })
   }
 })
 
@@ -1429,7 +1447,7 @@ test('语音发出去、补发表情失败：这一轮不算没发出去（补�
   } finally {
     mock.state.failFace = false
     srv.close()
-    await fake.call('/save', { voice: { engine: 'windows', emojiSeparate: true } })
+    await fake.call('/save', { voice: { engine: 'system', emojiSeparate: true } })
   }
 })
 

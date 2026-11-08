@@ -222,19 +222,14 @@ test('干净环境：没有令牌文件时 status 是未登录', async () => {
   process.env.AURABOT_DATA_DIR = dataDir
 })
 
-test('Windows 打开浏览器不能走 cmd（URL 里的 & 会被截断）', () => {
+test('打开浏览器用 open，链接原样交过去（不经过 shell，& 不会被截断）', () => {
   const calls = []
   const run = (bin, args) => ({ unref () { calls.push({ bin, args }) } })
   const url = 'https://auth.openai.com/oauth/authorize?response_type=code&client_id=app_x&scope=a+b'
-  assert.equal(openInBrowser(url, { run, platform: 'win32' }), true)
+  assert.equal(openInBrowser(url, { run }), true)
   assert.equal(calls.length, 1)
-  assert.equal(calls[0].bin, 'rundll32')
-  assert.equal(calls[0].args[1], url, '整条链接要原样交给浏览器')
-  assert.ok(!/cmd/i.test(calls[0].bin), '不能走 cmd：& 会被当成命令分隔符')
-  openInBrowser(url, { run, platform: 'darwin' })
-  assert.equal(calls[1].bin, 'open')
-  openInBrowser(url, { run, platform: 'linux' })
-  assert.equal(calls[2].bin, 'xdg-open')
+  assert.equal(calls[0].bin, 'open')
+  assert.equal(calls[0].args[0], url, '整条链接要原样交给浏览器')
 })
 
 test('整合 #81：订阅接法保留构图优先级，通过提示词引导，尺寸仍由服务端选择', async () => {

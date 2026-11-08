@@ -3,7 +3,7 @@
 
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync, chmodSync } from 'node:fs'
-import { join, basename, dirname, isAbsolute, delimiter, resolve as resolvePath, sep, win32 as winPath } from 'node:path'
+import { join, basename, dirname, isAbsolute, delimiter, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import { createHash } from 'node:crypto'
@@ -15,10 +15,8 @@ import { findFfmpeg } from '../core/img.js'
 import { runPipeline, ENHANCE_DEFAULTS, PIPELINE_MODELS } from './pipeline.js'
 
 export const APPLIO_REPO = 'https://github.com/IAHispano/Applio.git'
-export const APPLIO_COMMIT = 'c817f1f83f689ef72e0dfeb1c17ae990b9248506'
-// macOS 用 Applio 3.7.1 正式版（tag 3.7.1 的提交），并按 Applio 官方 Mac 安装方式给它建自己的环境（见 MAC_STACK）
-export const APPLIO_COMMIT_MAC = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
-export const applioCommit = (platform = process.platform) => (platform === 'darwin' ? APPLIO_COMMIT_MAC : APPLIO_COMMIT)
+// Applio 3.7.1 正式版（tag 3.7.1 的提交），按 Applio 官方 Mac 安装方式给它建自己的环境（见 MAC_STACK）
+export const APPLIO_COMMIT = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
 /**
  * macOS 一键安装装的版本（2026-11-08 在 Apple 芯片 Mac 上实际跑通整套翻唱的组合）。两套环境：
  * - Applio/.venv：照 Applio 3.7.1 官方 run-install.sh 的 Mac 做法（uv venv + python-ffmpeg + requirements.txt，torch 2.11），
@@ -33,11 +31,8 @@ export const MAC_STACK = {
   // librosa 1.0 不再带 audioread，而 audio-separator 0.48 还在直接 import 它，所以显式补装
   separator: ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'],
 }
-export const pythonVersion = (platform = process.platform) => (platform === 'darwin' ? MAC_STACK.python : '3.12')
-const TORCH_INDEX = 'https://download.pytorch.org/whl/cu128'
-// 国内镜像：PyPI 和 PyTorch 都用阿里云（PyTorch 那边是文件列表，用 --find-links；Applio 固定了 torch 版本，挑得到 cu128 的），Python 本体用 npmmirror
+// 国内镜像：PyPI 用阿里云，Python 本体用 npmmirror
 const CN_PYPI = 'https://mirrors.aliyun.com/pypi/simple'
-const CN_TORCH = 'https://mirrors.aliyun.com/pytorch-wheels/cu128/'
 const CN_PYTHON = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
 
 /** 自动模式下判断要不要用国内镜像：官方源 4 秒内连不上或者很慢就用。 */
@@ -53,10 +48,9 @@ export async function shouldUseCnMirror(mode, fetchImpl = fetch) {
       return Infinity
     }
   }
-  const times = await Promise.all([probe('https://pypi.org/simple/pip/'), probe(TORCH_INDEX + '/torch/'), probe('https://github.com/')])
+  const times = await Promise.all([probe('https://pypi.org/simple/pip/'), probe('https://huggingface.co/'), probe('https://github.com/')])
   return times.some((t) => t > 2500)
 }
-const LEGACY_ROOT = 'C:\\Aurabot\\rvc'
 
 // RVC 推理要的预训练文件（Applio 放在 HuggingFace 上）：[远端相对路径, 本地相对 Applio 的路径]
 const PREREQS = [
@@ -77,33 +71,22 @@ async function downloadWithMirror(python, rel, dest, note, log, onProgress) {
   return fetchFile(python, dest, HF_HOSTS.map((host) => `${host}/IAHispano/Applio/resolve/main/Resources/${rel}`), note, log, onProgress, rel)
 }
 
-// uv 的下载源：PyPI 上的 uv 安装包（Windows 固定 0.13.5 同原版；macOS 固定 0.13.7，是 Mac 上实际跑通的版本。wheel 就是 zip，里面带 uv 程序）走国内镜像，最后才试 GitHub。
-// Windows / macOS（Apple 芯片、Intel）各一份，校验值取自 PyPI 官方。
+// uv 的下载源：PyPI 上的 uv 0.13.7 安装包（wheel 就是 zip，里面带 uv 程序），先走国内镜像。
+// Apple 芯片 / Intel 各一份，校验值取自 PyPI 官方。
 const UV_WHEELS = {
-  'win32-x64': ['packages/32/ea/771744a784b16aa21d195cb5d5d5a2878d72fa00fc26f11ea3f9646994fe/uv-0.13.5-py3-none-win_amd64.whl', '1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f', 'uv-x86_64-pc-windows-msvc.zip'],
-  'darwin-arm64': ['packages/40/a5/8756c38ace102fa13fd4e653e8bc40e1f65924f1c0a0d23350339dac97e5/uv-0.13.7-py3-none-macosx_11_0_arm64.whl', 'f91a229093163eefca89ea1b220a221d64c3beade05d03519a6584d1797a5a5f', ''],
-  'darwin-x64': ['packages/3d/5b/e0379e7b172659420b1ec99a8e8229830aa85ea59684847c80b1c959a056/uv-0.13.7-py3-none-macosx_10_12_x86_64.whl', 'fd04bf01ba5f2829f4f94ca8f0c24a743f21e73d75045613ed6fc2fd66fc7bda', ''],
+  arm64: ['packages/40/a5/8756c38ace102fa13fd4e653e8bc40e1f65924f1c0a0d23350339dac97e5/uv-0.13.7-py3-none-macosx_11_0_arm64.whl', 'f91a229093163eefca89ea1b220a221d64c3beade05d03519a6584d1797a5a5f'],
+  x64: ['packages/3d/5b/e0379e7b172659420b1ec99a8e8229830aa85ea59684847c80b1c959a056/uv-0.13.7-py3-none-macosx_10_12_x86_64.whl', 'fd04bf01ba5f2829f4f94ca8f0c24a743f21e73d75045613ed6fc2fd66fc7bda'],
 }
-/** 这台电脑能用的 uv 下载源（按顺序试）；没有对应的安装包时返回空数组。 */
-export function uvSources(platform = process.platform, arch = process.arch) {
-  const hit = UV_WHEELS[`${platform}-${arch}`] || (platform === 'win32' ? UV_WHEELS['win32-x64'] : null)
+/** 这台 Mac 能用的 uv 下载源（按顺序试）；没有对应的安装包时返回空数组。 */
+export function uvSources(arch = process.arch) {
+  const hit = UV_WHEELS[arch]
   if (!hit) return []
-  const [wheel, sha256, ghZip] = hit
-  return [
-    { url: `https://mirrors.aliyun.com/pypi/${wheel}`, sha256 },
-    { url: `https://files.pythonhosted.org/${wheel}`, sha256 },
-    ...(ghZip ? [{ url: `https://github.com/astral-sh/uv/releases/latest/download/${ghZip}` }] : []),
-  ]
+  const [wheel, sha256] = hit
+  return [{ url: `https://mirrors.aliyun.com/pypi/${wheel}`, sha256 }, { url: `https://files.pythonhosted.org/${wheel}`, sha256 }]
 }
 export const UV_SOURCES = uvSources()
-
-const IS_WIN = process.platform === 'win32'
-const IS_MAC = process.platform === 'darwin'
-/** 可执行文件名：Windows 带 .exe，macOS / Linux 不带。 */
-export const exeName = (name, platform = process.platform) => (platform === 'win32' ? name + '.exe' : name)
-
 /**
- * 把 zip 解到目录里（不靠 PowerShell，各系统通用）。拒绝跳出目标目录的路径；
+ * 把 zip 解到目录里（不靠外部工具）。拒绝跳出目标目录的路径；
  * bin/ 里的文件和没有扩展名的程序（uv、ffmpeg 等）加上可执行权限。
  */
 export function extractZip(buf, dir) {
@@ -114,7 +97,7 @@ export function extractZip(buf, dir) {
     if (dest !== root && !dest.startsWith(root + sep)) throw new Error(`压缩包里有越界路径：${f.name}`)
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, f.data)
-    if (!IS_WIN && (/(^|\/)(bin|scripts)\//i.test(f.name) || !/\.[a-z0-9]{1,5}$/i.test(basename(f.name)))) {
+    if ((/(^|\/)(bin|scripts)\//i.test(f.name) || !/\.[a-z0-9]{1,5}$/i.test(basename(f.name)))) {
       try { chmodSync(dest, 0o755) } catch (error) {}
     }
   }
@@ -202,9 +185,9 @@ export function dirSize(dir) {
   return total
 }
 
-/** 翻唱环境的根目录：Windows 老安装沿用 C:\Aurabot\rvc，新安装放用户目录下（macOS 是 ~/Aurabot/rvc）。 */
+/** 翻唱环境的根目录：~/Aurabot/rvc。 */
 export function defaultRoot() {
-  return IS_WIN && existsSync(LEGACY_ROOT) ? LEGACY_ROOT : join(homedir(), 'Aurabot', 'rvc')
+  return join(homedir(), 'Aurabot', 'rvc')
 }
 
 /**
@@ -218,24 +201,15 @@ export function explainInstallError(msg) {
   if (/ENOSPC|No space|磁盘空间|not enough space/i.test(m)) return '磁盘空间不够了。换一个空间大的盘（上面「装到哪里」），保存后再装'
   if (/timed? ?out|超时|30 秒没进度|operation timed/i.test(m)) return '网络太慢、超时了。打开「用国内镜像下载」或者开着代理，再点安装（已下好的不会重下）'
   if (/connection|connect|reset|TLS|SSL|dns|resolve|Failed to fetch|Failed to download|error sending request|无法连接|网络/i.test(m)) return '网络连接断了。打开「用国内镜像下载」或者开着代理，再点安装（已下好的不会重下）'
-  if (/CUDA|nvidia|GPU/i.test(m)) return '和显卡驱动有关，可能需要更新 NVIDIA 驱动。' + m.slice(0, 160)
   return m.slice(0, 300)
 }
 
-/**
- * 人声分离装哪个版本：Windows 用 [gpu]（NVIDIA 显卡加速）；macOS 没有 NVIDIA 显卡，[gpu] 依赖的 onnxruntime-gpu
- * 在 Mac 上根本装不了，用 [cpu]（PyTorch 在 Apple 芯片上仍会走 MPS 加速）。
- */
-export const installExtras = (platform = process.platform) => (platform === 'darwin' ? [...MAC_STACK.separator] : ['audio-separator[gpu]'])
-
-/** PyTorch 从哪下：CUDA 版只有 Windows / Linux 有；macOS 用 PyPI 上的官方版（自带 Apple 芯片加速）。 */
-export const torchSource = (cn, platform = process.platform) =>
-  platform === 'darwin' ? [] : cn ? ['--find-links', CN_TORCH] : ['--extra-index-url', TORCH_INDEX]
+/** 人声分离环境装什么（[cpu] 版：Mac 没有 NVIDIA 显卡，PyTorch 在 Apple 芯片上仍会走 MPS 加速）。 */
+export const installExtras = () => [...MAC_STACK.separator]
 
 /** 安装的几步（面板按这个画步骤条）。 */
-export const installSteps = (platform = process.platform) => ['创建 Python 环境', '下载 Applio（RVC 推理引擎）', '安装 PyTorch、RVC 和人声分离（最大的一步）',
-  platform === 'darwin' ? '准备 ffmpeg 和 rubberband' : '准备 ffmpeg', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
-export const INSTALL_STEPS = installSteps()
+export const INSTALL_STEPS = ['创建 Python 环境', '下载 Applio（RVC 推理引擎）', '安装 PyTorch、RVC 和人声分离（最大的一步）',
+  '准备 ffmpeg 和 rubberband', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
 
 // 默认人声分离模型要的文件：[文件名, 下载地址（按顺序试）, sha256]。提前下好，免得第一次点歌时卡着不动。
 // 模型 640 MB，GitHub 在国内经常下不动：先走 HuggingFace 镜像（有人转存了同一个文件，校验值一样），再试官方。
@@ -338,32 +312,13 @@ export function importSeparator(dir, filename, buf) {
 // 分离工具每次运行都要的模型清单（缺了会去 raw.githubusercontent.com 拉，国内常常连不上）
 const SEPARATOR_LIST = ['download_checks.json', ['https://raw.githubusercontent.com/TRvlvr/application_data/main/filelists/download_checks.json', 'https://cdn.jsdelivr.net/gh/TRvlvr/application_data@main/filelists/download_checks.json']]
 
-/** 电脑上的盘和剩余空间，给面板「装到哪个盘」用：[{drive, root, freeGB, totalGB}] */
-export function listDrives(platform = process.platform) {
-  const out = []
-  // 只有 Windows 有盘符；macOS / Linux 面板里直接填路径
-  if (platform !== 'win32') return out
-  for (const L of 'CDEFGHIJKLMNOPQRSTUVWXYZ') {
-    const d = `${L}:\\`
-    try {
-      if (!existsSync(d)) continue
-      const s = statfsSync(d)
-      const gb = (n) => Math.round((Number(n) * Number(s.bsize)) / 1024 ** 3 * 10) / 10
-      if (!s.blocks) continue
-      out.push({ drive: `${L}:`, root: `${L}:\\Aurabot\\rvc`, freeGB: gb(s.bavail), totalGB: gb(s.blocks) })
-    } catch (error) {}
-  }
-  return out
-}
-
 /** 面板里「装到哪里」的示例路径。 */
-export const rootExample = (platform = process.platform) => (platform === 'win32' ? 'D:\\Aurabot\\rvc' : join(homedir(), 'Aurabot', 'rvc'))
+export const rootExample = () => join(homedir(), 'Aurabot', 'rvc')
 
-export function checkRoot(path, platform = process.platform) {
+export function checkRoot(path) {
   const p = String(path || '').trim()
   if (!p) return { ok: true, path: '', message: '', warn: '', freeGB: null }
-  const absolute = platform === 'win32' ? winPath.isAbsolute(p) && /^[A-Za-z]:\\/.test(p.replace(/\//g, '\\')) : p.startsWith('/')
-  if (!absolute) return { ok: false, path: p, message: `要写完整路径，比如 ${rootExample(platform)}`, warn: '', freeGB: null }
+  if (!p.startsWith('/')) return { ok: false, path: p, message: `要写完整路径，比如 ${rootExample()}`, warn: '', freeGB: null }
   const warn = /[^\x21-\x7e]/.test(p) ? '路径里有中文或空格，个别工具可能出问题，最好换成全英文、不带空格的路径' : ''
   let freeGB = null
   try {
@@ -376,19 +331,18 @@ export function checkRoot(path, platform = process.platform) {
   return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个盘只剩 ${freeGB} GB，装完要 8 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
 }
 
-/** 翻唱环境里各个程序的位置。Windows 的虚拟环境放在 Scripts\，macOS / Linux 放在 bin/。 */
-export function pathsOf(root, platform = process.platform) {
-  const win = platform === 'win32'
-  const envBin = join(root, 'env', win ? 'Scripts' : 'bin')
+/** 翻唱环境里各个程序的位置。 */
+export function pathsOf(root) {
+  const envBin = join(root, 'env', 'bin')
   return {
     root,
-    python: join(envBin, exeName('python', platform)),
-    separatorExe: join(envBin, exeName('audio-separator', platform)),
+    python: join(envBin, 'python'),
+    separatorExe: join(envBin, 'audio-separator'),
     applio: join(root, 'Applio'),
     models: join(root, 'models'),
     separatorModels: join(root, 'separator-models'),
     bin: join(root, 'bin'),
-    ffmpeg: join(root, 'bin', exeName('ffmpeg', platform)),
+    ffmpeg: join(root, 'bin', 'ffmpeg'),
     rmvpe: join(root, 'Applio', 'rvc', 'models', 'predictors', 'rmvpe.pt'),
     contentvec: join(root, 'Applio', 'rvc', 'models', 'embedders', 'contentvec', 'pytorch_model.bin'),
   }
@@ -408,19 +362,18 @@ export function listVoices(modelsDir) {
 }
 
 /**
- * 换声用哪个 Python：Applio 自己的环境（Applio 文件夹里的 .venv，按 Applio 官方安装脚本装的）优先，
- * 没有就用翻唱环境 env/（一键安装把 Applio 依赖和人声分离装在同一个环境里）。
+ * 换声用哪个 Python：Applio 自己的环境（Applio/.venv，一键安装照 Applio 官方 Mac 方式建的）；
+ * 万一没有（老的单环境安装），退回翻唱环境 env/。
  */
-export function applioPython(p, { platform = process.platform, exists = existsSync } = {}) {
-  const own = join(p.applio, '.venv', platform === 'win32' ? 'Scripts' : 'bin', exeName('python', platform))
+export function applioPython(p, { exists = existsSync } = {}) {
+  const own = join(p.applio, '.venv', 'bin', 'python')
   return exists(own) ? own : p.python
 }
 
 /** 找 rubberband（伴奏变调用）：翻唱环境 bin/、PATH、Homebrew 常见位置。找不到返回 ''（自动定调时只挪八度，整首不挪）。 */
-export function findRubberband(p, { pathEnv = process.env.PATH || '', exists = existsSync, platform = process.platform } = {}) {
-  const name = exeName('rubberband', platform)
-  const cands = [join(p.bin, name), ...String(pathEnv).split(platform === 'win32' ? ';' : ':').filter(Boolean).map((d) => join(d, name)),
-    ...(platform === 'win32' ? [] : ['/opt/homebrew/bin/rubberband', '/usr/local/bin/rubberband'])]
+export function findRubberband(p, { pathEnv = process.env.PATH || '', exists = existsSync } = {}) {
+  const cands = [join(p.bin, 'rubberband'), ...String(pathEnv).split(':').filter(Boolean).map((d) => join(d, 'rubberband')),
+    '/opt/homebrew/bin/rubberband', '/usr/local/bin/rubberband']
   return cands.find((c) => { try { return exists(c) } catch (error) { return false } }) || ''
 }
 
@@ -514,7 +467,7 @@ export function clipWindow(durationSec, maxSec, start = 'auto') {
 
 function run(cmd, args, { cwd, env, log, onLine, timeoutMs = 30 * 60_000 } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env }, windowsHide: true })
+    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env } })
     let tail = ''
     const feed = (buf) => {
       const s = String(buf)
@@ -643,12 +596,12 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     try {
       mkdirSync(p.root, { recursive: true })
       mkdirSync(p.models, { recursive: true })
-      await step('创建 Python 环境', '第一次要下载 Python 3.12（约 30 MB）和安装工具，一般 1~3 分钟', async () => {
+      await step('创建 Python 环境', `第一次要下载 Python ${MAC_STACK.python}（约 30 MB）和安装工具，一般 1~3 分钟`, async () => {
         uv = await ensureUv(note)
         if (existsSync(p.python)) return note('  已经有了，跳过')
         const stop = watchDownload(join(p.root, 'python'))
         try {
-          await run(uv, ['venv', '-q', join(p.root, 'env'), '--python', pythonVersion()], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
+          await run(uv, ['venv', '-q', join(p.root, 'env'), '--python', MAC_STACK.python], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
         } finally {
           stop()
         }
@@ -657,14 +610,14 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         if (existsSync(join(p.applio, 'core.py'))) return note('  已经有了，跳过')
         // 直接下代码压缩包（固定版本），不需要电脑上装 git
         const zip = join(p.root, 'downloads', 'applio.zip')
-        // 用环境里的 Python 下（断了能接着下、走系统代理）；万一不行再用 PowerShell 下
+        // 用环境里的 Python 下（断了能接着下、走系统代理）；万一不行再用 curl 下
         try {
-          await fetchFile(p.python, zip, [`https://github.com/IAHispano/Applio/archive/${applioCommit()}.zip`, `https://codeload.github.com/IAHispano/Applio/zip/${applioCommit()}`], note, log, (done, total) => {
+          await fetchFile(p.python, zip, [`https://github.com/IAHispano/Applio/archive/${APPLIO_COMMIT}.zip`, `https://codeload.github.com/IAHispano/Applio/zip/${APPLIO_COMMIT}`], note, log, (done, total) => {
             install.progress = { kind: 'file', name: 'Applio', done, total }
           })
         } catch (error) {
           note('  换个方式再下一次')
-          await fetchWithProgress(`https://github.com/IAHispano/Applio/archive/${applioCommit()}.zip`, zip)
+          await fetchWithProgress(`https://github.com/IAHispano/Applio/archive/${APPLIO_COMMIT}.zip`, zip)
         }
         const tmp = join(p.root, 'downloads', 'applio-src')
         rmSync(tmp, { recursive: true, force: true })
@@ -679,43 +632,26 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         // 先检查：要用的包都能导入就跳过。「重新检查 / 修复安装」只修坏了的，不重装、不降级能用的环境
         const stop = watchDownload(cacheDir)
         try {
-          if (IS_MAC) {
-            // macOS：两套环境（见 MAC_STACK）。Applio/.venv 照 Applio 官方 Mac 安装方式建；env/ 只装人声分离
-            const venv = join(p.applio, '.venv')
-            const vpy = join(venv, 'bin', 'python')
-            if (!(existsSync(vpy) && await canImport(vpy, ['torch', 'faiss', 'librosa', 'soundfile']))) {
-              note('  建 Applio 自己的环境（Applio/.venv，和 Applio 官方 Mac 安装方式一样）')
-              if (!existsSync(vpy)) await run(uv, ['venv', '-q', venv, '--python', pythonVersion()], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
-              await run(uv, ['pip', 'install', '--python', vpy, ...MAC_STACK.applioExtras, '-r', join(p.applio, 'requirements.txt'), ...mirror],
-                { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
-            } else note('  Applio 的环境已经能用，跳过')
-            if (!(await canImport(p.python, ['audio_separator', 'imageio_ffmpeg']))) {
-              note('  人声分离环境（env/）只装人声分离')
-              await run(uv, ['pip', 'install', '--python', p.python, ...installExtras(), ...mirror], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
-            } else note('  人声分离的包都在，跳过')
-            return
-          }
-          const engine = applioPython(p)
-          const twoEnv = engine !== p.python
-          const engineOk = await canImport(engine, ['torch', 'faiss', 'librosa', 'soundfile'])
-          const sepOk = await canImport(p.python, ['audio_separator'])
-          if (engineOk && sepOk) return note('  换声和人声分离要的包都在，跳过')
-          if (twoEnv) {
-            // Applio 有自己的环境（Applio/.venv，按 Applio 官方安装脚本装的）：换声用它，插件不往里装东西，
-            // 也不往人声分离环境里装 Applio 的依赖（两边要的 torch 版本可能不一样，装到一起会把人声分离降级）
-            if (!engineOk) throw new Error('Applio 自己的环境（Applio/.venv）缺包：请在 Applio 文件夹里重新运行 Applio 的官方安装脚本')
-            note('  Applio 用它自己的环境；人声分离环境里只补装人声分离')
-          }
-          const pkgs = twoEnv ? [...installExtras(), 'imageio-ffmpeg'] : ['-r', join(p.applio, 'requirements-engine.txt'), ...installExtras(), 'imageio-ffmpeg']
-          await run(uv, ['pip', 'install', '--python', p.python, ...pkgs,
-            ...mirror, ...(twoEnv ? [] : torchSource(cn)), '--index-strategy', 'unsafe-best-match'], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+          // macOS：两套环境（见 MAC_STACK）。Applio/.venv 照 Applio 官方 Mac 安装方式建；env/ 只装人声分离
+          const venv = join(p.applio, '.venv')
+          const vpy = join(venv, 'bin', 'python')
+          if (!(existsSync(vpy) && await canImport(vpy, ['torch', 'faiss', 'librosa', 'soundfile']))) {
+            note('  建 Applio 自己的环境（Applio/.venv，和 Applio 官方 Mac 安装方式一样）')
+            if (!existsSync(vpy)) await run(uv, ['venv', '-q', venv, '--python', MAC_STACK.python], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
+            await run(uv, ['pip', 'install', '--python', vpy, ...MAC_STACK.applioExtras, '-r', join(p.applio, 'requirements.txt'), ...mirror],
+              { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+          } else note('  Applio 的环境已经能用，跳过')
+          if (!(await canImport(p.python, ['audio_separator', 'imageio_ffmpeg']))) {
+            note('  人声分离环境（env/）只装人声分离')
+            await run(uv, ['pip', 'install', '--python', p.python, ...installExtras(), ...mirror], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+          } else note('  人声分离的包都在，跳过')
         } finally {
           stop()
         }
       })
-      await step(INSTALL_STEPS[3], IS_MAC ? '几秒钟（rubberband 约 1.5 MB）' : '几秒钟', async () => {
+      await step(INSTALL_STEPS[3], '几秒钟（rubberband 约 1.5 MB）', async () => {
         await setupFfmpeg()
-        if (IS_MAC) await setupRubberband(note)
+        await setupRubberband(note)
       })
       await step('下载 RVC 需要的预训练文件（音高、音色特征）', '约 560 MB，看网速几分钟', async () => {
         for (const [rel, dest] of PREREQS) {
@@ -724,7 +660,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
           })
         }
       })
-      await step('下载人声分离模型', IS_MAC ? '主分离加翻唱增强要的 3 个模型，共约 1.9 GB，看网速十几分钟；下好以后第一次点歌就不用再等' : '约 640 MB，看网速几分钟；下好以后第一次点歌就不用再等', async () => {
+      await step('下载人声分离模型', '主分离加翻唱增强要的 3 个模型，共约 1.9 GB，看网速十几分钟；下好以后第一次点歌就不用再等', async () => {
         // 配置文件插件自带，先放进去
         mkdirSync(p.separatorModels, { recursive: true })
         const files = [...(SEPARATOR_FILES[cfg().separatorModel] || []), SEPARATOR_LIST]
@@ -738,18 +674,16 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         }
         // 清单外的模型（Leap Xe）：登记进 extra-models.json，separator_run.py 才认得
         registerExtraSeparator(p.separatorModels, cfg().separatorModel)
-        // macOS：翻唱增强流程（去混响、拆主唱伴唱、分男女声）的模型也先下好，都在 audio-separator 自带清单里，用它自己的下载
-        if (IS_MAC) {
-          for (const m of Object.values(PIPELINE_MODELS)) {
-            if (existsSync(join(p.separatorModels, m))) continue
-            note(`  下载翻唱增强模型 ${m}`)
-            const stop = watchDownload(p.separatorModels)
-            try {
-              const [cmd, args] = separatorCommand(p, ['--model_filename', m, '--model_file_dir', p.separatorModels, '--download_model_only'])
-              await run(cmd, args, { log, onLine: note, env: pyEnv(), timeoutMs: 2 * 3600_000 })
-            } finally {
-              stop()
-            }
+        // 翻唱增强流程（去混响、拆主唱伴唱、分男女声）的模型也先下好，都在 audio-separator 自带清单里，用它自己的下载
+        for (const m of Object.values(PIPELINE_MODELS)) {
+          if (existsSync(join(p.separatorModels, m))) continue
+          note(`  下载翻唱增强模型 ${m}`)
+          const stop = watchDownload(p.separatorModels)
+          try {
+            const [cmd, args] = separatorCommand(p, ['--model_filename', m, '--model_file_dir', p.separatorModels, '--download_model_only'])
+            await run(cmd, args, { log, onLine: note, env: pyEnv(), timeoutMs: 2 * 3600_000 })
+          } finally {
+            stop()
           }
         }
       })
@@ -764,34 +698,23 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return { ok: install.ok, message: install.message }
   }
 
-  /**
-   * 用 PowerShell 下载一个文件（会走系统代理，不依赖电脑上装了别的工具），下载中显示已下载多少、网速。
-   */
+  /** 用系统自带的 curl 下载一个文件（走系统代理环境变量），下载中显示已下载多少、网速。 */
   async function fetchWithProgress(url, dest, timeoutSec = 600) {
     mkdirSync(dirname(dest), { recursive: true })
     rmSync(dest, { force: true })
     const stop = watchDownload(dirname(dest))
     try {
-      if (IS_WIN) {
-        await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
-          "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri $env:AB_URL -OutFile $env:AB_OUT -UseBasicParsing -TimeoutSec $env:AB_TIMEOUT"],
-        { log, env: { AB_URL: url, AB_OUT: dest, AB_TIMEOUT: String(timeoutSec) }, timeoutMs: (timeoutSec + 60) * 1000 })
-      } else {
-        // macOS / Linux 自带 curl（同样走系统代理环境变量）
-        await run('curl', ['-fL', '--retry', '3', '--max-time', String(timeoutSec), '-o', dest, url], { log, timeoutMs: (timeoutSec + 60) * 1000 })
-      }
+      await run('curl', ['-fL', '--retry', '3', '--max-time', String(timeoutSec), '-o', dest, url], { log, timeoutMs: (timeoutSec + 60) * 1000 })
     } finally {
       stop()
     }
     if (!existsSync(dest) || !statSync(dest).size) throw new Error('下载失败：' + url)
   }
 
-  /** 解压 zip：Windows 用自带的 Expand-Archive；macOS / Linux 用插件自带的解压（不依赖外部工具）。 */
+  /** 解压 zip：用插件自带的解压（不依赖外部工具）。 */
   async function expandZip(zip, dir) {
     mkdirSync(dir, { recursive: true })
-    if (!IS_WIN) return extractZip(readFileSync(zip), dir)
-    await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', 'Expand-Archive -LiteralPath $env:AB_ZIP -DestinationPath $env:AB_DIR -Force'],
-      { log, env: { AB_ZIP: zip, AB_DIR: dir }, timeoutMs: 10 * 60_000 })
+    return extractZip(readFileSync(zip), dir)
   }
 
   /**
@@ -801,9 +724,9 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   async function ensureUv(note) {
     if (process.env.AURABOT_UV) return process.env.AURABOT_UV
     const p = P()
-    const local = join(p.bin, exeName('uv'))
+    const local = join(p.bin, 'uv')
     if (existsSync(local)) return local
-    const cands = ['uv', ...(IS_WIN ? [] : ['/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')])]
+    const cands = ['uv', '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')]
     for (const c of cands) {
       if (c !== 'uv' && !existsSync(c)) continue
       try {
@@ -823,11 +746,11 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         if (src.sha256 && createHash('sha256').update(readFileSync(zip)).digest('hex') !== src.sha256) throw new Error('下载的文件校验对不上')
         rmSync(tmp, { recursive: true, force: true })
         await expandZip(zip, tmp)
-        const exe = findFile(tmp, exeName('uv'))
-        if (!exe) throw new Error(`里面没找到 ${exeName('uv')}`)
+        const exe = findFile(tmp, 'uv')
+        if (!exe) throw new Error('里面没找到 uv')
         mkdirSync(p.bin, { recursive: true })
         copyFileSync(exe, local)
-        if (!IS_WIN) chmodSync(local, 0o755)
+        chmodSync(local, 0o755)
         rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
         return local
       } catch (error) {
@@ -853,7 +776,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return () => clearInterval(t)
   }
 
-  /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg(.exe)（人声分离要在 PATH 里找到 ffmpeg）。 */
+  /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg（人声分离要在 PATH 里找到 ffmpeg）。 */
   /**
    * macOS：把 Rubber Band 官方的命令行程序放进安装目录的 bin/（看 bin/ 本身，和 ffmpeg 一样；系统里有也照放，翻唱只用这一份）。
    * 下载有固定校验值；解压用系统自带的 tar。
@@ -887,7 +810,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       const src = out.trim().split(/\r?\n/).pop()
       mkdirSync(p.bin, { recursive: true })
       copyFileSync(src, p.ffmpeg)
-      if (!IS_WIN) chmodSync(p.ffmpeg, 0o755)
+      chmodSync(p.ffmpeg, 0o755)
     } catch (error) {
       if (P().ffmpeg === p.ffmpeg) throw error
       log.warn('没能把 imageio-ffmpeg 的 ffmpeg 放进安装目录，先用系统里的：', error.message)
@@ -895,7 +818,6 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   }
 
   // ---------- 做一首 ----------
-  // PATH 分隔符：Windows 是「;」，macOS / Linux 是「:」（用错了人声分离找不到 ffmpeg）
   const pyEnv = () => {
     const p = P()
     // ffmpeg 用的是系统里的（不在 bin/）时，把它所在的文件夹也放进 PATH，人声分离才找得到
@@ -906,7 +828,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   async function ffprobeDuration(file) {
     // ffmpeg -i 会把时长打在 stderr 里，退出码是 1，这里自己接
     return new Promise((resolve) => {
-      const c = spawn(P().ffmpeg, ['-hide_banner', '-i', file], { windowsHide: true })
+      const c = spawn(P().ffmpeg, ['-hide_banner', '-i', file])
       let s = ''
       c.stderr.on('data', (b) => { s += b })
       c.on('exit', () => {
@@ -920,7 +842,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   /** 人声轨的平均音量（dB）；纯音乐分出来的人声几乎是静音。 */
   async function meanVolume(file) {
     return new Promise((resolve) => {
-      const c = spawn(P().ffmpeg, ['-hide_banner', '-i', file, '-af', 'volumedetect', '-f', 'null', '-'], { windowsHide: true })
+      const c = spawn(P().ffmpeg, ['-hide_banner', '-i', file, '-af', 'volumedetect', '-f', 'null', '-'])
       let s = ''
       c.stderr.on('data', (b) => { s += b })
       c.on('exit', () => { const m = s.match(/mean_volume:\s*(-?[\d.]+|-inf)/); resolve(m ? (m[1] === '-inf' ? -200 : Number(m[1])) : 0) })

@@ -53,7 +53,7 @@ export function grabFrame(ffmpeg, url, at, { width = 512, timeoutMs = 15000, max
         '-ss', String(at), '-i', url,
         '-frames:v', '1', '-an', '-vf', `scale=${width}:-2`,
         '-q:v', '3', '-f', 'image2', '-c:v', 'mjpeg', 'pipe:1',
-      ], { windowsHide: true })
+      ])
     } catch (error) {
       return finish(null)
     }

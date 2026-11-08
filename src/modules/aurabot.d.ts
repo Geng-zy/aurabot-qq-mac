@@ -210,7 +210,6 @@ export interface Api {
   core: {
     hub: any
     onebot: { call(action: string, params?: any, opts?: any): Promise<any>; state: string }
-    snowluma: any
     local: any
     groupRoles: any
     mutes: { muted(chatId: string): boolean; set(chatId: string, minutes: number): void; clear(chatId: string): void }

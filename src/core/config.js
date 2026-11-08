@@ -24,19 +24,18 @@ export const DEFAULTS = {
   // 定时任务这类没人应答的场合，只有打开这个开关才允许派活。关着 = 一律拒绝（一审 #177 的审批策略）。
   subagentBackground: false,
   allow: { private: [], groups: [] }, // 主人永远能私聊，不用写进白名单
-  // 用什么接 QQ：snowluma = 插件帮你管 SnowLuma（Windows）；onebot = 接你已有的 OneBot v11 机器人（NapCat、LLOneBot、Lagrange、Docker 里的 SnowLuma……），
-  // 这时只按下面 snowluma.httpUrl / wsUrl / token 去连，不启动、不注入任何东西
-  // macOS / Linux 没有 SnowLuma 的原生版，插件管不了它，默认接自己的 OneBot（比如 Docker 里的 SnowLuma）
-  gateway: process.platform === 'win32' ? 'snowluma' : 'onebot',
-  workspaceDir: '', // QQ 会话放在哪个文件夹（DSH 里的「Aurabot · QQ」工作区）；留空 = 默认（用户目录下 Aurabot\\qq-chats）
+  // 接 QQ：macOS 上没有 SnowLuma 原生版，网关是你自己跑的 OneBot v11（比如 OrbStack 里的 SnowLuma），
+  // 插件只按下面 snowluma.httpUrl / wsUrl / token 去连，不启动、不注入任何东西
+  gateway: 'onebot',
+  workspaceDir: '', // QQ 会话放在哪个文件夹（DSH 里的「Aurabot · QQ」工作区）；留空 = 默认（~/Aurabot/qq-chats）
   // 发文件（#52）：默认开但限制很多——她只能把 QQ 工作区（workspaceDir）和 dirs 里列的目录中的文件当文件发出去；
   // 单个文件有大小上限；主人私聊里能触发，群里只在主人开口那一轮能触发（可以发给白名单里的人和群）。日志里会记下发了什么。
   // imageByPath（#169）：本地图片先按路径直发，被网关明确拒绝才改用 base64；网关和 NapCat 没共享挂载时会自动回退。
-  // macOS / Linux 默认关：这些系统上网关跑在 Docker / 虚拟机里，读不到本机路径，按路径发必定失败（慢一拍，结果不确定时还会丢图）。
-  // macOS / Linux 上关着时，发文件也不先按路径试（hub.js sendFile）；Windows 上它只管图片，和原版一样。
+  // 默认关：macOS 上网关跑在 Docker / OrbStack 里，读不到本机路径，按路径发必定失败（慢一拍，结果不确定时还会丢图）。
+  // 关着时发文件也不先按路径试（hub.js sendFile）。
   // relay：网关看不到本机路径（Docker / 虚拟机）且文件超过 base64 能塞的大小时，临时开一个只对本机开放的下载口让网关来取；
   // relayHost 是网关那边访问宿主机用的地址（OrbStack / Docker Desktop 都是 host.docker.internal）
-  files: { enabled: true, maxMB: 50, imageByPath: process.platform === 'win32', dirs: [], relay: true, relayHost: 'host.docker.internal' },
+  files: { enabled: true, maxMB: 50, imageByPath: false, dirs: [], relay: true, relayHost: 'host.docker.internal' },
   // 危险命令确认（可选保护，默认关）：她在私聊里执行删根目录/格式化/关机/下载后直接执行等
   // 终端命令前，先发 QQ 私聊问主人，回复「确认」才执行；超时或「取消」就拦下。
   // panelRemoteAccess：允许远端（非回环）访问管理接口；默认 false = 只有本机能管。
@@ -50,14 +49,9 @@ export const DEFAULTS = {
   cost: { offPeak: false, offPeakHolidays: [] },
   update: { unstable: null }, // 订阅不稳定版本（beta、rc）；null = 没选过，按正在用的版本定
   snowluma: {
-    dir: process.platform === 'win32' ? 'C:\\Aurabot\\snowluma' : '', // 主人自己下载解压到这里（EULA 不允许自动部署）；只有 Windows 版
-    autoStart: true, // 随 DSH 启动它（只启动主人已安装并同意过协议的副本）
-    webuiPort: 5099,
-    webuiPassword: '', // 插件自动生成并保存（第一次启动 SnowLuma 时）；用来调 /api/processes 只给机器人号注入
-    passwordAuto: false,
-    autoAttach: true, // 自动给机器人号所在的 QQ 进程注入（绝不碰别的号）
-    httpUrl: '', // 留空 = 从 SnowLuma 配置里自动读
-    wsUrl: '',
+    // 你的 OneBot v11 网关（名字沿用 snowluma，老配置直接能用）
+    httpUrl: '', // 可选；不填就都走 WebSocket
+    wsUrl: '', // 必填：正向 WebSocket，收消息靠它
     httpToken: '',
     wsToken: '',
   },
@@ -90,7 +84,7 @@ export const DEFAULTS = {
   titleFilter: { enabled: true, groups: [], title: '大肥鱼' },
   voice: {
     enabled: true,
-    // auto = 先 edge-tts，不行用 Windows 语音；edge / windows / cosyvoice / gptsovits / http = 指定引擎（失败都会退回 Windows 语音）
+    // auto = 先 edge-tts，不行用 macOS 自带语音；edge / system / cosyvoice / gptsovits / http = 指定引擎（失败都会退回 macOS 自带语音）
     engine: 'auto',
     cosyvoice: { url: 'http://127.0.0.1:50000', mode: 'sft', spkId: '中文女', instruct: '', sampleRate: 22050 },
     gptsovits: { url: 'http://127.0.0.1:9880', refAudio: '', promptText: '', promptLang: 'zh', textLang: 'zh' },
@@ -254,11 +248,11 @@ export const DEFAULTS = {
   }, // extractIdleMinutes 为 0 时关闭空闲提炼；手动记忆不受容量限制
   song: {
     enabled: false,
-    root: '', // 翻唱环境目录，留空 = 自动（老安装 C:\Aurabot\rvc，新安装在用户目录下）
+    root: '', // 翻唱环境目录，留空 = ~/Aurabot/rvc
     voice: '', // 用哪个音色（models 目录里的 .pth 文件名），留空 = 第一个
     pitch: 0, // 默认变调（半音）；她点歌时会按原唱是男声还是女声自己定
     neteaseCookie: '', // 网易云 Cookie（MUSIC_U），下会员歌用
-    separatorModel: process.platform === 'darwin' ? 'bs_leap_xe_voc.ckpt' : 'model_bs_roformer_ep_317_sdr_12.9755.ckpt', // 人声分离模型（macOS 默认 Leap Xe，Apple 芯片上实测跑通的组合）
+    separatorModel: 'bs_leap_xe_voc.ckpt', // 人声分离模型（默认 Leap Xe，Apple 芯片上实测跑通的组合）
     maxVoiceSec: 120, // 语音条最长多少秒，歌更长就截一段
     clipStart: 'auto', // auto = 从副歌附近截；head = 从头截
     vocalVolume: 1,
@@ -343,10 +337,10 @@ export function normalize(raw) {
   c.approvalNotify = bool(c.approvalNotify, true)
   c.approvalViaQQ = bool(c.approvalViaQQ, true)
   c.qqApi.enabled = bool(c.qqApi.enabled, true)
-  c.gateway = c.gateway === 'onebot' || c.gateway === 'snowluma' ? c.gateway : DEFAULTS.gateway
-  // 只认绝对路径（Windows 的 D:\\… 或 Linux 的 /…），别的当没填
+  c.gateway = 'onebot'
+  // 只认绝对路径（/ 开头），别的当没填
   c.workspaceDir = String(c.workspaceDir || '').trim()
-  if (c.workspaceDir && !/^([a-zA-Z]:[\\/]|\/)/.test(c.workspaceDir)) c.workspaceDir = ''
+  if (c.workspaceDir && !c.workspaceDir.startsWith('/')) c.workspaceDir = ''
   // 视觉能力：auto = 问 DSH 的模型元数据；on / off = 主人手动声明（覆盖元数据）
   c.model.vision = c.model.vision === 'on' || c.model.vision === 'off' ? c.model.vision : 'auto'
   c.setupDone = bool(c.setupDone, false)
@@ -532,7 +526,8 @@ export function normalize(raw) {
   for (const k of ['atOwnerOnLikeChance', 'minimize', 'socialInterruptBrowse', 'replyPollMinutes']) delete d[k]
 
   delete c.mood.maxInjectPerDay // 旧版的「每天最多提醒几次」，现在心情明显时每轮都会带上
-  c.snowluma.webuiPort = num(c.snowluma.webuiPort, 5099, 1, 65535)
+  // 老配置里插件自己管 SnowLuma 用的设置（只有原版的 Windows 才有），这里用不到
+  for (const k of ['dir', 'autoStart', 'webuiPort', 'webuiPassword', 'passwordAuto', 'autoAttach']) delete c.snowluma[k]
   // 老配置只有一个 consolidateAt：换成两个时间点（它 + 12 小时后）
   if (!Array.isArray(raw?.memory?.consolidateTimes) && raw?.memory?.consolidateAt) {
     const [hh, mm] = hhmm(raw.memory.consolidateAt, '04:00').split(':').map(Number)
@@ -591,7 +586,8 @@ export function normalize(raw) {
   g.burstMax = num(g.burstMax, 8, 1, BIG)
   g.engagedMax = num(g.engagedMax, 6, 0, BIG)
   g.burstWindowSec = num(g.burstWindowSec, 120, 1, BIG)
-  if (!['auto', 'edge', 'windows', 'cosyvoice', 'gptsovits', 'http'].includes(c.voice.engine)) c.voice.engine = 'auto'
+  if (c.voice.engine === 'windows') c.voice.engine = 'system' // 老配置里系统自带语音叫 windows
+  if (!['auto', 'edge', 'system', 'cosyvoice', 'gptsovits', 'http'].includes(c.voice.engine)) c.voice.engine = 'auto'
   c.voice.songVoice = String(c.voice.songVoice || '').slice(0, 120)
   c.voice.songPitch = Math.max(-24, Math.min(24, Math.round(Number(c.voice.songPitch) || 0)))
   c.voice.cosyvoice.sampleRate = num(c.voice.cosyvoice.sampleRate, 22050, 8000, 48000)
@@ -666,7 +662,7 @@ export function normalize(raw) {
 }
 
 // 面板里不回传原文的字段：路径（几层都行）
-const SECRETS = [['snowluma', 'webuiPassword'], ['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['memory', 'vector', 'apiKey'], ['song', 'neteaseCookie'], ['bili', 'cookie'], ['bili', 'sessdata'], ['bili', 'biliJct'], ['heybox', 'cookie'], ['bridge', 'token']]
+const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['memory', 'vector', 'apiKey'], ['song', 'neteaseCookie'], ['bili', 'cookie'], ['bili', 'sessdata'], ['bili', 'biliJct'], ['heybox', 'cookie'], ['bridge', 'token']]
 // 扩展模块设置里的密码类字段（模块加载时登记）：['ext', 模块id, 字段]
 const extraSecrets = new Map()
 export function registerSecretField(path) { extraSecrets.set(path.join('\u0000'), path) }

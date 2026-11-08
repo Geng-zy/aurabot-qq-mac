@@ -110,7 +110,7 @@ test('日期目录被替换为链接时停止，不向外部目录写图片', as
   const outside = join(root, 'outside')
   mkdirSync(outside)
   mkdirSync(f.folder)
-  symlinkSync(outside, join(f.folder, '20261031'), process.platform === 'win32' ? 'junction' : 'dir')
+  symlinkSync(outside, join(f.folder, '20261031'), 'dir')
   const result = await f.archive.collect()
   assert.equal(result.saved, 0)
   assert.equal(result.failed, 1)

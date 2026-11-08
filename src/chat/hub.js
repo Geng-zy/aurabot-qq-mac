@@ -28,19 +28,17 @@ import { cleanContent, cleanText } from '../core/text.js'
 import { createRecentMedia } from './recent-media.js'
 import { createTitleFilter } from './title-filter.js'
 import { isDefiniteFailure } from '../onebot/client.js'
-import { grantOwner } from '../core/workspace-move.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
 import { noticeText } from './notices.js'
 import { createFileRelay } from './file-relay.js'
 import { matchesMemoryKeyword, parseMemoryCommand } from '../features/memory.js'
 
 // QQ 会话的工作区目录，第一次收到消息时自动创建。面板「连接」页能改（config.workspaceDir，#32）；
-// 没填就用环境变量 AURABOT_WORKSPACE，再没有：老安装沿用 C:\Aurabot\qq-chats，新安装放在用户目录下（不用往 C 盘根目录写）
-const LEGACY_WORKSPACE = 'C:\\Aurabot\\qq-chats'
+// 没填就用环境变量 AURABOT_WORKSPACE，再没有就是 ~/Aurabot/qq-chats
 const MAX_IMAGE_BYTES = 1024 * 1024 * 1024 // 图片大小不设实际限制，只防把内存撑爆
 const MODEL_IMAGE_BYTES = 8 * 1024 * 1024 // 超过这个大小先缩小再给模型
 const MAX_MESSAGE_IMAGES = 8 // 一条消息最多给她看几张，合并转发里的图算在内
-export const WORKSPACE_DIR = process.env.AURABOT_WORKSPACE || (existsSync(LEGACY_WORKSPACE) ? LEGACY_WORKSPACE : join(homedir(), 'Aurabot', 'qq-chats'))
+export const WORKSPACE_DIR = process.env.AURABOT_WORKSPACE || join(homedir(), 'Aurabot', 'qq-chats')
 /** 现在用的工作区目录：面板里填了就用填的，否则默认。 */
 export const workspaceDirOf = (cfg) => String(cfg?.workspaceDir || '').trim() || WORKSPACE_DIR
 export const WORKSPACE_TITLE = 'Aurabot · QQ'
@@ -348,7 +346,6 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     if (!reg) throw new Error('宿主没有 workspaceRegistry')
     const dir = workspaceDirOf(getConfig())
     mkdirSync(dir, { recursive: true })
-    grantOwner(dir, log) // 不等它：模型回话要好几秒，够它先做完，这里多等一拍会让并发建会话的判断错位
     const norm = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
     let ws = reg.list().find((w) => norm(w.path) === norm(dir))
     if (!ws) {
@@ -819,9 +816,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       ? { group_id: Number(tgt.id), file: src, name: label }
       : { user_id: Number(tgt.id), file: src, name: label }
     const srcLabel = external ? (src.startsWith('base64://') ? 'base64' : '外部地址') : size < 1024 ? size + ' B' : Math.round(size / 1024) + ' KB'
-    // macOS / Linux 上「按路径直发」关着（默认）：网关在 Docker 里读不到本机路径，不先按路径试一次，
-    // 直接走 base64 / 下载口——按路径试必定失败，结果不确定时还不能重发，文件就丢了。Windows 照原样先按路径发。
-    const byPath = external || process.platform === 'win32' || cfg.files?.imageByPath !== false
+    // 「按路径直发」关着（默认）：网关在 Docker 里读不到本机路径，不先按路径试一次，
+    // 直接走 base64 / 下载口——按路径试必定失败，结果不确定时还不能重发，文件就丢了。
+    const byPath = external || cfg.files?.imageByPath !== false
     let first = null
     if (byPath) {
       try {
@@ -909,7 +906,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const head = [...quote(replyId), ...mention(userId)]
     const local = isAbsolute(s) ? s : /^file:\/\//i.test(s) ? s : ''
     if (local && getConfig().files?.imageByPath !== false) {
-      // Windows 上 'file://' + 'C:\...' 不是合法 URL，网关读不到；pathToFileURL 会给出 file:///C:/... 这种正确形态
+      // 用 pathToFileURL 转成合法的 file:// 地址（路径里的空格、中文会正确编码）
       const file = local.startsWith('file://') ? local : pathToFileURL(local).href
       try {
         const r = await sendSegments(chatId, [...head, { type: 'image', data: { file } }], `[图片·路径] ${local.slice(-40)}`, { throwOnError: true })

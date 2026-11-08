@@ -1,4 +1,4 @@
-// 内置模块：语音。把她的话念出来发语音条（edge-tts / Windows 语音 / CosyVoice / GPT-SoVITS / 本地接口），
+// 内置模块：语音。把她的话念出来发语音条（edge-tts / macOS 自带语音 / CosyVoice / GPT-SoVITS / 本地接口），
 // 面板里的试听、语音识别自检也在这里。
 // 导出 speak(text) → { file, engine }：聊天中枢发语音时找它。替换这个模块就能换成任何你想要的念法。
 
@@ -85,13 +85,13 @@ export default {
       const text = await hub.localTranscribe(last.seg)
       return { ok: Boolean(text), heard: text, at: new Date(last.time * 1000).toLocaleString(), ms: Date.now() - t }
     })
-    // 自检「听语音」：Windows 语音念一句 → 转 16k 单声道 → DSH 自带识别 → 看能不能认回来
+    // 自检「听语音」：macOS 自带语音念一句 → 转 16k 单声道 → DSH 自带识别 → 看能不能认回来
     api.route('/voice/asr-test', async (req) => {
       const b = await http.body(req)
       const s0 = stt()
       if (!s0 || typeof s0.resolve !== 'function') return { ok: false, message: 'DSH 里没有开启语音识别（设置 → 插件 → 语音输入）' }
       const text = String(b.text || '今天想吃白米饭')
-      const { file } = await textToSpeech(text, { engine: 'windows' })
+      const { file } = await textToSpeech(text, { engine: 'system' })
       const t = Date.now()
       const spec = s0.resolve({ audio: new Uint8Array(toMono16k(readFileSync(file))) })
       const r = await s0.transcribe(spec, AbortSignal.timeout(120000))

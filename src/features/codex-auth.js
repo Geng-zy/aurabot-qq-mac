@@ -97,17 +97,10 @@ export function parseAuthInput (input) {
   return { code: v, state: '', error: '' }
 }
 
-/**
- * 用系统默认浏览器打开链接。
- * ⚠ Windows 上**不能**用 `cmd /c start "" <url>`：链接里的 `&` 会被 cmd 当成命令分隔符，
- *   浏览器只拿到第一个 `&` 之前的部分（授权链接就是这么被截断、登不进去的）。
- *   rundll32 直接收 argv，不经过 shell，`&`、`?`、`=` 都原样带过去。
- */
-export function openInBrowser (url, { run = spawn, platform = process.platform } = {}) {
+/** 用系统默认浏览器打开链接（open 直接收 argv，不经过 shell，链接里的 `&`、`?`、`=` 都原样带过去）。 */
+export function openInBrowser (url, { run = spawn } = {}) {
   try {
-    const opts = { detached: true, stdio: 'ignore', windowsHide: true }
-    const child = platform === 'win32' ? run('rundll32', ['url.dll,FileProtocolHandler', url], opts)
-      : platform === 'darwin' ? run('open', [url], opts) : run('xdg-open', [url], opts)
+    const child = run('open', [url], { detached: true, stdio: 'ignore' })
     child.on?.('error', () => {}) // 打不开时仍可在面板手动打开授权链接。
     child.unref()
     return true

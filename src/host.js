@@ -18,9 +18,8 @@ import { loadConfig, saveConfig, publicConfig, mergeFromPanel } from './core/con
 import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
 import { createOneBotClient } from './onebot/client.js'
-import { createSnowLumaManager, DOWNLOAD_PAGE } from './snowluma/manager.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
-import { grantOwner, moveWorkspace, realWorkspace } from './core/workspace-move.js'
+import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
 import { createLocal, fileOf, toImageBuffer } from './local/local.js'
 import { createGroupRoles } from './chat/group-roles.js'
 import { defaultModel, askModel, modelReasoning, modelVision, clearReasoningCache, clearVisionCache } from './core/llm.js'
@@ -71,7 +70,7 @@ export function apply(ctx) {
   let bridge = null
   const getConfig = () => cfg
   setSsrpMode(() => (getConfig().security && getConfig().security.ssrfMode === 'loose' ? 'loose' : 'strict'))
-  const secrets = () => { for (const k of ['webuiPassword', 'httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); registerSecret(cfg.bridge.token) }
+  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); registerSecret(cfg.bridge.token) }
   const setConfig = (next) => {
     const before = cfg
     cfg = saveConfig(next)
@@ -105,22 +104,10 @@ export function apply(ctx) {
   variable('aurabot_rules_social', () => rewrite('rules', rulesText('social', cfg, rulesOpts('social')), 'social'))
 
   // ---------- QQ 网关 ----------
-  const snowluma = createSnowLumaManager({
-    getConfig,
-    log: logger.child('snowluma'),
-    // 控制台密码由插件自动生成并保存，用户不用管
-    savePassword: (pw, auto = true) => setConfig({ ...cfg, snowluma: { ...cfg.snowluma, webuiPassword: pw, passwordAuto: auto } }),
-  })
+  // macOS 上 QQ 网关是你自己跑的 OneBot v11（比如 OrbStack / Docker 里的 SnowLuma），插件只按面板填的地址去连
   const endpoint = () => {
     const s = cfg.snowluma
-    // 接自己的 OneBot 时只认填的地址；用 SnowLuma 时没填的从它的配置里读
-    const auto = cfg.gateway === 'onebot' || (s.httpUrl && s.wsUrl) ? null : snowluma.endpoint()
-    return {
-      httpUrl: s.httpUrl || auto?.httpUrl || '',
-      wsUrl: s.wsUrl || auto?.wsUrl || '',
-      httpToken: s.httpToken || auto?.httpToken || '',
-      wsToken: s.wsToken || auto?.wsToken || '',
-    }
+    return { httpUrl: s.httpUrl || '', wsUrl: s.wsUrl || '', httpToken: s.httpToken || '', wsToken: s.wsToken || '' }
   }
   let onebotState = 'stopped'
   // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
@@ -150,7 +137,7 @@ export function apply(ctx) {
         onebot.stop()
         return
       }
-      if (await snowluma.confirmLogin(uin)) {
+      if (uin === String(cfg.botQQ)) {
         loginOk = true
         wrongAccount = ''
         // 把核对期间攒下的补上（按到达顺序）
@@ -351,7 +338,7 @@ export function apply(ctx) {
   // 因此：**所有管理面默认只允许回环访问**。要做远端管理必须显式开 panelRemoteAccess（并在
   // 反代层再加一道认证——README 写明这是硬要求）。
   // 【首审 P1-1】闸的覆盖范围不能只有 /panel/*：/state（能读到全部配置与密钥）、/save（能改配置）、
-  // /logs、/modules*（能装代码）、/bridge/token（直接返回联动密钥）、/snowluma/*（能改机器人密码）
+  // /logs、/modules*（能装代码）、/bridge/token（直接返回联动密钥）
   // 这些**都是管理面**，必须一起纳入。只有客户端直连用的 /ext/<模块>/* 与 /asset/* 不受此闸限制
   //（它们各自有 token 校验）。
   const isLoopbackAddr = (ip) => {
@@ -505,7 +492,7 @@ export function apply(ctx) {
 
   // ---------- 模块 ----------
   const core = {
-    hub, onebot, snowluma, local, groupRoles, mutes, logger, bridge: null,
+    hub, onebot, local, groupRoles, mutes, logger, bridge: null,
     root: ROOT,
     ask: (opts) => askModel(ctx, { cfg: getConfig(), ...opts }),
     listModels,
@@ -658,22 +645,9 @@ export function apply(ctx) {
       if (onebot.state !== 'stopped') onebot.stop()
       return
     }
-    const own = cfg.gateway === 'snowluma' // 接别人的 OneBot 时不启动、不注入 SnowLuma
-    const inst = snowluma.detect()
-    if (own && inst.installed && cfg.snowluma.autoStart && !(await snowluma.running())) {
-      const r = await snowluma.start()
-      log.info('SnowLuma：', r.message)
-    }
-    // 上次连上的不是机器人号：等主人手动点「接入机器人号」或改设置再连
+    // 上次连上的不是机器人号：等主人点「重新连接」或改设置再连
     if (wrongAccount) return
     if (onebot.state === 'stopped') onebot.start()
-    if (own && cfg.snowluma.autoAttach && cfg.snowluma.webuiPassword && onebotState !== 'connected' && (await snowluma.running())) {
-      const last = snowluma.lastAttach
-      if (Date.now() - last.at > 60_000) {
-        const r = await snowluma.attachBot()
-        log.info('接入机器人号：', r.message)
-      }
-    }
   }
   const safe = (fn, label) => () => { Promise.resolve().then(fn).catch((error) => log.warn(`${label}出错：`, error.message)) }
   ctx.effect(() => ctx.interval(safe(watchdog, '看门狗'), 30_000), 'aurabot: 看门狗')
@@ -688,23 +662,10 @@ export function apply(ctx) {
     bridge.dispose()
     mods.dispose()
     onebot.stop()
-    snowluma.dispose()
   }, 'aurabot: 收尾')
 
   // ---------- 面板接口 ----------
-  let consentCache = { at: 0, value: null }
-  async function consented(running) {
-    if (!running) return null
-    if (Date.now() - consentCache.at < 30_000) return consentCache.value
-    let value = null
-    try { value = !(await snowluma.agreements()).consentRequired } catch (error) {}
-    consentCache = { at: Date.now(), value }
-    return value
-  }
-
   async function overview() {
-    const inst = snowluma.detect()
-    const running = inst.installed ? await snowluma.running() : false
     let login = null
     if (onebotState === 'connected') {
       try {
@@ -718,12 +679,9 @@ export function apply(ctx) {
       ok: true,
       version: VERSION,
       apiVersion: API_VERSION,
-      // 面板按系统显示示例路径、命令（Windows / macOS / Linux 写法不一样）
-      platform: process.platform,
       home: homedir(),
       config: publicConfig(cfg),
       onebot: { state: onebotState, login, endpoint: { httpUrl: endpoint().httpUrl, wsUrl: endpoint().wsUrl }, problem: onebotState === 'connected' && loginOk ? '' : await connectionProblem() },
-      snowluma: { ...inst, running, consented: await consented(running), owns: snowluma.ownsProcess, lastAttach: snowluma.lastAttach, downloadPage: DOWNLOAD_PAGE, webui: snowluma.webuiUrl() },
       stats: hub.stats(),
       // 模块关着时给个空壳，面板照常显示
       mood: use('mood')?.state?.() ?? { value: 0, label: '心情模块关着', reason: '', history: [] },
@@ -788,13 +746,8 @@ export function apply(ctx) {
   route('/save', async (req) => {
     const body = await readBody(req)
     const before = cfg
-    // 控制台密码不能只改配置（SnowLuma 那边还是旧的）：拿出来单独去 SnowLuma 改
-    const newPw = typeof body?.snowluma?.webuiPassword === 'string' ? body.snowluma.webuiPassword : ''
-    if (body?.snowluma) delete body.snowluma.webuiPassword
     setConfig(mergeFromPanel(cfg, body))
-    let pw = null
-    if (newPw && newPw !== before.snowluma.webuiPassword) pw = await snowluma.setPassword(newPw)
-    const changedConn = before.gateway !== cfg.gateway || ['httpUrl', 'wsUrl', 'httpToken', 'wsToken', 'dir'].some((k) => before.snowluma[k] !== cfg.snowluma[k])
+    const changedConn = ['httpUrl', 'wsUrl', 'httpToken', 'wsToken'].some((k) => before.snowluma[k] !== cfg.snowluma[k])
     // 换了模型：思考强度和「能不能看图」的探测结果都得重来，不然要等 10 分钟缓存过期
     const changedModel = before.model.provider !== cfg.model.provider || before.model.model !== cfg.model.model
     if (changedModel) { clearReasoningCache(); clearVisionCache() }
@@ -804,8 +757,7 @@ export function apply(ctx) {
     if (before.enabled && !cfg.enabled) onebot.stop()
     log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun ? '开' : '关'}`)
     await mods.sync().catch(() => {})
-    if (pw && !pw.ok) return { ...(await overview()), ok: false, message: '其他设置保存了，但控制台密码没改：' + pw.message }
-    return { ...(await overview()), message: '保存好了' + (pw ? '，' + pw.message : '') }
+    return { ...(await overview()), message: '保存好了' }
   })
 
   // ---------- 面板代理：目的引擎 / 桌宠 ----------
@@ -1177,16 +1129,6 @@ export function apply(ctx) {
     return { ok: true, entries: logger.recent(Number(q.limit) || 300, { level: q.level || '', area: q.area || '' }) }
   })
 
-  // SnowLuma
-  route('/snowluma/start', async () => snowluma.start())
-  route('/snowluma/stop', async () => snowluma.stop())
-  route('/snowluma/attach', async () => {
-    wrongAccount = ''
-    snowluma.clearRejected()
-    const r = await snowluma.attachBot()
-    if (cfg.enabled && onebot.state === 'stopped') onebot.start()
-    return r
-  })
   route('/commands', async () => ({ ok: true, list: commandList(mods.commands()) }))
   // 更新：检查 GitHub 上有没有新版本；这次更新了什么
   const checkUpdate = createUpdateChecker({ pkg: PKG, log, unstable: () => getConfig().update.unstable })
@@ -1196,24 +1138,9 @@ export function apply(ctx) {
     try { text = readFileSync(join(ROOT, 'CHANGELOG.md'), 'utf8') } catch (error) {}
     return { ok: true, version: VERSION, notes: changelogSection(text, VERSION) }
   })
-  route('/snowluma/login-check', async () => ({ ...(await snowluma.canLogin()), passwordAuto: cfg.snowluma.passwordAuto, running: await snowluma.running() }))
-  route('/snowluma/agreements', async () => {
-    try { return { ok: true, ...(await snowluma.agreements()) } } catch (error) { return { ok: false, message: error.message } }
-  })
-  route('/snowluma/consent', async (req) => {
-    const b = await readBody(req)
-    if (b.agree !== true) return { ok: false, message: '要先勾选「我已阅读并同意」' }
-    consentCache = { at: 0, value: null }
-    return snowluma.consent(b.version)
-  })
-  route('/snowluma/reset-password', async () => snowluma.resetPassword())
-  // 控制台密码：看一眼（打开 SnowLuma 自己的控制台要用）、自己设一个
-  route('/snowluma/password', async () => ({ ok: true, password: snowluma.password(), auto: cfg.snowluma.passwordAuto }))
-  route('/snowluma/set-password', async (req) => snowluma.setPassword(String((await readBody(req)).password || '')))
   route('/workspace/move', async (req) => {
     const r = moveWorkspace(workspaceDirOf(cfg), (await readBody(req)).to)
     if (r.ok) {
-      await grantOwner(r.target, log)
       log.info(r.message)
     }
     return r
@@ -1226,29 +1153,14 @@ export function apply(ctx) {
     log.info('首次使用向导完成')
     return { ...(await overview()), message: '设置完成，大肥鱼可以上线啦' }
   })
-  route('/snowluma/processes', async () => {
-    try { return { ok: true, list: await snowluma.processes() } } catch (error) { return { ok: false, message: error.message, list: [] } }
-  })
   /** 连不上 QQ 网关时，按顺序找卡在哪一步，给一句人话。 */
   async function connectionProblem() {
     if (!cfg.enabled) return '总开关关着（右上角），打开后才会连'
     if (!cfg.botQQ) return '还没填机器人 QQ 号'
-    if (cfg.gateway === 'onebot') {
-      const ep = endpoint()
-      if (!ep.wsUrl) return '还没填 OneBot 的 WebSocket 地址：在「连接」页填你的 OneBot v11 正向 WebSocket 地址（收消息要靠它；HTTP 可以不填）'
-      if (wrongAccount) return `连上的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
-      return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认你的 OneBot 服务开着、地址和 token 填对了（Docker 里的话，地址要用 DSH 能访问到的主机名 / 端口）`
-    }
-    const inst = snowluma.detect()
-    if (!inst.installed && !(cfg.snowluma.wsUrl || cfg.snowluma.httpUrl)) return 'SnowLuma 没装好：' + inst.reason
-    if (inst.installed && !(await snowluma.running())) return 'SnowLuma 没在运行：点上面的「启动」'
-    if (snowluma.lowIntegrity) return 'SnowLuma 以「低完整性」运行，看不到 QQ 进程（多半是解压在了下载目录这类带安全标签的地方）：把它重新解压到一个普通目录（比如 D:\SnowLuma），在「连接」页改好目录再启动'
     const ep = endpoint()
-    if (!ep.wsUrl && !ep.httpUrl) return 'SnowLuma 还没给机器人号开 OneBot 端口，也就是机器人号还没接入：确认机器人号的 QQ 已经登录，再点「接入机器人号」'
-    if (wrongAccount) return `连上的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：只登着机器人号那个 QQ，再点「接入机器人号」`
-    const la = snowluma.lastAttach
-    if (la && la.at && !la.ok && la.message) return '接入机器人号没成功：' + la.message
-    return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认机器人号的 QQ 开着、已经登录，并且 SnowLuma 控制台里这个号显示已接入`
+    if (!ep.wsUrl) return '还没填 OneBot 的 WebSocket 地址：在「连接」页填你的 OneBot v11 正向 WebSocket 地址（收消息要靠它；HTTP 可以不填）'
+    if (wrongAccount) return `连上的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
+    return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认 OneBot 服务（比如 OrbStack 里的 SnowLuma）开着、地址和 token 填对了`
   }
   route('/onebot/reconnect', async () => {
     if (!cfg.enabled) return { ok: false, message: await connectionProblem() }
@@ -1343,7 +1255,7 @@ export function apply(ctx) {
   // 本地接口
   const openFolder = (dir) => {
     mkdirSync(dir, { recursive: true })
-    const opener = process.platform === 'win32' ? 'explorer.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open'
+    const opener = 'open'
     // 子进程起不来是以 error 事件抛的，没人听就是未捕获异常，会把 DSH 整个带走（#135）
     return new Promise((resolve) => {
       const child = spawn(opener, [dir], { detached: true, stdio: 'ignore' })
@@ -1582,7 +1494,7 @@ export function apply(ctx) {
   log.info(`Aurabot v${VERSION} 已加载｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun ? '开' : '关'}｜工作区 ${workspaceDirOf(cfg)}`)
 
   return {
-    hub, onebot, snowluma, getConfig, setConfig, logger, modules: mods, bridge, ready: booted,
+    hub, onebot, getConfig, setConfig, logger, modules: mods, bridge, ready: booted,
     get stickers() { return use('stickers') },
     get qzone() { return use('diary') },
     get mood() { return use('mood') },

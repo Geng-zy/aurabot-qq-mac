@@ -1,6 +1,6 @@
-> **这是 macOS 适配分叉。** 基于 [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)（MIT），让 Aurabot 在 macOS（Apple 芯片）上完整可用：翻唱一键安装、系统语音兜底、Docker 网关下发大文件、面板按系统显示等。Windows 行为与原项目一致。
+> **这是 macOS 适配分叉。** 基于 [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)（MIT），让 Aurabot 在 macOS（Apple 芯片）上完整可用：翻唱一键安装、系统语音兜底、Docker 网关下发大文件等。**只支持 macOS**：原项目里 Windows / Linux 专用的代码（插件管理 Windows 版 SnowLuma、PowerShell、显卡版 PyTorch 等）都已删掉；要在 Windows 上用，请装原项目。
 > macOS 翻唱一键安装固定为实测跑通的组合，并自动备齐翻唱要的全部东西：Python 3.13.18、Applio 3.7.1（自己的环境，torch 2.11）、人声分离单独一套环境（audio-separator 0.48.0 CPU 版、librosa 1.0.0 + audioread、torch 2.15）、uv 0.13.7、Rubber Band 4.0.0、默认主分离模型 Leap Xe 和翻唱增强用的 3 个模型。两套环境是必须的：硬装进一套会退到 audio-separator 0.45，Roformer 模型分离会因显存不足失败。
-> 与原项目的差异见提交记录；新加的 macOS 逻辑都有中文注释，`test/macos.test.js`、`test/file-relay.test.js` 覆盖了按系统分支的行为。
+> 与原项目的差异见提交记录；macOS 相关逻辑都有中文注释，`test/macos.test.js`、`test/file-relay.test.js` 覆盖了这些行为。
 >
 > Mac 上安装：`"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac`，装完重启 DSH。
 
@@ -68,20 +68,12 @@ QQ ⇄ SnowLuma（OneBot v11，你自己安装/已有机器人也行）⇄ Aurab
 
 ## 🚀 快速开始
 
-**你需要：** 一台能跑 DeepSeek Harness 的电脑（Windows 最省事）、一个当机器人的 QQ 小号、一个让机器人号上线的 QQ 网关（Windows 用 SnowLuma 最方便，Linux/Docker 用任何 OneBot v11 实现）。
+**你需要：** 一台 Apple 芯片的 Mac（装好 DeepSeek Harness）、一个当机器人的 QQ 小号、一个让机器人号上线的 QQ 网关（SnowLuma 没有 macOS 版：用 OrbStack / Docker Desktop 跑它的官方镜像，或者任何 OneBot v11 实现）。
 
 ### 1. 安装插件
 
-**Windows 桌面版：**
-
-```powershell
-& "$env:LOCALAPPDATA\Programs\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add github:aureth-labs/dsh-aurabot-qq
-```
-
-**Linux / Docker（换成你在用的 profile；容器里就进容器执行）：**
-
 ```bash
-dsh plugin --profile <profile> add github:aureth-labs/dsh-aurabot-qq
+"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac
 ```
 
 装好后重启 DSH，左侧栏「自动化任务」下面会出现 **Aurabot**。
@@ -89,12 +81,10 @@ dsh plugin --profile <profile> add github:aureth-labs/dsh-aurabot-qq
 ### 2. 跟着设置向导走
 
 1. 填机器人 QQ 号（小号）和你的 QQ 号
-2. 选 QQ 网关：
-   - **用 SnowLuma（Windows）**：下载解压 [SnowLuma](https://github.com/SnowLuma/SnowLuma/releases) → 启动 → 面板里本人同意它的协议（控制台密码自动生成）→ 登录机器人号 → 点「接入机器人号」
-   - **接已有的 OneBot 机器人**：NapCat、LLOneBot、Lagrange、Docker 版 SnowLuma 都行；把正向 WebSocket 地址（和 token）填进向导即可，插件只连接、不启动
+2. 接 QQ 网关：在 OrbStack 里用 [SnowLuma 官方的 docker-compose.yml](https://github.com/SnowLuma/SnowLuma.Docker.Framework) 跑起来，打开它的远程桌面登录机器人号，把 OneBot 正向 WebSocket 地址（一般是 `ws://127.0.0.1:3001`）和 token 填进向导即可（NapCat、LLOneBot、Lagrange 等 OneBot v11 实现也行）。插件只连接、不启动
 3. 先试运行（只回话不真发），或者直接上线
 
-> **Linux / Docker 注意：** 语音要 `python3-venv` 或 [uv](https://docs.astral.sh/uv/)；翻唱（RVC）目前只支持 Windows；容器连宿主机/别的容器上的 OneBot，地址用容器能访问到的主机名和端口，别填 `127.0.0.1`。
+> **翻唱：** 面板「表达 → 翻唱」点一键安装，插件会把 Python、两套环境、Applio、ffmpeg、rubberband 和全部分离模型装进 `~/Aurabot/rvc`（约 5 GB）；之后导入声音模型就能点歌。
 
 ### 3. 升级
 
@@ -142,12 +132,6 @@ dsh plugin --profile <profile> add github:aureth-labs/dsh-aurabot-qq
 | [设计要点](docs/DESIGN.md) | 人格注入、群聊上下文、记忆、心情、B 站、翻唱等的实现取舍 |
 
 ## ❓ FAQ
-
-<details>
-<summary><b>一定要 Windows 吗？</b></summary>
-
-不。插件本体在 Linux / macOS / Windows 都能跑；Windows 最省事是因为 SnowLuma 网关和翻唱（RVC）支持最好。Linux/Docker 接自己的 OneBot v11 机器人即可，语音需要 Python 虚拟环境。
-</details>
 
 <details>
 <summary><b>会不会被腾讯封号？</b></summary>

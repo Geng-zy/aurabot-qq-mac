@@ -154,7 +154,7 @@ export function rewriteImports(code, fromKey, keep = new Set()) {
 /**
  * @param {object} o
  * @param {object} o.ctx        DSH 给插件的 ctx
- * @param {object} o.core       核心对象（hub、onebot、snowluma、local……），模块通过 api.core 拿到
+ * @param {object} o.core       核心对象（hub、onebot、local……），模块通过 api.core 拿到
  * @param {Function} o.getConfig
  * @param {Function} o.setConfig
  * @param {object} o.logger

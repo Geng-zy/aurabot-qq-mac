@@ -1,4 +1,4 @@
-// macOS 适配：按系统选路径、下载源、安装参数、命令和兜底语音。Windows 的行为保持原样，这里一并钉住。
+// macOS 版：路径、下载源、安装参数、命令和兜底语音。
 import assert from 'node:assert/strict'
 import { test, after } from 'node:test'
 import { mkdtempSync, rmSync, existsSync, statSync, readFileSync } from 'node:fs'
@@ -17,52 +17,32 @@ const { updateCommand } = await import('../src/core/update.js')
 const { pickMacVoice } = await import('../src/voice/tts.js')
 const { isSystemLink } = await import('../src/modules/diary/archive.js')
 
-test('翻唱环境路径：Windows 用 Scripts\\*.exe，macOS 用 bin/ 不带扩展名', () => {
-  const win = studio.pathsOf('C:\\rvc', 'win32')
-  assert.match(win.python, /env[\\/]Scripts[\\/]python\.exe$/)
-  assert.match(win.separatorExe, /Scripts[\\/]audio-separator\.exe$/)
-  assert.match(win.ffmpeg, /bin[\\/]ffmpeg\.exe$/)
-  const mac = studio.pathsOf('/Users/x/Aurabot/rvc', 'darwin')
+test('翻唱环境路径：env/bin 下的程序，不带扩展名', () => {
+  const mac = studio.pathsOf('/Users/x/Aurabot/rvc')
   assert.equal(mac.python, '/Users/x/Aurabot/rvc/env/bin/python')
   assert.equal(mac.separatorExe, '/Users/x/Aurabot/rvc/env/bin/audio-separator')
   assert.equal(mac.ffmpeg, '/Users/x/Aurabot/rvc/bin/ffmpeg')
-  assert.equal(studio.exeName('uv', 'win32'), 'uv.exe')
-  assert.equal(studio.exeName('uv', 'darwin'), 'uv')
 })
 
-test('uv 下载源：按系统和芯片挑官方安装包，带校验值；没有对应包时为空', () => {
-  const win = studio.uvSources('win32', 'x64')
-  assert.equal(win[0].sha256, '1fb29fc46ba12033e2ef95a95ac79d649e71bbb1358419bbbcbd19d86026ef2f')
-  assert.match(win.at(-1).url, /windows-msvc\.zip$/)
-  const arm = studio.uvSources('darwin', 'arm64')
-  assert.match(arm[0].url, /macosx_11_0_arm64\.whl$/)
-  assert.match(arm[0].url, /uv-0\.13\.7-/, 'Mac 用实际跑通的 uv 0.13.7')
+test('uv 下载源：按芯片挑 PyPI 官方的 uv 0.13.7 安装包，带校验值；没有对应包时为空', () => {
+  const arm = studio.uvSources('arm64')
+  assert.match(arm[0].url, /uv-0\.13\.7-py3-none-macosx_11_0_arm64\.whl$/)
+  assert.ok(arm[0].url.includes('mirrors.aliyun.com'), '先走国内镜像')
   assert.ok(arm.every((s) => s.sha256 === 'f91a229093163eefca89ea1b220a221d64c3beade05d03519a6584d1797a5a5f'))
-  assert.match(win[0].url, /uv-0\.13\.5-/, 'Windows 照原版')
-  assert.match(studio.uvSources('darwin', 'x64')[0].url, /macosx_10_12_x86_64\.whl$/)
-  assert.deepEqual(studio.uvSources('freebsd', 'x64'), [])
-  // 老代码里导出的常量仍在，按当前系统取
+  assert.match(studio.uvSources('x64')[0].url, /macosx_10_12_x86_64\.whl$/)
+  assert.deepEqual(studio.uvSources('ppc'), [])
   assert.deepEqual(studio.UV_SOURCES, studio.uvSources())
 })
 
-test('安装参数：macOS 装 CPU 版人声分离、不走 CUDA 的 PyTorch 源；Windows 不变', () => {
-  assert.deepEqual(studio.installExtras('darwin'), ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'])
-  assert.deepEqual(studio.installExtras('win32'), ['audio-separator[gpu]'])
-  assert.deepEqual(studio.torchSource(false, 'darwin'), [])
-  assert.deepEqual(studio.torchSource(true, 'darwin'), [])
-  assert.equal(studio.torchSource(false, 'win32')[0], '--extra-index-url')
-  assert.equal(studio.torchSource(true, 'win32')[0], '--find-links')
+test('安装参数：人声分离环境装 CPU 版（Apple 芯片走 MPS），版本固定', () => {
+  assert.deepEqual(studio.installExtras(), ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'])
 })
 
-test('安装位置：macOS 认 / 开头的路径，示例用主目录；只有 Windows 列盘符', () => {
-  assert.equal(studio.checkRoot('/Users/x/rvc', 'darwin').ok, true)
-  const bad = studio.checkRoot('rvc', 'darwin')
+test('安装位置：认 / 开头的路径，示例用主目录', () => {
+  assert.equal(studio.checkRoot('/Users/x/rvc').ok, true)
+  const bad = studio.checkRoot('rvc')
   assert.equal(bad.ok, false)
   assert.match(bad.message, /Aurabot\/rvc/)
-  assert.doesNotMatch(bad.message, /D:\\/)
-  assert.equal(studio.checkRoot('/Users/x/rvc', 'win32').ok, false)
-  assert.equal(studio.checkRoot('D:\\Aurabot\\rvc', 'win32').ok, true)
-  assert.deepEqual(studio.listDrives('darwin'), [])
 })
 
 /** 拼一个最小的 zip（deflate），测解压用。 */
@@ -87,7 +67,7 @@ function makeZip(files) {
   return Buffer.concat([...locals, cd, end])
 }
 
-test('解压：不靠 PowerShell；建好子目录，程序加可执行权限，拒绝越界路径', { skip: process.platform === 'win32' }, () => {
+test('解压：不靠外部工具；建好子目录，程序加可执行权限，拒绝越界路径', () => {
   const dir = join(root, 'unzip')
   studio.extractZip(makeZip([['uv-0.13.5.data/scripts/uv', 'bin'], ['pkg/readme.txt', 'hi']]), dir)
   const exe = join(dir, 'uv-0.13.5.data/scripts/uv')
@@ -98,10 +78,9 @@ test('解压：不靠 PowerShell；建好子目录，程序加可执行权限，
   assert.equal(existsSync(join(root, 'evil.txt')), false)
 })
 
-test('更新命令：Windows 是 PowerShell，macOS 用 DSH.app 自带的命令行', () => {
-  assert.match(updateCommand('a/b', 'main', 'win32'), /^& ".*dsh\.cmd" plugin --profile desktop add github:a\/b$/)
-  assert.equal(updateCommand('a/b', 'main', 'darwin'), '"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:a/b')
-  assert.equal(updateCommand('a/b', 'beta', 'linux'), 'dsh plugin --profile desktop add github:a/b#beta')
+test('更新命令：用 DSH.app 自带的命令行', () => {
+  assert.equal(updateCommand('a/b', 'main'), '"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:a/b')
+  assert.match(updateCommand('a/b', 'beta'), /github:a\/b#beta$/)
 })
 
 test('macOS 兜底语音：优先 Tingting，没有就用第一个中文（中国大陆）声音', () => {
@@ -116,15 +95,14 @@ test('macOS 兜底语音：优先 Tingting，没有就用第一个中文（中�
   assert.equal(pickMacVoice('Alex  en_US  # Hello'), '')
 })
 
-test('归档路径：放行系统自带（root 的）链接，用户建的链接和 Windows 一律不放行', () => {
-  assert.equal(isSystemLink({ uid: 0 }, 'darwin'), true)
-  assert.equal(isSystemLink({ uid: 501 }, 'darwin'), false)
-  assert.equal(isSystemLink({ uid: 0 }, 'win32'), false)
+test('归档路径：放行系统自带（root 的）链接，用户建的链接不放行', () => {
+  assert.equal(isSystemLink({ uid: 0 }), true)
+  assert.equal(isSystemLink({ uid: 501 }), false)
 })
 
 test('自定义分离模型：有 extra-models.json 才走插件自带的 separator_run.py，否则直接调 audio-separator', () => {
   const { mkdirSync, writeFileSync } = require_fs()
-  const p = studio.pathsOf(join(root, 'rvc-sep'), 'darwin')
+  const p = studio.pathsOf(join(root, 'rvc-sep'))
   mkdirSync(p.separatorModels, { recursive: true })
   const args = ['in.wav', '--model_filename', 'm.ckpt']
   assert.deepEqual(studio.separatorCommand(p, args), [p.separatorExe, args])
@@ -136,7 +114,7 @@ test('自定义分离模型：有 extra-models.json 才走插件自带的 separa
 })
 
 test('ffmpeg：安装目录里没有就用系统里的，都没有保持原样', () => {
-  const p = studio.pathsOf('/x/rvc', 'darwin')
+  const p = studio.pathsOf('/x/rvc')
   assert.equal(studio.withSystemFfmpeg(p, { exists: () => true, find: () => '/opt/homebrew/bin/ffmpeg' }).ffmpeg, '/x/rvc/bin/ffmpeg')
   assert.equal(studio.withSystemFfmpeg(p, { exists: () => false, find: () => '/opt/homebrew/bin/ffmpeg' }).ffmpeg, '/opt/homebrew/bin/ffmpeg')
   assert.equal(studio.withSystemFfmpeg(p, { exists: () => false, find: () => '' }).ffmpeg, '/x/rvc/bin/ffmpeg')
@@ -159,18 +137,17 @@ test('本地原唱：按「歌名 - 歌手[专辑]」认文件；歌名对上就
 })
 
 test('换声用的 Python：Applio 自己的 .venv 优先，没有就用翻唱环境', () => {
-  const p = studio.pathsOf('/r', 'darwin')
-  assert.equal(studio.applioPython(p, { platform: 'darwin', exists: () => true }), '/r/Applio/.venv/bin/python')
-  assert.equal(studio.applioPython(p, { platform: 'darwin', exists: () => false }), '/r/env/bin/python')
-  const w = studio.pathsOf('C:\\r', 'win32')
-  assert.match(studio.applioPython(w, { platform: 'win32', exists: () => true }), /\.venv[\\/]Scripts[\\/]python\.exe$/)
+  const p = studio.pathsOf('/r')
+  assert.equal(studio.applioPython(p, { exists: () => true }), '/r/Applio/.venv/bin/python')
+  assert.equal(studio.applioPython(p, { exists: () => false }), '/r/env/bin/python')
 })
 
 test('rubberband：翻唱环境 bin/、PATH、Homebrew 依次找，找不到返回空', () => {
-  const p = studio.pathsOf('/r', 'darwin')
-  assert.equal(studio.findRubberband(p, { pathEnv: '/usr/bin', platform: 'darwin', exists: (x) => x === '/opt/homebrew/bin/rubberband' }), '/opt/homebrew/bin/rubberband')
-  assert.equal(studio.findRubberband(p, { pathEnv: '/x', platform: 'darwin', exists: (x) => x === '/x/rubberband' }), '/x/rubberband')
-  assert.equal(studio.findRubberband(p, { pathEnv: '', platform: 'darwin', exists: () => false }), '')
+  const p = studio.pathsOf('/r')
+  assert.equal(studio.findRubberband(p, { pathEnv: '/x', exists: (x) => x === '/r/bin/rubberband' || x === '/x/rubberband' }), '/r/bin/rubberband', '插件放的优先')
+  assert.equal(studio.findRubberband(p, { pathEnv: '/usr/bin', exists: (x) => x === '/opt/homebrew/bin/rubberband' }), '/opt/homebrew/bin/rubberband')
+  assert.equal(studio.findRubberband(p, { pathEnv: '/x', exists: (x) => x === '/x/rubberband' }), '/x/rubberband')
+  assert.equal(studio.findRubberband(p, { pathEnv: '', exists: () => false }), '')
 })
 
 test('音色列表带出音色档案（<音色>.profile.json）', () => {
@@ -183,30 +160,26 @@ test('音色列表带出音色档案（<音色>.profile.json）', () => {
   assert.equal(v.find((x) => x.id === 'b').profile, '')
 })
 
-test('图片按路径直发：Windows 默认开，macOS / Linux 默认关（网关在 Docker 里读不到本机路径）；自己设过的照旧', async () => {
+test('图片和文件按路径直发：默认关（网关在 Docker 里读不到本机路径）；自己设过的照旧', async () => {
   const { normalize, DEFAULTS } = await import('../src/core/config.js')
-  assert.equal(DEFAULTS.files.imageByPath, process.platform === 'win32')
-  assert.equal(normalize({}).files.imageByPath, process.platform === 'win32')
+  assert.equal(DEFAULTS.files.imageByPath, false)
+  assert.equal(normalize({}).files.imageByPath, false)
   assert.equal(normalize({ files: { imageByPath: true } }).files.imageByPath, true)
-  assert.equal(normalize({ files: { imageByPath: false } }).files.imageByPath, false)
 })
 
-test('macOS 一键安装的版本固定为本机跑通的组合：Python 3.13.18、Applio 3.7.1、Applio 自己的环境；Windows 照原版', async () => {
+test('一键安装的版本固定为本机跑通的组合：Python 3.13.18、Applio 3.7.1、Applio 自己的环境', async () => {
   const st = await import('../src/song/studio.js')
-  assert.equal(st.pythonVersion('darwin'), '3.13.18')
-  assert.equal(st.pythonVersion('win32'), '3.12')
-  assert.equal(st.applioCommit('darwin'), '6f69726b140c615c8cc6831a7db8b7c5e48ba8af')
-  assert.equal(st.applioCommit('win32'), st.APPLIO_COMMIT)
+  assert.equal(st.MAC_STACK.python, '3.13.18')
+  assert.equal(st.APPLIO_COMMIT, '6f69726b140c615c8cc6831a7db8b7c5e48ba8af')
   assert.deepEqual(st.MAC_STACK.applioExtras, ['python-ffmpeg==2.0.12'])
 })
 
-test('macOS 一键安装自动备齐翻唱要的全部东西：默认 Leap Xe（固定版本、带校验）、增强模型、官方 rubberband；Windows 照原版', async () => {
+test('一键安装自动备齐翻唱要的全部东西：默认 Leap Xe（固定版本、带校验）、增强模型、官方 rubberband', async () => {
   const st = await import('../src/song/studio.js')
   const { DEFAULTS } = await import('../src/core/config.js')
-  assert.equal(DEFAULTS.song.separatorModel, process.platform === 'darwin' ? st.LEAP_XE : 'model_bs_roformer_ep_317_sdr_12.9755.ckpt')
-  assert.deepEqual(st.installSteps('darwin')[3], '准备 ffmpeg 和 rubberband')
-  assert.deepEqual(st.installSteps('win32')[3], '准备 ffmpeg')
-  assert.equal(st.installSteps('darwin').length, 6)
+  assert.equal(DEFAULTS.song.separatorModel, st.LEAP_XE)
+  assert.equal(st.INSTALL_STEPS[3], '准备 ffmpeg 和 rubberband')
+  assert.equal(st.INSTALL_STEPS.length, 6)
   assert.match(st.RUBBERBAND_MAC.url, /^https:\/\/breakfastquay\.com\/.*rubberband-4\.0\.0-gpl-executable-macos\.tar\.bz2$/)
   assert.match(st.RUBBERBAND_MAC.sha256, /^[0-9a-f]{64}$/)
   const leap = st.SEPARATOR_FILES[st.LEAP_XE]

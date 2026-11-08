@@ -1,7 +1,7 @@
 // 内置模块：翻唱。点歌 → 网易云下载 → 分离人声 → RVC 换成她的音色 → 混音 → 发语音条。
 // 换声这一步可以在「本地接口」里接你自己的推理（so-vits-svc、自己训练的 RVC……）；整个模块也可以替换掉。
 
-import { createSongStudio, checkRoot, listDrives } from '../../song/studio.js'
+import { createSongStudio, checkRoot } from '../../song/studio.js'
 import { defineTool, str, int, bool } from '../../tools/tools.js'
 
 export default {
@@ -48,7 +48,6 @@ export default {
     api.route('/song/status', async () => ({ ok: true, ...song.status() }))
     api.route('/song/install', async () => song.install())
     api.route('/song/root/check', async (req) => ({ ok: true, ...checkRoot(http.query(req).path || '') }))
-    api.route('/song/drives', async () => ({ ok: true, list: listDrives() }))
     api.route('/song/search', async (req) => {
       try { return { ok: true, list: await song.search(http.query(req).q || '') } } catch (error) { return { ok: false, message: error.message, list: [] } }
     })

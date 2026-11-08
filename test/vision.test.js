@@ -41,12 +41,11 @@ test('pickVideoStream：优先 H.264、不低于 480、取带宽最低的那路'
 
 test('findFfmpeg：配置的路径优先，都找不到返回空串', () => {
   assert.equal(findFfmpeg('', { pathEnv: '', exists: () => false }), '')
-  const fake = join('C:\\tools', 'ffmpeg.exe')
+  const fake = '/Users/x/tools/ffmpeg'
   assert.equal(findFfmpeg(fake, { exists: (p) => p === fake }), fake, '配置里填的直接用')
-  const exe = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
-  const dir = process.platform === 'win32' ? 'D:\\bin' : '/opt/bin'
-  const inPath = join(dir, exe)
-  assert.equal(findFfmpeg('', { pathEnv: dir, exists: (p) => p === inPath }), inPath, '从 PATH 里找')
+  const inPath = join('/opt/bin', 'ffmpeg')
+  assert.equal(findFfmpeg('', { pathEnv: '/opt/bin', exists: (p) => p === inPath }), inPath, '从 PATH 里找')
+  assert.equal(findFfmpeg('', { pathEnv: '/usr/bin', exists: (p) => p === '/opt/homebrew/bin/ffmpeg' }), '/opt/homebrew/bin/ffmpeg', 'PATH 里没有 Homebrew 时也能找到')
 })
 
 test('visionState：开关和 ffmpeg 都就绪才算 ready', () => {
@@ -55,7 +54,7 @@ test('visionState：开关和 ffmpeg 都就绪才算 ready', () => {
   const st = visionState({ vision: true, ffmpegPath: '' })
   assert.equal(st.enabled, true)
   assert.equal(st.ready, Boolean(st.ffmpeg), 'ready 只取决于本机有没有 ffmpeg')
-  assert.equal(visionState({ vision: true, ffmpegPath: 'C:\\definitely\\not\\here\\ffmpeg.exe' }).ready, Boolean(st.ffmpeg), '填了不存在的路径就当没填')
+  assert.equal(visionState({ vision: true, ffmpegPath: '/definitely/not/here/ffmpeg' }).ready, Boolean(st.ffmpeg), '填了不存在的路径就当没填')
 })
 
 test('digestOf：开了画面就写进 digest，没字幕时不再说"只能看标题"', () => {

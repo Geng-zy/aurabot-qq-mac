@@ -155,12 +155,8 @@ test('安装：报错翻译成人话、安装位置检查、列出各个盘', as
   assert.match(studio.explainInstallError('No space left on device'), /磁盘空间/)
   assert.equal(studio.checkRoot('rvc').ok, false)
   assert.equal(studio.checkRoot('').ok, true)
-  await t.test('Windows 安装位置检查和盘符列表', { skip: process.platform !== 'win32' && '安装位置检查和盘符列表依赖 Windows 盘符' }, () => {
-    assert.match(studio.checkRoot('C:\\我的 文件\\rvc').warn, /中文或空格/)
-    assert.ok(studio.checkRoot('C:\\Aurabot\\rvc').freeGB > 0)
-    const drives = studio.listDrives()
-    assert.ok(drives.some((d) => d.drive === 'C:' && d.root === 'C:\\Aurabot\\rvc' && d.totalGB > 0))
-  })
+  assert.match(studio.checkRoot('/Users/x/我的 文件/rvc').warn, /中文或空格/)
+  assert.ok(studio.checkRoot('/Users/x/Aurabot/rvc').freeGB > 0, '能量出所在磁盘的剩余空间')
   assert.equal(studio.INSTALL_STEPS.length, 6)
 })
 
@@ -194,7 +190,7 @@ test('人声分离模型：手动导入要核对校验值；下载地址先给�
 
 test('下载源：自动模式下官方源慢就用国内镜像；老配置自动迁移', async () => {
   const fast = async () => ({ status: 200 })
-  const down = async (url) => { if (url.includes('pytorch')) throw new Error('timeout'); return { status: 200 } }
+  const down = async (url) => { if (url.includes('huggingface')) throw new Error('timeout'); return { status: 200 } }
   assert.equal(await studio.shouldUseCnMirror('auto', fast), false)
   assert.equal(await studio.shouldUseCnMirror('auto', down), true)
   assert.equal(await studio.shouldUseCnMirror('cn', fast), true)

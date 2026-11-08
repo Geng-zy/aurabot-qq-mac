@@ -372,15 +372,13 @@ test('#6 头像来源：显式网址直接给网关；「刚才那张」和「�
   assert.equal(avatarSource('base64://AAAA').ok, false)
 })
 
-test('#28 QQ 网关：Windows 默认 SnowLuma、macOS / Linux 默认 onebot；接自己的 OneBot 机器人时用 onebot；乱填的回到默认', async () => {
+test('#28 QQ 网关：只接自己的 OneBot（macOS 上没有 SnowLuma 原生版）；老配置里的 snowluma 也当 onebot，Windows 那套设置去掉', async () => {
   const { normalize } = await import('../src/core/config.js')
-  // SnowLuma 只有 Windows 版插件能管；别的系统默认接自己的 OneBot（比如 Docker 里的 SnowLuma）
-  const def = process.platform === 'win32' ? 'snowluma' : 'onebot'
-  assert.equal(normalize({}).gateway, def)
-  assert.equal(normalize({ gateway: 'snowluma' }).gateway, 'snowluma')
-  assert.equal(normalize({ gateway: 'onebot', snowluma: { wsUrl: 'ws://napcat:3001' } }).gateway, 'onebot')
-  assert.equal(normalize({ gateway: 'onebot', snowluma: { wsUrl: 'ws://napcat:3001' } }).snowluma.wsUrl, 'ws://napcat:3001')
-  assert.equal(normalize({ gateway: 'whatever' }).gateway, def)
+  assert.equal(normalize({}).gateway, 'onebot')
+  assert.equal(normalize({ gateway: 'snowluma' }).gateway, 'onebot')
+  const c = normalize({ gateway: 'onebot', snowluma: { wsUrl: 'ws://127.0.0.1:3001', dir: 'C:\\x', webuiPassword: 'p', autoStart: true } })
+  assert.equal(c.snowluma.wsUrl, 'ws://127.0.0.1:3001')
+  for (const k of ['dir', 'webuiPassword', 'autoStart', 'autoAttach', 'webuiPort', 'passwordAuto']) assert.equal(k in c.snowluma, false, k)
 })
 
 test('#32 工作区位置：面板填的绝对路径优先，相对路径 / 乱填的当没填', async () => {
@@ -388,10 +386,9 @@ test('#32 工作区位置：面板填的绝对路径优先，相对路径 / 乱�
   const { workspaceDirOf, WORKSPACE_DIR } = await import('../src/chat/hub.js')
   assert.equal(normalize({}).workspaceDir, '')
   assert.equal(workspaceDirOf(normalize({})), WORKSPACE_DIR)
-  assert.equal(workspaceDirOf(normalize({ workspaceDir: ' D:\\Aurabot\\qq-chats ' })), 'D:\\Aurabot\\qq-chats')
-  assert.equal(workspaceDirOf(normalize({ workspaceDir: '/srv/aurabot/chats' })), '/srv/aurabot/chats')
+  assert.equal(workspaceDirOf(normalize({ workspaceDir: ' /Users/x/Aurabot/qq-chats ' })), '/Users/x/Aurabot/qq-chats')
   assert.equal(normalize({ workspaceDir: 'chats' }).workspaceDir, '')
-  assert.equal(normalize({ workspaceDir: '..\\x' }).workspaceDir, '')
+  assert.equal(normalize({ workspaceDir: 'D:\\Aurabot\\qq-chats' }).workspaceDir, '')
 })
 
 test('群聊：没人叫她时接话有上限，叫她就重新开始', () => {

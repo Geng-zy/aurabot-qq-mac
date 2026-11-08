@@ -125,7 +125,7 @@ test('本地目录扫描不穿过链接或 junction', () => {
   mkdirSync(folder)
   mkdirSync(outside)
   writeFileSync(join(outside, '私人.png'), PNG)
-  symlinkSync(outside, join(folder, 'shortcut'), process.platform === 'win32' ? 'junction' : 'dir')
+  symlinkSync(outside, join(folder, 'shortcut'), 'dir')
   assert.equal(localPictures(folder).length, 0)
   assert.throws(() => localPictures(join(folder, 'shortcut')), /链接/)
 })

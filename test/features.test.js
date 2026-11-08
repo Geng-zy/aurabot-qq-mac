@@ -3,7 +3,6 @@ import assert from 'node:assert/strict'
 import { planDiaryTimes } from '../src/features/qzone.js'
 import { moodLabel, scoreText, decayed } from '../src/features/companion.js'
 import { matchSticker, pickForReply } from '../src/features/stickers.js'
-import { pickBotProcess, readOneBotEndpoint } from '../src/snowluma/manager.js'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -35,46 +34,6 @@ test('表情匹配：按名字和标签', () => {
   assert.equal(matchSticker(items, '开心').md5, 'b')
   assert.equal(matchSticker(items, '完全无关xyz'), null)
   assert.equal(pickForReply(items, '哼 好委屈').md5, 'a')
-})
-
-test('只挑机器人号的 QQ 进程，识别不了就不注入', () => {
-  const list = [{ pid: 1, account: { uin: 10000001 } }, { pid: 2, account: { uin: 20000002 } }]
-  assert.equal(pickBotProcess(list, '20000002').proc.pid, 2)
-  assert.equal(pickBotProcess([{ pid: 1, account: { uin: 10000001 } }], '20000002').proc, null)
-  assert.equal(pickBotProcess([{ pid: 1, account: null }, { pid: 3, account: null }], '20000002').proc, null)
-  assert.equal(pickBotProcess([...list, { pid: 5, account: { uin: 20000002 } }], '20000002').proc, null, '两个进程都声称是机器人号时不注入')
-})
-
-test('SnowLuma 认不出号（account: null）：只有一个这样的进程才当候选，且标记要核对', () => {
-  const r = pickBotProcess([{ pid: 19224, account: null }], '20000002')
-  assert.equal(r.proc.pid, 19224)
-  assert.equal(r.unverified, true)
-  // 认出是别的号的进程永远不碰
-  const r2 = pickBotProcess([{ pid: 1, account: { uin: 10000001 } }, { pid: 2, account: null }], '20000002')
-  assert.equal(r2.proc.pid, 2)
-  assert.equal(r2.unverified, true)
-  // 认出了机器人号就不用核对
-  const r3 = pickBotProcess([{ pid: 1, account: null }, { pid: 2, account: { uin: 20000002 } }], '20000002')
-  assert.equal(r3.proc.pid, 2)
-  assert.ok(!r3.unverified)
-  // 重登 QQ 后 SnowLuma 报 uin: "0"（issue #2），也当认不出
-  const r4 = pickBotProcess([{ pid: 12345, uin: '0', account: null }], '20000002')
-  assert.equal(r4.proc.pid, 12345)
-  assert.equal(r4.unverified, true)
-  // 核对失败过的进程不再试
-  assert.equal(pickBotProcess([{ pid: 19224, account: null }], '20000002', { exclude: [19224] }).proc, null)
-})
-
-test('从 SnowLuma 配置读出 OneBot 地址和令牌（单号覆盖全局）', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'sl-'))
-  mkdirSync(join(dir, 'config'))
-  writeFileSync(join(dir, 'config', 'onebot.json'), JSON.stringify({ networks: { httpServers: [{ host: '127.0.0.1', port: 3000, accessToken: 'g1' }], wsServers: [{ host: '0.0.0.0', port: 3001, accessToken: 'g2' }] } }))
-  writeFileSync(join(dir, 'config', 'onebot_20000002.json'), JSON.stringify({ mode: 'overlay', networks: { httpServers: [{ host: '127.0.0.1', port: 3100, accessToken: 'u1' }] } }))
-  const ep = readOneBotEndpoint(dir, '20000002')
-  assert.equal(ep.httpUrl, 'http://127.0.0.1:3100')
-  assert.equal(ep.httpToken, 'u1')
-  assert.equal(ep.wsUrl, 'ws://127.0.0.1:3001')
-  assert.equal(ep.wsToken, 'g2')
 })
 
 test('WAV 转 16kHz 单声道（给 DSH 语音识别）', async () => {

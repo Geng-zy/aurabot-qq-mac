@@ -197,7 +197,7 @@ export function createMemoryStorage({ directory = () => dataDir(), log = console
       }
     }
   }
-  // 句柄不跨同步操作持有，避免插件重载和 Windows 恢复/搬目录时占用数据库文件。
+  // 句柄不跨同步操作持有，避免插件重载和恢复/搬目录时占用数据库文件。
   // 比较快照保留在内存中；连接关闭并不会把未变化的行重新写一遍。
   function load() {
     openDatabase()

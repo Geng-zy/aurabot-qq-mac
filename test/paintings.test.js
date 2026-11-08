@@ -69,18 +69,14 @@ test('删单张：只删目录里那张，并且能从列表里消失', () => {
   assert.equal(removePainting('../x.png').ok, false, '非法文件名直接拒')
 })
 
-test('打开文件夹：Windows 用 explorer，路径是存图目录', () => {
+test('打开文件夹：用 open 打开存图目录', () => {
   const calls = []
   const run = (bin, args) => ({ unref () { calls.push({ bin, args }) } })
-  const r = openPaintFolder({ run, platform: 'win32' })
+  const r = openPaintFolder({ run })
   assert.equal(r.ok, true)
-  assert.equal(calls[0].bin, 'explorer.exe')
+  assert.equal(calls[0].bin, 'open')
   assert.equal(calls[0].args[0], paintDir)
   assert.ok(r.path.endsWith('imagegen'))
-  openPaintFolder({ run, platform: 'darwin' })
-  assert.equal(calls[1].bin, 'open')
-  openPaintFolder({ run, platform: 'linux' })
-  assert.equal(calls[2].bin, 'xdg-open')
 })
 
 test('目录不存在时返回空列表而不是报错，也不顺手建目录', () => {

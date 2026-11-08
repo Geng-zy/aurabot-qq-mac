@@ -13,10 +13,10 @@ export function archiveDate(at) {
 
 /**
  * 系统自带的链接（macOS 的 /var、/tmp、/etc 指向 /private/…）归 root 所有，普通用户造不出来，
- * 放行它们不会让归档写到别处；用户自己建的链接仍然拒绝。Windows 的 lstat 不给 uid（总是 0），不放行。
+ * 放行它们不会让归档写到别处；用户自己建的链接仍然拒绝。
  */
-export function isSystemLink(stat, platform = process.platform) {
-  return platform !== 'win32' && stat.uid === 0
+export function isSystemLink(stat) {
+  return stat.uid === 0
 }
 
 /** 路径的已有各层均不能是（用户建的）链接；输出目录只允许显式的绝对路径。 */

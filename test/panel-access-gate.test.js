@@ -36,7 +36,7 @@ before(async () => {
     ownerQQ: OWNER,
     allow: { private: [OWNER], groups: [] },
     snowluma: { autoStart: false, autoAttach: false, dir: join(dataDir, 'no-snowluma') },
-    voice: { engine: 'windows', autoChance: 0 },
+    voice: { engine: 'system', autoChance: 0 },
     stickers: { autoChance: 0 },
   }))
   fake = createFakeDsh({ brain: async () => '嗯' })
@@ -71,7 +71,7 @@ test('面板闸：外网来源被 403 拦下（P1-2 回归：看 socket 不看 X
 
 test('面板闸：覆盖所有管理面，不只是 /panel/*（P1-1 回归）', async () => {
   // 这些是首审实测能 200 的核心管理接口，现在必须一起拦
-  const paths = ['/state', '/save', '/logs', '/modules', '/bridge/token', '/commands', '/snowluma/password']
+  const paths = ['/state', '/save', '/logs', '/modules', '/bridge/token', '/commands', '/onebot/reconnect']
   for (const p of paths) {
     const r = await fake.call(p, null, {}, '203.0.113.7')
     assert.equal(r.status, 403, `${p} 属于管理面，外网来源必须拒绝`)

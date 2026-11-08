@@ -173,14 +173,12 @@ export function removePainting (file) {
 }
 
 /** 用系统文件管理器打开存图目录。 */
-export function openPaintFolder ({ run = spawn, platform = process.platform } = {}) {
+export function openPaintFolder ({ run = spawn } = {}) {
   const d = dir()
   ensureDir(d)
   try {
     const opts = { detached: true, stdio: 'ignore' }
-    if (platform === 'win32') run('explorer.exe', [d], opts).unref()
-    else if (platform === 'darwin') run('open', [d], opts).unref()
-    else run('xdg-open', [d], opts).unref()
+    run('open', [d], opts).unref()
     return { ok: true, message: '打开了：' + d, path: d }
   } catch (error) {
     return { ok: false, message: '打不开文件夹：' + error.message, path: d }

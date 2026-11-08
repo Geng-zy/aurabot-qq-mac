@@ -6,17 +6,13 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { mimeOf } from '../chat/inbound.js'
 
-const EXE = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'
-
-/** ffmpeg 在哪：配置里填的 > PATH 里的 > 几个常见安装位置。找不到返回 ''。 */
+/** ffmpeg 在哪：配置里填的 > PATH 里的 > Homebrew 等常见安装位置（从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。找不到返回 ''。 */
 export function findFfmpeg(configured = '', { pathEnv = process.env.PATH || '', exists = existsSync } = {}) {
-  const sep = process.platform === 'win32' ? ';' : ':'
   const cands = []
   const own = String(configured || '').trim()
   if (own) cands.push(own)
-  for (const d of String(pathEnv).split(sep)) if (d && d.trim()) cands.push(join(d.trim(), EXE))
-  if (process.platform === 'win32') cands.push('C:\\ffmpeg\\bin\\ffmpeg.exe', 'C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe')
-  else cands.push('/usr/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/opt/homebrew/bin/ffmpeg')
+  for (const d of String(pathEnv).split(':')) if (d && d.trim()) cands.push(join(d.trim(), 'ffmpeg'))
+  cands.push('/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg')
   for (const c of cands) { try { if (exists(c)) return c } catch (error) {} }
   return ''
 }
@@ -76,7 +72,7 @@ export function shrinkImage(buf, maxSide, ffmpeg, { timeoutMs = 30000 } = {}) {
         '-i', 'pipe:0',
         '-vf', `scale='min(${maxSide},iw)':-2`,
         '-q:v', '4', '-f', 'image2', '-c:v', 'mjpeg', 'pipe:1',
-      ], { windowsHide: true })
+      ])
     } catch (error) {
       return finish(null)
     }

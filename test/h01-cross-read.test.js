@@ -30,7 +30,7 @@ before(async () => {
     enabled: true, dryRun: true, setupDone: true, botQQ: BOT, ownerQQ: OWNER,
     allow: { private: [], groups: ['555', '556'] },
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'none') },
-    voice: { engine: 'windows', autoChance: 0, enabled: false },
+    voice: { engine: 'system', autoChance: 0, enabled: false },
     stickers: { autoChance: 0, enabled: false },
     memory: { enabled: false },
     group: { interjectChance: 0, overrides: { 555: { quietHours: [0, 0] } } },

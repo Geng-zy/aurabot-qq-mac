@@ -17,13 +17,13 @@ import { spawn } from 'node:child_process'
 // ↓↓↓ 示例：调用你自己项目的命令行推理。把路径和参数换成你的。
 // so-vits-svc 4.x：python inference_main.py -m logs/44k/G_xxx.pth -c configs/config.json -n 输入.wav -t 变调 -s 说话人
 // RVC WebUI：python tools/infer_cli.py --input_path 输入 --opt_path 输出 --f0up_key 变调 --model_name 模型.pth --index_path 索引
-const PYTHON = 'D:/RVC/runtime/python.exe'
-const PROJECT = 'D:/RVC'
+const PYTHON = '/Users/你/RVC/.venv/bin/python'
+const PROJECT = '/Users/你/RVC'
 
 export default async function convert({ input, output, pitch, voiceFile, indexFile, log }) {
   const args = ['tools/infer_cli.py', '--input_path', input, '--opt_path', output, '--f0up_key', String(pitch), '--model_name', voiceFile, '--index_path', indexFile || '', '--f0method', 'rmvpe']
   await new Promise((resolve, reject) => {
-    const child = spawn(PYTHON, args, { cwd: PROJECT, windowsHide: true })
+    const child = spawn(PYTHON, args, { cwd: PROJECT })
     let tail = ''
     child.stdout.on('data', (b) => { tail = (tail + b).slice(-2000) })
     child.stderr.on('data', (b) => { tail = (tail + b).slice(-2000) })

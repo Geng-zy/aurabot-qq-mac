@@ -1,25 +1,21 @@
 // 文字 → 语音文件。
-//   首选：edge-tts（微软在线朗读，音色好），装在插件自己的 Python 虚拟环境 C:\Aurabot\pyenv 里，不污染系统。
-//   兜底：系统自带的中文语音，什么都不装也能用——Windows 是 System.Speech / Huihui，macOS 是 say（Tingting 等）。
+//   首选：edge-tts（微软在线朗读，音色好），装在插件自己的 Python 虚拟环境 ~/Aurabot/pyenv 里，不污染系统。
+//   兜底：macOS 自带的中文语音（say，Tingting 等），什么都不装也能用。
 // 管线：文字 → TTS → 文件路径。任何一步失败由调用方退回发文字。（RVC 音色目前用在翻唱上，见 src/song/）
 
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { buildWav } from './wav.js'
-import { join, dirname } from 'node:path'
+import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
 import { dataDir } from '../core/store.js'
 
-// edge-tts 的私有 Python 环境，一键安装时自动创建。老安装沿用 C:\Aurabot\pyenv；新安装放在用户目录下
-const LEGACY_PYENV = 'C:\\Aurabot\\pyenv'
-const WIN = process.platform === 'win32'
-const MAC = process.platform === 'darwin'
-export const PYENV_DIR = process.env.AURABOT_PYENV || (WIN && existsSync(LEGACY_PYENV) ? LEGACY_PYENV : join(homedir(), 'Aurabot', 'pyenv'))
+// edge-tts 的私有 Python 环境，「安装语音组件」时自动创建
+export const PYENV_DIR = process.env.AURABOT_PYENV || join(homedir(), 'Aurabot', 'pyenv')
 /** 兜底用的系统语音叫什么（写日志 / 提示用）。 */
-const SYSTEM_VOICE = MAC ? ' macOS 自带语音' : ' Windows 语音'
-// 虚拟环境的目录结构 Windows 和 Linux / macOS 不一样
-const pyExe = () => (WIN ? join(PYENV_DIR, 'Scripts', 'python.exe') : join(PYENV_DIR, 'bin', 'python'))
+const SYSTEM_VOICE = ' macOS 自带语音'
+const pyExe = () => join(PYENV_DIR, 'bin', 'python')
 
 function run(cmd, args, { timeoutMs = 60000, input, env } = {}) {
   return new Promise((resolve) => {
@@ -27,7 +23,7 @@ function run(cmd, args, { timeoutMs = 60000, input, env } = {}) {
     let err = ''
     let child
     try {
-      child = spawn(cmd, args, { windowsHide: true, env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', ...(env || {}) } })
+      child = spawn(cmd, args, { env: { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', ...(env || {}) } })
     } catch (error) {
       resolve({ code: -1, out, err: error.message })
       return
@@ -64,7 +60,6 @@ function outDir() {
 
 export function edgeInstalled() {
   if (!existsSync(pyExe())) return false
-  if (WIN) return existsSync(join(PYENV_DIR, 'Lib', 'site-packages', 'edge_tts'))
   try {
     return readdirSync(join(PYENV_DIR, 'lib')).some((v) => v.startsWith('python') && existsSync(join(PYENV_DIR, 'lib', v, 'site-packages', 'edge_tts')))
   } catch (error) {
@@ -76,18 +71,14 @@ export function edgeInstalled() {
 export async function installEdge(log) {
   mkdirSync(PYENV_DIR, { recursive: true })
   if (!existsSync(pyExe())) {
-    // 电脑上有 Python 就直接用；没有就用 uv 下一个私有的 Python（不用用户自己装）
-    let r = WIN ? await run('py', ['-3', '-m', 'venv', PYENV_DIR], { timeoutMs: 180000 }) : { code: -1 }
-    if (r.code !== 0) r = await run('python3', ['-m', 'venv', PYENV_DIR], { timeoutMs: 180000 })
-    if (r.code !== 0) r = await run('python', ['-m', 'venv', PYENV_DIR], { timeoutMs: 180000 })
-    if (r.code !== 0) {
-      log?.info('电脑上没有可用的 Python，用 uv 准备一个私有的')
-      const uv = await findOrFetchUv(log)
-      if (!uv) return { ok: false, message: WIN ? '准备 Python 失败：下载安装工具 uv 没成功，检查一下网络（开代理或换个网络）再试' : '准备 Python 失败：电脑上没有能建虚拟环境的 Python（Debian / Ubuntu 装一下 python3-venv），也没有 uv（curl -LsSf https://astral.sh/uv/install.sh | sh）' }
-      const env = { UV_PYTHON_INSTALL_DIR: join(dirname(PYENV_DIR), 'python'), UV_PYTHON_INSTALL_MIRROR: 'https://registry.npmmirror.com/-/binary/python-build-standalone' }
-      r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', '3.12'], { timeoutMs: 600000, env })
-      if (r.code !== 0) return { ok: false, message: '准备 Python 失败：' + r.err.slice(-300) }
-    }
+    // 不用系统的 python3（那是 Xcode 命令行工具里的，没装时会弹窗要求安装）：用 uv 准备一个私有的 Python，版本和翻唱环境一样
+    log?.info('用 uv 准备一个私有的 Python')
+    const uv = await findOrFetchUv()
+    if (!uv) return { ok: false, message: '准备 Python 失败：找不到 uv。先在「翻唱」页点一键安装（会把 uv 放进 ~/Aurabot/rvc/bin），或者自己装好 uv 再试' }
+    const { MAC_STACK } = await import('../song/studio.js')
+    const env = { UV_PYTHON_INSTALL_DIR: join(homedir(), 'Aurabot', 'rvc', 'python'), UV_PYTHON_PREFERENCE: 'only-managed', UV_PYTHON_INSTALL_MIRROR: 'https://registry.npmmirror.com/-/binary/python-build-standalone' }
+    const r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', MAC_STACK.python], { timeoutMs: 600000, env })
+    if (r.code !== 0) return { ok: false, message: '准备 Python 失败：' + r.err.slice(-300) }
   }
   log?.info('正在安装 edge-tts …')
   let r = await run(pyExe(), ['-m', 'pip', 'install', '-q', 'edge-tts'], { timeoutMs: 300000 })
@@ -96,7 +87,7 @@ export async function installEdge(log) {
   }
   // uv 建的环境里没有 pip：改用 uv 装
   if (r.code !== 0 && /No module named pip/.test(r.err)) {
-    const uv = await findOrFetchUv(log)
+    const uv = await findOrFetchUv()
     if (uv) {
       r = await run(uv, ['pip', 'install', '-q', '--python', pyExe(), 'edge-tts'], { timeoutMs: 300000 })
       if (r.code !== 0) r = await run(uv, ['pip', 'install', '-q', '--python', pyExe(), '--default-index', 'https://mirrors.aliyun.com/pypi/simple', 'edge-tts'], { timeoutMs: 300000 })
@@ -106,28 +97,13 @@ export async function installEdge(log) {
   return { ok: true, message: '语音组件装好了' }
 }
 
-/** 找 uv：电脑上有就用，翻唱装过的也能用，都没有就下一个（走系统代理）。 */
-async function findOrFetchUv(log) {
+/** 找 uv：翻唱一键安装放在 ~/Aurabot/rvc/bin 的优先，其次是电脑上装好的（从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。 */
+async function findOrFetchUv() {
   if (process.env.AURABOT_UV) return process.env.AURABOT_UV
+  const own = join(homedir(), 'Aurabot', 'rvc', 'bin', 'uv')
+  if (existsSync(own)) return own
   if ((await run('uv', ['--version'], { timeoutMs: 15000 })).code === 0) return 'uv'
-  // Linux / macOS：只找装好的（官方安装脚本默认放 ~/.local/bin 或 ~/.cargo/bin；Homebrew 放 /opt/homebrew/bin 或 /usr/local/bin；
-  // 翻唱一键安装下的放 ~/Aurabot/rvc/bin），不自动下载。从程序坞打开的 DSH，PATH 里通常没有 Homebrew。
-  if (!WIN) return [join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv'), '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), 'Aurabot', 'rvc', 'bin', 'uv')].find((p) => existsSync(p)) || ''
-  const local = join(dirname(PYENV_DIR), 'bin', 'uv.exe')
-  for (const p of [local, join('C:\\Aurabot', 'rvc', 'bin', 'uv.exe'), join(homedir(), 'Aurabot', 'rvc', 'bin', 'uv.exe')]) if (existsSync(p)) return p
-  log?.info('下载 uv …')
-  const zip = join(dirname(PYENV_DIR), 'bin', 'uv.zip')
-  const tmp = join(dirname(PYENV_DIR), 'bin', 'uv-src')
-  mkdirSync(dirname(zip), { recursive: true })
-  // 和翻唱安装用同一组下载源：国内镜像上的 uv 安装包优先，最后才试 GitHub；有校验值的核对一下
-  const { UV_SOURCES } = await import('../song/studio.js')
-  const ps = "$ProgressPreference='SilentlyContinue'; [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri $env:AB_URL -OutFile $env:AB_OUT -UseBasicParsing -TimeoutSec 300; if ($env:AB_SHA -and (Get-FileHash $env:AB_OUT -Algorithm SHA256).Hash.ToLower() -ne $env:AB_SHA) { throw 'sha256 mismatch' }; if (Test-Path $env:AB_TMP) { Remove-Item $env:AB_TMP -Recurse -Force }; Expand-Archive -LiteralPath $env:AB_OUT -DestinationPath $env:AB_TMP -Force; $e = Get-ChildItem $env:AB_TMP -Recurse -Filter uv.exe | Select-Object -First 1; Copy-Item $e.FullName $env:AB_DEST -Force; Remove-Item $env:AB_OUT; Remove-Item $env:AB_TMP -Recurse -Force"
-  for (const src of UV_SOURCES) {
-    const r = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { timeoutMs: 400000, env: { AB_URL: src.url, AB_OUT: zip, AB_TMP: tmp, AB_DEST: local, AB_SHA: src.sha256 || '' } })
-    if (r.code === 0 && existsSync(local)) return local
-    log?.info(`从 ${new URL(src.url).host} 下 uv 没成功，换一个源`)
-  }
-  return existsSync(local) ? local : ''
+  return [join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv'), '/opt/homebrew/bin/uv', '/usr/local/bin/uv'].find((p) => existsSync(p)) || ''
 }
 
 async function edgeSynth(text, voice, rate, pitch) {
@@ -164,20 +140,6 @@ async function macSynth(text) {
   const c = await run('afconvert', ['-f', 'WAVE', '-d', 'LEI16@24000', aiff, file], { timeoutMs: 60000 })
   try { unlinkSync(aiff) } catch (error) {}
   if (!existsSync(file) || statSync(file).size < 1000) throw new Error('macOS 语音转换失败：' + (c.err || r.err).slice(-200))
-  return file
-}
-
-async function windowsSynth(text) {
-  const file = join(outDir(), `${randomUUID()}.wav`)
-  const script =
-    'Add-Type -AssemblyName System.Speech;' +
-    '$t=[Console]::In.ReadToEnd();' +
-    '$s=New-Object System.Speech.Synthesis.SpeechSynthesizer;' +
-    "$zh=$s.GetInstalledVoices()|Where-Object{$_.VoiceInfo.Culture.Name -eq 'zh-CN'}|Select-Object -First 1;" +
-    'if($zh){$s.SelectVoice($zh.VoiceInfo.Name)};' +
-    `$s.SetOutputToWaveFile('${file.replace(/'/g, "''")}');$s.Speak($t);$s.Dispose()`
-  const r = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `[Console]::InputEncoding=[Text.Encoding]::UTF8;${script}`], { timeoutMs: 60000, input: text })
-  if (!existsSync(file) || statSync(file).size < 1000) throw new Error('Windows 语音失败：' + r.err.slice(-200))
   return file
 }
 
@@ -319,7 +281,7 @@ export async function textToSpeech(text, opt = {}, log) {
     } catch (error) {
       log?.warn(`${opt.engine} 失败：${error.message} → 改用${SYSTEM_VOICE}`)
     }
-  } else if (opt.engine !== 'windows' && edgeInstalled()) {
+  } else if (opt.engine !== 'system' && edgeInstalled()) {
     try {
       file = await edgeSynth(clean, opt.voice || 'zh-CN-XiaoyiNeural', opt.rate, opt.pitch)
       engine = 'edge'
@@ -328,14 +290,9 @@ export async function textToSpeech(text, opt = {}, log) {
     }
   }
   if (!file) {
-    // 系统自带语音兜底：Windows 是 System.Speech，macOS 是 say（配置里的引擎名仍叫 windows，兼容老配置）
-    if (MAC) {
-      file = await macSynth(clean)
-    } else {
-      if (!WIN) throw new Error('语音没合成出来：Linux 上没有系统自带语音可以兜底，先在「语音」页装好 edge-tts，或者用本地 TTS 服务')
-      file = await windowsSynth(clean)
-    }
-    engine = 'windows'
+    // 系统自带语音兜底：macOS 的 say
+    file = await macSynth(clean)
+    engine = 'system'
   }
   for (const conv of voiceConverters) {
     try {
