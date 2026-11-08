@@ -25,6 +25,7 @@ import { createLocal, fileOf, toImageBuffer } from './local/local.js'
 import { createGroupRoles } from './chat/group-roles.js'
 import { defaultModel, askModel, modelReasoning, modelVision, clearReasoningCache, clearVisionCache } from './core/llm.js'
 import { mimeOf } from './chat/inbound.js'
+import { createMediaAccess } from './core/media.js'
 import { dataDir, ensureDir } from './core/store.js'
 import { initUsage, usageReport } from './core/usage.js'
 import { createUpdateChecker, changelogSection } from './core/update.js'
@@ -372,6 +373,7 @@ export function apply(ctx) {
       send: (message, info) => mods.filter('send', message, info),
       model: (sel, chat) => mods.filterSync('model', sel, chat),
       poke: (ev) => mods.claim('poke', ev),
+      journal: (row) => mods?.emit('chat/log', row),
     },
   })
 
@@ -464,11 +466,11 @@ export function apply(ctx) {
    *  【复审 P1-2】/open/* 是给外部程序（curl / 脚本）用的开放接口，有自己的
    *  `Authorization: Bearer 密钥` 鉴权（bridge.authorized），跨机带正确密钥必须放行——
    *  它不是浏览器面板的一部分，不该被本机闸拦。 */
-  const panelBlocked = (req, res) => {
+  const panelBlocked = (req, res, force = false) => {
     let path = ''
     try { path = new URL(req.url, 'http://x').pathname } catch { return false }
     if (!path.startsWith(PREFIX + '/') && path !== PREFIX) return false
-    if (ADMIN_EXEMPT_PREFIXES.some((p) => path.startsWith(p))) return false
+    if (!force && ADMIN_EXEMPT_PREFIXES.some((p) => path.startsWith(p))) return false
     if (!panelNeedsLocal()) return false
     if (requestIsLocal(req)) return false
     log.warn(`管理接口拒绝远端访问：${path}（来源不是回环；如需远端管理请开 security.panelRemoteAccess 并在反代加认证）`)
@@ -569,6 +571,7 @@ export function apply(ctx) {
       // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；桌宠 native 客户端不带 Origin，
       // 不受影响；桌面面板的 fetch 是同源，也不受影响。
       if (csrfBlocked(req, res)) return undefined
+      if (mods.routeAccess(path) === 'panel' && (panelBlocked(req, res, true) || adminHostBlocked(req, res))) return undefined
       return mods.handle(path, req, res)
     }),
   }), 'aurabot: 模块接口')
@@ -581,6 +584,7 @@ export function apply(ctx) {
     listModels,
     defaultModel: () => defaultModel(ctx, { model: {} }),
     http: { body: readBody, raw: readRaw, query, send },
+    media: createMediaAccess({ root: ROOT, use, config: getConfig }),
     personas: { list: listPersonas, read: readPersona, current: () => currentPersonaText(cfg.persona.current) },
     getConfig, setConfig,
     // 给模块的心智接口（按模块身份）；心智核心没起来时是 null

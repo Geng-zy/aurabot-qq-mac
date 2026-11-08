@@ -297,7 +297,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     return n
   }
 
-  function logChat(chatId, who, text, uid = '', { via, at } = {}) {
+  function logChat(chatId, who, text, uid = '', { via, at, originId } = {}) {
     // 调试模式：不写聊天流水，只进插件日志（来自原项目 48b36fc）
     if (getConfig().debug) {
       log.info(`[调试] ${who}${uid ? '（' + uid + '）' : ''} → ${chatId}：${String(text || '').slice(0, 300)}`)
@@ -314,7 +314,10 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const dir = dataDir('chatlog')
       mkdirSync(dir, { recursive: true })
-      appendFileSync(join(dir, `${day}.jsonl`), JSON.stringify({ t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}) }) + '\n', 'utf8')
+      const row = { t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}) }
+      appendFileSync(join(dir, `${day}.jsonl`), JSON.stringify(row) + '\n', 'utf8')
+      // 模块的 chat/log 通知：落盘成功后的只读快照（移植自原项目 5cdbcd4）
+      try { hooks?.journal?.({ ...row, ...(originId ? { originId } : {}) }) } catch (error) { log.warn('流水通知失败：', error.message) }
       const n = new Date()
       pruneChatLog(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`)
       return true
@@ -1607,18 +1610,19 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
   }
 
   /** QQ 语音是 silk：让网关转成 wav，再统一成 16kHz 单声道 PCM16。 */
-  async function recordWav(rec) {
+  async function recordWav(rec, suppliedWav) {
+    if (suppliedWav) return toMono16k(suppliedWav)
     const info = await onebot.call('get_record', { file: rec.data?.file, out_format: 'wav' }, { timeoutMs: 30000 })
     const raw = info?.base64 ? Buffer.from(info.base64, 'base64') : await fetchImage(info?.file || info?.url, { maxBytes: 30 * 1024 * 1024 })
     return toMono16k(raw)
   }
 
-  async function transcribe(msg) {
+  async function transcribe(msg, suppliedWav) {
     for (const rec of msg.records) {
       // 本地接口接管：用用户自己的识别服务（最先试）
       if (localApi?.active('asr')) {
         try {
-          const wav = await recordWav(rec)
+          const wav = await recordWav(rec, suppliedWav)
           const { writeFileSync, mkdirSync } = await import('node:fs')
           const { join } = await import('node:path')
           const dir = localApi.dir() + '/out'
@@ -1635,12 +1639,13 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       const voiceCfg = getConfig().voice
       const viaCloud = async () => {
         if (!asrConfigured(voiceCfg)) return ''
-        try { return await transcribeAudio(await recordWav(rec), voiceCfg, log) } catch (error) {
+        try { return await transcribeAudio(await recordWav(rec, suppliedWav), voiceCfg, log) } catch (error) {
           log.debug('云端语音识别失败：', error.message)
           return ''
         }
       }
       const viaQq = async () => {
+        if (suppliedWav) return '' // 外部输入没有 QQ 消息编号，复用本地/云端/DSH 识别。
         try {
           const r = await onebot.call('fetch_ptt_text', { message_id: Number(msg.messageId) || msg.messageId }, { timeoutMs: 20000 })
           return String(r?.text || '').trim()
@@ -1657,7 +1662,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
         if (text) return `[语音] ${text}`
       }
       try {
-        const text = await localTranscribe(rec)
+        const text = await localTranscribe(rec, suppliedWav)
         if (text) return `[语音] ${text}`
       } catch (error) {
         log.debug('本地语音识别失败：', error.message)
@@ -1671,7 +1676,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
    * DSH 自带识别（SenseVoice）：resolve({audio}) → transcribe(spec, signal)，音频必须是 16kHz 单声道 PCM16 WAV。
    * QQ 语音是 silk：先让网关 get_record 转成 wav，再重采样。
    */
-  async function localTranscribe(rec) {
+  async function localTranscribe(rec, suppliedWav) {
     const stt = dsh.get('speechToText')
     if (!stt || typeof stt.resolve !== 'function' || typeof stt.transcribe !== 'function') throw new Error('DSH 没开启语音输入')
     // 模型还没下载好：顺手开始准备（下载一次，之后常驻），这一条先算没听清
@@ -1682,7 +1687,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       try { stt.prepare(pid) } catch (error) {}
       throw new Error(`识别模型还在准备（${prov.preparation.phase}）`)
     }
-    const spec = stt.resolve({ audio: new Uint8Array(await recordWav(rec)) })
+    const spec = stt.resolve({ audio: new Uint8Array(await recordWav(rec, suppliedWav)) })
     const r = await stt.transcribe(spec, AbortSignal.timeout(60000))
     const text = typeof r === 'string' ? r : r?.text || r?.transcript
     return text ? String(text).trim() : ''
@@ -2475,9 +2480,9 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
   }
 
   async function pushToSession(chat, content, senderId, opts = {}) {
-    assertActive()
+    assertActive(); opts.assertAuthorized?.()
     const { agent, sessionId } = await agentFor(chat)
-    assertActive()
+    assertActive(); opts.assertAuthorized?.()
     const key = sessionKey(sessionId)
     const st = turnState.get(key) || { lastTurn: -1, text: '', senders: new Set() }
     // 上一句也带上：相关记忆检索遇到「嗯嗯」这种短句时，用上一句一起找（#79 之后由模块在提示词里加）
@@ -2544,7 +2549,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     for (const block of admitted.filter((c) => c.type === 'text')) {
       for (const r of memoryPromptRanges(block.text, { toEndOfText: true })) sources.memory.push(block.text.slice(r.start, r.end))
     }
-    assertActive()
+    assertActive(); opts.assertAuthorized?.()
     startTyping(key, chat)
     // 告诉同一会话里的其他插件是谁在说（#145）：说话的全是主人才标 owner，混着别人或不知道是谁都是 guest。
     // chat 标私聊还是群聊：群里主人说话也是 owner，但回复全群都看得到，要不要放私事由插件自己判断
@@ -2563,6 +2568,38 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     try {
       if (dsh.sessions && typeof dsh.sessions.flush === 'function') await dsh.sessions.flush(agent.session)
     } catch (error) {}
+  }
+
+  /** 已验证主人身份的外部入口；复用已有聊天、心智核心、转写和投递路径。调用方负责鉴权（移植自原项目 5cdbcd4）。 */
+  async function receiveOwnerMessage(chatId, { text = '', image, wav, via = 'external', originId, assertAuthorized = () => {} } = {}) {
+    const owner = String(getConfig().ownerQQ || '')
+    const validate = () => {
+      assertActive(); assertAuthorized()
+      const cfg = getConfig()
+      if (!cfg.enabled || !owner || String(cfg.ownerQQ || '') !== owner) throw Object.assign(new Error('请先启用 Aurabot 并配置主人身份'), { status: 503, code: 'not_ready' })
+      const match = /^(private|group):(\d+)$/.exec(String(chatId))
+      if (!map().chats[chatId]?.sessionId || !match) throw Object.assign(new Error('会话不存在'), { status: 404, code: 'chat_not_found' })
+      const chat = { chatId, kind: match[1], userId: match[1] === 'private' ? match[2] : owner, groupId: match[1] === 'group' ? match[2] : '', nickname: cfg.ownerName || '主人' }
+      if (!checkAllowed(cfg, chat).allowed || isMuted?.(chatId)) throw Object.assign(new Error('这个聊天未开放或已暂停'), { status: 403, code: 'chat_disabled' })
+      return chat
+    }
+    let chat = validate()
+    const source = String(via || 'external').replace(/[\r\n【】]/g, '').slice(0, 40)
+    if (wav) text = await transcribe({ records: [{ data: {} }], messageId: '' }, wav)
+    const content = [{ type: 'text', text: `【${chat.kind === 'group' ? '群聊' : '私聊'} · ${source}】${chat.nickname}(${owner})：${text || '[图片]'}` }]
+    if (image) {
+      const bytes = await fitForModel(image)
+      content.push({ type: 'image', data: bytes.toString('base64'), mediaType: mimeOf(bytes), name: 'external-image' })
+    }
+    chat = validate()
+    // 心智核心：模块转进来的主人消息和 QQ 里收到的一样记进她的感知（语音记转出来的字）
+    try { mind?.perceive?.({ ...chat, text: text || '', images: image ? [{}] : [], messageId: originId ? `${source}:${originId}` : '' }) } catch (error) { log.debug('心智感知失败：', error.message) }
+    logChat(chatId, chat.nickname, text || '[图片]', owner, { via: source, originId })
+    lastChatAt = Date.now()
+    if (chatId === `private:${owner}`) { lastOwnerChatAt = lastChatAt; lastPrivateAt.set(owner, lastChatAt) }
+    onActivity?.({ kind: 'in', chatId, userId: owner, nickname: chat.nickname, text, direct: true, owner: true })
+    await pushToSession(chat, content, owner, { queryText: text || '[图片]', steer: running.has(chatId), assertAuthorized: validate })
+    return { ok: true }
   }
 
   function systemFailed(chatId) {
@@ -3011,6 +3048,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     checkSendableFile,
     sendSegments,
     pushToSession,
+    receiveOwnerMessage,
     titleFilter,
     runSystemTurn,
     runSubagentTurn,
