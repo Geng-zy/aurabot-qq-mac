@@ -9,7 +9,7 @@ import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
 import { OneBotError } from '../src/onebot/client.js'
 
-function setup(t, failure, { ttsFailure = false, files = { enabled: true } } = {}) {
+function setup(t, failure, { ttsFailure = false, files = { enabled: true, imageByPath: true } } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'aurabot-send-fallback-'))
   const old = process.env.AURABOT_DATA_DIR
   process.env.AURABOT_DATA_DIR = dir

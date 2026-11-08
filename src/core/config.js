@@ -32,9 +32,10 @@ export const DEFAULTS = {
   // 发文件（#52）：默认开但限制很多——她只能把 QQ 工作区（workspaceDir）和 dirs 里列的目录中的文件当文件发出去；
   // 单个文件有大小上限；主人私聊里能触发，群里只在主人开口那一轮能触发（可以发给白名单里的人和群）。日志里会记下发了什么。
   // imageByPath（#169）：本地图片先按路径直发，被网关明确拒绝才改用 base64；网关和 NapCat 没共享挂载时会自动回退。
+  // macOS / Linux 默认关：这些系统上网关跑在 Docker / 虚拟机里，读不到本机路径，按路径发必定失败（慢一拍，结果不确定时还会丢图）。
   // relay：网关看不到本机路径（Docker / 虚拟机）且文件超过 base64 能塞的大小时，临时开一个只对本机开放的下载口让网关来取；
   // relayHost 是网关那边访问宿主机用的地址（OrbStack / Docker Desktop 都是 host.docker.internal）
-  files: { enabled: true, maxMB: 50, imageByPath: true, dirs: [], relay: true, relayHost: 'host.docker.internal' },
+  files: { enabled: true, maxMB: 50, imageByPath: process.platform === 'win32', dirs: [], relay: true, relayHost: 'host.docker.internal' },
   // 危险命令确认（可选保护，默认关）：她在私聊里执行删根目录/格式化/关机/下载后直接执行等
   // 终端命令前，先发 QQ 私聊问主人，回复「确认」才执行；超时或「取消」就拦下。
   // panelRemoteAccess：允许远端（非回环）访问管理接口；默认 false = 只有本机能管。
@@ -373,7 +374,7 @@ export function normalize(raw) {
   c.update = { unstable: typeof c.update?.unstable === 'boolean' ? c.update.unstable : null }
   c.files.enabled = bool(c.files.enabled, true)
   c.files.maxMB = num(c.files.maxMB, 50, 1, BIG)
-  c.files.imageByPath = bool(c.files.imageByPath, true)
+  c.files.imageByPath = bool(c.files.imageByPath, DEFAULTS.files.imageByPath)
   c.files.relay = bool(c.files.relay, true)
   // 只收主机名 / IP，别的字符一律当没填（防止拼出奇怪的地址）
   c.files.relayHost = /^[A-Za-z0-9.-]{1,253}$/.test(String(c.files.relayHost || '').trim()) ? String(c.files.relayHost).trim() : 'host.docker.internal'

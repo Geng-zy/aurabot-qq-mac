@@ -180,3 +180,11 @@ test('音色列表带出音色档案（<音色>.profile.json）', () => {
   assert.equal(v.find((x) => x.id === 'a').profile, join(dir, 'a.profile.json'))
   assert.equal(v.find((x) => x.id === 'b').profile, '')
 })
+
+test('图片按路径直发：Windows 默认开，macOS / Linux 默认关（网关在 Docker 里读不到本机路径）；自己设过的照旧', async () => {
+  const { normalize, DEFAULTS } = await import('../src/core/config.js')
+  assert.equal(DEFAULTS.files.imageByPath, process.platform === 'win32')
+  assert.equal(normalize({}).files.imageByPath, process.platform === 'win32')
+  assert.equal(normalize({ files: { imageByPath: true } }).files.imageByPath, true)
+  assert.equal(normalize({ files: { imageByPath: false } }).files.imageByPath, false)
+})
