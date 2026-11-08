@@ -17,8 +17,8 @@ import json, os, sys
 
 import numpy as np
 
-# Applio 在哪：插件通过环境变量告诉脚本（翻唱环境里的 Applio 文件夹）；单独运行时默认 ~/Applio
-APPLIO = os.environ.get('AURABOT_APPLIO') or os.path.expanduser('~/Applio')
+# Applio 在哪：插件通过环境变量告诉脚本（翻唱环境里的 Applio 文件夹）；单独运行时默认插件的安装位置 ~/Aurabot/rvc/Applio
+APPLIO = os.environ.get('AURABOT_APPLIO') or os.path.expanduser('~/Aurabot/rvc/Applio')
 sys.path.insert(0, APPLIO)
 
 FLOOR_P10 = 220.0   # 最低的 10% 不低于 220 Hz（她本人最低的 10% 约 234 Hz）

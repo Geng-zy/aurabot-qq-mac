@@ -15,7 +15,7 @@ import sys
 
 import numpy as np
 
-APPLIO = os.environ.get('AURABOT_APPLIO') or os.path.expanduser('~/Applio')
+APPLIO = os.environ.get('AURABOT_APPLIO') or os.path.expanduser('~/Aurabot/rvc/Applio')
 sys.path.insert(0, APPLIO)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

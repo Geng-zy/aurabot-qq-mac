@@ -12,8 +12,8 @@ import numpy as np
 import soundfile as sf
 from scipy.signal import firwin2, oaconvolve
 
-# Applio 在哪：插件通过环境变量告诉脚本（翻唱环境里的 Applio 文件夹）；单独运行时默认 ~/Applio
-APPLIO = os.environ.get('AURABOT_APPLIO') or os.path.expanduser('~/Applio')
+# Applio 在哪：插件通过环境变量告诉脚本（翻唱环境里的 Applio 文件夹）；单独运行时默认插件的安装位置 ~/Aurabot/rvc/Applio
+APPLIO = os.environ.get('AURABOT_APPLIO') or os.path.expanduser('~/Aurabot/rvc/Applio')
 sys.path.insert(0, APPLIO)
 
 EDGES = [250, 400] + [round(630 * 2 ** (k / 3)) for k in range(15)]   # 630 Hz 起每 1/3 倍频程一段，到 16 kHz
