@@ -546,6 +546,17 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   }
 
   // ---------- 一键安装（几个 GB，要十几分钟）----------
+  /** 这个 Python 能不能导入这些包（检查环境是不是完整，不装任何东西）。 */
+  async function canImport(python, mods) {
+    if (!existsSync(python)) return false
+    try {
+      await run(python, ['-c', 'import ' + mods.join(', ')], { log, timeoutMs: 120_000 })
+      return true
+    } catch (error) {
+      return false
+    }
+  }
+
   async function runInstall() {
     if (install.running) return { ok: false, message: '已经在装了' }
     const p = P()
@@ -606,10 +617,23 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
       })
       await step('安装 PyTorch、RVC 和人声分离（最大的一步）', '要下载约 3~4 GB，看网速一般 10~40 分钟；下面的「已下载」在涨就说明没卡住', async () => {
+        // 先检查：要用的包都能导入就跳过。「重新检查 / 修复安装」只修坏了的，不重装、不降级能用的环境
+        const engine = applioPython(p)
+        const twoEnv = engine !== p.python
+        const engineOk = await canImport(engine, ['torch', 'faiss', 'librosa', 'soundfile'])
+        const sepOk = await canImport(p.python, ['audio_separator'])
+        if (engineOk && sepOk) return note('  换声和人声分离要的包都在，跳过')
+        if (twoEnv) {
+          // Applio 有自己的环境（Applio/.venv，按 Applio 官方安装脚本装的）：换声用它，插件不往里装东西，
+          // 也不往人声分离环境里装 Applio 的依赖（两边要的 torch 版本可能不一样，装到一起会把人声分离降级）
+          if (!engineOk) throw new Error('Applio 自己的环境（Applio/.venv）缺包：请在 Applio 文件夹里重新运行 Applio 的官方安装脚本')
+          note('  Applio 用它自己的环境；人声分离环境里只补装人声分离')
+        }
         const stop = watchDownload(cacheDir)
         try {
-          await run(uv, ['pip', 'install', '--python', p.python, '-r', join(p.applio, 'requirements-engine.txt'), ...installExtras(), 'imageio-ffmpeg',
-            ...mirror, ...torchSource(cn), '--index-strategy', 'unsafe-best-match'], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
+          const pkgs = twoEnv ? [...installExtras(), 'imageio-ffmpeg'] : ['-r', join(p.applio, 'requirements-engine.txt'), ...installExtras(), 'imageio-ffmpeg']
+          await run(uv, ['pip', 'install', '--python', p.python, ...pkgs,
+            ...mirror, ...(twoEnv ? [] : torchSource(cn)), '--index-strategy', 'unsafe-best-match'], { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
         } finally {
           stop()
         }
@@ -625,8 +649,10 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       await step('下载人声分离模型', '约 640 MB，看网速几分钟；下好以后第一次点歌就不用再等', async () => {
         // 配置文件插件自带，先放进去
         mkdirSync(p.separatorModels, { recursive: true })
-        for (const n of readdirSync(BUNDLED_SEP)) if (!existsSync(join(p.separatorModels, n))) copyFileSync(join(BUNDLED_SEP, n), join(p.separatorModels, n))
         const files = [...(SEPARATOR_FILES[cfg().separatorModel] || []), SEPARATOR_LIST]
+        // 只放选中的模型要的配置文件（用别的模型时不往文件夹里塞默认模型的配置）
+        const wanted = new Set(files.map(([n]) => n))
+        for (const n of readdirSync(BUNDLED_SEP)) if (wanted.has(n) && !existsSync(join(p.separatorModels, n))) copyFileSync(join(BUNDLED_SEP, n), join(p.separatorModels, n))
         for (const [name, urls, sha] of files) {
           await fetchFile(p.python, join(p.separatorModels, name), urls, note, log, (done, total) => {
             install.progress = { kind: 'file', name, done, total }
