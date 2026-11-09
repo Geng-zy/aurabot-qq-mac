@@ -36,10 +36,20 @@ export function createFakeDsh({ brain }) {
       contexts,
       events,
       denied: new Set(),
+      guestLocked: 0,
       ctx: {
         tools: {
           register: (t) => { tools.set(t.name, t); return () => tools.delete(t.name) },
-          restrict: ({ deny = [] }) => { for (const n of deny) agent.denied.add(n); return () => { for (const n of deny) agent.denied.delete(n) } },
+          restrict: ({ deny = [], allow } = {}) => {
+            // 只给 allow 不给 deny：空 allow 集 = 全局工具全部不可见（真实宿主同义）
+            if (allow !== undefined) {
+              agent.guestLocked = (agent.guestLocked || 0) + 1
+              let open = true
+              return () => { if (open) { open = false; agent.guestLocked -= 1 } }
+            }
+            for (const n of deny) agent.denied.add(n)
+            return () => { for (const n of deny) agent.denied.delete(n) }
+          },
         },
         systemPrompt: { context: (c) => { contexts.set(c.name, c); return () => contexts.delete(c.name) } },
       },

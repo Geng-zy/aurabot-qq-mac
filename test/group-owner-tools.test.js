@@ -78,11 +78,26 @@ test('接线契约：preset、人格变量、闸门、面板开关都在', () =>
   assert.ok(host.includes("rulesText('group-owner'"), 'host 没把 group-owner 传给 rulesText')
 
   const hub = read('src/chat/hub.js')
-  assert.ok(hub.includes('const GROUP_TOOL_DENY'), 'hub 缺 GROUP_TOOL_DENY')
-  assert.ok(/GROUP_TOOL_DENY = \[[^\]]*'bash'[^\]]*'write'/.test(hub), 'deny 里要有 bash / write')
   assert.ok(hub.includes('applyGroupGate(key, turnSendersAllOwner(sessionId))'), 'pushToSession 没按发言人开合')
+  assert.ok(hub.includes('const GROUP_GUEST_SAFE'), '非主人那一轮要有能力白名单')
+  assert.ok(hub.includes('restrict({ allow })'), '闸门要用 allow 白名单收工具')
+  assert.ok(hub.includes('knownGlobalNames(agent)'), '要按宿主真实工具名裁剪白名单')
+  assert.ok(hub.includes("return null"), '问不出工具名时要能降级')
+  assert.ok(!hub.includes('GROUP_TOOL_DENY'), 'deny 名单已废弃，别再引回来')
+  const safeLine = /GROUP_GUEST_SAFE = \[([\s\S]*?)\]\n/.exec(hub)
+  assert.ok(safeLine, '没找到 GROUP_GUEST_SAFE 定义')
+  const patterns = [...safeLine[1].matchAll(/\/((?:\\.|[^/\\])+)\//g)].map((m) => new RegExp(m[1]))
+  assert.ok(patterns.length >= 5, '白名单正则没解析出来')
+  const dangerous = ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'read_image', 'web_fetch', 'web_search',
+    'spawn_teammate', 'team_task_create', 'team_task_update', 'create_skill', 'working_directory',
+    'remote_upload_file', 'remote_read_session', 'job_kill', 'schedule_create',
+    'mcp__fastctx__run', 'mcp__fastctx__run_background', 'mcp__fastctx__replace', 'mcp__fastctx__inspect_local_file']
+  for (const bad of dangerous) assert.ok(!patterns.some((re) => re.test(bad)), `白名单不能匹配 ${bad}`)
+  // 该留的还在
+  for (const ok of ['todo_write', 'ask_user_question', 'recall_memory', 'mcp__AkashaTerminal_mihoyoAll__akasha_search']) {
+    assert.ok(patterns.some((re) => re.test(ok)), `白名单应当留下 ${ok}`)
+  }
   assert.ok(hub.includes("level === 'group-full'"), 'mount 没给 group-full 登记闸门')
-  assert.ok(hub.includes('tools.restrict({ deny: g.deny })'), '闸门要用 tools.restrict 收工具')
 
   const client = read('client/client.js')
   assert.ok(client.includes("f.choices('group.ownerTools'"), '面板缺 group.ownerTools 选择')
@@ -111,9 +126,7 @@ test('闸门：群里非主人说话时本机工具被收走', async () => {
   await hub.pushToSession(chat, [{ type: 'text', text: '跑个 pwd' }], OTHER, { queryText: '跑个 pwd' })
   const agent = fake.agents.get([...fake.agents.keys()].pop())
   assert.ok(agent, '群会话没建起来')
-  assert.ok(agent.denied.has('bash'), '非主人那一轮必须把 bash 收走')
-  assert.ok(agent.denied.has('write'), '非主人那一轮必须把 write 收走')
-  assert.ok(agent.denied.has('web_fetch'), '非主人那一轮必须把 web_fetch 收走')
+  assert.ok(agent.guestLocked > 0, '非主人那一轮必须把全局工具整层收走（allow: []）')
 
   // 开合规则：说话的全是主人才放开，掺一个人就收紧
   const sid = [...fake.agents.keys()].pop()
