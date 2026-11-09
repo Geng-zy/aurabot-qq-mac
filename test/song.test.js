@@ -188,6 +188,14 @@ test('人声分离模型：手动导入要核对校验值；下载地址先给�
   delete studio.SEPARATOR_FILES['fake.ckpt']
   const links = studio.separatorLinks('model_bs_roformer_ep_317_sdr_12.9755.ckpt')
   assert.match(links[0], /^https:\/\/hf-mirror\.com\//)
+  // Leap Xe 要模型本体和配置文件：只列还缺的；配置文件（.yaml）也能手动导入
+  const leap = studio.LEAP_XE
+  const all = studio.separatorLinks(leap, dir)
+  assert.ok(all.some((u) => u.endsWith('/' + leap)) && all.some((u) => u.endsWith('.yaml')), all.join('\n'))
+  writeFileSync(join(dir, leap), 'x')
+  const rest = studio.separatorLinks(leap, dir)
+  assert.ok(rest.length > 0 && rest.every((u) => u.endsWith('.yaml')), rest.join('\n'))
+  assert.match(studio.importSeparator(dir, 'x.yaml', Buffer.from('不对')).message, /leap_xe_config_voc\.yaml/)
   assert.ok(studio.UV_SOURCES[0].url.includes('mirrors.aliyun.com') && studio.UV_SOURCES[0].sha256)
 })
 

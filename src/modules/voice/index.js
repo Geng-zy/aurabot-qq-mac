@@ -56,7 +56,7 @@ export default {
       const buf = readFileSync(file)
       return { ok: true, engine, mime: file.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg', data: buf.toString('base64') }
     })
-    api.route('/voice/install', async () => installEdge(api.log))
+    api.route('/voice/install', async () => installEdge(api.log, { root: api.config().song?.root || '' }))
 
     // DSH 自带语音识别：看状态 / 下载模型
     const stt = () => api.dsh.get('speechToText')

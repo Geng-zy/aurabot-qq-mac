@@ -207,3 +207,36 @@ test('清单外的分离模型：文件齐了还要登记进 extra-models.json �
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('准备 uv：bin/ 里有就直接用；下载的文件校验对不上就不用、临时文件清掉', async () => {
+  const { writeFileSync, mkdirSync } = require_fs()
+  const base = mkdtempSync(join(tmpdir(), 'aurabot-uv-'))
+  const saved = process.env.AURABOT_UV
+  delete process.env.AURABOT_UV
+  try {
+    const bin = join(base, 'bin')
+    mkdirSync(bin, { recursive: true })
+    writeFileSync(join(bin, 'uv'), '#!/bin/sh\n')
+    assert.equal(await studio.ensurePinnedUv(bin), join(bin, 'uv'))
+
+    const bin2 = join(base, 'rvc2', 'bin')
+    const notes = []
+    let tries = 0
+    const download = async (url, dest) => { tries++; mkdirSync(join(dest, '..'), { recursive: true }); writeFileSync(dest, '不是 uv 安装包') }
+    const r = await studio.ensurePinnedUv(bin2, { note: (s) => notes.push(s), download }).catch((e) => e)
+    assert.equal(tries, studio.uvSources().length, '每个源都试过')
+    assert.ok(notes.some((n) => /校验对不上/.test(n)), notes.join('\n'))
+    assert.equal(existsSync(join(bin2, 'uv')), false, '校验不对的不放进 bin/')
+    assert.equal(existsSync(join(base, 'rvc2', 'downloads-uv')), false, '临时下载文件夹删掉')
+    // 下载都失败时：电脑上有 uv 就退回用它，没有就报错（看这台机器装没装）
+    assert.ok(r instanceof Error ? /uv 下载失败/.test(r.message) : typeof r === 'string')
+  } finally {
+    if (saved !== undefined) process.env.AURABOT_UV = saved
+    rmSync(base, { recursive: true, force: true })
+  }
+})
+
+test('语音组件固定版本、和翻唱同一个 Python', () => {
+  assert.match(studio.MAC_STACK.edgeTts, /^edge-tts==\d+\.\d+\.\d+$/)
+  assert.match(studio.MAC_STACK.python, /^3\.13\.\d+$/)
+})

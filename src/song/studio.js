@@ -30,10 +30,12 @@ export const MAC_STACK = {
   applioExtras: ['python-ffmpeg==2.0.12'],
   // librosa 1.0 不再带 audioread，而 audio-separator 0.48 还在直接 import 它，所以显式补装
   separator: ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'],
+  // 语音页「安装语音组件」装的 edge-tts（2026-11-09 在 Python 3.13.18 上实测装好并念出语音）
+  edgeTts: 'edge-tts==7.3.1',
 }
 // 国内镜像：PyPI 用阿里云，Python 本体用 npmmirror
-const CN_PYPI = 'https://mirrors.aliyun.com/pypi/simple'
-const CN_PYTHON = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
+export const CN_PYPI = 'https://mirrors.aliyun.com/pypi/simple'
+export const CN_PYTHON = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
 
 /** 自动模式下判断要不要用国内镜像：官方源 4 秒内连不上或者很慢就用。 */
 export async function shouldUseCnMirror(mode, fetchImpl = fetch) {
@@ -85,6 +87,71 @@ export function uvSources(arch = process.arch) {
   return [{ url: `https://mirrors.aliyun.com/pypi/${wheel}`, sha256 }, { url: `https://files.pythonhosted.org/${wheel}`, sha256 }]
 }
 export const UV_SOURCES = uvSources()
+
+/** 电脑上已经装好的 uv：PATH、Homebrew、官方安装脚本的位置（从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。找不到返回 ''。 */
+export async function findSystemUv({ log } = {}) {
+  const cands = ['uv', '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')]
+  for (const c of cands) {
+    if (c !== 'uv' && !existsSync(c)) continue
+    try {
+      await run(c, ['--version'], { log, timeoutMs: 15_000 })
+      return c
+    } catch (error) {}
+  }
+  return ''
+}
+
+/**
+ * 准备 uv（装 Python 和各种包的工具），翻唱安装和语音组件安装共用：
+ * binDir/uv 已经有了就用它；没有就下载固定版本（uvSources，带校验）放进去，这样每台 Mac 装出来的都一样；
+ * 下载不成才退回电脑上已经装好的 uv。都没有就抛错。
+ * @param {string} binDir 放 uv 的文件夹（翻唱安装目录的 bin/）
+ * @param {object} [o]
+ * @param {(s: string) => void} [o.note] 进度说明
+ * @param {(url: string, dest: string) => Promise<void>} [o.download] 下载一个文件（默认用系统自带的 curl）
+ */
+export async function ensurePinnedUv(binDir, { note = () => {}, log, download } = {}) {
+  if (process.env.AURABOT_UV) return process.env.AURABOT_UV
+  const local = join(binDir, 'uv')
+  if (existsSync(local)) return local
+  const work = join(dirname(binDir), 'downloads-uv')
+  const zip = join(work, 'uv.zip')
+  const tmp = join(work, 'uv')
+  const get = download || (async (url, dest) => {
+    mkdirSync(dirname(dest), { recursive: true })
+    rmSync(dest, { force: true })
+    await run('curl', ['-fL', '--retry', '3', '--max-time', '300', '-o', dest, url], { log, timeoutMs: 360_000 })
+  })
+  let lastError = null
+  const sources = uvSources()
+  if (sources.length) note('  下载 uv（固定版本）')
+  try {
+    for (const src of sources) {
+      try {
+        await get(src.url, zip)
+        if (!existsSync(zip) || !statSync(zip).size) throw new Error('没下载下来')
+        if (createHash('sha256').update(readFileSync(zip)).digest('hex') !== src.sha256) throw new Error('下载的文件校验对不上')
+        rmSync(tmp, { recursive: true, force: true })
+        extractZip(readFileSync(zip), tmp)
+        const exe = findFile(tmp, 'uv')
+        if (!exe) throw new Error('里面没找到 uv')
+        mkdirSync(binDir, { recursive: true })
+        copyFileSync(exe, local)
+        chmodSync(local, 0o755)
+        return local
+      } catch (error) {
+        lastError = error
+        note(`  从 ${new URL(src.url).host} 下 uv 没成功（${error.message.slice(0, 80)}），换一个源`)
+      }
+    }
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
+  const sys = await findSystemUv({ log })
+  if (sys) { note(`  改用电脑上已经装好的 uv：${sys}`); return sys }
+  if (!sources.length) throw new Error(`没有适合这台电脑（${process.platform}-${process.arch}）的 uv 安装包，请先自己装好 uv（https://docs.astral.sh/uv/）`)
+  throw new Error('uv 下载失败：' + (lastError?.message || ''))
+}
 /**
  * 把 zip 解到目录里（不靠外部工具）。拒绝跳出目标目录的路径；
  * bin/ 里的文件和没有扩展名的程序（uv、ffmpeg 等）加上可执行权限。
@@ -191,7 +258,7 @@ export function defaultRoot() {
 }
 
 /**
- * 检查安装位置：要绝对路径；中文、空格可能让一些工具出问题，提醒一下；顺便看看那个盘还剩多少空间（装完约 8 GB）。
+ * 检查安装位置：要绝对路径；中文、空格可能让一些工具出问题，提醒一下；顺便看看那个磁盘还剩多少空间（装完约 5 GB）。
  * @returns {{ok: boolean, path: string, message: string, warn: string, freeGB: number|null}}
  */
 /** 把安装时的报错翻译成人话，并告诉用户接下来怎么办。 */
@@ -212,7 +279,7 @@ export const INSTALL_STEPS = ['创建 Python 环境', '下载 Applio（RVC 推�
   '准备 ffmpeg 和 rubberband', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
 
 // 默认人声分离模型要的文件：[文件名, 下载地址（按顺序试）, sha256]。提前下好，免得第一次点歌时卡着不动。
-// 模型 640 MB，GitHub 在国内经常下不动：先走 HuggingFace 镜像（有人转存了同一个文件，校验值一样），再试官方。
+// 原版默认的 BS-Roformer 模型 640 MB，GitHub 在国内经常下不动：先走 HuggingFace 镜像（有人转存了同一个文件，校验值一样），再试官方。
 // 下完核对 sha256，哪个源给的文件不对就换下一个；配置文件很小，随插件带着（src/song/separator/）。
 const GH_UVR = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models'
 const GH_AS = 'https://github.com/nomadkaraoke/python-audio-separator/releases/download/model-configs'
@@ -274,9 +341,13 @@ export function separatorCommand(p, args) {
   return existsSync(join(p.separatorModels, 'extra-models.json')) ? [p.python, [SEPARATOR_RUN, ...args]] : [p.separatorExe, args]
 }
 
-/** 手动下载用的地址（面板里给用户复制，用浏览器或下载工具下好再拖进来）。 */
-export function separatorLinks(model) {
-  return (SEPARATOR_FILES[model] || []).slice(0, 1).flatMap(([, urls]) => urls.slice(0, 3))
+/**
+ * 手动下载用的地址（面板里给用户复制，用浏览器或下载工具下好再拖进来）。
+ * 给了分离模型文件夹时只列还缺的文件（Leap Xe 要模型本体和一个配置文件，缺哪个列哪个）。
+ */
+export function separatorLinks(model, dir = '') {
+  return (SEPARATOR_FILES[model] || []).filter(([name]) => !dir || !(existsSync(join(dir, name)) && statSync(join(dir, name)).size > 0))
+    .flatMap(([, urls]) => urls.slice(0, 3))
 }
 
 /** 清单外的分离模型（如 Leap Xe）登记进 extra-models.json；已登记或不是清单外的模型就什么也不做。 */
@@ -292,7 +363,7 @@ export function registerExtraSeparator(dir, model) {
 }
 
 /**
- * 导入手动下好的分离模型：核对 sha256，对得上才放进去。
+ * 导入手动下好的分离模型或它的配置文件（.ckpt / .yaml）：核对 sha256，对得上才放进去。
  * @returns {{ok:boolean, message:string}}
  */
 export function importSeparator(dir, filename, buf) {
@@ -307,7 +378,7 @@ export function importSeparator(dir, filename, buf) {
       return { ok: true, message: `人声分离模型导入好了（${hit[0]}）` }
     }
   }
-  return { ok: false, message: `「${filename}」不是插件要的人声分离模型（校验对不上），要下 ${Object.keys(SEPARATOR_FILES).join(' 或 ')}` }
+  return { ok: false, message: `「${filename}」不是插件要的人声分离模型文件（校验对不上），要的是：${Object.values(SEPARATOR_FILES).flat().map(([n]) => n).join('、')}` }
 }
 // 分离工具每次运行都要的模型清单（缺了会去 raw.githubusercontent.com 拉，国内常常连不上）
 const SEPARATOR_LIST = ['download_checks.json', ['https://raw.githubusercontent.com/TRvlvr/application_data/main/filelists/download_checks.json', 'https://cdn.jsdelivr.net/gh/TRvlvr/application_data@main/filelists/download_checks.json']]
@@ -328,7 +399,7 @@ export function checkRoot(path) {
     const s = statfsSync(probe)
     freeGB = Math.round((Number(s.bavail) * Number(s.bsize)) / 1024 ** 3 * 10) / 10
   } catch (error) {}
-  return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个磁盘只剩 ${freeGB} GB，装完要 8 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
+  return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个磁盘只剩 ${freeGB} GB，装完要 5 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
 }
 
 /** 翻唱环境里各个程序的位置。 */
@@ -549,7 +620,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       parts,
       voices: voices.map((v) => ({ id: v.id, hasIndex: Boolean(v.index), hasProfile: Boolean(v.profile) })),
       profileJob: profileJob ? { ...profileJob } : null,
-      separatorLinks: parts.separatorModel ? [] : separatorLinks(cfg().separatorModel),
+      separatorLinks: parts.separatorModel ? [] : separatorLinks(cfg().separatorModel, p.separatorModels),
       voice: cfg().voice,
       install: { ...install, log: install.log.slice(-30) },
       current: current ? { ...current } : null,
@@ -631,7 +702,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         renameSync(join(tmp, inner), p.applio)
         rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
       })
-      await step('安装 PyTorch、RVC 和人声分离（最大的一步）', '要下载约 3~4 GB，看网速一般 10~40 分钟；下面的「已下载」在涨就说明没卡住', async () => {
+      await step('安装 PyTorch、RVC 和人声分离（最大的一步）', '两套环境装好后共约 2.5 GB，看网速一般几分钟到二十分钟；下面的「已下载」在涨就说明没卡住', async () => {
         // 先检查：要用的包都能导入就跳过。「重新检查 / 修复安装」只修坏了的，不重装、不降级能用的环境
         const stop = watchDownload(cacheDir)
         try {
@@ -720,49 +791,9 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return extractZip(readFileSync(zip), dir)
   }
 
-  /**
-   * 准备 uv（装 Python 和各种包的工具）：优先用安装目录 bin/ 里的；没有就下载固定版本（uvSources，带校验）放进去，
-   * 这样每台 Mac 装出来的环境都一样。下载不成才退回电脑上已经装好的 uv（Homebrew 等；从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。
-   */
+  /** 准备 uv：见 ensurePinnedUv（下载时在面板上显示进度）。 */
   async function ensureUv(note) {
-    if (process.env.AURABOT_UV) return process.env.AURABOT_UV
-    const p = P()
-    const local = join(p.bin, 'uv')
-    if (existsSync(local)) return local
-    const zip = join(p.root, 'downloads', 'uv.zip')
-    const tmp = join(p.root, 'downloads', 'uv')
-    let lastError = null
-    const sources = uvSources()
-    if (sources.length) note('  下载 uv（固定版本）放进安装目录')
-    for (const src of sources) {
-      try {
-        await fetchWithProgress(src.url, zip, 5 * 60)
-        if (src.sha256 && createHash('sha256').update(readFileSync(zip)).digest('hex') !== src.sha256) throw new Error('下载的文件校验对不上')
-        rmSync(tmp, { recursive: true, force: true })
-        await expandZip(zip, tmp)
-        const exe = findFile(tmp, 'uv')
-        if (!exe) throw new Error('里面没找到 uv')
-        mkdirSync(p.bin, { recursive: true })
-        copyFileSync(exe, local)
-        chmodSync(local, 0o755)
-        rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
-        return local
-      } catch (error) {
-        lastError = error
-        note(`  从 ${new URL(src.url).host} 下 uv 没成功（${error.message.slice(0, 80)}），换一个源`)
-      }
-    }
-    const cands = ['uv', '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')]
-    for (const c of cands) {
-      if (c !== 'uv' && !existsSync(c)) continue
-      try {
-        await run(c, ['--version'], { log, timeoutMs: 15_000 })
-        note(`  改用电脑上已经装好的 uv：${c}`)
-        return c
-      } catch (error) {}
-    }
-    if (!sources.length) throw new Error(`没有适合这台电脑（${process.platform}-${process.arch}）的 uv 安装包，请先自己装好 uv（https://docs.astral.sh/uv/）`)
-    throw new Error('uv 下载失败：' + (lastError?.message || ''))
+    return ensurePinnedUv(P().bin, { note, log, download: (url, dest) => fetchWithProgress(url, dest, 5 * 60) })
   }
 
   /** 每 4 秒统计一次下载缓存有多大，算出已下载多少、网速多少，给面板看。返回停止函数。 */
@@ -826,7 +857,8 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     const p = P()
     // ffmpeg 用的是系统里的（不在 bin/）时，把它所在的文件夹也放进 PATH，人声分离才找得到
     const dirs = [p.bin, ...(dirname(p.ffmpeg) !== p.bin ? [dirname(p.ffmpeg)] : [])]
-    return { PATH: [...dirs, process.env.PATH].join(delimiter), PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' }
+    // MPLCONFIGDIR：Applio 的音高模块会引用 matplotlib，它默认往 ~/.matplotlib 写字体缓存；放进安装目录，不在用户目录留东西
+    return { PATH: [...dirs, process.env.PATH].join(delimiter), PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', MPLCONFIGDIR: join(p.root, 'cache', 'matplotlib') }
   }
 
   async function ffprobeDuration(file) {
@@ -1121,9 +1153,9 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     search: (q) => searchSongs(q, { cookie: cfg().neteaseCookie, limit: 8 }),
     account: () => account(cfg().neteaseCookie),
     voices: () => listVoices(P().models).map((v) => v.id),
-    // .ckpt 是手动下好的人声分离模型，其余是音色
-    importModels: (filename, buf) => (/\.ckpt$/i.test(filename) ? importSeparator(P().separatorModels, filename, buf) : importModels(P().models, filename, buf)),
-    separatorLinks: () => separatorLinks(cfg().separatorModel),
+    // .ckpt / .yaml 是手动下好的人声分离模型和它的配置文件，其余是音色
+    importModels: (filename, buf) => (/\.(ckpt|yaml)$/i.test(filename) ? importSeparator(P().separatorModels, filename, buf) : importModels(P().models, filename, buf)),
+    separatorLinks: () => separatorLinks(cfg().separatorModel, P().separatorModels),
     deleteVoice: (id) => deleteVoice(P().models, id),
     buildProfile,
   }

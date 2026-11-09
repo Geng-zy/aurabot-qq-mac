@@ -4,7 +4,7 @@
 // 管线：文字 → TTS → 文件路径。任何一步失败由调用方退回发文字。（RVC 音色目前用在翻唱上，见 src/song/）
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync, rmSync } from 'node:fs'
 import { buildWav } from './wav.js'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -68,49 +68,55 @@ export function edgeInstalled() {
 }
 
 /** 面板「安装语音组件」：建虚拟环境并 pip 安装 edge-tts（开源，LGPL）。 */
-export async function installEdge(log) {
-  mkdirSync(PYENV_DIR, { recursive: true })
-  if (!existsSync(pyExe())) {
-    // 不用系统的 python3（那是 Xcode 命令行工具里的，没装时会弹窗要求安装）：用 uv 准备一个私有的 Python，版本和翻唱环境一样
-    log?.info('用 uv 准备一个私有的 Python')
-    const uv = await findOrFetchUv()
-    if (!uv) return { ok: false, message: '准备 Python 失败：找不到 uv。先在「翻唱」页点一键安装（会把 uv 放进 ~/Aurabot/rvc/bin），或者自己装好 uv 再试' }
-    const { MAC_STACK } = await import('../song/studio.js')
-    const env = { UV_PYTHON_INSTALL_DIR: join(homedir(), 'Aurabot', 'rvc', 'python'), UV_PYTHON_PREFERENCE: 'only-managed', UV_PYTHON_INSTALL_MIRROR: 'https://registry.npmmirror.com/-/binary/python-build-standalone' }
-    const r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', MAC_STACK.python], { timeoutMs: 600000, env })
-    if (r.code !== 0) return { ok: false, message: '准备 Python 失败：' + r.err.slice(-300) }
+/**
+ * 「安装语音组件」：在 ~/Aurabot/pyenv 建一个只给 edge-tts 用的 Python 环境，装固定版本的 edge-tts。
+ * 全程用 uv（翻唱安装同一套做法）：
+ * - uv 用翻唱安装目录 bin/ 里的；没有就下载固定版本放进去（ensurePinnedUv）
+ * - Python 和翻唱共用安装目录 python/ 里 uv 自己下载的那个（版本同 MAC_STACK.python），不碰系统的 python3
+ *   （那是 Xcode 命令行工具里的，没装时会弹窗要求安装）
+ * - 官方源慢时自动改用国内镜像（和翻唱安装同一个判断）
+ * - uv 的下载缓存放在安装目录里、装完删掉，不往 ~/.cache/uv 留东西
+ * @param {object} [log]
+ * @param {{root?: string}} [o] root = 翻唱安装目录（面板里改过就传进来；留空 = ~/Aurabot/rvc）
+ */
+export async function installEdge(log, { root = '' } = {}) {
+  const { ensurePinnedUv, defaultRoot, shouldUseCnMirror, MAC_STACK, CN_PYPI, CN_PYTHON } = await import('../song/studio.js')
+  const base = root || defaultRoot()
+  let uv
+  try {
+    uv = await ensurePinnedUv(join(base, 'bin'), { note: (s) => log?.info(s.trim()), log })
+  } catch (error) {
+    return { ok: false, message: '准备安装工具 uv 失败：' + error.message }
   }
-  log?.info('正在安装 edge-tts …')
-  let r = await run(pyExe(), ['-m', 'pip', 'install', '-q', 'edge-tts'], { timeoutMs: 300000 })
-  if (r.code !== 0) {
-    r = await run(pyExe(), ['-m', 'pip', 'install', '-q', '-i', 'https://mirrors.aliyun.com/pypi/simple', 'edge-tts'], { timeoutMs: 300000 })
+  const cn = await shouldUseCnMirror('auto')
+  const cache = join(base, 'uv-cache-voice')
+  const env = {
+    UV_CACHE_DIR: cache,
+    UV_PYTHON_INSTALL_DIR: join(base, 'python'),
+    UV_PYTHON_PREFERENCE: 'only-managed',
+    ...(cn ? { UV_PYTHON_INSTALL_MIRROR: CN_PYTHON } : {}),
   }
-  // uv 建的环境里没有 pip：改用 uv 装
-  if (r.code !== 0 && /No module named pip/.test(r.err)) {
-    const uv = await findOrFetchUv()
-    if (uv) {
-      r = await run(uv, ['pip', 'install', '-q', '--python', pyExe(), 'edge-tts'], { timeoutMs: 300000 })
-      if (r.code !== 0) r = await run(uv, ['pip', 'install', '-q', '--python', pyExe(), '--default-index', 'https://mirrors.aliyun.com/pypi/simple', 'edge-tts'], { timeoutMs: 300000 })
+  try {
+    if (!existsSync(pyExe())) {
+      log?.info(`用 uv 准备 Python ${MAC_STACK.python}`)
+      const r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', MAC_STACK.python], { timeoutMs: 600000, env })
+      if (r.code !== 0) return { ok: false, message: '准备 Python 失败：' + r.err.slice(-300) }
     }
+    log?.info(`正在安装 ${MAC_STACK.edgeTts} …`)
+    const pip = (mirror) => run(uv, ['pip', 'install', '-q', '--python', pyExe(), MAC_STACK.edgeTts, ...(mirror ? ['--default-index', CN_PYPI] : [])], { timeoutMs: 300000, env })
+    let r = await pip(cn)
+    if (r.code !== 0 && !cn) r = await pip(true) // 官方源不行再试一次国内镜像
+    if (r.code !== 0) return { ok: false, message: '安装 edge-tts 失败：' + r.err.slice(-300) }
+    return { ok: true, message: '语音组件装好了' }
+  } finally {
+    try { rmSync(cache, { recursive: true, force: true }) } catch (error) {}
   }
-  if (r.code !== 0) return { ok: false, message: '安装 edge-tts 失败：' + r.err.slice(-300) }
-  return { ok: true, message: '语音组件装好了' }
-}
-
-/** 找 uv：翻唱一键安装放在 ~/Aurabot/rvc/bin 的优先，其次是电脑上装好的（从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。 */
-async function findOrFetchUv() {
-  if (process.env.AURABOT_UV) return process.env.AURABOT_UV
-  const own = join(homedir(), 'Aurabot', 'rvc', 'bin', 'uv')
-  if (existsSync(own)) return own
-  if ((await run('uv', ['--version'], { timeoutMs: 15000 })).code === 0) return 'uv'
-  return [join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv'), '/opt/homebrew/bin/uv', '/usr/local/bin/uv'].find((p) => existsSync(p)) || ''
 }
 
 async function edgeSynth(text, voice, rate, pitch) {
   const file = join(outDir(), `${randomUUID()}.mp3`)
   // 文字走 stdin 的临时文件，避免命令行里的引号 / 编码问题
   const txt = join(outDir(), `${randomUUID()}.txt`)
-  const { writeFileSync } = await import('node:fs')
   writeFileSync(txt, text, 'utf8')
   const args = ['-I', '-m', 'edge_tts', '--voice', voice, '--file', txt, '--write-media', file]
   if (rate && rate !== '+0%') args.push(`--rate=${rate}`)
