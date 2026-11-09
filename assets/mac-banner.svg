@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-label="Aurabot for macOS · 大肥鱼 QQ 插件的 macOS 分叉">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d1f24"/>
+      <stop offset="0.6" stop-color="#15343b"/>
+      <stop offset="1" stop-color="#1d4a4f"/>
+    </linearGradient>
+    <radialGradient id="warm" cx="0.8" cy="0.2" r="0.6">
+      <stop offset="0" stop-color="#ffb46b" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffb46b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffd08a"/>
+      <stop offset="1" stop-color="#ff9f6e"/>
+    </linearGradient>
+    <linearGradient id="win" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6f4ef"/>
+      <stop offset="1" stop-color="#e9e5dc"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="360" rx="20" fill="url(#bg)"/>
+  <rect width="1280" height="360" rx="20" fill="url(#warm)"/>
+  <!-- 细网格 -->
+  <g stroke="#ffffff" stroke-opacity="0.04">
+    <path d="M0 60H1280M0 120H1280M0 180H1280M0 240H1280M0 300H1280"/>
+    <path d="M160 0V360M320 0V360M480 0V360M640 0V360M800 0V360M960 0V360M1120 0V360"/>
+  </g>
+
+  <!-- 左侧文字 -->
+  <g font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="64" y="118" fill="#ffffff" font-size="62" font-weight="800">Aurabot <tspan fill="url(#accent)">for macOS</tspan></text>
+    <text x="66" y="166" fill="#ffe3bf" font-size="25" font-weight="600" letter-spacing="2">大肥鱼 QQ 插件 · Apple 芯片 Mac 适配版</text>
+    <text x="66" y="204" fill="#9cc3c3" font-size="16" letter-spacing="1">Fork of aureth-labs/dsh-aurabot-qq · DeepSeek Harness 插件 · 只支持 macOS</text>
+    <g transform="translate(66,240)" font-size="14">
+      <rect width="104" height="32" rx="16" fill="#ffffff" fill-opacity="0.07" stroke="#ffd08a" stroke-opacity="0.4"/>
+      <text x="52" y="21" text-anchor="middle" fill="#ffe3bf">一键翻唱环境</text>
+      <rect x="116" width="118" height="32" rx="16" fill="#ffffff" fill-opacity="0.07" stroke="#ffd08a" stroke-opacity="0.4"/>
+      <text x="175" y="21" text-anchor="middle" fill="#ffe3bf">OrbStack 接 QQ</text>
+      <rect x="246" width="104" height="32" rx="16" fill="#ffffff" fill-opacity="0.07" stroke="#ffd08a" stroke-opacity="0.4"/>
+      <text x="298" y="21" text-anchor="middle" fill="#ffe3bf">系统语音兜底</text>
+      <rect x="362" width="104" height="32" rx="16" fill="#ffffff" fill-opacity="0.07" stroke="#ffd08a" stroke-opacity="0.4"/>
+      <text x="414" y="21" text-anchor="middle" fill="#ffe3bf">大文件下载口</text>
+    </g>
+  </g>
+
+  <!-- 右侧：一个 Mac 窗口，里面是一段 QQ 对话 -->
+  <g transform="translate(790,58)" filter="url(#shadow)">
+    <rect width="420" height="248" rx="14" fill="url(#win)"/>
+    <path d="M0 14a14 14 0 0 1 14-14h392a14 14 0 0 1 14 14v22H0z" fill="#dcd7cc"/>
+    <circle cx="22" cy="18" r="6" fill="#ff5f57"/>
+    <circle cx="42" cy="18" r="6" fill="#febc2e"/>
+    <circle cx="62" cy="18" r="6" fill="#28c840"/>
+    <text x="210" y="23" text-anchor="middle" fill="#6b665c" font-family="-apple-system,'PingFang SC',sans-serif" font-size="12">QQ · 大肥鱼</text>
+
+    <g font-family="-apple-system,'PingFang SC',sans-serif" font-size="14">
+      <!-- 对方 -->
+      <rect x="196" y="56" width="200" height="36" rx="12" fill="#2f8f8a"/>
+      <text x="296" y="79" text-anchor="middle" fill="#ffffff">唱一首《小幸运》吧</text>
+      <!-- 大肥鱼头像（小鱼） -->
+      <circle cx="40" cy="128" r="18" fill="#ffd08a"/>
+      <path d="M30 128c6-7 14-9 20-6l6-5v22l-6-5c-6 3-14 1-20-6z" fill="#ff9f6e"/>
+      <circle cx="36" cy="126" r="1.8" fill="#3b2a1a"/>
+      <!-- 回复：文字 -->
+      <rect x="68" y="108" width="148" height="36" rx="12" fill="#ffffff" stroke="#e2ddd2"/>
+      <text x="142" y="131" text-anchor="middle" fill="#3b3a36">好，等我一下～</text>
+      <!-- 回复：语音条 -->
+      <rect x="68" y="154" width="232" height="40" rx="12" fill="#ffffff" stroke="#e2ddd2"/>
+      <path d="M86 166l12 8-12 8z" fill="#2f8f8a"/>
+      <g fill="#2f8f8a">
+        <rect x="108" y="170" width="4" height="8" rx="2"/>
+        <rect x="116" y="165" width="4" height="18" rx="2"/>
+        <rect x="124" y="161" width="4" height="26" rx="2"/>
+        <rect x="132" y="167" width="4" height="14" rx="2"/>
+        <rect x="140" y="163" width="4" height="22" rx="2"/>
+        <rect x="148" y="168" width="4" height="12" rx="2"/>
+        <rect x="156" y="160" width="4" height="28" rx="2"/>
+        <rect x="164" y="166" width="4" height="16" rx="2"/>
+        <rect x="172" y="170" width="4" height="8" rx="2"/>
+        <rect x="180" y="164" width="4" height="20" rx="2"/>
+        <rect x="188" y="168" width="4" height="12" rx="2"/>
+        <rect x="196" y="171" width="4" height="6" rx="2"/>
+      </g>
+      <text x="284" y="179" text-anchor="end" fill="#8a857a" font-size="12">翻唱 2'00"</text>
+      <!-- 底部状态 -->
+      <text x="20" y="230" fill="#8a857a" font-size="11">Apple 芯片 · MPS 加速 · 本机完成分离、换声、混音</text>
+    </g>
+  </g>
+</svg>
