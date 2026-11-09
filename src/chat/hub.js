@@ -13,7 +13,7 @@ import { dataDir, readJson, writeJson } from '../core/store.js'
 import { parseMessageEvent, gifFrames, segmentsOf } from './inbound.js'
 import { parseReply, bubbleDelay, wantsVoice, cleanOutboundText, cleanOutboundSegments } from './reply.js'
 import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, topicRelevance } from './group-policy.js'
-import { checkAllowed, levelFor, presetFor, isOwner, groupOwnerTools } from './access.js'
+import { checkAllowed, levelFor, presetFor, isOwner } from './access.js'
 import { fetchImage, segmentBytes } from '../core/net.js'
 import { toMono16k } from '../voice/wav.js'
 import { asrConfigured, transcribeAudio } from '../voice/asr.js'
@@ -814,7 +814,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     }
     if (chat.kind === 'group' && level === 'group-full') {
       groupGates.set(sid, { agent, deny: GROUP_TOOL_DENY, off: null })
-      applyGroupGate(sid, groupOwnerTools(getConfig(), chat) === 'all')
+      applyGroupGate(sid, false) // 先收起，主人开口那一轮再放开
     }
     const rec = { agent, chatId: chat.chatId, offs, toolsKey }
     mounted.set(sid, rec)
