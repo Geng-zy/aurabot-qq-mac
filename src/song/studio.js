@@ -1,5 +1,5 @@
 // 翻唱：点歌 → 下载（网易云）→ 分离人声和伴奏 → RVC 换成她的声音 → 混音 → 截成语音条发回去。
-// 推理引擎用 Applio（MIT，固定版本），人声分离用 audio-separator，都装在一个独立的 Python 环境里，不碰系统环境。
+// 推理引擎用 Applio（MIT，固定版本），人声分离用 audio-separator，分别装在安装目录里的两套 Python 环境里（见 MAC_STACK），不碰系统环境。
 
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync, chmodSync } from 'node:fs'
@@ -25,7 +25,7 @@ export const APPLIO_COMMIT = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
  *   硬装进一套会退到 audio-separator 0.45，实测 Leap Xe 等 Roformer 模型分离直接失败。
  */
 export const MAC_STACK = {
-  // Python 3.13（主人选的：比 Applio 官方脚本写的 3.12 新一档，两套环境都用它）
+  // Python 3.13：比 Applio 官方脚本写的 3.12 新一档，两套环境都用它
   python: '3.13.18',
   applioExtras: ['python-ffmpeg==2.0.12'],
   // librosa 1.0 不再带 audioread，而 audio-separator 0.48 还在直接 import 它，所以显式补装
@@ -198,7 +198,7 @@ export function defaultRoot() {
 export function explainInstallError(msg) {
   const m = String(msg || '')
   if (/ENOENT/.test(m)) return `找不到需要的程序（${(m.match(/spawn (\S+)/) || [])[1] || '?'}）。点「重新检查 / 修复安装」再试一次；还不行就把报错发给作者`
-  if (/ENOSPC|No space|磁盘空间|not enough space/i.test(m)) return '磁盘空间不够了。换一个空间大的盘（上面「装到哪里」），保存后再装'
+  if (/ENOSPC|No space|磁盘空间|not enough space/i.test(m)) return '磁盘空间不够了。换一个空间大的位置（上面「装到哪里」），或者先清出空间，保存后再装'
   if (/timed? ?out|超时|30 秒没进度|operation timed/i.test(m)) return '网络太慢、超时了。打开「用国内镜像下载」或者开着代理，再点安装（已下好的不会重下）'
   if (/connection|connect|reset|TLS|SSL|dns|resolve|Failed to fetch|Failed to download|error sending request|无法连接|网络/i.test(m)) return '网络连接断了。打开「用国内镜像下载」或者开着代理，再点安装（已下好的不会重下）'
   return m.slice(0, 300)
@@ -279,10 +279,6 @@ export function separatorLinks(model) {
   return (SEPARATOR_FILES[model] || []).slice(0, 1).flatMap(([, urls]) => urls.slice(0, 3))
 }
 
-/**
- * 导入手动下好的分离模型：核对 sha256，对得上才放进去。
- * @returns {{ok:boolean, message:string}}
- */
 /** 清单外的分离模型（如 Leap Xe）登记进 extra-models.json；已登记或不是清单外的模型就什么也不做。 */
 export function registerExtraSeparator(dir, model) {
   const extra = EXTRA_SEPARATORS[model]
@@ -295,6 +291,10 @@ export function registerExtraSeparator(dir, model) {
   return true
 }
 
+/**
+ * 导入手动下好的分离模型：核对 sha256，对得上才放进去。
+ * @returns {{ok:boolean, message:string}}
+ */
 export function importSeparator(dir, filename, buf) {
   const sha = createHash('sha256').update(buf).digest('hex')
   for (const files of Object.values(SEPARATOR_FILES)) {
@@ -307,7 +307,7 @@ export function importSeparator(dir, filename, buf) {
       return { ok: true, message: `人声分离模型导入好了（${hit[0]}）` }
     }
   }
-  return { ok: false, message: `「${filename}」不是插件要的人声分离模型（校验对不上），要下 ${BS_ROFORMER}.ckpt` }
+  return { ok: false, message: `「${filename}」不是插件要的人声分离模型（校验对不上），要下 ${Object.keys(SEPARATOR_FILES).join(' 或 ')}` }
 }
 // 分离工具每次运行都要的模型清单（缺了会去 raw.githubusercontent.com 拉，国内常常连不上）
 const SEPARATOR_LIST = ['download_checks.json', ['https://raw.githubusercontent.com/TRvlvr/application_data/main/filelists/download_checks.json', 'https://cdn.jsdelivr.net/gh/TRvlvr/application_data@main/filelists/download_checks.json']]
@@ -328,7 +328,7 @@ export function checkRoot(path) {
     const s = statfsSync(probe)
     freeGB = Math.round((Number(s.bavail) * Number(s.bsize)) / 1024 ** 3 * 10) / 10
   } catch (error) {}
-  return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个盘只剩 ${freeGB} GB，装完要 8 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
+  return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个磁盘只剩 ${freeGB} GB，装完要 8 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
 }
 
 /** 翻唱环境里各个程序的位置。 */
@@ -424,6 +424,8 @@ export function deleteVoice(modelsDir, id) {
   if (!v) return { ok: false, message: '没有这个音色' }
   rmSync(v.pth, { force: true })
   if (v.index) rmSync(v.index, { force: true })
+  // 音色档案也删：不然以后导入同名的另一个模型，会套用这个旧档案去定调、校正音色
+  if (v.profile) rmSync(v.profile, { force: true })
   return { ok: true, message: `删掉了「${id}」` }
 }
 
@@ -500,11 +502,11 @@ function run(cmd, args, { cwd, env, log, onLine, timeoutMs = 30 * 60_000 } = {})
 export function explainSongError(message) {
   const m = String(message || '')
   if (/size mismatch|Error\(s\) in loading state_dict|unexpected key|Missing key|KeyError: '(weight|config|params)'/i.test(m)) return '这个音色模型和内置的 RVC 不兼容（可能是 so-vits-svc 之类训练的，或者不是完整的模型文件）。可以在面板「本地接口」里接你自己的推理'
-  if (/CUDA out of memory|OutOfMemoryError|not enough memory/i.test(m)) return '显卡显存不够，关掉别的占显存的程序（游戏、别的 AI）再试'
+  if (/MPS backend out of memory|CUDA out of memory|OutOfMemoryError|not enough memory/i.test(m)) return '内存不够了（Apple 芯片的显卡和系统共用内存），关掉别的占内存的程序（别的 AI、大型软件）再试'
   if (/No module named|ModuleNotFoundError/i.test(m)) return '翻唱环境不完整，在面板「翻唱」页点「重新检查 / 修复安装」'
   if (/Permission denied|Errno 13|EACCES|EPERM|EBUSY/i.test(m)) {
     const file = (m.match(/'([^']+\.(?:ckpt|pth|onnx|yaml|json))'/i) || [])[1]?.replace(/\\\\/g, '\\')
-    return `${file ? `读不了「${file}」` : '有个模型文件读不了'}：多半是杀毒软件（360、火绒、Defender）正在扫描或拦住了它，或者文件是用管理员身份放进去的。把翻唱目录加进杀毒软件的信任区再试；还不行就删掉这个文件，在面板「翻唱」页重新下载`
+    return `${file ? `读不了「${file}」` : '有个模型文件读不了'}：多半是文件权限不对（比如用 sudo 放进去的，属于 root），或者安全软件拦住了它。在终端里用 ls -l 看看文件属于谁；还不行就把这个文件移到废纸篓，在面板「翻唱」页重新下载`
   }
   return m
 }
@@ -588,7 +590,8 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
       UV_CACHE_DIR: cacheDir,
       UV_HTTP_TIMEOUT: '300',
       UV_HTTP_RETRIES: '6',
-      UV_PYTHON_INSTALL_DIR: join(p.root, 'python'), // Python 也装在选的位置里，不偷偷占 C 盘
+      UV_PYTHON_INSTALL_DIR: join(p.root, 'python'), // Python 也装在安装目录里，不往 ~/.local/share/uv 放
+      UV_PYTHON_PREFERENCE: 'only-managed', // 只用 uv 自己下的 Python，不拿 Homebrew / 系统的（那些一升级环境就坏）
       ...(cn ? { UV_PYTHON_INSTALL_MIRROR: CN_PYTHON } : {}),
     }
     const mirror = cn ? ['--default-index', CN_PYPI] : []
@@ -718,28 +721,19 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
   }
 
   /**
-   * 准备 uv（装 Python 和各种包的工具）：电脑上有就用，没有就下一个放进安装目录。
-   * macOS 上 DSH 是从程序坞打开的，PATH 里通常没有 Homebrew，所以再看看几个常见位置。
+   * 准备 uv（装 Python 和各种包的工具）：优先用安装目录 bin/ 里的；没有就下载固定版本（uvSources，带校验）放进去，
+   * 这样每台 Mac 装出来的环境都一样。下载不成才退回电脑上已经装好的 uv（Homebrew 等；从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。
    */
   async function ensureUv(note) {
     if (process.env.AURABOT_UV) return process.env.AURABOT_UV
     const p = P()
     const local = join(p.bin, 'uv')
     if (existsSync(local)) return local
-    const cands = ['uv', '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')]
-    for (const c of cands) {
-      if (c !== 'uv' && !existsSync(c)) continue
-      try {
-        await run(c, ['--version'], { log, timeoutMs: 15_000 })
-        return c
-      } catch (error) {}
-    }
-    const sources = uvSources()
-    if (!sources.length) throw new Error(`没有适合这台电脑（${process.platform}-${process.arch}）的 uv 安装包，请先自己装好 uv（https://docs.astral.sh/uv/）`)
-    note('  电脑上没有 uv，下载一个放进安装目录')
     const zip = join(p.root, 'downloads', 'uv.zip')
     const tmp = join(p.root, 'downloads', 'uv')
     let lastError = null
+    const sources = uvSources()
+    if (sources.length) note('  下载 uv（固定版本）放进安装目录')
     for (const src of sources) {
       try {
         await fetchWithProgress(src.url, zip, 5 * 60)
@@ -758,6 +752,16 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
         note(`  从 ${new URL(src.url).host} 下 uv 没成功（${error.message.slice(0, 80)}），换一个源`)
       }
     }
+    const cands = ['uv', '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')]
+    for (const c of cands) {
+      if (c !== 'uv' && !existsSync(c)) continue
+      try {
+        await run(c, ['--version'], { log, timeoutMs: 15_000 })
+        note(`  改用电脑上已经装好的 uv：${c}`)
+        return c
+      } catch (error) {}
+    }
+    if (!sources.length) throw new Error(`没有适合这台电脑（${process.platform}-${process.arch}）的 uv 安装包，请先自己装好 uv（https://docs.astral.sh/uv/）`)
     throw new Error('uv 下载失败：' + (lastError?.message || ''))
   }
 
@@ -776,7 +780,6 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     return () => clearInterval(t)
   }
 
-  /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg（人声分离要在 PATH 里找到 ffmpeg）。 */
   /**
    * macOS：把 Rubber Band 官方的命令行程序放进安装目录的 bin/（看 bin/ 本身，和 ffmpeg 一样；系统里有也照放，翻唱只用这一份）。
    * 下载有固定校验值；解压用系统自带的 tar。
@@ -800,6 +803,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     rmSync(join(p.root, 'downloads'), { recursive: true, force: true })
   }
 
+  /** 把 imageio-ffmpeg 带的 ffmpeg 复制成 bin/ffmpeg（人声分离要在 PATH 里找到 ffmpeg）。 */
   async function setupFfmpeg() {
     // 和原版一样总是放一份进安装目录的 bin/（看的是 bin/ 本身，不看系统里有没有）；
     // 系统 ffmpeg 只在复制不成时兜底（withSystemFfmpeg）
@@ -1032,9 +1036,12 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     mkdirSync(dir, { recursive: true })
     current.stage = '下载歌曲'
     const song = job.file || (await download(job, dir))
-    // 同一首歌、同一个音色、音高和截取方式做过的，直接复用
+    // 同一首歌、同一个音色、同样的设置做过的，直接复用
     // v2：0.6.2 起才检查有没有人声，之前缓存的可能是只有伴奏的成品，一律不用
-    const key = createHash('md5').update(['v2', job.songKey || song, local?.active('song') ? 'local:' + (voice?.id || '') : voice.id, pitch, c.maxVoiceSec, c.clipStart, ...(job.acapella ? ['acapella'] : []), ...(job.duet ? ['duet'] : [])].join('|')).digest('hex').slice(0, 16)
+    // v3：面板里改了换声参数、增强流程、分离模型、音量，或者重新生成了音色档案，都要重做（以前只看音色和音高，改了设置还发旧的）
+    const profileAt = voice?.profile ? (() => { try { return statSync(voice.profile).mtimeMs } catch { return 0 } })() : 0
+    const knobs = JSON.stringify([convertSettings(), c.separatorModel, c.vocalVolume, c.instVolume, profileAt])
+    const key = createHash('md5').update(['v3', job.songKey || song, local?.active('song') ? 'local:' + (voice?.id || '') : voice.id, pitch, c.maxVoiceSec, c.clipStart, knobs, ...(job.acapella ? ['acapella'] : []), ...(job.duet ? ['duet'] : [])].join('|')).digest('hex').slice(0, 16)
     const cached = join(work(), 'cache', key + '.mp3')
     if (existsSync(cached)) {
       log.info(`翻唱：「${job.title}」做过了，直接用缓存`)

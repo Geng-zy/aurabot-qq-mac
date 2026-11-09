@@ -2,6 +2,7 @@
 // 所以文件搬到新位置，原路径留一个符号链接：DSH 和已有会话照常用原路径，东西实际在新位置。
 
 import { cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
 function tally(dir) {
@@ -32,7 +33,7 @@ export function realWorkspace(dir) {
 /** 把工作区搬到 to，原路径 from 留联接。失败时一切恢复原样。 */
 export function moveWorkspace(from, to) {
   const target = resolve(String(to || '').trim())
-  if (!String(to || '').trim() || !isAbsolute(String(to).trim())) return { ok: false, message: '要填完整路径，比如 /Users/你/Aurabot/qq-chats' }
+  if (!String(to || '').trim() || !isAbsolute(String(to).trim())) return { ok: false, message: `要填完整路径，比如 ${join(homedir(), 'Aurabot', 'qq-chats')}` }
   mkdirSync(from, { recursive: true })
   const real = realpathSync(from)
   if (inside(real, target) || inside(target, real)) return { ok: false, message: '新位置不能和现在的位置重叠' }

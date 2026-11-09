@@ -58,8 +58,8 @@ export default {
 
 在模块文件夹里装，和普通 Node 项目一样：
 
-```powershell
-cd "$env:USERPROFILE\.dsh\plugins-data\aurabot\modules\weather"
+```bash
+cd ~/.dsh/plugins-data/aurabot/modules/weather
 npm init -y
 npm install cheerio
 ```

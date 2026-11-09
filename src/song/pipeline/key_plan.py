@@ -37,7 +37,8 @@ FOLD_FREE = 0.03          # 挪的不到 3% 不算代价（零星几个低音，
 
 
 def load_range():
-    """音色档案里的音域（插件通过 AURABOT_VOICE_PROFILE 传 JSON 文件路径）。没有档案就用大肥鱼的数值。"""
+    """音色档案里的音域（插件通过 AURABOT_VOICE_PROFILE 传 JSON 文件路径）。
+    插件里音色没有档案时根本不调用本脚本（不定调，见 pipeline.js）；只有手动单独运行又没给档案时，才用上面大肥鱼的数值。"""
     path = os.environ.get('AURABOT_VOICE_PROFILE') or ''
     try:
         with open(path, encoding='utf-8') as fh:

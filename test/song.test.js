@@ -1,7 +1,7 @@
 // 翻唱：截取位置、音色列表、网易云加密和 Cookie 解析、点歌的前置检查、/sing 命令。
 import { test, before } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -141,8 +141,11 @@ test('导入音色：单个 .pth 直接导入；不是模型、不支持的格�
   assert.match(studio.importModels(dir, 'song.mp3', Buffer.from('x')).message, /只支持/)
   assert.throws(() => studio.importModels(dir, 'broken.zip', Buffer.from('not a zip')), /不是 zip/)
   assert.deepEqual(studio.listVoices(dir).map((x) => x.id), ['voiceX'])
+  // 音色档案跟着删：以后导入同名的另一个模型，不会套用旧档案
+  writeFileSync(join(dir, 'voiceX.profile.json'), '{}')
   assert.equal(studio.deleteVoice(dir, 'voiceX').ok, true)
   assert.deepEqual(studio.listVoices(dir), [])
+  assert.equal(existsSync(join(dir, 'voiceX.profile.json')), false)
   // 文件名里带路径也只取文件名，不会写到 models 目录外面
   assert.equal(studio.importModels(dir, '..\\..\\evil.pth', fakePth()).ok, true)
   assert.deepEqual(studio.listVoices(dir).map((x) => x.id), ['evil'])

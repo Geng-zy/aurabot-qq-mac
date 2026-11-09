@@ -3170,6 +3170,17 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     function VoiceImport({ s, toast, onChange }) {
       const [over, setOver] = useState(false)
       const [busy, setBusy] = useState('')
+      // 生成音色档案：DSH 是 Electron，不支持 prompt() 弹框，数据集文件夹在列表里就地填
+      const [profFor, setProfFor] = useState('')
+      const [profDir, setProfDir] = useState('')
+      const buildProfile = async (id) => {
+        const folder = profDir.trim()
+        if (!folder) { toast('先填数据集文件夹的完整路径', 'err'); return }
+        const r = await post('/song/voice/profile', { id, folder })
+        toast(r.message, r.ok ? 'ok' : 'err')
+        if (r.ok) { setProfFor(''); setProfDir('') }
+        onChange()
+      }
       const upload = async (files) => {
         for (const file of [...files]) {
           if (!/\.(zip|pth|index|ckpt)$/i.test(file.name)) { toast('「' + file.name + '」不是 .zip / .pth / .index / .ckpt', 'err'); continue }
@@ -3205,15 +3216,17 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
         s.voices.length && !s.enabled ? h('div', { className: 'ab-note warn', style: { marginTop: 10 } }, '音色导入好了，但翻唱开关还没开（这一页最上面），打开并保存后ta才会唱。') : null,
         s.profileJob ? h('div', { className: cx('ab-note', s.profileJob.ok === false && 'err'), style: { marginTop: 10 } }, (s.profileJob.running ? '⏳ ' : '') + '音色档案「' + s.profileJob.id + '」：' + s.profileJob.message) : null,
         s.voices.length === 0 ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '还没有音色。') :
-          h('div', { className: 'ab-list', style: { marginTop: 10 } }, s.voices.map((v) => h('div', { key: v.id, className: 'ab-li' },
-            h('div', { className: 'body' }, h('b', null, v.id), v.hasIndex ? h('span', { className: 'ab-muted ab-small' }, ' · 带 index') : null,
-              h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
-            h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: async () => {
-              const folder = prompt('「' + v.id + '」的数据集文件夹（这个音色本人的干声录音，wav / flac / mp3，完整路径）：')
-              if (!folder) return
-              const r = await post('/song/voice/profile', { id: v.id, folder }); toast(r.message, r.ok ? 'ok' : 'err'); onChange()
-            } }, v.hasProfile ? '重新生成档案' : '生成音色档案'),
-            h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？')) return; const r = await post('/song/voice/delete', { id: v.id }); toast(r.message, r.ok ? 'ok' : 'err'); onChange() } }, '删除')))))
+          h('div', { className: 'ab-list', style: { marginTop: 10 } }, s.voices.map((v) => h(Fragment, { key: v.id },
+            h('div', { className: 'ab-li' },
+              h('div', { className: 'body' }, h('b', null, v.id), v.hasIndex ? h('span', { className: 'ab-muted ab-small' }, ' · 带 index') : null,
+                h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
+              h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => { setProfFor(profFor === v.id ? '' : v.id); setProfDir('') } },
+                profFor === v.id ? '收起' : v.hasProfile ? '重新生成档案' : '生成音色档案'),
+              h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); toast(r.message, r.ok ? 'ok' : 'err'); onChange() } }, '删除')),
+            profFor === v.id ? h('div', { className: 'ab-flex', style: { margin: '6px 0 10px' } },
+              h('input', { className: 'ab-input', style: { flex: 1 }, value: profDir, placeholder: '「' + v.id + '」的数据集文件夹完整路径（本人的干声录音，wav / flac / mp3），如 ' + exPath('Downloads/数据集'),
+                onChange: (e) => setProfDir(e.target.value), onKeyDown: (e) => e.key === 'Enter' && buildProfile(v.id) }),
+              h(Btn, { small: true, kind: 'primary', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => buildProfile(v.id) }, '开始生成')) : null))))
     }
 
     const fmtBytes = (n) => (n >= 1024 ** 3 ? (n / 1024 ** 3).toFixed(2) + ' GB' : (n / 1024 ** 2).toFixed(n >= 100 * 1024 ** 2 ? 0 : 1) + ' MB')
@@ -3234,7 +3247,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h('button', { type: 'button', className: cx('ab-drive', !val && 'on'), onClick: () => pick(s.defaultRoot) }, h('b', null, '默认位置'), h('small', null, s.defaultRoot))),
         h('input', { className: 'ab-input wide', style: { marginTop: 8 }, value: val, placeholder: '或者自己填路径，留空 = 默认位置（' + s.defaultRoot + '）', onChange: (e) => setDraft(setPath(draft, 'song.root', e.target.value)) }),
         chk ? h('div', { className: 'ab-small', style: { marginTop: 4, color: !chk.ok || chk.warn ? 'var(--ab-warn)' : 'var(--ab-sub)' } },
-          !chk.ok ? chk.message : ['装在 ' + cur, chk.freeGB !== null ? '这个盘还剩 ' + chk.freeGB + ' GB' : '', chk.warn].filter(Boolean).join('；')) : null,
+          !chk.ok ? chk.message : ['装在 ' + cur, chk.freeGB !== null ? '这个磁盘还剩 ' + chk.freeGB + ' GB' : '', chk.warn].filter(Boolean).join('；')) : null,
         val && val !== s.root && s.voices.length ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 2 } }, '换位置后，已导入的音色要重新导入（或把原来的 models 文件夹搬过去）') : null)
     }
 
@@ -3310,7 +3323,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '音色' }, voices.length ? h(Select, { value: draft.song.voice || (voices[0] && voices[0].value), options: voices, onChange: (v) => setDraft(setPath(draft, 'song.voice', v)) }) : h('span', { className: 'ab-muted' }, '还没有模型')),
           h(Row, { label: '默认变调', hint: 'ta自己点歌时会按原唱男声 / 女声定，这里是你在面板里试唱时的默认值' }, f.range('song.pitch', -12, 12, 1, (v) => (v > 0 ? '+' : '') + v + ' 半音')),
           h(Row, { label: '先找本地原唱', hint: '点歌时先在本地音乐文件夹里找（文件名「歌名 - 歌手[专辑]」，网易云下载的默认格式），找到就不去网易云下；歌名对上就用' }, f.sw('song.localMusic')),
-          draft.song.localMusic !== false ? h(Row, { label: '本地音乐文件夹', hint: '留空 = 用户目录下的「音乐 / Music」，会往下找 3 层' }, f.text('song.localMusicDir', { size: 'wide', placeholder: exPath('C:\\Users\\你\\Music', 'Music') })) : null,
+          draft.song.localMusic !== false ? h(Row, { label: '本地音乐文件夹', hint: '留空 = 用户目录下的「音乐 / Music」，会往下找 3 层' }, f.text('song.localMusicDir', { size: 'wide', placeholder: exPath('Music') })) : null,
           h(Row, { label: '语音条最长', hint: '歌比这个长就截一段' }, f.range('song.maxVoiceSec', 30, 300, 10, (v) => v + ' 秒')),
           h(Row, { label: '截哪一段' }, f.choices('song.clipStart', [{ value: 'auto', label: '副歌附近', desc: '从全曲大约 30% 的地方开始' }, { value: 'head', label: '从头开始' }])),
           h(Row, { label: '人声音量' }, f.range('song.vocalVolume', 0.2, 2, 0.05, (v) => Math.round(v * 100) + '%')),

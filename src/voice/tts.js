@@ -129,12 +129,16 @@ export function pickMacVoice(list) {
   return zh.find((v) => /^Tingting\b/i.test(v)) || zh[0] || ''
 }
 
+let macVoice = null
+
 /** macOS 自带语音：say 念成 AIFF，再用 afconvert 转成 24 kHz 16 位 WAV（两个都是系统自带命令）。 */
 async function macSynth(text) {
   const id = randomUUID()
   const aiff = join(outDir(), `${id}.aiff`)
   const file = join(outDir(), `${id}.wav`)
-  const voice = pickMacVoice((await run('say', ['-v', '?'], { timeoutMs: 15000 })).out)
+  // 系统装了哪些声音只查一次（每次都跑 say -v ? 要多等几百毫秒）
+  if (macVoice === null) macVoice = pickMacVoice((await run('say', ['-v', '?'], { timeoutMs: 15000 })).out)
+  const voice = macVoice
   const r = await run('say', [...(voice ? ['-v', voice] : []), '-o', aiff, '-f', '-'], { timeoutMs: 60000, input: text })
   if (!existsSync(aiff)) throw new Error('macOS 语音失败：' + r.err.slice(-200))
   const c = await run('afconvert', ['-f', 'WAVE', '-d', 'LEI16@24000', aiff, file], { timeoutMs: 60000 })

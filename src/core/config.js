@@ -374,7 +374,7 @@ export function normalize(raw) {
   // 只收主机名 / IP，别的字符一律当没填（防止拼出奇怪的地址）
   c.files.relayHost = /^[A-Za-z0-9.-]{1,253}$/.test(String(c.files.relayHost || '').trim()) ? String(c.files.relayHost).trim() : 'host.docker.internal'
   c.files.dirs = (Array.isArray(c.files.dirs) ? c.files.dirs : String(c.files.dirs || '').split(/[\n,，;；]+/))
-    .map((s) => String(s).trim()).filter((s) => /^([a-zA-Z]:[\\/]|\/)/.test(s)).slice(0, 20)
+    .map((s) => String(s).trim()).filter((s) => s.startsWith('/')).slice(0, 20)
   const g = c.group
   g.wakeWords = (Array.isArray(g.wakeWords) ? g.wakeWords : String(g.wakeWords || '').split(/[\s,，]+/)).map((s) => String(s).trim()).filter(Boolean)
   g.interjectChance = num(g.interjectChance, 0.15, 0, 1)
