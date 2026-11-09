@@ -119,6 +119,12 @@ export function apply(ctx) {
       : '')
   })
   variable('aurabot_rules_social', () => rewrite('rules', rulesText('social', cfg, rulesOpts('social')), 'social'))
+  variable('aurabot_rules_group_owner', () => {
+    const base = rewrite('rules', rulesText('group-owner', cfg, rulesOpts('group-owner')), 'group-owner')
+    return base + (cfg.security && cfg.security.dangerConfirm
+      ? '\n【危险命令】终端命令如果被安全策略拦下（删根目录/格式化/关机/下载后直接执行等），把命令原文和原因如实告诉主人，等主人回复「确认」后再重试；群里不做绕过。'
+      : '')
+  })
 
   // ---------- QQ 网关 ----------
   // macOS 上 QQ 网关是你自己跑的 OneBot v11（比如 OrbStack / Docker 里的 SnowLuma），插件只按面板填的地址去连
