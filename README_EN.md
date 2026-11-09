@@ -30,17 +30,39 @@ Upstream targets Windows only. This fork does one thing: **make it work on macOS
 
 ## 🚀 Install
 
-You need an Apple-silicon Mac, DeepSeek Harness desktop, a spare QQ account for the bot and OrbStack (or Docker Desktop).
+**What you install and set up yourself — nothing else:**
 
-1. Run [SnowLuma's official docker-compose.yml](https://github.com/SnowLuma/SnowLuma.Docker.Framework) and log the bot account in through its remote desktop (any OneBot v11 implementation works).
+| Item | Why | Notes |
+|---|---|---|
+| DeepSeek Harness desktop | the plugin runs inside it | set up a model in DSH; enable DSH's speech-input plugin if she should understand voice notes |
+| [OrbStack](https://orbstack.dev) (or Docker Desktop) | runs the QQ gateway | approve its prompt on first launch |
+| [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) container | QQ gateway (OneBot v11) | start the official docker-compose.yml, log the bot account in through its remote desktop (`http://127.0.0.1:6081`); any OneBot v11 implementation works |
+| [Homebrew](https://brew.sh) + `brew install ffmpeg` | only for looking at Bilibili video frames | optional |
+
+No Python, Xcode command line tools, uv, Node or Git to install, no PATH or environment variables, no macOS privacy permissions.
+
+1. Start SnowLuma and log the bot account in.
 2. Install the plugin in Terminal, then restart DSH:
 
    ```bash
    "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac
    ```
 3. Follow the setup wizard: QQ numbers, then the OneBot forward WebSocket URL (usually `ws://127.0.0.1:3001`) and token.
+4. As needed in the panel: one-click song install and import a voice, install edge-tts, scan in to Bilibili / Qzone, add an image API.
 
 Upgrade by running the same command again and restarting DSH; settings, personas and memories are kept.
+
+## 📁 Where the plugin puts things
+
+Only these three places, all in your home folder:
+
+| Location | Contents |
+|---|---|
+| `~/.dsh/profiles/desktop/node_modules/dsh-aurabot-qq` | plugin code (managed by DSH, replaced on upgrade) |
+| `~/.dsh/plugins-data/aurabot/` | settings, personas, memory, stickers, diaries, logs, cover cache, installed modules |
+| `~/Aurabot/` | `rvc/` song environment, `pyenv/` voice component, `qq-chats/` QQ workspace |
+
+Song environment `~/Aurabot/rvc` (about 5 GB, every download checksummed): uv 0.13.7 and Rubber Band 4.0.0 in `bin/`, Python 3.13.18 in `python/`, Applio 3.7.1 with its own environment (torch 2.11), a separate vocal-separation environment `env/` (audio-separator[cpu] 0.48.0, librosa 1.0.0, torch 2.15), the separation and RVC models, and your imported voices in `models/`. Voice component `~/Aurabot/pyenv`: edge-tts 7.3.1 on the same Python. The plugin never touches the system Python and leaves nothing in `~/.cache` or `~/.local`.
 
 ## 📄 License & credits
 

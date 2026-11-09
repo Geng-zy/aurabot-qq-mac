@@ -44,33 +44,72 @@
 
 ## 🚀 安装
 
-**你需要：** Apple 芯片的 Mac、装好的 DeepSeek Harness 桌面版、一个当机器人的 QQ 小号、[OrbStack](https://orbstack.dev)（或 Docker Desktop）。
+### 需要你自己装、自己设的（只有这些）
 
-1. **跑 QQ 网关**：用 [SnowLuma 官方的 docker-compose.yml](https://github.com/SnowLuma/SnowLuma.Docker.Framework) 起容器，打开它的远程桌面登录机器人号。NapCat、LLOneBot、Lagrange 等别的 OneBot v11 实现也可以。
-2. **装插件**（在「终端」里运行）：
+| 东西 | 用来做什么 | 说明 |
+|---|---|---|
+| [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版 | 插件跑在它里面 | 在 DSH 设置里配好模型；想让她听懂语音条，再打开 DSH 的「语音输入」插件 |
+| [OrbStack](https://orbstack.dev)（或 Docker Desktop） | 跑 QQ 网关 | 第一次打开按提示授权 |
+| [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) 容器 | QQ 网关（OneBot v11） | 用官方 docker-compose.yml 启动，在远程桌面（`http://127.0.0.1:6081`）登录机器人小号；NapCat、LLOneBot、Lagrange 等也可以 |
+| [Homebrew](https://brew.sh) + `brew install ffmpeg` | 只给「刷 B 站时看视频画面」用 | 可选，不用这个功能就不用装 |
+
+不用装 Python、Xcode 命令行工具、uv、Node、Git，不用改 PATH、不用设环境变量，也不用给任何 macOS 隐私权限。
+
+### 步骤
+
+1. 起好 SnowLuma 容器，登录机器人号。
+2. **装插件**（在「终端」里运行），装完重启 DSH，左侧栏会出现 **Aurabot**：
 
    ```bash
    "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac
    ```
-
-   装完重启 DSH，左侧栏会出现 **Aurabot**。
 3. **跟着设置向导走**：填机器人 QQ 号和你的 QQ 号，再填 OneBot 正向 WebSocket 地址（一般是 `ws://127.0.0.1:3001`）和令牌。建议先开着「试运行」。
+4. 按需在面板里：翻唱页「一键安装」并导入音色、语音页「安装 edge-tts」、扫码登录 B 站 / QQ 空间、填生图接口。
 
 **升级**：再运行一遍上面的安装命令，然后重启 DSH。设置、人格、记忆都会保留。
 
-## 🎤 翻唱一键安装装了什么
+## 🧰 各功能要什么
 
-面板「翻唱」页点「一键安装」，全部装进 `~/Aurabot/rvc`（约 5 GB，不碰系统环境）：
-
-| 东西 | 版本 |
+| 功能 | 需要 |
 |---|---|
-| Python（uv 自己下载的，只给翻唱用） | 3.13.18 |
-| Applio（RVC 换声）+ 自己的环境 | 3.7.1，torch 2.11 |
-| 人声分离环境 | audio-separator[cpu] 0.48.0、librosa 1.0.0、audioread 3.1.0，torch 2.15 |
-| 工具 | uv 0.13.7、ffmpeg（imageio-ffmpeg）、Rubber Band 4.0.0 官方版 |
-| 模型 | 主分离模型 BS-Roformer Leap Xe、去混响 / 拆主唱伴唱 / 分男女声 3 个增强模型、rmvpe、contentvec |
+| 聊天、人格、心情、表情包、QQ 空间、主动搭话 | 只要 DSH 里配好的模型 |
+| 长期记忆 | SQLite，用 DSH 自带 Node 里的 |
+| 看图 | 模型支持看图；大图先缩小（有 ffmpeg 用 ffmpeg，没有用 DSH 自带的 sharp） |
+| 听语音条 | DSH 的「语音输入」插件 |
+| 发语音 | macOS 自带的 `say`（什么都不用装）；想更好听就装语音组件 edge-tts；CosyVoice / GPT-SoVITS / 自定义 HTTP 语音填你自己服务的地址 |
+| 翻唱、语音条变声 | 翻唱环境（一键安装） |
+| 刷 B 站 | 扫码登录；看视频画面要 ffmpeg |
+| 画图 | 生图接口（OpenAI 兼容接口或 Codex 订阅），或本地接口 |
+| 发超过 30 MB 的文件 | 不用装，插件自带只对本机开放的临时下载口 |
+| 模块市场里的模块（桌宠、抖音等） | 看各模块自己的说明 |
 
-下载都核对校验值。装好后导入你有权使用的 RVC 音色（.pth / zip）就能点歌；再用这个音色本人的干声数据集生成「音色档案」，就能自动定调和校正音色。
+## 📁 插件装的东西放在哪
+
+插件只往这三个地方放东西，都在你的用户文件夹里：
+
+| 位置 | 放什么 |
+|---|---|
+| `~/.dsh/profiles/desktop/node_modules/dsh-aurabot-qq` | 插件代码（DSH 管理，升级时整个替换） |
+| `~/.dsh/plugins-data/aurabot/` | 设置、人格、记忆、表情、日记、日志、翻唱缓存、你装的模块 |
+| `~/Aurabot/` | `rvc/` 翻唱环境、`pyenv/` 语音组件、`qq-chats/` QQ 会话工作区（位置可以在面板里改） |
+
+**翻唱环境** `~/Aurabot/rvc`（一键安装，约 5 GB，下载都核对校验值）：
+
+| 东西 | 版本 | 位置 |
+|---|---|---|
+| uv | 0.13.7 | `bin/uv` |
+| Python（uv 下载的官方构建） | 3.13.18 | `python/` |
+| Applio（RVC 换声）+ 自己的环境 | 3.7.1，torch 2.11 | `Applio/`、`Applio/.venv` |
+| 人声分离环境 | audio-separator[cpu] 0.48.0、librosa 1.0.0、audioread 3.1.0、imageio-ffmpeg 0.8.1，torch 2.15 | `env/` |
+| ffmpeg（翻唱专用）、Rubber Band 4.0.0 官方版 | — | `bin/` |
+| 模型：rmvpe、contentvec；分离模型 BS-Roformer Leap Xe 和去混响 / 拆主唱伴唱 / 分男女声 3 个增强模型 | 固定版本 | `Applio/rvc/models/`、`separator-models/` |
+| 你导入的音色和生成的音色档案 | — | `models/` |
+
+装好后导入你有权使用的 RVC 音色（.pth / zip）就能点歌；再用这个音色本人的干声数据集生成「音色档案」，就能自动定调和校正音色。
+
+**语音组件** `~/Aurabot/pyenv`：edge-tts 7.3.1，和翻唱共用上面的 Python 3.13.18 和 uv（没装翻唱也能单独装，会自己下载）。
+
+插件不碰系统的 Python，不往 `~/.cache`、`~/.local` 等系统默认位置留缓存。
 
 ## 🧑‍💻 开发
 
