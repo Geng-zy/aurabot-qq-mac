@@ -1273,7 +1273,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     if (event.type === 'turn/end') {
       slowNoticeSent.delete(key)
       clearSlowNotices(key)
-      running.delete(chatId)
+      clearRunning(chatId)
       stopTyping(key)
       const d = event.data || {}
       const completed = d.reason && d.reason.kind === 'completed'
@@ -2000,7 +2000,39 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   const busy = new Map() // chatId → 这一轮开始的时间（她正在想 / 正在发）
   const BUSY_MAX_MS = 4 * 60_000 // 卡住保护：超过这么久就当她已经回完了
   const RANK = { engaged: 1, interject: 2, must: 3 }
-  const running = new Set() // chatId → 这一轮还在跑（模型 / 工具还没结束，turn/end 之前）；私聊此时新消息直接 steer 进去
+  const running = new Map() // chatId → 这一轮的编号（模型 / 工具还没结束，turn/end 之前）；私聊此时新消息直接 steer 进去
+  // 轮次兜底（来自原项目 9c8c0f5 / 077b56c）：模型或工具卡住时 turn/end 永远不来，running 一直挂着，
+  // 后面的私聊消息全被当成 steer 塞进那一轮，看上去就是「不理人」。超过上限就强制放开，下一条消息正常开新一轮。
+  const runningTimers = new Map() // chatId → timer
+  let turnSeq = 0
+  const turnMaxMs = () => {
+    const mins = Number(getConfig()?.chat?.turnTimeoutMinutes)
+    if (!Number.isFinite(mins)) return 30 * 60_000
+    return mins <= 0 ? 0 : mins * 60_000 // 0 = 关掉兜底
+  }
+  function markRunning(chatId) {
+    const token = ++turnSeq
+    running.set(chatId, token)
+    const old = runningTimers.get(chatId)
+    if (old) { clearTimeout(old); runningTimers.delete(chatId) }
+    const limit = turnMaxMs()
+    if (!limit) return
+    const timer = setTimeout(() => {
+      // 只放开卡住的那一轮：已经换成新一轮就别误伤
+      if (running.get(chatId) !== token) return
+      running.delete(chatId)
+      runningTimers.delete(chatId)
+      log.warn(`${chatId}：这一轮超过 ${Math.round(limit / 60000)} 分钟没结束，强制放开（后面的消息不会再被塞进卡住的轮次）`)
+      release(chatId)
+    }, limit)
+    timer.unref?.()
+    runningTimers.set(chatId, timer)
+  }
+  function clearRunning(chatId) {
+    running.delete(chatId)
+    const timer = runningTimers.get(chatId)
+    if (timer) { clearTimeout(timer); runningTimers.delete(chatId) }
+  }
   const isBusy = (chatId) => busy.has(chatId) && Date.now() - busy.get(chatId) < BUSY_MAX_MS
 
   function enqueue(chat, content, senderId, wantVoice, mode = 'must', extra = {}) {
@@ -2136,7 +2168,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   /** 她这一轮说完了（或者没说）：放开，把这期间攒下的消息交给她。 */
   function release(chatId) {
     busy.delete(chatId)
-    running.delete(chatId)
+    clearRunning(chatId)
     const p = pending.get(chatId)
     if (p && p.waiting) {
       p.waiting = false
@@ -2357,7 +2389,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       log.info(`${chat.chatId}：她还在忙，这句直接插进当前这一轮（steer）`)
       await withPromptCapture(sources, () => agent.steer(message))
     } else {
-      running.add(chat.chatId)
+      markRunning(chat.chatId)
       await withPromptCapture(sources, () => agent.followup(message))
     }
     try {
