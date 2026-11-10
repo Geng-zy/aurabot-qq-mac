@@ -30,6 +30,7 @@ function fakePng(w, h, salt = 0) {
 
 // 「模型」脚本
 async function brain({ preset, text, images, callTool }) {
+  if (text.includes('调试对话测试')) return '调试里回你<feel>{"e":[{"n":"开心","i":0.9}]}</feel>'
   if (text.includes('感受测试')) return '好呀|||嘿嘿<feel>{"e":[{"n":"开心","i":0.6,"who":"10000001","why":"被夸了"}]}</feel>'
   if (text.includes('at+表情测试')) return '<at:10000001> 看这个<sticker:开心>'
   if (text.includes('热重载探针')) { const r = await callTool('probe73', {}); return r ? '探针:' + r.message : '没有探针工具' }
@@ -1676,4 +1677,32 @@ test('心智核心：单一注意力——她在一个群里回话时，另一�
   const t560 = mock.calls.findIndex((c, i) => c.action === 'send_group_msg' && String(c.params.group_id) === '560' && i >= 0 && sentTo('group', '560').indexOf(c) >= g1)
   const t561 = mock.calls.findIndex((c) => c.action === 'send_group_msg' && String(c.params.group_id) === '561' && sentTo('group', '561').indexOf(c) >= g2)
   assert.ok(t560 < t561, '先回完正在回的那个群，再回等着的那个')
+})
+
+test('调试模式：面板里直接跟她说话，回复交回面板；不发 QQ、不写进心智；关掉后接回原来的正式会话', async () => {
+  const chatId = 'private:' + OWNER
+  const live = api.hub.sessions()[chatId]
+  await fake.call('/save', { debug: true })
+  try {
+    const sentBefore = sentTo('private', OWNER).length
+    const seenBefore = api.mind.mind.history('qq:' + chatId).length
+    await until(() => !api.hub.isBusy?.(chatId), 5000).catch(() => {})
+    await sleep(800) // 开调试时的开场白先跑完
+    const r = (await fake.call('/debug/say', { text: '调试对话测试' })).json()
+    assert.equal(r.ok, true, r.message)
+    assert.equal(r.text, '调试里回你', '回复交回面板，<feel> 收走了')
+    await sleep(300)
+    assert.equal(sentTo('private', OWNER).length, sentBefore, '不发到 QQ')
+    assert.equal(api.mind.mind.history('qq:' + chatId).length, seenBefore, '不写进她的感知记录')
+    assert.ok(!api.mind.mind.emotion.state().active.some((e) => e.why === '' && e.name === '快乐' && e.i0 >= 0.85), '感受不记')
+    const dbg = api.hub.sessions()[chatId]
+    if (live) assert.notEqual(dbg.sessionId, live.sessionId, '调试用的是另一条会话')
+    assert.equal(dbg.mode, 'debug')
+  } finally {
+    await fake.call('/save', { debug: false })
+  }
+  // 关掉调试，下一条正式消息接回原来那条会话
+  mock.push(priv(OWNER, text('调试关了以后 第一句 第二句')))
+  await until(() => api.hub.sessions()[chatId]?.mode === 'live', 8000)
+  if (live) assert.equal(api.hub.sessions()[chatId].sessionId, live.sessionId, '接回原来的正式会话')
 })

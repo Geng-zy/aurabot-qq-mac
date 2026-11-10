@@ -1499,6 +1499,12 @@ export function apply(ctx) {
     return { ok: true, groups, titles, failed, message: failed.length ? `有 ${failed.length} 个群的成员没拉到（她在群里吗？）` : '' }
   })
 
+  // 面板里的调试对话：走主人私聊的正常链路，但不发 QQ、不写进心智（来自原项目 f476866）
+  route('/debug/say', async (req) => {
+    const b = await readBody(req)
+    try { return await hub.debugSay(String(b.text || '')) } catch (error) { return { ok: false, message: error.message } }
+  })
+
   // 本地接口
   const openFolder = (dir) => {
     mkdirSync(dir, { recursive: true })

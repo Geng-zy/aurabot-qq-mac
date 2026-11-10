@@ -625,7 +625,18 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const existed = Boolean(before && ((before.sessions && before.sessions.debug) || (before.mode || 'live') === 'debug'))
     const r = await agentFor(chat)
     if (!existed) log.info(`调试会话建好了：${r.sessionId.slice(-8)}（在左侧栏「Aurabot · QQ」里打开就能直接跟她说话）`)
-    return { ok: true, sessionId: r.sessionId, created: !existed, message: existed ? '调试会话已经在了，去左侧栏「Aurabot · QQ」打开它' : '建好了一条调试会话，去左侧栏「Aurabot · QQ」打开它就能直接说话' }
+    // 空会话在 DSH 侧栏里是看不见的：第一次建出来、或者之前那条还没开过场，就让她先打个招呼（来自原项目 a6c2220）。
+    // 调试模式下这一轮只进日志，不发 QQ、不写进心智
+    const entry = map().chats[chat.chatId]
+    if (!entry?.debugSeeded && !isBusy(chat.chatId)) {
+      pushToSession(chat, [{ type: 'text', text: '（调试模式刚开始，这条只有你们俩在面板和侧栏里看得到。轻轻打个招呼，一句话就好。）' }], String(cfg.ownerQQ))
+        .then(() => { const m = map(); if (m.chats[chat.chatId]) { m.chats[chat.chatId].debugSeeded = true; saveMap(m) } })
+        .catch((error) => log.debug('调试会话开场白失败：', error.message))
+    }
+    return {
+      ok: true, sessionId: r.sessionId, created: !existed,
+      message: existed ? '调试会话已经在了：左侧栏没看到就刷新一下 DSH 页面；也可以直接用下面的「调试对话」说话' : '建好了一条调试会话，已经让她先打了个招呼：左侧栏「Aurabot · QQ」里刷新一下就能看到',
+    }
   }
 
   /** 这个聊天要用的模型：主人按聊天指定的 > 面板里选的全局模型（或 DSH 默认），扩展模块还可以再按聊天改。 */
@@ -1405,6 +1416,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
         return
       }
       if (chatId.startsWith('system:')) return // 已超时的后台轮次不能误发到 QQ
+      // 面板里的调试对话在等这一轮：把她说的话交回去（调试模式下照常只进日志，不发 QQ）
+      const waiter = debugWaiters.get(chatId)
+      if (waiter) { debugWaiters.delete(chatId); waiter(text) }
       if (!text) return release(chatId)
       // 发完再放开：发送期间来的消息也攒到下一段。
       // 没有中间段在发的时候就走原来的路径（同步开始、release 跟着这一条走），时序和以前一模一样；
@@ -2645,6 +2659,40 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     return mounted.has(sessionKey(sessionId))
   }
 
+  /**
+   * 面板里的调试对话（来自原项目 f476866，改成走正常的主人私聊链路）：
+   * 交给她的内容和真的 QQ 私聊一样（带上此刻、记忆、心情、眼前的人），所以能试出她真实的样子；
+   * 调试模式下不发 QQ、不写进心智，回复只交回面板和日志。
+   */
+  const debugWaiters = new Map() // chatId → resolve
+  async function debugSay(text, { timeoutMs = 180000 } = {}) {
+    const cfg = getConfig()
+    if (!cfg.debug) return { ok: false, message: '没开调试模式' }
+    if (!cfg.ownerQQ) return { ok: false, message: '还没填主人 QQ' }
+    const say = String(text || '').trim().slice(0, 2000)
+    if (!say) return { ok: false, message: '说点什么吧' }
+    const owner = String(cfg.ownerQQ)
+    const chat = { kind: 'private', chatId: `private:${owner}`, userId: owner, groupId: '', nickname: cfg.ownerName || '主人' }
+    if (isBusy(chat.chatId)) return { ok: false, message: '她还在回上一句，等一下' }
+    log.info(`[调试] 面板 → ${chat.chatId}：${say.slice(0, 300)}`)
+    let timer
+    const reply = new Promise((resolve, reject) => {
+      debugWaiters.set(chat.chatId, resolve)
+      timer = setTimeout(() => { debugWaiters.delete(chat.chatId); reject(new Error(`等太久了（超过 ${Math.round(timeoutMs / 1000)} 秒）`)) }, timeoutMs)
+    }).finally(() => clearTimeout(timer))
+    try {
+      busy.set(chat.chatId, Date.now())
+      await pushToSession(chat, [{ type: 'text', text: `【私聊】${chat.nickname}(${owner})：${say}` }], owner, { queryText: say })
+      const out = await reply
+      log.info(`[调试] bot → 面板：${String(out || '（她没说话）').slice(0, 300)}`)
+      return { ok: true, text: out }
+    } catch (error) {
+      debugWaiters.delete(chat.chatId)
+      release(chat.chatId)
+      return { ok: false, message: error.message }
+    }
+  }
+
   /** 一个聊天记着的所有会话（正式 + 调试，去重）。 */
   const sessionsOf = (e) => [...new Set([e.sessionId, ...Object.values(e.sessions || {})].filter(Boolean))]
 
@@ -2864,6 +2912,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   }
 
   return {
+    debugSay,
     systemSessionCooldown,
     // 哪些聊天的新会话挂不上工作区、正在冷却（面板概览排错用）
     sessionHealth: () => [...sessionFailures.keys()].map((chatId) => ({ chatId, ...sessionFailure(chatId) })).filter((row) => row.message),
