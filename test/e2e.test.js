@@ -811,6 +811,13 @@ test('云备份：WebDAV「仅配置」推上去的包里也有心智核心的�
   }
 })
 
+test('面板接口：贴表情能用的表情列表（取不到网关目录也有内置的）', async () => {
+  const r = await (await fake.call('/panel/faces')).json()
+  assert.equal(r.ok, true)
+  assert.ok(r.faces.some((f) => f.name === '赞' && f.id === '76'))
+  assert.ok(r.emojis.length > 0)
+})
+
 test('面板接口：概览、人格切换', async () => {
   const s = (await fake.call('/state')).json()
   assert.equal(s.ok, true)

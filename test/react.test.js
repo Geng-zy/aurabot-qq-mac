@@ -107,3 +107,34 @@ test('网关出错不影响主流程', async (t) => {
   assert.equal(s.reacts().length, 1)
   assert.ok(s.logs.some((l) => l.includes('贴表情失败')), s.logs.join('\n'))
 })
+
+// 心智核心在时：想不想贴、贴哪种由她（下面用假的 reactWish 看中枢是不是照她的意思办）
+function withMind(t, wish) {
+  const s = setup(t, ON)
+  const said = [], calls = []
+  const hub = createHub({
+    dsh: {},
+    getConfig: () => s.cfg,
+    log: { info() {}, warn() {}, debug() {}, error() {} },
+    onebot: { async call(action, params) { calls.push({ action, params }); return {} } },
+    mind: { reactWish: () => wish, said: (o) => { said.push(o); return true } },
+  })
+  t.after(() => hub.dispose())
+  return { hub, said, reacts: () => calls.filter((c) => c.action === 'set_msg_emoji_like') }
+}
+
+test('心智核心：她不想贴（睡着 / 讨厌 / 生 ta 气）就不贴', async (t) => {
+  const s = withMind(t, { scale: 0, pool: [], why: '睡着了' })
+  await s.hub.maybeReact({ ...msg, userId: '2', text: '哈哈哈' })
+  assert.equal(s.reacts().length, 0)
+})
+
+test('心智核心：贴她挑的那种，并记进她做过的事', async (t) => {
+  const s = withMind(t, { scale: 1, pool: ['爱心'], why: '心情不错' })
+  await s.hub.maybeReact({ ...msg, userId: '2', nickname: '小明', text: '今天好累' })
+  assert.equal(s.reacts().length, 1)
+  assert.equal(s.reacts()[0].params.emoji_id, '66')
+  assert.equal(s.said.length, 1)
+  assert.match(s.said[0].message, /给小明刚才那条消息贴了个「爱心」/)
+  assert.equal(s.said[0].kind, 'reaction')
+})

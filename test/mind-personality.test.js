@@ -575,3 +575,15 @@ test('调试模式：照常想起和回话，但不往心智里写——不记�
   cfg = { ownerQQ: '1', debug: false }
   assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '主人', text: '正式说的话', messageId: 'd2' }), true, '关掉调试就照常记')
 })
+
+test('对接层：贴表情看她——睡着不贴，生 ta 气不贴，难过的话给安慰，好笑的跟着笑', async () => {
+  const { a, set } = adapter()
+  assert.match(a.reactWish({ userId: '2', text: '今天好累' }).pool.join(), /爱心/)
+  assert.match(a.reactWish({ userId: '2', text: '哈哈哈笑死' }).pool.join(), /笑哭|捂脸/)
+  assert.ok(a.reactWish({ userId: '1', text: '在吗' }).scale > a.reactWish({ userId: '2', text: '在吗' }).scale, '对你比对生人更愿意贴')
+  a.mind.emotion.feel([{ name: '生气', intensity: 0.8, target: 'qq:2', why: '被骂了', importance: 0.5 }], { source: 'test' })
+  assert.equal(a.reactWish({ userId: '2', text: '在吗' }).scale, 0)
+  a.mind.body.sleepNow()
+  assert.deepEqual(a.reactWish({ userId: '1', text: '在吗' }), { scale: 0, pool: [], why: '睡着了' })
+  void set
+})

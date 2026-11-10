@@ -231,12 +231,17 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       if (cfg.stickers?.enabled === false || cfg.stickers?.react === false) return
       const chance = cfg.stickers?.reactChance ?? 0
       if (!(chance > 0) || !msg.messageId || msg.messageId === '0') return
-      if (Math.random() >= chance * mood().sticker) return
+      // 心智核心在：想不想贴、贴哪种由她（睡着、讨厌、正生 ta 气就不贴；按心情和这条在说什么挑）
+      let wish = null
+      try { wish = mind?.reactWish?.({ userId: msg.userId, text: msg.text }) || null } catch (error) {}
+      if (Math.random() >= chance * (wish ? wish.scale : mood().sticker)) return
       const cap = cfg.stickers?.reactMaxPerHour ?? 10
       const ts = Date.now()
       const recent = (reactStamps.get(msg.chatId) || []).filter((t) => ts - t < 3600_000)
       if (cap <= 0 || recent.length >= cap) { reactStamps.set(msg.chatId, recent); return }
-      const name = REACT_POOL[Math.floor(Math.random() * REACT_POOL.length)]
+      const pool = (wish?.pool || []).filter((n) => faces.idOf(n))
+      const from = pool.length ? pool : REACT_POOL
+      const name = from[Math.floor(Math.random() * from.length)]
       const id = faces.idOf(name)
       if (!id) return
       // NapCat 只按位数猜类型（data length > 3 → emoji 码点，否则系统表情）：
@@ -248,7 +253,9 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       await onebot.call('set_msg_emoji_like', { message_id: String(msg.messageId), emoji_id: String(id), set: true }, { timeoutMs: 10000 })
       recent.push(ts)
       reactStamps.set(msg.chatId, recent)
-      log.info(`${msg.chatId}：给这条消息贴了个「${name}」（${id}）`)
+      log.info(`${msg.chatId}：给这条消息贴了个「${name}」（${id}）${wish ? '｜' + wish.why : ''}`)
+      // 贴表情也是她做过的事：记进她的经历（不发消息）
+      try { mind?.said?.({ chatId: msg.chatId, message: `（给${msg.nickname || msg.userId}刚才那条消息贴了个「${name}」）`, kind: 'reaction' }) } catch (error) {}
     } catch (error) {
       log.debug?.('贴表情失败：', error?.message || error)
     }

@@ -923,6 +923,42 @@ export function createMindAdapter(opts) {
       return { chance: 0.1, relevance: 0, why: '算不出来，按一般' }
     }
   }
+  /**
+   * 看到一条消息，想不想顺手贴个表情、贴哪种：睡着了不贴，讨厌的人、正在生 ta 气的人不贴；
+   * 想贴的程度看她爱不爱用表情（表达活泼度）、和 ta 多亲近、此刻的心情；贴哪种先看这条在说什么
+   * （难过的给安慰、好消息给赞、好笑的跟着笑），没什么特别的就跟着她自己的心情走。
+   * 最后贴不贴还要过面板里的概率和每小时上限。
+   * @param {{ userId: string, text?: string }} o
+   * @returns {{ scale: number, pool: string[], why: string } | null} null = 心智核心不管（调试模式）
+   */
+  function reactWish({ userId, text = '' } = {}) {
+    if (debug()) return null
+    try {
+      const body = mind.body.state()
+      if (body.asleep) return { scale: 0, pool: [], why: '睡着了' }
+      const pid = personOf(userId)
+      if (dislikes(userId)) return { scale: 0, pool: [], why: '不想理 ta' }
+      const st = mind.emotion.state(body)
+      const sore = st.active.find((e) => e.target === pid && (e.def?.v ?? 0) < -0.2 && e.intensity > 0.3)
+      if (sore) return { scale: 0, pool: [], why: `对 ta 还${sore.name}着` }
+      const { v, a, label } = st.mood
+      const close = mind.isOwner(pid) ? 0.8 : mind.relations.closeness(pid)
+      const expr = mind.personality.value('expressiveness')
+      let scale = (effects()?.sticker ?? 1) * (0.4 + close) * (0.5 + expr)
+      const t = String(text || '')
+      let pool
+      if (/难过|伤心|想哭|哭了|呜呜|好累|累死|烦死|心累|唉|emo|😭|😢|💔/.test(t)) pool = v < 0 ? ['爱心', '可怜'] : ['爱心']
+      else if (/成功|过了|上岸|拿到|好消息|生日快乐|发工资|赢了|考完|搞定/.test(t)) pool = ['赞', '鼓掌']
+      else if (/哈哈|hhh|笑死|233|绷不住|😂|🤣/.test(t)) pool = v > -0.15 ? ['笑哭', '斜眼笑', '捂脸'] : ['捂脸']
+      else if (v >= 0.25 && a >= 0.3) pool = ['呲牙', '调皮', '偷笑', '赞']
+      else if (v >= 0.25) pool = ['微笑', '爱心', '可爱']
+      else if (v > -0.15) pool = ['吃瓜', '托腮', '暗中观察', 'OK']
+      else { pool = ['无奈', 'emm', '捂脸']; scale *= 0.5 }
+      return { scale: Math.max(0, Math.min(2, scale)), pool, why: `${label}，亲近 ${close.toFixed(2)}，爱用表情 ${expr.toFixed(2)}` }
+    } catch (error) {
+      return null
+    }
+  }
   function interjectCap() {
     return Number(mind.setting('relations.interjectCapPerHour')) || 0
   }
@@ -1039,5 +1075,5 @@ export function createMindAdapter(opts) {
   }
 
   return { mind, perceive, said, shouldRotate, carryOver, contextFor, beforeTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
-    selfPrompt: () => mind.selfPrompt(), changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, interjectCap, wakeWords, missOwner, importLegacySocial }
+    selfPrompt: () => mind.selfPrompt(), changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, interjectCap, wakeWords, missOwner, importLegacySocial }
 }
