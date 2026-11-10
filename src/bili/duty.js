@@ -1,6 +1,7 @@
 // 刷 B 站：定时挑她和你感兴趣的方向去搜视频，读简介、字幕、热评，再按她的人格决定评不评论、分不分享给你、记住什么；
 // 定时看别人回她的评论并接着回；你在 QQ 里发链接，她也能点进去看完再聊。看过的、评过的都记成她的经历。
 
+import { isSessionBackoff } from '../chat/session-backoff.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { createBiliApi, findVideoId, parseCookie } from './api.js'
 import { loginSessionKey, recoverLoginPause } from './login-pause.js'
@@ -98,6 +99,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
       const arr = pickJson(out, []).map((k) => String(k).trim()).filter(Boolean)
       if (arr.length) return arr.slice(0, 3)
     } catch (error) {
+      if (isSessionBackoff(error)) throw error // 会话在冷却：这轮直接不刷，别退回随机关键词接着搜
       log.debug('挑关键词失败：', error.message)
     }
     return interests.sort(() => Math.random() - 0.5).slice(0, 3)
@@ -197,6 +199,8 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
     const c = cfg()
     if (busy) return { ok: false, message: '正在刷' }
     if (!c.enabled && !force) return { ok: false, message: 'B 站没打开' }
+    const cooldown = hub.systemSessionCooldown?.('bili')
+    if (cooldown) return { ok: false, skipped: true, retryAt: cooldown.retryAt, message: '后台会话冷却中' }
     busy = true
     const s = today(load())
     try {
@@ -293,6 +297,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
       log.info(`刷了一轮 B 站：看了 ${looked.length} 个，评论 ${commented} 条，分享 ${shared} 个，截图 ${shotSent} 张`)
       return { ok: true, message: `看了 ${looked.length} 个视频，评论 ${commented} 条，分享给你 ${shared} 个${shotSent ? '，还发了张截图' : ''}`, watched: looked.length, commented, shared, shots: shotSent }
     } catch (error) {
+      if (isSessionBackoff(error)) return { ok: false, skipped: true, retryAt: error.retryAt, message: error.message }
       log.warn('刷 B 站出错：', error.message)
       return { ok: false, message: error.message }
     } finally {
@@ -305,6 +310,8 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
   async function checkReplies() {
     const c = cfg()
     if (!c.reply) return { ok: false, message: '回复没打开' }
+    const cooldown = hub.systemSessionCooldown?.('bili')
+    if (cooldown) return { ok: false, skipped: true, retryAt: cooldown.retryAt, message: '后台会话冷却中' }
     const s = today(load())
     s.lastReplyCheck = Date.now()
     let n = 0
@@ -339,6 +346,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
       s.repliedFeed = [...done].slice(-300)
       return { ok: true, message: `回了 ${n} 条`, replied: n }
     } catch (error) {
+      if (isSessionBackoff(error)) return { ok: false, skipped: true, retryAt: error.retryAt, message: error.message }
       return { ok: false, message: error.message }
     } finally {
       save(s)
@@ -403,7 +411,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
   async function tick() {
     const g = getConfig()
     const c = g.bili
-    if (!g.enabled || !c.enabled) return
+    if (!g.enabled || !c.enabled || hub.systemSessionCooldown?.('bili')) return
     if (mind?.awake && !mind.awake()) return
     const s = today(load())
     if (c.reply && Date.now() - (s.lastReplyCheck || 0) > 20 * 60_000 && (await account()).isLogin) await checkReplies()
@@ -414,6 +422,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
     const g = getConfig()
     const c = g.bili
     if (!g.enabled || !c.enabled || !c.autoBrowse) return '刷 B 站没打开'
+    if (hub?.systemSessionCooldown?.('bili')) return 'DSH 的后台会话暂时建不起来，过会儿再刷'
     const s = today(load())
     if (s.runs >= c.maxRunsPerDay) return '今天刷够了'
     return true
