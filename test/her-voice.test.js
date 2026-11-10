@@ -86,3 +86,24 @@ test('QQ 里批准：问、批准、超时都由她说；她的问话里一定�
   req('unavailable')
   relay.dispose()
 })
+
+test('在别的聊天里说（比如群里点的歌没唱成）：推进那个聊天的会话；单独问时用 clean 洗掉念了内部信息的话', async () => {
+  const pushed = []
+  const sent = []
+  const mk = (busy, reply) => createHerVoice({
+    ownerChatId: () => 'private:8',
+    busy: () => busy,
+    pushNote: async (note, chatId) => { pushed.push({ note, chatId }) },
+    ask: async () => reply,
+    persona: () => '人格',
+    context: (chatId) => `在 ${chatId}`,
+    send: async (chatId, text) => { sent.push({ chatId, text }) },
+    log: { info() {}, warn() {} },
+  })
+  assert.equal(await mk(false, '').tell({ chatId: 'group:5', facts: '没唱成' }), 'session')
+  assert.equal(pushed[0].chatId, 'group:5')
+  assert.match(pushed[0].note, /告诉群里/)
+  const leak = (t) => (/ENOENT/.test(t) ? '' : t)
+  assert.equal(await mk(true, '报错 ENOENT').tell({ chatId: 'group:5', facts: 'x', clean: leak, fallback: '回头再试' }), 'fallback')
+  assert.deepEqual(sent.at(-1), { chatId: 'group:5', text: '回头再试' })
+})

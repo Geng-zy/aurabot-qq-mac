@@ -602,6 +602,8 @@ export function apply(ctx) {
     defaultModel: () => defaultModel(ctx, { model: {} }),
     http: { body: readBody, raw: readRaw, query, send },
     media: createMediaAccess({ root: ROOT, use, config: getConfig }),
+    // 要告诉人一件事（点的歌没唱成之类）：由她用自己的话说，见 features/her-voice.js
+    herVoice: { tell: (o) => herVoice.tell(o) },
     personas: { list: listPersonas, read: readPersona, current: () => currentPersonaText(cfg.persona.current) },
     getConfig, setConfig,
     // 给模块的心智接口（按模块身份）；心智核心没起来时是 null
@@ -627,13 +629,20 @@ export function apply(ctx) {
   core.dangerGuard = dangerGuard
   // 要告诉主人的事（授权、提问、QQ 里批没批）由她用自己的话说，不发固定模板（见 features/her-voice.js）
   const ownerChatOf = () => { const qq = String(getConfig().ownerQQ || ''); return qq ? { chatId: 'private:' + qq, kind: 'private', userId: qq, nickname: getConfig().ownerName || '主人' } : null }
+  /** chatId（private:QQ / group:群号）→ 聊天中枢要的聊天对象 */
+  const chatOfId = (chatId) => {
+    const [kind, id] = String(chatId || '').split(':')
+    if (kind === 'group') return { chatId, kind: 'group', groupId: id, userId: '', nickname: '' }
+    const owner = String(getConfig().ownerQQ || '')
+    return { chatId, kind: 'private', userId: id, nickname: id === owner ? getConfig().ownerName || '主人' : '' }
+  }
   const herVoice = createHerVoice({
     ownerChatId: () => ownerChatOf()?.chatId || '',
     busy: (chatId) => Boolean(hub?.turnRunning?.(chatId)),
-    pushNote: (note) => hub.pushToSession(ownerChatOf(), [{ type: 'text', text: note }], ''),
+    pushNote: (note, chatId) => hub.pushToSession(chatOfId(chatId), [{ type: 'text', text: note }], ''),
     ask: ({ system, text }) => askModel(ctx, { system, text, maxTokens: 400, reasoningEffort: 'low', temperature: 0.8, cfg: getConfig(), module: 'notice' }),
     persona: () => (mind && (() => { try { return mind.selfPrompt() } catch (error) { return '' } })()) || currentPersonaText(getConfig().persona.current),
-    context: () => { try { return mind?.contextFor?.({ chat: ownerChatOf() }) || '' } catch (error) { return '' } },
+    context: (chatId) => { try { return mind?.contextFor?.({ chat: chatOfId(chatId) }) || '' } catch (error) { return '' } },
     send: (chatId, text) => hub.sendText(chatId, text),
     log,
   })

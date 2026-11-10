@@ -19,6 +19,14 @@ export default {
       log: api.log,
       sendVoiceFile: (chatId, file, note) => hub.sendVoiceFile(chatId, file, note),
       sendText: (chatId, text) => hub.sendText(chatId, text),
+      // 翻唱失败那句话不写死：把歌名和真实原因给她，在那个聊天里用她自己的话说（参考原项目 6ac8693）。
+      // 聊天空着就交给那个聊天的会话；正忙就单独组织一句；念了内部信息的句子不发。都不成由 studio 发一句兜底短话。
+      say: async ({ chatId, title, why }) => {
+        const voice = api.core.herVoice
+        if (!voice) throw new Error('没有接上她的说话通道')
+        const r = await voice.tell({ chatId, facts: failFacts(title, why), clean: cleanFailLine })
+        if (!r) throw new Error('她没说出来')
+      },
       onSung: (title, chatId) => {
         const cfg = api.config()
         // 唱过的歌记成她的经历：私聊记到对方头上
@@ -71,4 +79,39 @@ export default {
     })
     return song
   },
+}
+
+// 翻唱失败时给她看的事：歌名 + 真实原因（标明是内部信息），要她自己说一句。
+// 原因写进来是让她知道「为什么没成」，不是让她复述——所以明说不许念技术细节。
+export function failFacts(title, why) {
+  return [
+    `有人点了一首《${title}》，但这次没唱成。`,
+    `内部原因（只给你看，不要念出来，也不要提技术细节、额度、报错原文）：${why || '没说清'}`,
+    '口语一句就好，别用客服腔；可以说得含糊、撒个娇、说回头再试，别编具体的技术理由，不要出现路径、英文报错、错误码、额度数字。',
+  ].join('\n')
+}
+
+const SILENT = /^[\[【(（]\s*沉默\s*[\]】)）]$/
+// 模型万一把内部信息念出来了（报错原文、路径、额度），这句就不能发，交给兜底
+const LEAK = /error|enoent|traceback|http:\/\/|https:\/\/|api[ _-]?key|token|额度|字节|\d+\s*(?:mb|gb)\b/i
+
+/** 把她那一轮说的话洗成一句能直接发出去的：去引号/前缀/多余行，[沉默] 或念了内部信息就当没说话。 */
+export function cleanFailLine(text) {
+  const first = String(text || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[\s>*#-]+/, '').trim())
+    .find(Boolean) || ''
+  if (!first || SILENT.test(first)) return ''
+  const line = first
+    .replace(/^[^\s：:，,。]{1,6}\s*[：:]\s*/, '') // 「名字：」这种前缀
+    .replace(/^[「"'“”『』]+|[」"'“”『』]+$/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!line || SILENT.test(line) || LEAK.test(line)) return ''
+  if (line.length <= 60) return line
+  // 太长就截到第一个句末；实在没有句末就硬截
+  const cut = line.search(/[。！？!?~～]/)
+  return cut >= 4 ? line.slice(0, cut + 1) : line.slice(0, 60)
 }
