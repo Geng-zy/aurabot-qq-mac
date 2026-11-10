@@ -447,10 +447,12 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   async function createSession(chat, level) {
     const failure = sessionFailure(chat.chatId)
     if (failure && Date.now() < failure.until) throw backoffError(chat.chatId, failure)
-    if (sessionCreating.has(chat.chatId)) return sessionCreating.get(chat.chatId)
+    // 正式和调试是两条会话：按模式分开去重，切模式时不会被在途的旧创建挡住
+    const creatingKey = chat.chatId + ':' + (getConfig().debug ? 'debug' : 'live')
+    if (sessionCreating.has(creatingKey)) return sessionCreating.get(creatingKey)
     const task = Promise.resolve().then(() => createSessionNow(chat, level))
-    sessionCreating.set(chat.chatId, task)
-    try { return await task } finally { if (sessionCreating.get(chat.chatId) === task) sessionCreating.delete(chat.chatId) }
+    sessionCreating.set(creatingKey, task)
+    try { return await task } finally { if (sessionCreating.get(creatingKey) === task) sessionCreating.delete(creatingKey) }
   }
 
   async function createSessionNow(chat, level) {
@@ -489,7 +491,13 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     // 旧实例在创建或改名期间卸载时，不能覆盖新实例的会话映射。
     assertActive()
     const m = map()
-    m.chats[chat.chatId] = { sessionId: sid, preset, level, createdAt: Date.now(), title, mode: debug ? 'debug' : 'live' }
+    const prev = m.chats[chat.chatId] || {}
+    const mode = debug ? 'debug' : 'live'
+    // 每种模式各记一条：切回调试 / 正式时能接上原来那条；档位（preset / level）变了就都作废（来自原项目 2a89b90）
+    const sessions = prev.preset === preset && prev.level === level ? { ...(prev.sessions || {}) } : {}
+    if (prev.sessionId && prev.preset === preset && prev.level === level && !sessions[prev.mode || 'live']) sessions[prev.mode || 'live'] = prev.sessionId
+    sessions[mode] = sid
+    m.chats[chat.chatId] = { ...prev, sessionId: sid, mode, sessions, preset, level, createdAt: Date.now(), title }
     saveMap(m)
     log.info(`为 ${chat.chatId} 新建了 DSH 会话 ${sid.slice(-8)}（${preset}${debug ? '，调试' : ''}）`)
     return sid
@@ -512,7 +520,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const entry = map().chats[chat.chatId]
     // 调试和正式用不同的会话：不然切回正式时，调试期间那些对话还在上下文里，等于被她"记住"了
     const mode = cfg.debug ? 'debug' : 'live'
-    let sid = entry && entry.preset === preset && entry.level === level && (entry.mode || 'live') === mode ? entry.sessionId : ''
+    // 每种模式各记一条（entry.sessions）；老数据没有 mode / sessions 字段的一律当正式（来自原项目 2a89b90 / 141c145）
+    const sameLevel = Boolean(entry && entry.preset === preset && entry.level === level)
+    let sid = sameLevel ? ((entry.sessions && entry.sessions[mode]) || ((entry.mode || 'live') === mode ? entry.sessionId : '')) : ''
     let agent = null
     if (sid) {
       try {
@@ -589,6 +599,13 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
         log.info(`${chat.chatId} 的模型切到 ${want}`)
       }
     }
+    // 把这一轮实际用的会话写回映射：复用旧会话时映射可能还停在另一个模式那条，投递守卫会把回复当旧会话的丢掉（来自原项目 2ccbf73）
+    const sync = map()
+    const curEntry = sync.chats[chat.chatId] || {}
+    if (curEntry.sessionId !== sid || (curEntry.mode || 'live') !== mode) {
+      sync.chats[chat.chatId] = { ...curEntry, sessionId: sid, mode, sessions: { ...(curEntry.sessions || {}), [mode]: sid } }
+      saveMap(sync)
+    }
     sessionToChat.set(sessionKey(sid), chat.chatId)
     if (target) sessionTarget.set(sessionKey(sid), { provider: target.provider, model: target.model })
     mount(agent, chat, level)
@@ -605,7 +622,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     if (!cfg.ownerQQ) return { ok: false, message: '还没填主人 QQ' }
     const chat = { kind: 'private', chatId: `private:${cfg.ownerQQ}`, userId: String(cfg.ownerQQ), groupId: '', nickname: cfg.ownerName || '主人' }
     const before = map().chats[chat.chatId]
-    const existed = Boolean(before && (before.mode || 'live') === 'debug')
+    const existed = Boolean(before && ((before.sessions && before.sessions.debug) || (before.mode || 'live') === 'debug'))
     const r = await agentFor(chat)
     if (!existed) log.info(`调试会话建好了：${r.sessionId.slice(-8)}（在左侧栏「Aurabot · QQ」里打开就能直接跟她说话）`)
     return { ok: true, sessionId: r.sessionId, created: !existed, message: existed ? '调试会话已经在了，去左侧栏「Aurabot · QQ」打开它' : '建好了一条调试会话，去左侧栏「Aurabot · QQ」打开它就能直接说话' }
@@ -1334,6 +1351,16 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       clearSlowNotices(key)
       clearRunning(chatId)
       stopTyping(key)
+      // 只让「这个聊天当前模式在用的那条会话」把回复发出去：切过调试 / 正式、或者点过「重新开始」以后，
+      // 旧会话可能还开在侧栏里，在那儿打字，她的回复不该发到 QQ（来自原项目 cd19db4 / 6949a96）
+      if (!chatId.startsWith('system:')) {
+        const cur = map().chats[chatId]
+        const mode = getConfig().debug ? 'debug' : 'live'
+        if (!cur || sessionKey(cur.sessionId) !== key || (cur.mode || 'live') !== mode) {
+          log.info(`${chatId} 的旧会话（${key.slice(0, 8)}…）这一轮不发：它不是当前模式在用的会话`)
+          return release(chatId)
+        }
+      }
       const d = event.data || {}
       const completed = d.reason && d.reason.kind === 'completed'
       let text = st.lastTurn === d.turn ? st.text : ''
@@ -2618,15 +2645,21 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     return mounted.has(sessionKey(sessionId))
   }
 
+  /** 一个聊天记着的所有会话（正式 + 调试，去重）。 */
+  const sessionsOf = (e) => [...new Set([e.sessionId, ...Object.values(e.sessions || {})].filter(Boolean))]
+
   /** 只让一个聊天重新开始：归档它的会话，下一条消息开新会话。 */
   function resetChat(chatId) {
     const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
     const m = map()
     const e = m.chats[chatId]
     if (!e) return false
-    Promise.resolve(reg?.archiveSession?.(e.sessionId)).catch((error) => log.debug('归档会话失败：', error.message))
-    sessionToChat.delete(sessionKey(e.sessionId))
-    turnState.delete(sessionKey(e.sessionId))
+    // 正式和调试两条都归档
+    for (const sid of sessionsOf(e)) {
+      Promise.resolve(reg?.archiveSession?.(sid)).catch((error) => log.debug('归档会话失败：', error.message))
+      sessionToChat.delete(sessionKey(sid))
+      turnState.delete(sessionKey(sid))
+    }
     outputSources.delete(chatId)
     delete m.chats[chatId]
     saveMap(m)
@@ -2640,14 +2673,16 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const m = map()
     let n = 0
     for (const [chatId, e] of Object.entries(m.chats)) {
-      try {
-        // 可能返回 Promise：必须接住 rejection，未处理的 rejection 会让 DSH 宿主退出
-        Promise.resolve(reg?.archiveSession?.(e.sessionId)).catch((error) => log.debug('归档会话失败：', error.message))
-      } catch (error) {
-        log.debug('归档会话失败：', error.message)
+      for (const sid of sessionsOf(e)) {
+        try {
+          // 可能返回 Promise：必须接住 rejection，未处理的 rejection 会让 DSH 宿主退出
+          Promise.resolve(reg?.archiveSession?.(sid)).catch((error) => log.debug('归档会话失败：', error.message))
+        } catch (error) {
+          log.debug('归档会话失败：', error.message)
+        }
+        sessionToChat.delete(sessionKey(sid))
+        turnState.delete(sessionKey(sid))
       }
-      sessionToChat.delete(sessionKey(e.sessionId))
-      turnState.delete(sessionKey(e.sessionId))
       outputSources.delete(chatId)
       delete m.chats[chatId]
       n++
