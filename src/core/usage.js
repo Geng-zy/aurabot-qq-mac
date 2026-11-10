@@ -124,7 +124,7 @@ const MODULE_LABELS = {
   'mind:record': '心智核心（记经历）', 'mind:consolidate': '心智核心（睡觉整理）', 'mind:reconsolidate': '心智核心（记忆改写）',
   'mind:dream': '心智核心（做梦）', 'mind:deep': '心智核心（深想）', 'mind:think': '心智核心（念头）',
   'mind:traits': '心智核心（推性格）', 'mind:selfstory': '心智核心（写自己的故事）', 'mind:outreach': '心智核心（主动找你）', 'mind:permission': '心智核心（申请权限）',
-  speakup: '主动搭话', bridge: '联动接口', 'bili-vision': 'B 站看画面', persona: '人格生成', 'model-ping': '模型测试', background: '其他后台任务',
+  speakup: '主动搭话', bridge: '联动接口', 'bili-vision': 'B 站看画面', persona: '人格生成', 'model-ping': '模型测试', notice: 'QQ 里提醒你（授权 / 提问）', background: '其他后台任务',
 }
 
 /**

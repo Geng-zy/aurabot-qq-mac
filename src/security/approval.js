@@ -8,17 +8,23 @@ const REJECT_RE = /^(取消|拒绝)$/
  * @param {object} o
  * @param {() => object} o.getConfig
  * @param {(chatId:string, text:string) => Promise<any>} o.deliver 发 QQ 消息
+ * @param {(o: { facts: string, must?: string[], fallback: string }) => Promise<any>} [o.speak]
+ *   由她用自己的话说（见 features/her-voice.js）；不给就发 fallback 里的固定文字
  * @param {(sessionId:string) => string} o.chatOfSession DSH session → QQ chatId
  * @param {number} [o.timeoutMs] 等主人回复多久（默认 5 分钟）
  * @param {object} [o.log]
  */
-export function createApprovalRelay({ getConfig, deliver, chatOfSession, timeoutMs = 5 * 60_000, log } = {}) {
+export function createApprovalRelay({ getConfig, deliver, speak, chatOfSession, timeoutMs = 5 * 60_000, log } = {}) {
   const queue = [] // 排队的请求：一次只问一条，「确认」只对正在问的这条生效
   let disposed = false
   let lastAsked = 0
 
   const ownerChat = () => `private:${getConfig().ownerQQ}`
   const send = (text) => Promise.resolve().then(() => deliver(ownerChat(), text)).catch((error) => log?.warn?.('审批消息没发出去：', error.message))
+  /** 告诉主人：有 speak 就让她自己说（facts 只给她看），没有就发固定文字。 */
+  const say = (facts, fallback, must = []) => (typeof speak === 'function'
+    ? Promise.resolve().then(() => speak({ facts, must, fallback })).catch((error) => { log?.warn?.('审批消息没发出去：', error.message); return send(fallback) })
+    : send(fallback))
 
   /** 这个会话的授权请求归 QQ 问：通知那边就不用再发一条。 */
   function handles(sessionId) {
@@ -31,11 +37,17 @@ export function createApprovalRelay({ getConfig, deliver, chatOfSession, timeout
     const lines = ['【要授权】' + (item.toolName || '未知工具')]
     if (item.reason) lines.push('原因：' + String(item.reason).slice(0, 300))
     lines.push(`回复「确认」批准这一次，回复「取消」拒绝；${Math.round(timeoutMs / 60_000)} 分钟没回就不批。` + (left ? `后面还有 ${left} 条。` : ''))
+    const mins = Math.round(timeoutMs / 60_000)
     item.timer = setTimeout(() => {
       settle(item, 'unavailable')
-      send(`「${item.toolName}」的授权超时了，没有批准。`)
+      say(`刚才那个要他批准的「${item.toolName}」，${mins} 分钟里他没回，就没批，你那件事先搁下了。`, `「${item.toolName}」的授权超时了，没有批准。`)
     }, timeoutMs)
-    send(lines.join('\n'))
+    say(
+      `你和他私聊时正在做的事要用到「${item.toolName || '某个工具'}」，DSH 要他授权才能继续。` + (item.reason ? `DSH 给的原因：${String(item.reason).slice(0, 300)}。` : '')
+        + `他回「确认」就批准这一次，回「取消」就不批；${mins} 分钟没回就算不批。` + (left ? `后面还有 ${left} 件也在等他批。` : ''),
+      lines.join('\n'),
+      ['确认', '取消'],
+    )
   }
 
   function settle(item, outcome) {
@@ -72,7 +84,7 @@ export function createApprovalRelay({ getConfig, deliver, chatOfSession, timeout
       if (queue.length === 1) ask(item)
       // 网页那边也能答：有结果就收掉 QQ 这边的问题；没人答（unavailable）就继续等主人回 QQ
       Promise.resolve().then(next).then((outcome) => {
-        if (outcome !== 'unavailable' && settle(item, outcome)) send(`「${item.toolName}」已经在 DSH 里处理了。`)
+        if (outcome !== 'unavailable' && settle(item, outcome)) say(`「${item.toolName}」那件事他已经在电脑上的 DSH 里处理了，不用再在 QQ 里回了。`, `「${item.toolName}」已经在 DSH 里处理了。`)
       }, () => {})
     })
   }
@@ -85,7 +97,8 @@ export function createApprovalRelay({ getConfig, deliver, chatOfSession, timeout
     if (!outcome) return false
     const item = queue[0]
     settle(item, outcome)
-    send(outcome === 'allowed-once' ? `批准了这一次：${item.toolName}` : `拒绝了：${item.toolName}`)
+    say(outcome === 'allowed-once' ? `他刚在 QQ 里批准了这一次「${item.toolName}」，你接着做。` : `他刚在 QQ 里没批「${item.toolName}」，那一步你不做了。`,
+      outcome === 'allowed-once' ? `批准了这一次：${item.toolName}` : `拒绝了：${item.toolName}`)
     return true
   }
 

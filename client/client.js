@@ -1408,7 +1408,35 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       )
     }
 
-    function Access({ st, draft, setDraft }) {
+    /**
+     * 按工作区控制「授权 / 提问」要不要在 QQ 里说（移植自原项目 354160e）。
+     * 工作区是 DSH 动态登记的，所以单独拉接口，不走配置表单的 draft。
+     */
+    function NoticeWorkspaces({ toast }) {
+      const [info, setInfo] = useState(null)
+      const load = async () => {
+        try { setInfo(await get('/notice/state')) } catch (e) { setInfo({ ok: false, workspaces: [] }) }
+      }
+      useEffect(() => { load() }, [])
+      const toggle = async (kind, workspace, value) => {
+        try {
+          const r = await post('/notice/toggle', { kind, workspace, value })
+          if (r && r.ok === false) toast(r.message, 'err')
+          await load()
+        } catch (e) { toast(e.message, 'err') }
+      }
+      const list = info?.workspaces || []
+      return h('div', { style: { marginTop: 6 } },
+        h('div', { className: 'ab-small ab-muted', style: { margin: '4px 0' } }, '按工作区分开管（点了立刻生效）：'),
+        list.length === 0
+          ? h('div', { className: 'ab-muted ab-small' }, info ? '这个 DSH 里还没有工作区。' : '读取中…')
+          : list.map((w) => h(Row, { key: w.path, label: w.name, hint: w.path + (w.sessions ? ` · ${w.sessions} 个会话` : '') },
+            h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+              h('span', { className: 'ab-small ab-muted' }, '授权'), h(Switch, { on: w.approval, onChange: (v) => toggle('approval', w.path, v) }),
+              h('span', { className: 'ab-small ab-muted' }, '提问'), h(Switch, { on: w.question, onChange: (v) => toggle('question', w.path, v) })))))
+    }
+
+    function Access({ st, draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '主人', desc: '主人的 QQ 号。群管、点歌、电脑上的操作只听主人的。' },
@@ -1422,7 +1450,12 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
                 { value: 'chat', label: '纯聊天', desc: '什么工具都没有，只聊天' },
               ] }),
               h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '切换后会给主人私聊换一个新的 DSH 会话（旧的还在侧栏里）。'))),
-          h(Row, { label: 'DSH 要授权时发到 QQ', hint: '人不在电脑前也知道ta卡住了。' }, f.sw('approvalNotify')),
+          h(Row, { label: 'DSH 卡住时在 QQ 里说一声', hint: '有会话在等授权、等你选东西时，她用自己的话跟你说一句（不是固定通知）。人不在电脑前也知道。' }, f.sw('notice.enabled')),
+          draft.notice?.enabled === false ? null : [
+            h(Row, { key: 'a', label: '要授权时', hint: '工具卡住、等你点批准的时候' }, f.sw('notice.approval')),
+            h(Row, { key: 'q', label: '要选选项时', hint: '有会话在等你选东西的时候' }, f.sw('notice.question')),
+            h(NoticeWorkspaces, { key: 'w', toast }),
+          ],
           h(Row, { label: 'QQ 接口', hint: '让她用 QQ 的其他能力：别人只能查当前群的公告、精华这些；撤回、设精华、改群名片等只听你的。取 Cookie、发原始包、删好友、退群这些不开放。' }, f.sw('qqApi.enabled')),
           h(Row, { label: '在 QQ 里批准', hint: '和你私聊时要授权，回复「确认」批准这一次、回复「取消」拒绝，5 分钟没回就不批。只认你本人的私聊回复，DSH 里也能同时点。QQ 号被盗的话，对方也能批，介意就关掉' }, f.sw('approvalViaQQ')),
           h(Row, { label: '长任务模式', hint: '只在「完整」权限下生效。打开后ta能把命令放到后台跑、跑完自动回来告诉你，也能设定时任务；工具多一点，回话会稍慢。切换后同样换新会话。' },
@@ -5095,7 +5128,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
         stickers: Stickers, imagegen: ImageGen, diary: Diary, inner: MindInner, pet: PetPanel, now: MindNow, mood: Mood, persona: MindPeople, selfmind: MindSelf, mindsettings: MindSettings, song: Song, bili: Bili, douyin: Douyin, heybox: Heybox, local: LocalApi, browser: Browser, security: Security, market: Market, modules: Modules, logs: Logs, about: About, backup: Backup,
       }[curTab.id] || Overview
       // 哪些标签有没保存的改动
-      const TAB_KEYS = { connect: ['snowluma', 'botQQ'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'approvalNotify', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow'], group: ['group', 'merge', 'titleFilter', 'chat'], model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice'], stickers: ['stickers'], imagegen: ['imageGen'], diary: ['diary', 'qzoneSocial'], pet: [], mood: ['mind', 'memory'], song: ['song'], bili: ['bili'], douyin: ['douyin'], heybox: ['heybox'], local: ['local'], browser: ['browser'], security: ['security', 'update'] }
+      const TAB_KEYS = { connect: ['snowluma', 'botQQ'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow'], group: ['group', 'merge', 'titleFilter', 'chat'], model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice'], stickers: ['stickers'], imagegen: ['imageGen'], diary: ['diary', 'qzoneSocial'], pet: [], mood: ['mind', 'memory'], song: ['song'], bili: ['bili'], douyin: ['douyin'], heybox: ['heybox'], local: ['local'], browser: ['browser'], security: ['security', 'update'] }
       const tabDirty = (id) => {
         if (!dirty) return false
         if (id.startsWith('ext:')) { const k = id.slice(4); return JSON.stringify((draft.ext || {})[k]) !== JSON.stringify((cfg.ext || {})[k]) }

@@ -3079,6 +3079,8 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     sendSegments,
     pushToSession,
     receiveOwnerMessage,
+    /** 这个聊天这一轮还在跑（她在想 / 在等工具、等授权）。 */
+    turnRunning: (chatId) => running.has(String(chatId)),
     titleFilter,
     runSystemTurn,
     runSubagentTurn,

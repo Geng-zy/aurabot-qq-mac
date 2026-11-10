@@ -30,6 +30,7 @@ function fakePng(w, h, salt = 0) {
 
 // 「模型」脚本
 async function brain({ preset, text, images, callTool }) {
+  if (text.includes('【你看到的事，不是主人说的话】')) return '你电脑上 pwsh 那俩会话卡住啦，去点一下批准嘛'
   if (text.includes('调试对话测试')) return '调试里回你<feel>{"e":[{"n":"开心","i":0.9}]}</feel>'
   if (text.includes('感受测试')) return '好呀|||嘿嘿<feel>{"e":[{"n":"开心","i":0.6,"who":"10000001","why":"被夸了"}]}</feel>'
   if (text.includes('at+表情测试')) return '<at:10000001> 看这个<sticker:开心>'
@@ -1476,7 +1477,7 @@ test('来源章标明说话人：主人 owner，别人 guest，后台任务 none
   assert.deepEqual((await last(() => api.hub.runSystemTurn('source-test', '来源章', '后台任务', { timeoutMs: 5000 }).catch(() => {}))).speaker, { role: 'none' })
 })
 
-test('DSH 要授权时只通知 Aurabot · QQ 会话，别的项目不转到 QQ（#136）', async () => {
+test('DSH 要授权时她用自己的话说一句：几条合并、重复去重（#136，移植自原项目 354160e）', async () => {
   let sid = api.hub.sessions()['private:10000001']?.sessionId
   if (!sid) {
     const n = fake.turns.length
@@ -1487,19 +1488,22 @@ test('DSH 要授权时只通知 Aurabot · QQ 会话，别的项目不转到 QQ�
   assert.ok(sid, '主人私聊会话已建好')
   await sleep(300)
   const before = mock.calls.length
+  const turnsBefore = fake.turns.length
   const ask = { type: 'approval/asked', data: { id: 'approval-1', toolName: 'pwsh', reason: '要跑命令' } }
   fake.emit('session/event', { id: sid, title: '测试会话' }, ask)
   fake.emit('session/event', { id: sid, title: '测试会话' }, ask)
-  await until(() => mock.calls.slice(before).some((c) => c.action === 'send_private_msg'))
-  await sleep(100)
-  const sent = mock.calls.slice(before).filter((c) => c.action === 'send_private_msg' && String(c.params.user_id) === OWNER)
-  assert.equal(sent.length, 1)
-  assert.match(JSON.stringify(sent[0].params.message), /要授权.*pwsh.*DSH 界面/)
-
-  const afterFirst = mock.calls.length
   fake.emit('session/event', { id: 'external-workspace-session', title: '另一个项目' }, { type: 'approval/asked', data: { id: 'approval-external', toolName: 'pwsh', reason: '别的项目' } })
-  await sleep(150)
-  assert.equal(mock.calls.slice(afterFirst).filter((c) => c.action === 'send_private_msg').length, 0, '非 Aurabot 工作区不能发 QQ 通知')
+  // 合并窗口是 8 秒，等它吐出来
+  await until(() => mock.calls.slice(before).some((c) => c.action === 'send_private_msg' && String(c.params.user_id) === OWNER), 15000)
+  await sleep(300)
+  const sent = mock.calls.slice(before).filter((c) => c.action === 'send_private_msg' && String(c.params.user_id) === OWNER)
+  assert.equal(sent.length, 1, '窗口内的几条合并成一条，重复的按 id 去重')
+  assert.match(JSON.stringify(sent[0].params.message), /去点一下批准嘛/, '发出去的是她自己的话')
+  assert.doesNotMatch(JSON.stringify(sent[0].params.message), /【要授权】/, '不是固定模板')
+  const note = fake.turns.slice(turnsBefore).find((t) => String(t.userText).includes('【你看到的事'))
+  assert.ok(note, '事情交给了她的私聊会话')
+  assert.match(String(note.userText), /测试会话[\s\S]*另一个项目|另一个项目[\s\S]*测试会话/, '两件事都给了她')
+  assert.equal((String(note.userText).match(/卡在「pwsh」/g) || []).length, 2)
 })
 
 test('主人私聊里这一轮的说话人记录丢了，也按主人算（#90 兜底）', async () => {

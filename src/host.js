@@ -34,6 +34,8 @@ import { listPersonas, readPersona, savePersona, deletePersona, currentPersonaTe
 import { createModules, API_VERSION } from './core/modules.js'
 import { createCommunity } from './core/community.js'
 import { createApprovalRelay } from './security/approval.js'
+import { createNoticeRelay, normalizeWorkspace } from './features/notice.js'
+import { createHerVoice } from './features/her-voice.js'
 import { captureSystemPrompt } from './security/leak-guard.js'
 import { applyPendingRestore, cancelRestore, createBackup, listBackups, pendingModules, pendingRestore, saveUpload, setPendingModules, stageRestore } from './core/backup.js'
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
@@ -614,7 +616,19 @@ export function apply(ctx) {
     ownerQQ: () => cfg.ownerQQ,
   })
   core.dangerGuard = dangerGuard
-  approvalRelay = createApprovalRelay({ getConfig, deliver: (chatId, text) => hub.sendText(chatId, text), chatOfSession: (id) => hub.chatOfSession(id), log })
+  // 要告诉主人的事（授权、提问、QQ 里批没批）由她用自己的话说，不发固定模板（见 features/her-voice.js）
+  const ownerChatOf = () => { const qq = String(getConfig().ownerQQ || ''); return qq ? { chatId: 'private:' + qq, kind: 'private', userId: qq, nickname: getConfig().ownerName || '主人' } : null }
+  const herVoice = createHerVoice({
+    ownerChatId: () => ownerChatOf()?.chatId || '',
+    busy: (chatId) => Boolean(hub?.turnRunning?.(chatId)),
+    pushNote: (note) => hub.pushToSession(ownerChatOf(), [{ type: 'text', text: note }], ''),
+    ask: ({ system, text }) => askModel(ctx, { system, text, maxTokens: 400, reasoningEffort: 'low', temperature: 0.8, cfg: getConfig(), module: 'notice' }),
+    persona: () => (mind && (() => { try { return mind.selfPrompt() } catch (error) { return '' } })()) || currentPersonaText(getConfig().persona.current),
+    context: () => { try { return mind?.contextFor?.({ chat: ownerChatOf() }) || '' } catch (error) { return '' } },
+    send: (chatId, text) => hub.sendText(chatId, text),
+    log,
+  })
+  approvalRelay = createApprovalRelay({ getConfig, deliver: (chatId, text) => hub.sendText(chatId, text), speak: (o) => herVoice.tell({ ...o, via: 'direct' }), chatOfSession: (id) => hub.chatOfSession(id), log })
   ctx.effect(() => {
     let off = null
     try { off = ctx.on('approval/request', (request, next) => approvalRelay.onRequest(request, next)) } catch (error) { log.debug('挂审批应答失败：', error.message) }
@@ -677,46 +691,88 @@ export function apply(ctx) {
     if (getConfig().debug) hub.ensureDebugSession().catch((error) => log.warn('建调试会话失败：', error.message))
   })
 
-  // ---------- 审批请求：DSH 要授权时把请求发到 QQ ----------
-  // 说明：DSH 的批准动作只能由界面回答（host 拿不到应答通道），所以这里只做通知。
-  const approvalSeen = new Map()
-  // 授权通知只看 Aurabot · QQ 工作区：既包括 hub 映射的聊天会话，也包括同一工作区里
-  // 主人手动打开 / 调试 / 新建的会话。别的 DSH 项目的会话一律不转到 QQ。
-  function isAurabotWorkspaceSession(session) {
-    if (!session?.id) return false
-    try { if (hub?.chatOfSession?.(session.id)) return true } catch (error) {}
+  // ---------- 审批 / 提问：DSH 要人处理时，她在 QQ 里跟你说一声（移植自原项目 354160e）----------
+  // 只上报，不代答：DSH 界面照常弹，谁在电脑前谁点。按工作区分别开关（config.notice）。
+  function workspaceList() {
     try {
       const reg = ctx.workspaceRegistry || ctx.get?.('workspaceRegistry')
-      const norm = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
-      const ws = (reg?.list?.() || []).find((w) => norm(w.path) === norm(workspaceDirOf(getConfig())))
-      return Boolean(ws?.sessionIds?.some((sid) => String(sid) === String(session.id)))
-    } catch (error) {
-      return false
-    }
+      return reg?.list?.() || []
+    } catch (error) { return [] }
   }
+  function workspaceOfSession(sessionId) {
+    const sid = String(sessionId || '')
+    if (!sid) return ''
+    const hit = workspaceList().find((w) => (w?.sessionIds || []).some((x) => String(x) === sid))
+    return hit ? String(hit.path || '') : ''
+  }
+  const clock = (t) => {
+    const d = new Date(Number(t) || Date.now())
+    const p = (n) => String(n).padStart(2, '0')
+    return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+  }
+  // 上一次说这类事的时间：10 秒内不再说，连着进来几批时不刷屏（没说出去的留在队列里重试）
+  let lastNoticeAt = 0
+  /** 把攒下来的几件事交给她，用她自己的话说（facts 只给她看，不原样发出去）。 */
+  async function noticeCompose(items) {
+    const list = Array.isArray(items) ? items : []
+    if (!list.length || !hub) return false
+    if (Date.now() - lastNoticeAt < 10000) return false
+    const lines = list.map((it, i) => {
+      const title = String(it.title || '未命名').slice(0, 40)
+      const ws = workspaceOfSession(it.sessionId)
+      const where = `会话「${title}」` + (ws ? `，在 ${ws.split('/').filter(Boolean).pop()} 这个项目里` : '')
+      if (it.kind === 'approval') return `${i + 1}. [${clock(it.at)}] ${where}卡在「${it.tool || '某个工具'}」上，等他在 DSH 里点批准` + (it.reason ? `（原因：${String(it.reason).slice(0, 120)}）` : '')
+      const q = (it.questions || []).map((x) => x?.question).filter(Boolean)[0] || '有个问题'
+      return `${i + 1}. [${clock(it.at)}] ${where}在等他选：${String(q).slice(0, 80)}`
+    })
+    const facts = `他电脑上的 DSH 里有活卡住了，要他去 DSH 界面处理（现在 ${clock(Date.now())}；每一条是单独的一件事）：\n${lines.join('\n')}`
+    const done = await herVoice.tell({ facts, fallback: `DSH 里有 ${list.length} 件事在等你处理：\n` + lines.map((l) => l.replace(/等他/g, '等你')).join('\n') })
+    if (done) lastNoticeAt = Date.now()
+    return Boolean(done)
+  }
+  const noticeRelay = createNoticeRelay({ getConfig, workspaceOf: workspaceOfSession, compose: noticeCompose, log })
   async function notifyApproval(session, event) {
     try {
-      if (!cfg.enabled || cfg.dryRun || cfg.approvalNotify === false) return
-      if (!isAurabotWorkspaceSession(session)) return
+      if (!cfg.enabled || cfg.dryRun) return
       const d = event.data || {}
       const id = String(d.id || '')
-      if (!id || approvalSeen.has(id)) return
-      approvalSeen.set(id, Date.now())
-      // 等一下看 QQ 有没有问：问了就不用再通知；没问（比如审批没走到插件）照常通知，主人不会什么都收不到
+      if (!id) return
+      // 等一下看 QQ 有没有问：问了就不用再说一遍；没问（比如审批没走到插件）照常说，你不会什么都收不到
       if (approvalRelay?.handles(session?.id)) {
         await new Promise((r) => setTimeout(r, 1500))
         if (approvalRelay.askedRecently()) return
       }
-      if (approvalSeen.size > 200) { for (const [k, t] of approvalSeen) if (Date.now() - t > 6 * 3600_000) approvalSeen.delete(k) }
       let title = ''
-      try { title = String(session?.title || session?.id || '') } catch (error) {}
-      const lines = ['【要授权】' + (d.toolName || '未知工具')]
-      if (d.reason) lines.push('原因：' + String(d.reason).slice(0, 300))
-      if (title) lines.push('会话：' + title.slice(0, 60))
-      lines.push('这个会话的授权要在 DSH 界面里点「批准」。')
-      await hub.sendText(`private:${cfg.ownerQQ}`, lines.join('\n'))
+      try { title = String(session?.title || '').trim() } catch (error) {}
+      if (!title) title = String(session?.id || '').slice(-8) // 会话事件里常常没带标题：用 id 后 8 位兜底
+      const queued = noticeRelay.announce('approval', { id, sessionId: session?.id, title, tool: d.toolName, reason: d.reason })
+      log.info(`审批上报：${d.toolName || '?'}（会话 ${String(session?.id || '').slice(-8) || '?'}）→ ${queued ? '已入队' : (noticeRelay.enabled('approval', session?.id) ? '重复/已在队列' : '被开关挡掉')}`)
     } catch (error) {
       log.debug?.('审批通知失败：', error.message)
+    }
+  }
+  // 要人选选项：从全局的 tool/call 事件认（user-questions/request 是 agent 级的，插件根 scope 收不到）
+  function noticeQuestion(session, event) {
+    try {
+      const d = event?.data || {}
+      const sid = String(session?.id || '')
+      if (!sid) return
+      if (event.type === 'tool/call' && d.name === 'ask_user_question' && d.callId) {
+        // 她自己在 QQ 聊天会话里问的，那边会话本身就会发出去，不用再报
+        if (hub?.chatOfSession?.(sid)) return
+        let qs = []
+        try { qs = JSON.parse(String(d.arguments || '{}')).questions || [] } catch (error) {}
+        if (!Array.isArray(qs) || !qs.length) return
+        let title = ''
+        try { title = String(session?.title || '').trim() } catch (error) {}
+        if (!title) title = sid.slice(-8)
+        const queued = noticeRelay.announce('question', { id: `q:${sid}:${d.callId}`, sessionId: sid, title, questions: qs })
+        log.info(`提问上报：${qs.length} 个问题（${title}）→ ${queued ? '已入队' : (noticeRelay.enabled('question', sid) ? '重复/已在队列' : '被开关挡掉')}`)
+      } else if (event.type === 'tool/result' && d.toolCallId) {
+        noticeRelay.cancel(`q:${sid}:${d.toolCallId}`) // 答完 / 超时跳过：还没说出去的那条撤掉
+      }
+    } catch (error) {
+      log.debug?.('提问上报失败：', error.message)
     }
   }
 
@@ -735,6 +791,9 @@ export function apply(ctx) {
       } catch (error) { log.debug?.('桌宠状态联动出错：', error.message) }
       // 审批请求顺手通知到主人私聊（只通知，不代答）
       if (event && event.type === 'approval/asked') notifyApproval(session, event)
+      // 你已经点过了：还在缓冲里的那条撤掉，别等你点完才提醒
+      if (event && event.type === 'approval/decided') { try { noticeRelay.cancel(String(event.data?.id || '')) } catch (error) {} }
+      if (event && (event.type === 'tool/call' || event.type === 'tool/result')) noticeQuestion(session, event)
     })
     return () => { try { if (typeof off === 'function') off() } catch (error) {} }
   }, 'aurabot: 盯会话')
@@ -1670,6 +1729,40 @@ export function apply(ctx) {
     pushTimer = setTimeout(() => { pushTimer = null; if (alive()) doPush(true) }, next.getTime() - Date.now())
     pushTimer.unref?.()
   }
+  // 上报开关：按工作区分别控制「授权」「提问」要不要在 QQ 里说
+  route('/notice/state', async () => {
+    const n = getConfig().notice || {}
+    const workspaces = workspaceList().map((w) => {
+      const path = String(w?.path || '')
+      const o = n.workspaces?.[normalizeWorkspace(path)] || {}
+      return {
+        path,
+        name: String(w?.name || path.split(/[\\/]/).filter(Boolean).pop() || path),
+        sessions: Array.isArray(w?.sessionIds) ? w.sessionIds.length : 0,
+        approval: typeof o.approval === 'boolean' ? o.approval : n.approval !== false,
+        question: typeof o.question === 'boolean' ? o.question : n.question !== false,
+      }
+    })
+    return { ok: true, enabled: n.enabled !== false, approval: n.approval !== false, question: n.question !== false, workspaces }
+  })
+  route('/notice/toggle', async (req) => {
+    const b = await readBody(req)
+    const kind = b.kind === 'question' ? 'question' : 'approval'
+    const value = b.value !== false
+    const notice = structuredClone(getConfig().notice || {})
+    notice.workspaces = notice.workspaces || {}
+    const ws = String(b.workspace || '').trim()
+    if (ws) {
+      // 只接受绝对路径：相对路径写进配置只会变成永远对不上的键
+      if (!ws.startsWith('/')) return { ok: false, message: '工作区要填完整路径' }
+      const key = normalizeWorkspace(ws)
+      notice.workspaces[key] = { ...(notice.workspaces[key] || {}), [kind]: value }
+    } else {
+      notice[kind] = value
+    }
+    setConfig({ ...getConfig(), notice })
+    return { ok: true, notice: getConfig().notice }
+  })
   route('/local/status', async () => ({ ok: true, dir: local.dir(), list: local.status() }))
   route('/local/template', async (req) => {
     const slot = String((await readBody(req)).slot || '')
