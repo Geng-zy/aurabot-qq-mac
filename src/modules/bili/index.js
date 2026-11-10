@@ -24,10 +24,20 @@ export default {
     })
     const danmaku = createDanmaku(api)
     const bili = createBili({
-      getConfig: api.config, hub, memory: api.lazy('memory'), log: api.log, dsh: api.dsh,
+      getConfig: api.config, hub, mind: api.mind, log: api.log, dsh: api.dsh,
       afterBrowse: danmaku.afterBrowse,
     })
-    api.every(60_000, () => bili.tick(), '刷B站')
+    api.every(60_000, () => bili.tick(), '看B站有没有人回')
+    // 去刷视频由她自己决定：无聊了、好奇了、想看点好看的
+    api.mind?.offer?.({
+      id: 'browse', label: '刷 B 站', needs: { fun: 1, curiosity: 0.6, beauty: 0.3 }, effort: 0.15, delayHours: 0.05,
+      cooldownMinutes: Math.max(30, (api.config().bili.intervalHours || 1) * 60), payoff: 0.65, keywords: ['B站', 'b站', '刷视频', '看视频'],
+      available: () => bili.canBrowse(),
+      run: async () => {
+        const r = await bili.run()
+        return { ok: Boolean(r?.ok), summary: r?.message || '', outcome: r?.ok ? Math.min(1, 0.5 + 0.1 * (r.watched || 0) + 0.1 * (r.shared || 0)) : 0 }
+      },
+    })
 
     // 看视频谁发的链接都能看，评论要主人开口
     api.tool(({ chat, sessionId }) => {

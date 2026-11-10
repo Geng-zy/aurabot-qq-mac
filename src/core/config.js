@@ -79,7 +79,7 @@ export const DEFAULTS = {
   },
   persona: { current: 'dafeiyu' },
   // 主人私聊里问起群里的事：把最近 24 小时的群聊流水补进这一轮（默认关，开启前先把群加进白名单）
-  group: { ...DEFAULT_GROUP_POLICY, overrides: {}, ownerBrief: { enabled: false, lines: 12, groups: [] } },
+  group: { ...DEFAULT_GROUP_POLICY, overrides: {} },
   // 按群头衔不回：勾选的群里，专属头衔正好是 title 的成员（一般是别的机器人）说话、戳她都不理。没勾群就不起作用
   titleFilter: { enabled: true, groups: [], title: '大肥鱼' },
   voice: {
@@ -225,27 +225,9 @@ export const DEFAULTS = {
     maxPerDay: 8, // 每天最多评论几条（点赞不算）
     intervalMin: 30, // 多久逛一次空间
   },
-  speakUp: {
-    enabled: true, // 只在和主人的私聊里主动找你，群里不会
-    idleMinutes: 40,
-    minIntervalMinutes: 60,
-    maxIntervalMinutes: 180,
-    maxPerDay: 20, // 每个人每天最多几次；留空就是 20
-    allow: [], // 主动搭话白名单：除主人外还会主动找谁（QQ 号）
-    nudge: true, // 她问了你一句、你一直没回时，偶尔轻轻追一句
-    awakeFrom: 8,
-    awakeTo: 23,
-  },
-  mood: { enabled: true, halfLifeHours: 3, judge: false, base: 60 }, // base：心情基线（0~100 里算「平常」的那个值）；judge：每轮聊完用模型判一次心情（更准，每轮多一次很短的调用）；关着用关键词
   chat: { seedHistory: false, seedHistoryCount: 20 }, // seedHistory：新会话第一次说话时先补最近几条历史（默认关）
-  memory: {
-    enabled: true, recallCount: 6, recallMode: 'always', recallTriggers: ['上次', '上回', '之前', '以前', '那天', '那次', '还记得', '记不记得', '说过', '提过', '答应', '约好', '那时候'],
-    dailyConsolidate: true, consolidateTimes: ['04:00', '16:00'], keepChatlogDays: 7, keepChatlogSet: false, mergeGroups: false, compress: true, compressAfterDays: 14, instantCommands: true, groupMemory: true, searchRrf: true,
-    profileFieldChars: 40, profilePeople: 2, profileChars: 240, chatImpression: true, chatImpressionChars: 120, dislikeSilence: 0.85,
-    shortTerm: true, shortTermHours: 2, shortTermIdleMinutes: 3, shortTermChars: 150,
-    gistEnabled: true, gistDays: 180, impressionDays: 365, gistDailyBatches: 6, tierDays: { 1: 7, 2: 30, 3: 90 },
-    extractIdleMinutes: 30, extractMinLines: 20, extractDailyBatches: 24, capacity: { auto: 2000, event: 600, diary: 400 }, eventExpireDays: 90, vector: { enabled: false, baseUrl: '', model: '', apiKey: '' },
-  }, // extractIdleMinutes 为 0 时关闭空闲提炼；手动记忆不受容量限制
+  // 聊天流水 chatlog/ 留多久（记忆本身在心智核心里）
+  memory: { keepChatlogDays: 7, keepChatlogSet: false },
   song: {
     enabled: false,
     root: '', // 翻唱环境目录，留空 = ~/Aurabot/rvc
@@ -281,6 +263,10 @@ export const DEFAULTS = {
     http: false, // 开放 HTTP 接口（要带密钥）
     token: '', // 第一次打开时自动生成
     allowTargets: 'whitelist', // 外部能发给谁：whitelist = 白名单里的人和群；owner = 只能发给主人
+  },
+  // 心智核心在 Aurabot 这边要的东西（其余设置都在心智核心自己的库里）
+  mind: {
+    embedKey: '', // 向量接口的密钥（默认 SiliconFlow）；第一次从旧记忆模块的设置里带过来
   },
 }
 
@@ -385,10 +371,7 @@ export function normalize(raw) {
   if (!Array.isArray(g.quietHours) || g.quietHours.length !== 2) g.quietHours = DEFAULT_GROUP_POLICY.quietHours
   g.quietHours = g.quietHours.map((h) => num(h, 0, 0, 23))
   if (!isObj(g.overrides)) g.overrides = {}
-  if (!isObj(g.ownerBrief)) g.ownerBrief = { enabled: false, lines: 12, groups: [] }
-  g.ownerBrief.enabled = bool(g.ownerBrief.enabled, false)
-  g.ownerBrief.lines = num(g.ownerBrief.lines, 12, 1, BIG)
-  g.ownerBrief.groups = qqList(g.ownerBrief.groups)
+  delete g.ownerBrief // 「主人私聊：群聊摘要」换成了心智核心的「别的聊天里刚发生了什么」
   c.voice.autoChance = num(c.voice.autoChance, 0.15, 0, 1)
   c.voice.autoMaxChars = num(c.voice.autoMaxChars, 80, 1, BIG)
   c.voice.emojiSeparate = c.voice.emojiSeparate !== false
@@ -432,13 +415,6 @@ export function normalize(raw) {
   c.diary.maxChars = num(c.diary.maxChars, 140, 1, BIG)
   c.diary.visibility = DIARY_AUDIENCES.includes(c.diary.visibility) ? c.diary.visibility : 'all'
   c.diary.audienceQQs = qqList(c.diary.audienceQQs).slice(0, 200).join('\n')
-  c.speakUp.idleMinutes = num(c.speakUp.idleMinutes, 40, 1, BIG)
-  c.speakUp.nudge = bool(c.speakUp.nudge, true)
-  c.speakUp.minIntervalMinutes = num(c.speakUp.minIntervalMinutes, 90, 1, BIG)
-  c.speakUp.maxIntervalMinutes = Math.max(c.speakUp.minIntervalMinutes, num(c.speakUp.maxIntervalMinutes, 240, 1, BIG))
-  // 留空就是 20，上限不封顶
-  c.speakUp.maxPerDay = c.speakUp.maxPerDay === '' || c.speakUp.maxPerDay == null ? 20 : num(c.speakUp.maxPerDay, 20, 0, BIG)
-  c.speakUp.allow = [...new Set((Array.isArray(c.speakUp.allow) ? c.speakUp.allow : []).map((q) => String(q).trim()).filter((q) => /^\d{5,}$/.test(q)))]
   const q = c.qzoneSocial
   q.enabled = bool(q.enabled, true)
   q.replyOwn = bool(q.replyOwn, true)
@@ -447,10 +423,7 @@ export function normalize(raw) {
   q.friendChance = num(q.friendChance, 0.3, 0, 1)
   q.ownerChance = num(q.ownerChance, 0.7, 0, 1)
   q.maxPerDay = num(q.maxPerDay, 8, 0, BIG)
-  q.intervalMin = num(q.intervalMin, 30, 1, BIG)
-  c.mood.halfLifeHours = num(c.mood.halfLifeHours, 3, 0.1, BIG)
-  c.mood.base = num(c.mood.base, 60, 0, 100)
-  c.mood.judge = bool(c.mood.judge, false)
+  delete q.intervalMin // 什么时候逛空间由她自己决定（心智核心的动机）
   for (const k of ['tts', 'image', 'song', 'asr', 'video']) c.local[k] = bool(c.local[k], false)
   c.local.videoTimeoutMin = num(c.local.videoTimeoutMin, 20, 1, BIG)
   const b = c.bili
@@ -525,50 +498,24 @@ export function normalize(raw) {
   // 1.0.x 的 douyin-im / 私信相关设置都不用了
   for (const k of ['atOwnerOnLikeChance', 'minimize', 'socialInterruptBrowse', 'replyPollMinutes']) delete d[k]
 
-  delete c.mood.maxInjectPerDay // 旧版的「每天最多提醒几次」，现在心情明显时每轮都会带上
+  // 心智核心接手以后不用的旧设置：主动搭话、心情、旧记忆模块（向量密钥先搬到 mind.embedKey）
+  const oldVectorKey = String(raw?.memory?.vector?.apiKey || '').trim()
+  delete c.speakUp
+  delete c.mood
+  delete c.purpose
+  for (const id of ['speakup', 'mood', 'purpose', 'memory']) if (isObj(c.modules)) delete c.modules[id]
   // 老配置里插件自己管 SnowLuma 用的设置（只有原版的 Windows 才有），这里用不到
   for (const k of ['dir', 'autoStart', 'webuiPort', 'webuiPassword', 'passwordAuto', 'autoAttach']) delete c.snowluma[k]
-  // 老配置只有一个 consolidateAt：换成两个时间点（它 + 12 小时后）
-  if (!Array.isArray(raw?.memory?.consolidateTimes) && raw?.memory?.consolidateAt) {
-    const [hh, mm] = hhmm(raw.memory.consolidateAt, '04:00').split(':').map(Number)
-    c.memory.consolidateTimes = [`${hh}:${String(mm).padStart(2, '0')}`, `${(hh + 12) % 24}:${String(mm).padStart(2, '0')}`]
-  }
-  delete c.memory.consolidateAt
-  c.memory.consolidateTimes = [...new Set((Array.isArray(c.memory.consolidateTimes) ? c.memory.consolidateTimes : String(c.memory.consolidateTimes || '').split(/[\s,，]+/)).map((t) => hhmm(t, '')).filter(Boolean).map((t) => t.padStart(5, '0')))].sort().slice(0, 4)
-  if (!c.memory.consolidateTimes.length) c.memory.consolidateTimes = ['04:00', '16:00']
   c.chat = c.chat || {}
   c.chat.seedHistory = bool(c.chat.seedHistory, false)
   c.chat.seedHistoryCount = num(c.chat.seedHistoryCount, 20, 1, BIG)
-  c.memory.recallCount = num(c.memory.recallCount, 6, 0, BIG)
-  c.memory.recallMode = c.memory.recallMode === 'trigger' ? 'trigger' : 'always'
-  c.memory.recallTriggers = [...new Set((Array.isArray(c.memory.recallTriggers) ? c.memory.recallTriggers : String(c.memory.recallTriggers || '').split(/[\n,，;；]+/)).filter((x) => typeof x === 'string').map((x) => x.trim().slice(0, 40)).filter(Boolean))].slice(0, 100)
-  for (const k of ['chatImpression', 'gistEnabled', 'shortTerm']) c.memory[k] = bool(c.memory[k], true)
-  c.memory.dislikeSilence = num(c.memory.dislikeSilence, 0.85, 0, 1)
-  c.memory.shortTermHours = num(c.memory.shortTermHours, 2, 0.1, BIG)
-  c.memory.shortTermIdleMinutes = num(c.memory.shortTermIdleMinutes, 3, 0, BIG)
-  c.memory.shortTermChars = Math.round(num(c.memory.shortTermChars, 150, 1, BIG))
-  for (const k of ['profileFieldChars', 'profilePeople', 'profileChars', 'chatImpressionChars', 'gistDays', 'impressionDays', 'gistDailyBatches']) c.memory[k] = Math.round(num(c.memory[k], DEFAULTS.memory[k], 0, BIG))
-  if (!isObj(c.memory.tierDays)) c.memory.tierDays = {}
-  for (const k of ['1', '2', '3']) c.memory.tierDays[k] = Math.round(num(c.memory.tierDays[k], DEFAULTS.memory.tierDays[k], 0, BIG))
   // 老版本的 0 是当时的默认值，不是谁选的：升级后改成留 7 天，以后面板里再选 0 才算数
   const keepUnset = raw?.memory?.keepChatlogDays === 0 && !raw.memory.keepChatlogSet
   c.memory.keepChatlogDays = keepUnset ? 7 : num(c.memory.keepChatlogDays, 7, -1, 3650)
   c.memory.keepChatlogSet = true
-  c.memory.mergeGroups = bool(c.memory.mergeGroups, false)
-  for (const k of ['instantCommands', 'groupMemory', 'searchRrf']) c.memory[k] = bool(c.memory[k], true)
-  c.memory.crossContext = bool(c.memory.crossContext, false)
-  c.memory.extractIdleMinutes = num(c.memory.extractIdleMinutes, 30, 0, BIG)
-  c.memory.extractMinLines = Math.round(num(c.memory.extractMinLines, 20, 1, BIG))
-  c.memory.extractDailyBatches = Math.round(num(c.memory.extractDailyBatches, 24, 0, BIG))
-  if (!isObj(c.memory.capacity)) c.memory.capacity = {}
-  for (const k of ['auto', 'event', 'diary']) c.memory.capacity[k] = Math.round(num(c.memory.capacity[k], DEFAULTS.memory.capacity[k], 0, BIG))
-  c.memory.eventExpireDays = num(c.memory.eventExpireDays, 90, -1, BIG)
-  // 记忆压缩：具体的事慢慢淡忘、概括成长期印象（默认开；可以关；多少天以前的细节才参与概括）
-  c.memory.compress = bool(c.memory.compress, true)
-  c.memory.compressAfterDays = Math.round(num(c.memory.compressAfterDays, 14, 1, 365))
-  if (!isObj(c.memory.vector)) c.memory.vector = { ...DEFAULTS.memory.vector }
-  c.memory.vector.enabled = bool(c.memory.vector.enabled, false)
-  for (const k of ['baseUrl', 'model', 'apiKey']) c.memory.vector[k] = String(c.memory.vector[k] || '').trim()
+  c.memory = { keepChatlogDays: c.memory.keepChatlogDays, keepChatlogSet: true }
+  if (!isObj(c.mind)) c.mind = { ...DEFAULTS.mind }
+  c.mind.embedKey = String(c.mind.embedKey || '').trim() || oldVectorKey
   g.interests = (Array.isArray(g.interests) ? g.interests : String(g.interests || '').split(/[\s,，]+/)).map((s) => String(s).trim()).filter(Boolean)
   g.minRelevance = num(g.minRelevance, 0.25, 0, 1)
   // @ 了别人时不算叫她（只挡必回，仍然可以插话）；默认关，保持原行为
@@ -662,7 +609,7 @@ export function normalize(raw) {
 }
 
 // 面板里不回传原文的字段：路径（几层都行）
-const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['memory', 'vector', 'apiKey'], ['song', 'neteaseCookie'], ['bili', 'cookie'], ['bili', 'sessdata'], ['bili', 'biliJct'], ['heybox', 'cookie'], ['bridge', 'token']]
+const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bili', 'cookie'], ['bili', 'sessdata'], ['bili', 'biliJct'], ['heybox', 'cookie'], ['bridge', 'token']]
 // 扩展模块设置里的密码类字段（模块加载时登记）：['ext', 模块id, 字段]
 const extraSecrets = new Map()
 export function registerSecretField(path) { extraSecrets.set(path.join('\u0000'), path) }

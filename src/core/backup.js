@@ -9,7 +9,6 @@ import { crc32, deflateRawSync, inflateRawSync } from 'node:zlib'
 import { homedir } from 'node:os'
 import { dirname, join, parse, relative, resolve, sep } from 'node:path'
 import { dataDir, dshHome } from './store.js'
-import { captureMemoryBackup, MEMORY_FILES } from '../features/memory-store.js'
 
 const MANIFEST = 'aurabot-backup.json'
 const SCHEMA = 1
@@ -24,6 +23,12 @@ const STORE_EXT = /\.(png|jpe?g|gif|webp|mp3|mp4|m4a|ogg|opus|webm|zip|7z|rar|pt
  */
 const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'archive-cache', 'douyin/edge-profile']
 const skipped = (rel) => SKIP.some((s) => rel === s || rel.startsWith(s + '/')) || rel.split('/').includes('node_modules') || rel.endsWith('.tmp') || rel === 'memory.sqlite-shm' || rel.startsWith('memory.sqlite.migrating')
+
+/**
+ * 旧记忆模块的文件（已由心智核心接管，只剩迁移来源）。备份时当普通文件带上；
+ * 恢复一份带着它们的备份时整套一起换，不让新旧两代混在一起。
+ */
+const MEMORY_FILES = ['memory.sqlite', 'memory.sqlite-wal', 'memory.sqlite-shm', 'memories.json', 'memory-json-fallback.json']
 
 const backupsDir = () => dataDir('backups')
 const stageDir = () => dataDir('.restore')
@@ -98,7 +103,18 @@ function centralHeader(entry) {
 }
 
 /** 打包数据目录，返回 { file, name, files, bytes, skipped }。 */
-export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {} } = {}) {
+/**
+ * 心智核心的数据目录（相对数据目录）。目录里的文件不直接拷：库由 captureMind 给一份完整的，
+ * 快照和 WAL 不带。
+ */
+export const MIND_DIR = 'mind'
+const inMind = (rel) => rel === MIND_DIR || rel.startsWith(MIND_DIR + '/')
+
+/**
+ * captureMind：返回 Map<相对路径, Buffer>，由宿主接上心智核心（没接就不带心智数据）。
+ * 拿不到完整的库就让备份失败，不能把缺一半的心智当成功交给主人。
+ */
+export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {}, captureMind = null } = {}) {
   const root = dataDir()
   await mkdir(backupsDir(), { recursive: true })
   const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 13)
@@ -107,10 +123,13 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
   const tmp = final + '.tmp'
   const market = []
   const walked = await walk(root, '', [], market)
-  // 在同一个同步临界区取主库、WAL 和 JSON 回退状态，后续异步打包只读快照。
-  // 记忆快照失败必须让备份失败，不能把缺一半的记忆库当成功交给用户。
-  const memoryFiles = captureMemoryBackup(root)
-  const files = [...walked.filter((rel) => !MEMORY_FILES.includes(rel)), ...memoryFiles.keys()]
+  // 心智库在同一个同步临界区取完整字节，后续异步打包只读这份。
+  // 拿不到必须让备份失败，不能把缺一半的心智当成功交给主人。
+  const memoryFiles = new Map()
+  if (typeof captureMind === 'function') {
+    for (const [rel, data] of captureMind()) memoryFiles.set(rel, data)
+  }
+  const files = [...walked.filter((rel) => !inMind(rel)), ...memoryFiles.keys()]
   const sessionsRoot = workspaceDir ? join(dshHome(), 'sessions', sessionDirName(workspaceDir)) : ''
   const sessionFiles = sessionsRoot && existsSync(sessionsRoot) ? await walk(sessionsRoot) : []
   const total = files.length + sessionFiles.length
@@ -288,6 +307,13 @@ export function applyPendingRestore(now = Date.now()) {
     for (const name of MEMORY_FILES) {
       const current = join(root, name)
       if (existsSync(current) && statSync(current).isFile()) move(current, join(keep, name))
+    }
+  }
+  // 心智库整个换：旧的库连同 WAL 一起挪开，不然旧 WAL 会接到新库上把它弄坏
+  if (existsSync(join(stage, MIND_DIR, 'mind.sqlite'))) {
+    for (const name of ['mind.sqlite', 'mind.sqlite-wal', 'mind.sqlite-shm']) {
+      const current = join(root, MIND_DIR, name)
+      if (existsSync(current) && statSync(current).isFile()) move(current, join(keep, MIND_DIR, name))
     }
   }
   for (const from of files) {

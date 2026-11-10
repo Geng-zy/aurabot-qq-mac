@@ -9,7 +9,6 @@ import { normalize } from '../src/core/config.js'
 import { createBiliApi } from '../src/bili/api.js'
 import { createQzone } from '../src/features/qzone.js'
 import { cleanComment } from '../src/features/qzone-social.js'
-import { cleanReply } from '../src/purpose/module.js'
 
 const screenshot = ['@苏眠眠 </ | | DSML | | invoke>', '</ | | DSML | | calls>']
 const closing = '</ | | DSML | | invoke>'
@@ -214,8 +213,6 @@ test('空间和桌宠的独立路径复用同一清洗，截断及去 HTML 前�
   assert.equal(calls.length, 0)
   assert.equal(cleanComment(block), '')
   assert.equal(cleanComment(`前${block}后`), '前后')
-  assert.equal(cleanReply(`大肥鱼：${block}`), '')
-  assert.equal(cleanReply(`前${block}后`), '前后')
 })
 
 test('零宽字符 / 全角空格 / 换行混入标签名也能识别并删参数', () => {

@@ -3,7 +3,7 @@
 > 这个文件由插件维护，每次启动都会更新成当前版本，**别改它**（改了也会被覆盖）。
 > 你自己写的模块放在和它同一个文件夹（`modules/`）里，插件升级不会动。
 
-大肥鱼的每项本事都是一个**模块**：表情包、语音、心情、记忆、空间日记、B 站、翻唱、生图……
+她的每项本事都是一个**模块**：表情包、语音、空间日记、B 站、翻唱、生图……（她的记忆、情绪、身体、性格和关系不是模块，在心智核心里，见下面「心智核心」一节）
 你可以：
 
 - **加新模块**：给她新本事（查天气、接智能家居、关键词回复、对接自己的服务……）
@@ -145,7 +145,7 @@ export default {
 | `api.context(({ chat, sessionId }) => '文字')` | 每轮聊天前塞进她上下文的话（比如「现在北京 20 度」）；返回空串就不塞 |
 | `api.rule((kind, cfg) => '一条规则')` | 补一条她的规则（会放进系统提示词；kind 是 `private` 主人私聊 / `social` 群聊和别人）。告诉她「你会查天气，用 xxx 工具」就写在这里。可以直接给字符串、也可以返回多条（数组）；函数**每一轮都会重新调用**，所以里面可以拼当前设置 |
 | `api.command({ name, aliases, desc, run(arg, msg) })` | 主人在 QQ 里发 `/name 参数` 时调用，`run` 返回的文字直接回到**发命令的那个聊天**（群里发就回群里）。名字可以是中文（`name: '天气'`），中文命令后面可以不加空格（`/天气北京`）；`arg` 是命令名后面剩下的全部文字，已经去掉首尾空格。**只认主人**：别人发 `/xxx` 当普通消息处理。和内置命令同名时你的优先 |
-| `api.every(毫秒, fn, 名字?)` | 定时任务（名字用在出错日志里） |
+| `api.every(毫秒, fn, 名字?)` | 定时任务（名字用在出错日志里）。查新消息、整理缓存这类后台活可以用；**她自己会去做的事（逛、刷、写）别用它定时替她做**，交给 `api.mind.offer` 由她决定 |
 | `api.later(毫秒, fn)` | 过一会儿做一次 |
 | `api.route('/路径', async (req, res) => 返回值)` | 加一个网页接口：地址是 `/aurabot/api/ext/<id>/路径`；返回对象就当 JSON 回；要自己回（比如图片）就用 `api.core.http.send(res, 200, buf, 'image/png')` |
 | `api.onDispose(fn)` | 模块停下时要做的收尾 |
@@ -154,12 +154,13 @@ export default {
 
 | | |
 |---|---|
-| `api.use('memory')` | 拿到某个模块**现在**的导出；模块没在跑返回 `null`。不要在 setup 里拿了存着，用的时候再拿（对方可能被关掉、被替换） |
-| `api.lazy('memory')` | 一个代理，每次访问都去找当时在跑的那个模块：`const memory = api.lazy('memory'); memory.add?.({...})`（模块没在跑时属性是 undefined，所以用 `?.`） |
-| `api.has('memory')` | 某个模块在不在跑 |
+| `api.use('stickers')` | 拿到某个模块**现在**的导出；模块没在跑返回 `null`。不要在 setup 里拿了存着，用的时候再拿（对方可能被关掉、被替换） |
+| `api.lazy('stickers')` | 一个代理，每次访问都去找当时在跑的那个模块：`const stickers = api.lazy('stickers'); stickers.match?.('开心')`（模块没在跑时属性是 undefined，所以用 `?.`） |
+| `api.has('stickers')` | 某个模块在不在跑 |
+| `api.mind` | 心智核心给模块的接口（见下面「心智核心」）；心智核心没起来时是 `null`，所以用 `api.mind?.` |
 | `api.core` | 插件核心，见下 |
 | `api.dsh` | DSH 给插件的 `ctx`：`api.dsh.get('服务名')` 能拿到 DSH 的任何服务（`llm`、`speechToText`、`tools`……） |
-| `api.lib('features/memory.js')` | 插件里任何一个源码文件导出的全部东西（见「内部源码」） |
+| `api.lib('features/imagegen.js')` | 插件里任何一个源码文件导出的全部东西（见「内部源码」） |
 
 `api.core` 里有：
 
@@ -193,12 +194,12 @@ export default {
 
 | 事件 | 参数 | 改的是什么 |
 |---|---|---|
-| `group/decide` | `decision, { msg, policy, recentTexts, memScore }` | 群里这条消息（没被 `message` 接管的）她**回不回、怎么回**。返回 `null` 在这里无效（等于不改）。`decision` 是 `{ reply, mode, reason }`，mode 是 `must`（被叫到）/ `engaged`（正在参与话题）/ `interject`（插话）。返回 `{ reply: true, mode: 'must' }` 就让她必回，`{ reply: false }` 就让她不理。想整套换掉插话策略就在这里写 |
+| `group/decide` | `decision, { msg, policy, recentTexts, memScore }` | 群里这条消息（没被 `message` 接管的）她**回不回、怎么回**。没人叫她时插不插话本来由她自己（心智核心按她的性格、心情、话题、在场的人算），`policy.interjectChance` 就是这次她想接话的程度。返回 `null` 在这里无效（等于不改）。`decision` 是 `{ reply, mode, reason }`，mode 是 `must`（被叫到）/ `engaged`（正在参与话题）/ `interject`（插话）。返回 `{ reply: true, mode: 'must' }` 就让她必回，`{ reply: false }` 就让她不理。想整套换掉插话策略就在这里写 |
 | `prompt` | `content, { chat, senderId, queryText }` | **交给她的内容**：`[{ type: 'text', text }, { type: 'image', … }]`。可以加背景信息、改格式、去掉图片；返回 `null` 这次不交给她 |
 | `reply/items` | `items, { chatId, text, userText }` | 她的回复**拆好之后**（哪条发语音、配不配表情都已经决定了）：每条 `{ kind: 'text' \| 'voice' \| 'sticker' \| 'poke' \| 'image', value, replyTo }`。可以改顺序、全部变语音、去掉表情、加图片 |
 | `send` | `message, { chatId, note, force }` | **最终发给 QQ 的消息段**（OneBot 格式）。所有发出去的消息都经过这里：她的回复、命令回复、模块发的。加签名、过滤词、抄送到别处都在这里 |
 | `model` | `selection, chat` | **这个聊天用哪个模型**（同步，不能 async）：返回 `{ provider, model, reasoningEffort }`。比如群里用便宜的、私聊用好的。`selection` 是面板选的（没选时是 DSH 默认，拿不到时是 `null`），主人在面板里「按聊天选模型」设过的话，已经按那个聊天算好了；模块在它之后还可以再改。换了之后从这个聊天的下一条消息起生效 |
-| `persona` | `text` | **她的人格**全文（同步）：返回新文字就换掉 |
+| `persona` | `text` | **她是谁**全文（同步）：心智核心给的当前版本人格卡 + 她自己写的价值观等 + 自我故事摘要 + 不知不觉的变化。返回新文字就换掉这一轮看到的（不会改心智核心里的版本） |
 | `rules` | `text, kind` | **她的规则**全文（同步，kind 是 `private` / `social`） |
 
 例子：群里只在被 @ 时说话，私聊用另一个模型，所有回复末尾加个尾巴：
@@ -267,7 +268,7 @@ api.tool(({ chat, level, sessionId }) => {
 ## 面板
 
 **自动表单**：写了 `settings`，面板会多一个这个模块的标签页，自动生成设置表单，用户改完点保存。
-定义里写了 `tab: '内置标签页'`（`voice` `stickers` `imagegen` `diary` `speakup` `mood` `song` `bili` `local` `group` `model` `persona` `access` `connect` `overview`），设置和面板就放进那一页的最下面，不单独占一页。比如给翻唱加功能的模块写 `tab: 'song'`。
+定义里写了 `tab: '内置标签页'`（`voice` `stickers` `imagegen` `diary` `song` `bili` `local` `group` `model` `persona` `access` `connect` `overview`），设置和面板就放进那一页的最下面，不单独占一页。比如给翻唱加功能的模块写 `tab: 'song'`。
 
 ```js
 settings: [
@@ -308,25 +309,31 @@ return function Panel({ settings, save, toast }) {
 |---|---|---|
 | `stickers` | 表情包 | `library()` `match(名字)` `pickForReply(文字)` `collect(消息段, chatId)` `addFromBuffer(buf, { name, tags })` `rename(md5, 名字, 标签)` `remove(md5)` `segmentFor(item)` |
 | `voice` | 语音 | `speak(文字) → { file, engine }` |
-| `mood` | 心情 | `state()` `label()` `nudge(变化量, 原因)` `effects()` `contextLine()` |
-| `memory` | 记忆 | `add({ text, about, aboutName, importance, tags, source })` `addEvent({ text, about, tags, importance, kind, meta })` `recall(查询, { about, limit })` `list(查询)` `remove(id)` `update(id, 改动)` `contextFor(chat, sessionId)` `noteVia({ via, qq, who, text, at })` `contextVia({ qq, query })` `topicScore(文字)` `profiles()` `consolidate()` …… |
 | `qq-tools` | 基础 QQ 工具 | （只有工具：`qq_chat_history`、`qq_send_message`、`qq_send_file`） |
 | `imagegen` | 生图 | `enabled()` `generate(描述) → Buffer` |
 | `diary` | 空间日记 | `writeDiary()` `post(正文, { images, visibility })` `remove(tid)` `history()` `nextTime()` |
 | `qzone-social` | 空间互动 | `run({ force })` `state()` |
-| `speakup` | 主动搭话 | `fire(原因)` `state()` |
 | `bili` | B 站 | `watch(链接)` `comment(链接, 文字)` `run()` `checkReplies()` `account()` `state()` |
 | `song` | 翻唱 | `request({ song, pitch, chatId })` `search(关键词)` `status()` `install()` |
 
-平台是工具，同一个人只有一套记忆。模块确认平台账号对应的 QQ 后，可以用 `noteVia` 把双方对话写进同一份私聊流水（`who` 为 `user` 或 `bot`，`at` 是可选的毫秒时间戳），用 `contextVia` 取得这位 QQ 用户的私聊记忆上下文。模块用 `noteVia` 写入流水后，开启的短期状态会自动生效。核对不了身份的账号不要写入，也不要读取记忆。
+## 心智核心
 
-接 B 站、抖音、帖子、网页等外部内容平台时，看见或分享的内容用 `memory.addEvent({ kind: 'seen', text, meta: { title, author, url, platform, id } })`。它表示「她看过的内容」，不是作者对她说的话，不参与人物事实、画像、相处经验或长期印象的提炼。仍存于 `memories.json` 的 `items`，`source` 仍为 `event`。不要再把内容里的 `remember` 结果另存成普通事实或经历。
+她只有一个心智：记忆、情绪、性格都在心智核心里（`src/mind/`），不在任何模块里。模块**不能**替她做决定、不能改她的人格、不能自己另存一份她的记忆；
+模块能做的只有两件事：把她做过、看过的事告诉心智核心，和查她记得的事。都通过 `api.mind`：
 
-`addEvent` 的 `kind` 可省略（原有「做过的事」），或传 `'seen'`。`meta` 可省略，只保留 title / author / url / platform / id 五个可选字符串，分别最多 160 / 80 / 500 / 40 / 100 字符，其他字段丢弃；`id` 也接受数字并转成字符串。`seen` 不挂到某个人名下；`text` 可记感受，省略时用标题。时间轴平台选项从 `meta.platform` 和聊天梗概保留的 `via` 自动汇总，不要求固定平台名。写入真实聊天平台的双方对话则用上面的 `noteVia`，不要用 `seen` 代替聊天流水。
+| | |
+|---|---|
+| `api.mind.experience({ text, kind, about, importance, tags, meta, chatId, emotion, effort })` | 她经历了一件事（看了视频、唱了歌、发了空间……）。`emotion` 是她做这件事时的感受 `{ name, intensity }`（名字用常见说法，比如 满足、开心、无聊）；`effort` 是花了她多少精力（0～0.3，唱一首歌大约 0.05）。`kind`：`'event'` 做过的事（默认）、`'seen'` 看过的内容、`'own-post'` 她自己发出去的东西。`about` 是 QQ 号；`meta` 放 `{ title, author, url, platform, id }` 这类出处；`importance` 0～1。记多牢、以后想不想得起来，由心智核心按她当时的状态决定 |
+| `await api.mind.recall(线索, { limit })` | 查她记得的事：`[{ at, text, level, kind }]`。`level` 是想起来的清楚程度：`clear` 清楚、`vague` 只记得大概、`tip` 话到嘴边只想起一半。她忘了的就是忘了，查不到 |
+| `api.mind.recent({ hours, tag, limit })` | 最近她做过、看过的事，可以按 `tags` 里的标签筛 |
+| `api.mind.now()` | 她现在的时间（按她的时区） |
+| `api.mind.awake()` | 她醒着没有。睡着时模块别替她做事、别替她看消息 |
+| `api.mind.offer({ id, label, needs, effort, delayHours, cooldownMinutes, payoff, keywords, available, run })` | 把一件她能做的事交给她，**由她自己决定什么时候做**（模块不再自己定时去做）。`needs` 是这件事满足哪些基本需要（`fun` 新鲜和乐趣、`curiosity` 好奇、`beauty` 美、`companion` 陪伴、`recognition` 被认可、`meaning` 意义……），0～1；`effort` 多费力（0～1）；`delayHours` 回报要等多久；`available()` 返回 `true` 或者做不了的原因（面板里的开关、每天上限照旧在这里判断）；`run()` 返回 `{ ok, summary, outcome }`，`outcome` 0～1 是她做完有多满意，她会按它学下次还想不想做。模块停了，交出去的事自动撤掉 |
+| `api.mind.granted(名字)` | 主人有没有批准她这项权限。她通过 QQ 私聊向主人申请，只有主人本人在私聊里说「同意 #编号」才算 |
 
-事实 `add` / `update` 支持可选 `validFrom`、`validUntil`（毫秒时间戳或明确年月日），开始时间默认取 `saidAt`。老记录只有 `invalidAt` 时，按它作为结束时间读取；新事实使旧事实过时时，保留 `supersededBy`，结束时间取新事实的 `saidAt`。`related` 是最多 6 个事实 id 的双向引用，由记忆库维护。面板返回的 `validityText`、`displayText`、`relatedItems` 是显示用的派生值，不重复存储。`timeline({ kind?, platform?, chatId?, level?, about? })` 汇总聊天梗概和 `seen`，其中 `kind` 为 `gist` 或 `seen`，平台来自每条返回值的 `platforms`。
+看见的内容（`seen`）只是她看过，不是作者对她说的话。真实聊天平台上和人的对话不要用 `experience`，那是她的感知，由聊天中枢交给心智核心。
 
-聊天中枢需要的时候会去找 `stickers`（发表情、偷表情）、`voice`（发语音）、`mood`（心情影响表情 / 语音频率）、`memory`（群聊插话判断）。
+聊天中枢需要的时候会去找 `stickers`（发表情、偷表情）、`voice`（发语音）。心情、精力、困、饿都在心智核心里，模块不能改，只能通过 `experience` 告诉心智核心她做了什么、花了多少力气。
 这几个被关掉，对应的事就不做（想发语音时改发文字）；被替换，就用你的——所以替换时**导出的函数名要和上表一样**。
 
 ## 社区模块

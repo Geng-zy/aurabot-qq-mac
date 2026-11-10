@@ -105,6 +105,30 @@ export async function modelReasoning (dsh, provider, model) {
   return value
 }
 
+const contextCache = new Map()
+/**
+ * 这个模型的上下文长度（tokens）。查不到返回 0。
+ * DSH 自己按这个长度的 80% 自动压缩会话；心智核心要在那之前换新会话。
+ */
+export async function modelContextWindow (dsh, provider, model) {
+  const key = `${provider}::${model}`
+  const hit = contextCache.get(key)
+  if (hit && Date.now() - hit.at < REASONING_TTL) return hit.value
+  let value = 0
+  try {
+    const llm = dsh.llm || dsh.get('llm')
+    if (llm && typeof llm.resolveModelInfo === 'function') {
+      const info = await llm.resolveModelInfo(provider, model)
+      const n = Number(info?.context?.contextWindow)
+      if (Number.isInteger(n) && n > 0) value = n
+    }
+  } catch (error) {
+    value = 0
+  }
+  contextCache.set(key, { at: Date.now(), value })
+  return value
+}
+
 /** 把想要的档位收敛成这个模型真正支持的；给 '' / 不支持时返回 undefined（= 不传）。 */
 export async function pickReasoningEffort (dsh, provider, model, want) {
   const llm = dsh.llm || dsh.get('llm')

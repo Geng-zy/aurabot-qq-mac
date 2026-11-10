@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto'
 
 process.env.AURABOT_REGISTRY_URL ||= 'http://127.0.0.1:9/index.json' // 测试不碰真的社区库
+process.env.AURABOT_MAC_REGISTRY_URL ??= 'http://127.0.0.1:9/mac-index.json' // 分叉自己的模块库也不碰
 
 export function createFakeDsh({ brain }) {
   const disposers = []
@@ -52,7 +53,10 @@ export function createFakeDsh({ brain }) {
         chain = chain.then(async () => {
           turn++
           const myTurn = turn
-          const text = msg.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')
+          // 心智核心在新会话开头接上的之前的聊天单独放：脚本「模型」只按这一轮的新消息回话
+          const full = msg.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')
+          const carried = (full.match(/【接着之前的聊天[\s\S]*?【以上是之前的，下面是新的】\n?/) || [''])[0]
+          const text = carried ? full.replace(carried, '') : full
           const images = msg.content.filter((c) => c.type === 'image')
           const ctxText = [...contexts.values()].map((c) => c.text()).filter(Boolean).join('\n')
           const persona = variables.get('aurabot_persona')?.() || ''
@@ -65,7 +69,7 @@ export function createFakeDsh({ brain }) {
             return result
           }
           const reply = await brain({ preset, text, images, ctxText, persona, callTool, toolNames: [...tools.keys()] })
-          turns.push({ source: msg.source, sessionId, preset, userText: text, images: images.length, reply, toolCalls: calls, ctxText })
+          turns.push({ source: msg.source, sessionId, preset, userText: text, carried, images: images.length, reply, toolCalls: calls, ctxText })
           emit('session/event', session, { type: 'assistant/message', data: { turn: myTurn, message: { content: [{ type: 'text', text: reply }] } } })
           emit('session/event', session, { type: 'turn/end', data: { turn: myTurn, reason: { kind: 'completed' } } })
         })

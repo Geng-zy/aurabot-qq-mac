@@ -142,11 +142,11 @@ export function createDanmaku(api, { prepare = prepareDanmaku, now = Date.now, r
       if (row) Object.assign(row, { ok: true, pending: false, id, platformResponse: result.platformResponse, message: '平台已确认发送' })
       write(file, saved)
       try {
-        api.use('memory')?.addEvent?.({
+        api.mind?.experience?.({
           text: `在 B 站《${info.title}》${info.kind === 'bangumi' ? '单集' : '第' + input.part + 'P'} ${input.seconds}秒发弹幕：${input.text}`,
           tags: ['B站', '弹幕'], importance: 0.4,
         })
-      } catch (error) { api.log.warn('弹幕已发送，但经历未写入记忆') }
+      } catch (error) { api.log.warn('弹幕已发送，但经历没记下来') }
       return {
         ok: true, id, message: '弹幕已发送（平台已确认）', platformResponse: result.platformResponse, title: info.title,
         url: info.url ? `${info.url}?t=${input.seconds}` : `https://www.bilibili.com/video/${info.bvid}?p=${input.part}&t=${input.seconds}`,

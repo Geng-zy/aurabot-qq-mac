@@ -20,7 +20,7 @@ import { mimeOf } from './inbound.js'
 import { forwardBody, readForward } from './forward.js'
 import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../core/img.js'
 import { redact } from '../core/redact.js'
-import { defaultModel, pickReasoningEffort, canSeeImages, modelVision } from '../core/llm.js'
+import { defaultModel, pickReasoningEffort, canSeeImages, modelVision, modelContextWindow } from '../core/llm.js'
 import { resolveChatModel } from './chat-model.js'
 import { createFaces, textToSegments, stripFaceTags, splitSpeakable } from './faces.js'
 import { expandMentions, hasMention } from './mentions.js'
@@ -31,7 +31,6 @@ import { isDefiniteFailure } from '../onebot/client.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
 import { noticeText } from './notices.js'
 import { createFileRelay } from './file-relay.js'
-import { matchesMemoryKeyword, parseMemoryCommand } from '../features/memory.js'
 
 // QQ 会话的工作区目录，第一次收到消息时自动创建。面板「连接」页能改（config.workspaceDir，#32）；
 // 没填就用环境变量 AURABOT_WORKSPACE，再没有就是 ~/Aurabot/qq-chats
@@ -77,7 +76,7 @@ export function assistantReplyText (message) {
   return message.content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n').trim()
 }
 
-export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onMemoryCommand, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf }) {
+export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf, mind, trashDir }) {
   // 心情对行为的影响（表情 / 语音概率、回复快慢、插话积极程度），没接就是 1
   const mood = () => (typeof moodEffects === 'function' ? moodEffects() : null) || { sticker: 1, voice: 1, delay: 1, chatty: 1 }
   const mapFile = () => dataDir('sessions.json')
@@ -246,6 +245,32 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
   }
 
   // ---------- 聊天流水（给空间日记、主动搭话、面板用） ----------
+  /**
+   * 聊天流水只是近几天的工作文件（她的完整经历在心智核心里）：超过「聊天流水留多久」的按天移到废纸篓，
+   * 不直接删。-1 = 一直留；0 = 只留今天。一天最多整理一次。
+   */
+  let prunedDay = ''
+  function pruneChatLog(today) {
+    if (prunedDay === today) return 0
+    prunedDay = today
+    const keep = Number(getConfig().memory?.keepChatlogDays ?? 7)
+    if (!trashDir || !Number.isFinite(keep) || keep < 0) return 0
+    const cut = new Date(today + 'T00:00:00')
+    cut.setDate(cut.getDate() - keep)
+    const limit = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}-${String(cut.getDate()).padStart(2, '0')}`
+    let n = 0
+    for (const day of chatLogDays()) {
+      if (day >= limit || day === today) continue
+      try {
+        const trash = join(trashDir, 'aurabot-chatlog')
+        mkdirSync(trash, { recursive: true })
+        renameSync(join(dataDir('chatlog'), `${day}.jsonl`), join(trash, `${day}-${Date.now()}.jsonl`))
+        n++
+      } catch (error) { log.debug('移走旧聊天流水失败：', error.message) }
+    }
+    return n
+  }
+
   function logChat(chatId, who, text, uid = '', { via, at } = {}) {
     try {
       // noteVia 直接写入其他平台的流水；QQ 回复已在投递路径清洗。
@@ -258,8 +283,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const dir = dataDir('chatlog')
       mkdirSync(dir, { recursive: true })
-      const forgotten = String(chatId).startsWith('private:') && getConfig().memory?.enabled && getConfig().memory?.instantCommands !== false && parseMemoryCommand(text)?.action === 'forget'
-      appendFileSync(join(dir, `${day}.jsonl`), JSON.stringify({ t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}), ...(forgotten ? { forgottenAt: Date.now() } : {}) }) + '\n', 'utf8')
+      appendFileSync(join(dir, `${day}.jsonl`), JSON.stringify({ t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}) }) + '\n', 'utf8')
+      const n = new Date()
+      pruneChatLog(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`)
       return true
     } catch (error) { return false }
   }
@@ -298,10 +324,6 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     }
   }
 
-  function deleteChatLog(day) {
-    try { unlinkSync(join(dataDir('chatlog'), `${day}.jsonl`)) } catch (error) {}
-  }
-
   function chatLogOf(day) {
     try {
       const f = join(dataDir('chatlog'), `${day}.jsonl`)
@@ -310,34 +332,6 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     } catch (error) {
       return []
     }
-  }
-
-  function forgetChatLog(qq, query) {
-    let marked = 0
-    for (const day of chatLogDays()) {
-      const path = join(dataDir('chatlog'), `${day}.jsonl`)
-      try {
-        const rows = readFileSync(path, 'utf8').split('\n')
-        let changed = false
-        const next = rows.map((raw) => {
-          if (!raw) return raw
-          let l
-          try { l = JSON.parse(raw) } catch (error) { return raw }
-          const own = l.chatId === `private:${qq}` || (String(l.chatId).startsWith('group:') && String(l.uid || '') === String(qq))
-          if (!own || l.forgottenAt || !matchesMemoryKeyword(l.text, query)) return raw
-          l.forgottenAt = Date.now()
-          changed = true
-          marked++
-          return JSON.stringify(l)
-        })
-        if (changed) {
-          const tmp = `${path}.tmp-${process.pid}`
-          writeFileSync(tmp, next.join('\n'), 'utf8')
-          renameSync(tmp, path)
-        }
-      } catch (error) { log.warn('标记聊天流水失败：', error.message) }
-    }
-    return marked
   }
 
   // ---------- 工作区与会话 ----------
@@ -418,6 +412,33 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
       if (sid && reg && (reg.archivedSessionIds || []).includes(sid)) {
         log.info(`会话 ${sid.slice(-8)} 被归档了，换一个新的`)
+        sid = ''
+        agent = null
+      }
+    }
+    // 心智核心：上下文快到 DSH 自动压缩之前、或者停了很久，就换新会话。
+    // 不靠会话历史活着：新会话里接上的话由心智的感知记录给（见 seedHistoryOnce）。
+    // 这一轮还在跑时不换（新消息是排队或插话进去的）。
+    if (sid && mind?.shouldRotate && chat.kind !== 'system' && !running.has(chat.chatId)) {
+      let reason = ''
+      try {
+        const t = targetModel(chat)
+        const contextWindow = t ? await modelContextWindow(dsh, t.provider, t.model) : 0
+        assertActive()
+        reason = mind.shouldRotate({ lastInput: Number(entry.lastInput) || 0, lastAt: Number(entry.lastAt || entry.createdAt) || 0, contextWindow })
+      } catch (error) {
+        log.debug('换会话判断失败（不换）：', error.message)
+      }
+      if (reason) {
+        const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
+        try {
+          Promise.resolve(reg?.archiveSession?.(sid)).catch((error) => log.debug('归档会话失败：', error.message))
+        } catch (error) {
+          log.debug('归档会话失败：', error.message)
+        }
+        log.info(`${chat.chatId} 换新会话（${reason}），旧会话 ${sid.slice(-8)} 已归档`)
+        sessionToChat.delete(sessionKey(sid))
+        turnState.delete(sessionKey(sid))
         sid = ''
         agent = null
       }
@@ -600,8 +621,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     return kind === 'group' ? { kind: 'group', id } : kind === 'private' ? { kind: 'private', id } : null
   }
 
+  // system：系统通知，不算她说的话。
   // quiet：这一条是额外的（比如语音后面补发的表情），失败了不算到这一轮头上（deliver 按 failStore 里的条数判断整条有没有发出去）。
-  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false } = {}) {
+  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false } = {}) {
     if (disposed) return null
     const cfg = getConfig()
     const tgt = targetOf(chatId)
@@ -647,6 +669,9 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
         sentIds.add(String(r.message_id))
         if (sentIds.size > 500) sentIds.delete(sentIds.values().next().value)
       }
+      // 心智核心：所有出口最后都经过这里，真发出去了才算她说过
+      // system：插件发的系统通知（比如「她改了自己」），不是她说的话
+      if (!system) { try { mind?.said?.({ chatId, message, note, messageId: r?.message_id }) } catch (error) { log.debug('心智记录发言失败：', error.message) } }
       bump('sent')
       if (outputScope.getStore()?.chatId === chatId) outputScope.getStore().sent++
       return r
@@ -1064,6 +1089,24 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     return message.content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n').trim()
   }
 
+  /** 记下这个会话最近一次请求的输入量和时间（换新会话用）。 */
+  function noteUsage(chatId, key, usage) {
+    try {
+      const u = usage || {}
+      const input = (Number(u.inputTokens) || 0) + (Number(u.cacheReadTokens) || 0) + (Number(u.cacheWriteTokens) || 0)
+      const m = map()
+      const e = m.chats[chatId]
+      if (!e || sessionKey(e.sessionId) !== key) return
+      if (input > 0) e.lastInput = input
+      e.lastAt = Date.now()
+      saveMap(m)
+    } catch (error) {
+      log.debug('记录会话用量失败：', error.message)
+    }
+  }
+
+  const completedTurn = (d) => Boolean(d?.reason && d.reason.kind === 'completed')
+
   function onSessionEvent(session, event) {
     const key = sessionKey(session && session.id)
     // 回合结束时内存映射可能已空（刚重启），退回持久化的映射，别把这一轮丢了（#159）
@@ -1085,6 +1128,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       // 否则最后一条是空的（或只有工具调用）时会拿上一条过程性文字补发，把思考发出去。
       st.lastTurn = d.turn
       st.text = assistantReplyText(d.message)
+      if (mind && !chatId.startsWith('system:')) noteUsage(chatId, key, d.usage)
       return
     }
     if (event.type === 'turn/end') {
@@ -1094,7 +1138,15 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       stopTyping(key)
       const d = event.data || {}
       const completed = d.reason && d.reason.kind === 'completed'
-      const text = st.lastTurn === d.turn ? st.text : ''
+      let text = st.lastTurn === d.turn ? st.text : ''
+      // 心智核心：收走回复里的 <feel>（她的感受，别人看不到），一轮聊完花一点精力
+      const turnSenders = [...(st.senders || [])]
+      if (mind?.feel && text) {
+        try { text = mind.feel(chatId, text, { senders: turnSenders }) } catch (error) { log.debug('心智记录感受失败：', error.message) }
+      }
+      if (mind?.noteTurn && completedTurn(d) && !chatId.startsWith('system:')) {
+        try { mind.noteTurn(chatId, turnSenders) } catch (error) {}
+      }
       const sys = st.system
       const wantVoice = Boolean(st.wantVoice)
       const autoReply = st.autoReply
@@ -1408,6 +1460,8 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       log.debug(`忽略 ${msg.chatId}（${allowed.reason}）`)
       return
     }
+    // 心智核心：白名单里的每条消息都记进她的感知记录（回不回都记）
+    try { mind?.perceive?.(msg) } catch (error) { log.debug('心智感知失败：', error.message) }
     // 文件先记着，她要读的时候用 qq_read_file 取
     if (msg.files.length) {
       const list = (recentFiles.get(msg.chatId) || []).concat(msg.files.map((f) => ({ ...f, userId: msg.userId, at: now })))
@@ -1440,17 +1494,15 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       return
     }
 
-    if (msg.kind === 'private' && onMemoryCommand) {
-      try { onMemoryCommand(msg, msg.text) } catch (error) { log.warn('处理记忆请求失败：', error.message) }
-    }
-
     if (isMuted?.(msg.chatId)) {
       log.debug(`${msg.chatId}：主人让她闭嘴中，不回`)
       logChat(msg.chatId, msg.nickname, msg.text, msg.userId)
       return
     }
-    const dislikeChance = Math.max(0, Math.min(1, Number(cfg.memory?.dislikeSilence ?? 0.85) || 0))
-    if (dislikeChance > 0 && !isOwner(cfg, msg.userId) && dislikes?.(msg.userId) && random() < dislikeChance) {
+    // 不想搭理的人（她很不喜欢、或有心结）：多半安静看着。心智核心在时按她的关系和设置，主人永远不算
+    const dislikeChance = Math.max(0, Math.min(1, Number(mind?.ignoreChance ? mind.ignoreChance() : cfg.memory?.dislikeSilence ?? 0.85) || 0))
+    const dislikedBy = mind?.dislikes || dislikes
+    if (dislikeChance > 0 && !isOwner(cfg, msg.userId) && dislikedBy?.(msg.userId) && random() < dislikeChance) {
       logChat(msg.chatId, msg.nickname, msg.text, msg.userId)
       onActivity?.({ kind: 'silent', chatId: msg.chatId, text: msg.text, nickname: msg.nickname })
       log.debug(`${msg.chatId}：不想搭理，安静看着`)
@@ -1474,12 +1526,29 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     let mode = 'must'
     if (msg.kind === 'group') {
       const pol0 = policyFor(cfg.group, cfg.group.overrides, msg.groupId)
-      // 心情好更爱插话，心情差少插话
-      const pol = { ...pol0, interjectChance: Math.min(1, pol0.interjectChance * mood().chatty) }
-      // 群里最近在聊的（窗口内最后几条）和她有多相关
-      const recentTexts = (groupBuf.get(msg.groupId) || []).filter((x) => now - x.t < pol.activeWindowSec * 1000).slice(-6).map((x) => x.text)
+      // 群里最近在聊的（窗口内最后几条）
+      const recentWin = (groupBuf.get(msg.groupId) || []).filter((x) => now - x.t < pol0.activeWindowSec * 1000).slice(-6)
+      const recentTexts = recentWin.map((x) => x.text)
       let memScore = 0
-      try { memScore = typeof memoryScore === 'function' ? memoryScore(recentTexts.join(' ')) : 0 } catch (error) {}
+      let pol
+      let interest = null
+      if (mind?.groupInterest) {
+        // 心智核心在：插不插话由她自己（性格、心情、话题、在场的人），面板里只留可选的上限；
+        // 叫她的名字跟着她的名字和小名走；夜里睡没睡由她的身体管，不用静默时段
+        interest = mind.groupInterest({ texts: recentTexts, speakers: recentWin.map((x) => x.uid) })
+        const cap = mind.interjectCap?.() || 0
+        // 按群单独设：0 = 这个群里她不主动插话（被叫到照样回）；100% = 每条都给她看一眼（说不说还是她定）；/chatty 设的倍数让她更想接话
+        const o = cfg.group.overrides?.[String(msg.groupId)] || {}
+        const ov = o.interjectChance
+        // /chatty：这个群里她更想接话（倍数），封顶 0.8
+        const chance = ov === 0 ? 0 : ov === 1 ? 1 : Math.min(0.8, interest.chance * (Number(o.interjectScale) > 0 ? Number(o.interjectScale) : 1))
+        pol = { ...pol0, wakeWords: mind.wakeWords ? mind.wakeWords(pol0.wakeWords) : pol0.wakeWords, interjectChance: chance, minRelevance: 0, maxPerHour: cap > 0 ? cap : Infinity, quietHours: [0, 0] }
+        log.debug(`群 ${msg.groupId}：想不想接话 ${Math.round(interest.chance * 100)}%（${interest.why}）`)
+      } else {
+        // 心情好更爱插话，心情差少插话
+        pol = { ...pol0, interjectChance: Math.min(1, pol0.interjectChance * mood().chatty) }
+        try { memScore = typeof memoryScore === 'function' ? memoryScore(recentTexts.join(' ')) : 0 } catch (error) {}
+      }
       const quotedBot = await repliedToBot(msg.replyId, msg)
       if (disposed) return
       // 这一条之前最近一条是不是她说的：判断「人呢」是不是在追问她（#182）
@@ -1488,7 +1557,7 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       const lastBotAt = (groupSaid.get(msg.groupId) || []).at(-1) || 0
       const decision = decideGroupReply({
         policy: pol,
-        relevance: topicRelevance(recentTexts, pol.interests, memScore),
+        relevance: interest ? interest.relevance : topicRelevance(recentTexts, pol.interests, memScore),
         engagedUntil: groupEngaged.get(msg.groupId) || 0,
         engagedRun: groupEngagedRun.get(msg.groupId) || 0,
         mentioned: msg.mentioned,
@@ -1525,6 +1594,18 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       log.info(`群 ${msg.groupId}：${decision.reason} → 交给她`)
     }
 
+    // 心智核心：睡着时谁叫得醒她、很累时回不回（按人，不按地方：私聊、群里 @ / 叫名字 / 引用她都算在叫她）
+    if (mind?.gate) {
+      let g = null
+      try { g = mind.gate({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, direct: msg.kind === 'private' || mode === 'must', event }) } catch (error) { log.debug('心智判断回不回失败：', error.message) }
+      if (g && !g.reply) {
+        log.info(`${msg.chatId}：${g.reason || '她现在不回'}`)
+        logChat(msg.chatId, msg.nickname, msg.text, msg.userId)
+        return
+      }
+      if (g?.woke) log.info(`${msg.chatId}：她被叫醒了`)
+    }
+
     // 拼文案
     let text = msg.text
     if (msg.forwards?.length) {
@@ -1538,9 +1619,6 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     const voiceText = cfg.voice.asr && msg.records.length ? await transcribe(msg) : msg.records.length ? '[发来一条语音]' : ''
     if (disposed) return
     if (voiceText) text = (text ? text + ' ' : '') + voiceText
-    if (voiceText && msg.kind === 'private' && onMemoryCommand) {
-      try { onMemoryCommand(msg, text) } catch (error) { log.warn('处理记忆请求失败：', error.message) }
-    }
     if (voiceText && msg.kind === 'group') {
       // 群消息的文字在 groupBuf 里，语音转出来的字补进去，拼提示词时才看得到
       const last = (groupBuf.get(msg.groupId) || []).findLast?.((x) => x.uid === msg.userId)
@@ -1800,6 +1878,15 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
       p.waiting = true
       return
     }
+    // 心智核心：单一注意力——她正在别的聊天里回话，这一段先等着，回完再看（主人的可以插队）
+    if (attentionBlocked(chatId, p)) {
+      p.waiting = true
+      attentionQueue.add(chatId)
+      // 兜底：那边卡住没 release，过一会儿再看一眼
+      setTimeout(() => { if (pending.get(chatId)?.waiting && !disposed) flush(chatId).catch(() => {}) }, 30_000)
+      return
+    }
+    attentionQueue.delete(chatId)
     pending.delete(chatId)
     if (p.count > 1) log.info(`${chatId}：合并了 ${p.count} 条消息一起交给她`)
     let content
@@ -1842,7 +1929,34 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     if (p && p.waiting) {
       p.waiting = false
       flush(chatId).catch(() => {})
+      return
     }
+    drainAttention()
+  }
+
+  // ---------- 单一注意力（心智核心的设置）----------
+  const attentionQueue = new Set() // 在等她回完别处的聊天
+  const ownerIn = (p) => [...(p?.senders || [])].some((u) => isOwner(getConfig(), u)) || (p?.chat?.kind === 'private' && isOwner(getConfig(), p.chat.userId))
+  function attentionBlocked(chatId, p) {
+    let a = null
+    try { a = mind?.attention?.() } catch (error) {}
+    if (!a?.single) return false
+    if (a.ownerCuts && ownerIn(p)) return false
+    return [...busy.keys()].some((k) => k !== chatId && !k.startsWith('system:') && isBusy(k))
+  }
+  /** 她回完一个聊天：看看谁在等（主人的先，其次先来的）。 */
+  function drainAttention() {
+    if (!attentionQueue.size || disposed) return
+    if ([...busy.keys()].some((k) => !k.startsWith('system:') && isBusy(k))) return
+    const waiting = [...attentionQueue].filter((id) => pending.get(id)?.waiting)
+    attentionQueue.clear()
+    for (const id of waiting) attentionQueue.add(id)
+    if (!waiting.length) return
+    const next = waiting.find((id) => ownerIn(pending.get(id))) || waiting[0]
+    attentionQueue.delete(next)
+    const p = pending.get(next)
+    if (p) p.waiting = false
+    flush(next).catch(() => {})
   }
 
   async function admit(agent, content) {
@@ -1907,6 +2021,12 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     try {
       const cfg = getConfig()
       if (!cfg.enabled || cfg.dryRun) return content
+      // 心智核心记得这个聊天之前说过什么：直接接上（换新会话、重启后都一样）
+      const carried = mind?.carryOver ? mind.carryOver(chat.chatId, { current: content.filter((c) => c?.type === 'text').map((c) => c.text).join('\n') }) : ''
+      if (carried) {
+        log.info(`${chat.chatId}：新会话，接上之前的聊天`)
+        return [{ type: 'text', text: carried }, ...content]
+      }
       if (!cfg.chat?.seedHistory) return content
       const count = Math.min(50, Math.max(1, Number(cfg.chat?.seedHistoryCount) || 20))
       const tgt = targetOf(chat.chatId)
@@ -1970,6 +2090,11 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     }
     content = await dropUnseenImages(chat, content)
     assertActive()
+    // 心智核心：这一轮要看的话当线索，想起相关的事放进工作记忆（插话进行中的一轮不重新想）
+    if (mind?.beforeTurn && !opts.steer) {
+      try { await mind.beforeTurn(chat, userText, [senderId, ...(opts.extraSenders || [])]) } catch (error) { log.debug('心智想起失败：', error.message) }
+      assertActive()
+    }
     const happened = noticesFor.get(chat.chatId)
     if (happened?.length) {
       noticesFor.delete(chat.chatId)
@@ -2450,10 +2575,10 @@ export function createHub({ dsh, getConfig, log, onebot, stickers, tts, buildToo
     localTranscribe,
     ensureWorkspace,
     chatLogOf,
-    forgetChatLog,
+    // 测试用：让下一次写流水时重新整理一遍
+    _resetPruneForTest: () => { prunedDay = '' },
     noteSaid,
     chatLogDays,
-    deleteChatLog,
     sessions: () => map().chats,
     groupName,
     stats: () => ({ ...stats }),

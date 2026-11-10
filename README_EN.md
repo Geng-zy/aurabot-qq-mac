@@ -27,6 +27,18 @@ Upstream targets Windows only. This fork does one thing: **make it work on macOS
 | Song quality | separate → convert → mix | plus local originals first, de-reverb, lead/backing or duet split, auto key and octave folding from a per-voice profile, tone matching |
 | Fallback TTS | Windows System.Speech | macOS `say` |
 | Sending files | gateway reads local paths | gateway in a container can't: small files as base64, **files over 30 MB through a loopback-only temporary download link** |
+| Her "mind" | persona card + mood module + memory module + speak-up, each separate | replaced by a from-scratch **mind core** (`src/mind/`, see below): one mind holding memory, emotion, body, personality, relationships and wants |
+
+## 🧠 Mind core
+
+She is one person: body, memory, emotions, personality and relationships live in the mind core (`~/.dsh/plugins-data/aurabot/mind/mind.sqlite`) and are put back into context every turn, so DSH session rotation or compaction doesn't change who she is. The core in `src/mind/` imports nothing from the plugin; the QQ side is `src/mind-adapter/`.
+
+- **Body**: energy, sleepiness (a simplified two-process sleep model), hunger, sleeping and being woken, jet lag, feeding.
+- **Memory**: power-law forgetting (the FSRS-4.5 curve), strengthened and possibly rewritten on recall (adjustable; originals are always kept), consolidated and dreamt over during sleep; embeddings via SiliconFlow's free bge-m3.
+- **Emotion**: 66 emotions with durations from Verduyn & Lavrijsen 2015; targets, regulation, contagion, mood inertia.
+- **Inner life and motivation**: step-by-step thinking while idle (optionally on a local Qwen3.5-9B 4-bit model, free), 16 basic needs plus wants she grows herself, temporal motivation theory for whether to act (procrastination emerges), learning from outcomes; she decides when to browse Bilibili, visit Qzone, write a diary or message you.
+- **Personality and relationships**: 19 traits (BFI-2's 15 facets + honesty-humility + two attachment dimensions + expressiveness) that move only in small steps after repeated experience, with a cap on the owner's influence; she can edit her own persona card, name and values and writes her own life story; per-QQ-number relationships (closeness, liking, trust, nicknames, grudges…), exclusivity on by default.
+- **Every parameter** is in the panel's mind settings with its default, source (a study, or "rule of thumb") and what changing it does.
 
 ## 🚀 Install
 
@@ -50,7 +62,7 @@ No Python, Xcode command line tools, uv, Node or Git to install, no PATH or envi
 3. Follow the setup wizard: QQ numbers, then the OneBot forward WebSocket URL (usually `ws://127.0.0.1:3001`) and token.
 4. As needed in the panel: one-click song install and import a voice, install edge-tts, scan in to Bilibili / Qzone, add an image API.
 
-Upgrade by running the same command again and restarting DSH; settings, personas and memories are kept.
+Upgrade by running the same command again and restarting DSH; settings, personas and memories are kept. Old memories, mood and impressions of people are moved into the mind core on first start; afterwards confirm her starting personality once in the panel.
 
 ## 📁 Where the plugin puts things
 
@@ -60,9 +72,11 @@ Only these three places, all in your home folder:
 |---|---|
 | `~/.dsh/profiles/desktop/node_modules/dsh-aurabot-qq` | plugin code (managed by DSH, replaced on upgrade) |
 | `~/.dsh/plugins-data/aurabot/` | settings, personas, memory, stickers, diaries, logs, cover cache, installed modules |
-| `~/Aurabot/` | `rvc/` song environment, `pyenv/` voice component, `qq-chats/` QQ workspace |
+| `~/Aurabot/` | `mind/` shared uv and Python + local model, `rvc/` song environment, `pyenv/` voice component, `qq-chats/` QQ workspace |
 
-Song environment `~/Aurabot/rvc` (about 5 GB, every download checksummed): uv 0.13.7 and Rubber Band 4.0.0 in `bin/`, Python 3.13.18 in `python/`, Applio 3.7.1 with its own environment (torch 2.11), a separate vocal-separation environment `env/` (audio-separator[cpu] 0.48.0, librosa 1.0.0, torch 2.15), the separation and RVC models, and your imported voices in `models/`. Voice component `~/Aurabot/pyenv`: edge-tts 7.3.1 on the same Python. The plugin never touches the system Python and leaves nothing in `~/.cache` or `~/.local`.
+Shared Python `~/Aurabot/mind`: every Python feature shares one uv 0.13.7 (`bin/`) and Python 3.13.18 (`python/`), each with its own environment; the local model's environment is `env/` (mlx 0.32.4, mlx-lm 0.32.2) and the model is official Qwen/Qwen3.5-9B converted to 4-bit on your Mac (`models/Qwen3.5-9B-mlx4`; the original weights go to the Trash afterwards).
+
+Song environment `~/Aurabot/rvc` (about 5 GB, every download checksummed): ffmpeg and Rubber Band 4.0.0 in `bin/`, Applio 3.7.1 with its own environment (torch 2.11), a separate vocal-separation environment `env/` (audio-separator[cpu] 0.48.0, librosa 1.0.0, torch 2.15), the separation and RVC models, and your imported voices in `models/`. Voice component `~/Aurabot/pyenv`: edge-tts 7.3.1 on the shared Python. The plugin never touches the system Python and leaves nothing in `~/.cache` or `~/.local`.
 
 ## 📄 License & credits
 

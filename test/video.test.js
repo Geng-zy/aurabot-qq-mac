@@ -1,6 +1,5 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { memoryLine } from '../src/features/memory.js'
 import video, { videoFile } from '../src/modules/video/index.js'
 import { SLOTS } from '../src/local/local.js'
 
@@ -75,10 +74,4 @@ test('一次只跑一段', async () => {
   await s.get().execute({ prompt: 'a' })
   assert.equal((await s.get().execute({ prompt: 'b' })).ok, false)
   await s.done
-})
-
-test('记忆行带 QQ 号，重名分得清；已经带了就不重复', () => {
-  assert.match(memoryLine({ at: Date.now(), text: '喜欢吃辣', aboutName: '小明', about: '123' }), /\[小明\(123\)\] 喜欢吃辣/)
-  assert.match(memoryLine({ at: Date.now(), text: 'x', aboutName: '小明(123)', about: '123' }), /\[小明\(123\)\] x/)
-  assert.match(memoryLine({ at: Date.now(), text: 'x', aboutName: '小明', about: '' }), /\[小明\] x/)
 })

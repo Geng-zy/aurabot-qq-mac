@@ -263,7 +263,7 @@ function drawTool(cfg, overrides = {}) {
     canSeeImages: async () => false,
     ...overrides,
   }
-  imagegenModule.setup({ config: () => cfg, log, dsh: {}, lazy: () => ({ addEvent: (event) => events.push(event) }),
+  imagegenModule.setup({ config: () => cfg, log, dsh: {}, lazy: () => ({}), mind: { experience: (event) => events.push(event) },
     route() {}, tool: (fn) => { build = fn },
     core: { hub, local: { active: () => true, call: async (slot, args) => { generated.push({ slot, args }); return OTHER } } },
   })

@@ -50,7 +50,7 @@ export function pickFeeds(feeds, selfId, now = Date.now()) {
   return (feeds || []).filter((f) => f && f.appid === 311 && Number(f.uin) > 0 && String(f.uin) !== String(selfId) && f.key && now / 1000 - Number(f.time || 0) < 86400)
 }
 
-export function createQzoneSocial({ getConfig, onebot, hub, log, memory }) {
+export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   // 空间里看到的东西记进流水（chatId = qzone），每次整理记忆时从里面提炼关于好友的事
   const remember = (who, uin, text) => { try { hub.logChat?.('qzone', who, text, uin) } catch (error) {} }
   const file = () => dataDir('qzone-social.json')
@@ -108,7 +108,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, memory }) {
           `你要回的是这一串：\n${thread}\n\n${last.name} 刚刚说了新的话，结合说说内容和上面的评论，用你的口气接着回 TA 一句。`)
         if (!text) continue
         await sendComment(m.tid, `回复 ${last.name}：${text}`)
-        memory?.addEvent?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), aboutName: last.name, tags: ['空间'], importance: 0.35 })
+        mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), aboutName: last.name, tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
         done++
       }
@@ -157,7 +157,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, memory }) {
         continue
       }
       await sendComment(f.key, text, f.uin)
-      memory?.addEvent?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), aboutName: f.nickname, tags: ['空间'] })
+      mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), aboutName: f.nickname, tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++
     }
@@ -190,15 +190,14 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, memory }) {
   }
 
   /** 每分钟调一次：醒着的时候，每隔 intervalMin 分钟逛一次。 */
-  async function tick() {
+  /** 现在能不能去逛空间（面板里的开关和间隔还算数）。去不去由她自己决定。 */
+  function canRun() {
     const cfg = getConfig()
     const c = cfg.qzoneSocial
-    if (!cfg.enabled || !c.enabled) return
-    const h = new Date().getHours()
-    if (h < cfg.speakUp.awakeFrom || h >= cfg.speakUp.awakeTo) return
-    if (Date.now() - load().lastRun < c.intervalMin * 60_000) return
-    await run()
+    if (!cfg.enabled || !c.enabled) return '逛空间没打开'
+    if (Date.now() - load().lastRun < c.intervalMin * 60_000) return '刚逛过'
+    return true
   }
 
-  return { run, tick, state: () => { const s = load(); return { count: s.day === dayKey() ? s.count : 0, lastRun: s.lastRun, history: s.history.slice(0, 15) } } }
+  return { run, canRun, state: () => { const s = load(); return { count: s.day === dayKey() ? s.count : 0, lastRun: s.lastRun, history: s.history.slice(0, 15) } } }
 }

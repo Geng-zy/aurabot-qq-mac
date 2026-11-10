@@ -13,6 +13,8 @@ process.env.AURABOT_DATA_DIR = root
 after(() => rmSync(root, { recursive: true, force: true }))
 
 const studio = await import('../src/song/studio.js')
+// 装 uv、选镜像、解压这些通用的东西在 core/python.js（所有用 Python 的功能共用）
+const py = await import('../src/core/python.js')
 const { updateCommand } = await import('../src/core/update.js')
 const { pickMacVoice } = await import('../src/voice/tts.js')
 const { isSystemLink } = await import('../src/modules/diary/archive.js')
@@ -25,13 +27,13 @@ test('翻唱环境路径：env/bin 下的程序，不带扩展名', () => {
 })
 
 test('uv 下载源：按芯片挑 PyPI 官方的 uv 0.13.7 安装包，带校验值；没有对应包时为空', () => {
-  const arm = studio.uvSources('arm64')
+  const arm = py.uvSources('arm64')
   assert.match(arm[0].url, /uv-0\.13\.7-py3-none-macosx_11_0_arm64\.whl$/)
   assert.ok(arm[0].url.includes('mirrors.aliyun.com'), '先走国内镜像')
   assert.ok(arm.every((s) => s.sha256 === 'f91a229093163eefca89ea1b220a221d64c3beade05d03519a6584d1797a5a5f'))
-  assert.match(studio.uvSources('x64')[0].url, /macosx_10_12_x86_64\.whl$/)
-  assert.deepEqual(studio.uvSources('ppc'), [])
-  assert.deepEqual(studio.UV_SOURCES, studio.uvSources())
+  assert.match(py.uvSources('x64')[0].url, /macosx_10_12_x86_64\.whl$/)
+  assert.deepEqual(py.uvSources('ppc'), [])
+  assert.deepEqual(py.UV_SOURCES, py.uvSources())
 })
 
 test('安装参数：人声分离环境装 CPU 版（Apple 芯片走 MPS），版本固定', () => {
@@ -69,12 +71,12 @@ function makeZip(files) {
 
 test('解压：不靠外部工具；建好子目录，程序加可执行权限，拒绝越界路径', () => {
   const dir = join(root, 'unzip')
-  studio.extractZip(makeZip([['uv-0.13.5.data/scripts/uv', 'bin'], ['pkg/readme.txt', 'hi']]), dir)
+  py.extractZip(makeZip([['uv-0.13.5.data/scripts/uv', 'bin'], ['pkg/readme.txt', 'hi']]), dir)
   const exe = join(dir, 'uv-0.13.5.data/scripts/uv')
   assert.equal(readFileSync(exe, 'utf8'), 'bin')
   assert.ok(statSync(exe).mode & 0o100, '程序要能运行')
   assert.equal(readFileSync(join(dir, 'pkg/readme.txt'), 'utf8'), 'hi')
-  assert.throws(() => studio.extractZip(makeZip([['../evil.txt', 'x']]), join(root, 'unzip2')), /越界/)
+  assert.throws(() => py.extractZip(makeZip([['../evil.txt', 'x']]), join(root, 'unzip2')), /越界/)
   assert.equal(existsSync(join(root, 'evil.txt')), false)
 })
 
@@ -169,7 +171,7 @@ test('图片和文件按路径直发：默认关（网关在 Docker 里读不到
 
 test('一键安装的版本固定为本机跑通的组合：Python 3.13.18、Applio 3.7.1、Applio 自己的环境', async () => {
   const st = await import('../src/song/studio.js')
-  assert.equal(st.MAC_STACK.python, '3.13.18')
+  assert.equal((await import('../src/core/python.js')).PY_VERSION, '3.13.18')
   assert.equal(st.APPLIO_COMMIT, '6f69726b140c615c8cc6831a7db8b7c5e48ba8af')
   assert.deepEqual(st.MAC_STACK.applioExtras, ['python-ffmpeg==2.0.12'])
 })
@@ -217,14 +219,14 @@ test('准备 uv：bin/ 里有就直接用；下载的文件校验对不上就不
     const bin = join(base, 'bin')
     mkdirSync(bin, { recursive: true })
     writeFileSync(join(bin, 'uv'), '#!/bin/sh\n')
-    assert.equal(await studio.ensurePinnedUv(bin), join(bin, 'uv'))
+    assert.equal(await py.ensurePinnedUv(bin), join(bin, 'uv'))
 
     const bin2 = join(base, 'rvc2', 'bin')
     const notes = []
     let tries = 0
     const download = async (url, dest) => { tries++; mkdirSync(join(dest, '..'), { recursive: true }); writeFileSync(dest, '不是 uv 安装包') }
-    const r = await studio.ensurePinnedUv(bin2, { note: (s) => notes.push(s), download }).catch((e) => e)
-    assert.equal(tries, studio.uvSources().length, '每个源都试过')
+    const r = await py.ensurePinnedUv(bin2, { note: (s) => notes.push(s), download }).catch((e) => e)
+    assert.equal(tries, py.uvSources().length, '每个源都试过')
     assert.ok(notes.some((n) => /校验对不上/.test(n)), notes.join('\n'))
     assert.equal(existsSync(join(bin2, 'uv')), false, '校验不对的不放进 bin/')
     assert.equal(existsSync(join(base, 'rvc2', 'downloads-uv')), false, '临时下载文件夹删掉')
@@ -236,7 +238,13 @@ test('准备 uv：bin/ 里有就直接用；下载的文件校验对不上就不
   }
 })
 
-test('语音组件固定版本、和翻唱同一个 Python', () => {
+test('语音组件固定版本；所有功能共用同一个 Python，放在心智核心的目录里', () => {
   assert.match(studio.MAC_STACK.edgeTts, /^edge-tts==\d+\.\d+\.\d+$/)
-  assert.match(studio.MAC_STACK.python, /^3\.13\.\d+$/)
+  assert.match(py.PY_VERSION, /^3\.13\.\d+$/)
+  assert.match(py.sharedPythonDir(), /Aurabot\/mind\/python$/)
+  assert.match(py.sharedUvDir(), /Aurabot\/mind\/bin$/)
+  const env = py.uvBaseEnv({ cache: '/tmp/c' })
+  assert.equal(env.UV_PYTHON_INSTALL_DIR, py.sharedPythonDir())
+  assert.equal(env.UV_PYTHON_BIN_DIR, join(py.sharedPythonDir(), 'bin'), '快捷方式也不往 ~/.local/bin 放')
+  assert.equal(env.UV_PYTHON_PREFERENCE, 'only-managed')
 })

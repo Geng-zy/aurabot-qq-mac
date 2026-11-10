@@ -31,6 +31,24 @@ export default {
 
 能用的接口都在数据目录的 `modules/API.md`。不会写代码也没关系：在「已安装」页点「复制给 DSH 的话」，让 DSH 帮你写。
 
+**模块要让她「自己去做」一件事**（逛什么、刷什么、写点什么）时，别用 `api.every` 定时替她做，交给心智核心，由她闲着、想做的时候自己去；做过、看过的事记成她的经历：
+
+```js
+setup(api) {
+  api.mind?.offer?.({
+    id: 'draw', label: '画一张画', needs: { fun: 0.8, beauty: 1 }, cooldownMinutes: 240,
+    available: () => (api.mind.awake() ? true : '睡着了'),
+    run: async () => {
+      // ……画完
+      api.mind.experience({ text: '画了一张晚霞', kind: 'event', tags: ['画画'], importance: 0.4, effort: 0.05 })
+      return { ok: true, summary: '画了一张晚霞', outcome: 0.7 } // outcome：她做完有多满意，下次会按它学
+    },
+  })
+}
+```
+
+模块不能替她做决定、不能改她的人格、也不能自己另存一份她的记忆；详细见 `API.md` 的「心智核心」一节。
+
 上线前可以用同一处的「模拟测试」试，消息不会真发到 QQ。
 
 ## 2. 放进仓库

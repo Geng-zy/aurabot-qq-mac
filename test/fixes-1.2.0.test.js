@@ -6,7 +6,6 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import qqTools from '../src/modules/qq-tools/index.js'
-import { createMemoryStore } from '../src/features/memory.js'
 import { matchSticker, pickForReply } from '../src/features/stickers.js'
 import { createImageGen } from '../src/features/imagegen.js'
 import { askModel } from '../src/core/llm.js'
@@ -82,51 +81,6 @@ test('聊天流水：群聊传入其他聊天也只能搜索当前群，不能�
   const otherGroup = await tool.execute({ query: '其他群的记录', days: 0, chat: 'group:fictional-b' })
   assert.equal(otherGroup.ok, true)
   assert.match(otherGroup.message, /没找到/)
-})
-
-test('常驻记忆：超过 900 字截断并加省略号，恰好 900 字保留原文', (t) => {
-  const dir = mkdtempSync(join(tmpdir(), 'aurabot-fixes-memory-'))
-  const oldDir = process.env.AURABOT_DATA_DIR
-  process.env.AURABOT_DATA_DIR = dir
-  t.after(() => {
-    if (oldDir === undefined) delete process.env.AURABOT_DATA_DIR
-    else process.env.AURABOT_DATA_DIR = oldDir
-    rmSync(dir, { recursive: true, force: true })
-  })
-
-  const mem = createMemoryStore({ dsh: {}, getConfig: () => ({ memory: { enabled: true } }), hub: {}, log })
-  const chat = { kind: 'private', userId: 'fictional-person', chatId: 'private:fictional-person' }
-  const key = 'qq:fictional-person'
-  mem.setProfile(chat.userId, '档'.repeat(190))
-  mem.setInsights(key, Array.from({ length: 8 }, (_, i) => `经验${i}${'甲'.repeat(60)}`))
-  const beforeStyle = mem.contextFor(chat, 'fictional-session')
-  assert.ok(beforeStyle.length < 900)
-  assert.doesNotMatch(beforeStyle, /…$/)
-
-  mem.setStyle(key, Array.from({ length: 5 }, (_, i) => `风格${i}${'乙'.repeat(37)}`))
-  const long = mem.contextFor(chat, 'fictional-session')
-  assert.equal(long.length, 901, '900 字正文加一个省略号')
-  assert.ok(long.startsWith(beforeStyle + '\n'))
-  assert.match(long, /说话方式/)
-  assert.equal(long.at(-1), '…')
-
-  // 利用公开的 setInsights 微调长度，检查恰好 900 字和多一个字的边界。
-  mem.setStyle(key, [])
-  mem.setInsights(key, ['丙'])
-  const oneChar = mem.contextFor(chat, 'fictional-session')
-  const count = 900 - oneChar.length + 1
-  assert.ok(count > 0)
-  mem.setInsights(key, ['丙'.repeat(count)])
-  const exact = mem.contextFor(chat, 'fictional-session')
-  assert.equal(exact.length, 900)
-  assert.doesNotMatch(exact, /…$/)
-
-  mem.setInsights(key, ['丙'.repeat(count + 1)])
-  const over = mem.contextFor(chat, 'fictional-session')
-  assert.equal(over.length, 901)
-  assert.equal(over.slice(0, 599), exact.slice(0, 599))
-  assert.equal(over[599], '丙')
-  assert.equal(over[900], '…')
 })
 
 test('自动配表情：不随机的表情既不参与关键词匹配，也不参与随机兜底', (t) => {
@@ -243,28 +197,20 @@ test('模型一直没有正文：只调用两次并返回空字符串', async ()
   assert.deepEqual(calls.map((c) => c.maxTokens), [600, 1800])
 })
 
-test('桌宠行为回执只留 3 天，别的记忆不受影响（#138）', async () => {
-  const { shouldForget } = await import('../src/features/memory.js')
-  const now = Date.now()
-  const day = 86400_000
-  assert.equal(shouldForget({ source: 'pet', at: now - 2 * day }, now), false)
-  assert.equal(shouldForget({ source: 'pet', at: now - 4 * day }, now), true)
-  assert.equal(shouldForget({ source: 'self', at: now - 400 * day }, now), false)
-})
-
-test('心情基线可配，衰减往基线靠（#139）', async () => {
-  const { decayed } = await import('../src/features/companion.js')
-  assert.equal(Math.round(decayed(100, 0, 1, 100 * 3600_000, 40)), 40)
-  assert.equal(Math.round(decayed(100, 0, 1, 100 * 3600_000)), 60)
-})
-
 test('聊天流水保留和新开关的配置规范化（#140 #141 #142 #143）', async () => {
   const { normalize } = await import('../src/core/config.js')
   const d = normalize({})
   assert.equal(d.memory.keepChatlogDays, 7)
   assert.equal(normalize({ memory: { keepChatlogDays: 0 } }).memory.keepChatlogDays, 7, '老配置的默认值')
   assert.equal(normalize({ memory: { keepChatlogDays: 0, keepChatlogSet: true } }).memory.keepChatlogDays, 0, '面板里选的 0 要算数')
-  assert.equal(d.memory.mergeGroups, false)
+  // 心智核心接手后不用的旧设置清掉；旧记忆模块的向量密钥搬到 mind.embedKey
+  const old = normalize({ speakUp: { idleMinutes: 5 }, mood: { base: 60 }, memory: { recallCount: 6, mergeGroups: true, vector: { apiKey: 'sk-old' } }, group: { ownerBrief: { enabled: true } }, qzoneSocial: { intervalMin: 30 }, modules: { purpose: { enabled: true }, mood: { enabled: true }, tophub: { enabled: true } } })
+  assert.deepEqual(Object.keys(old.memory).sort(), ['keepChatlogDays', 'keepChatlogSet'])
+  for (const k of ['speakUp', 'mood']) assert.equal(k in old, false, k)
+  assert.equal('ownerBrief' in old.group, false)
+  assert.equal('intervalMin' in old.qzoneSocial, false)
+  assert.deepEqual(Object.keys(old.modules), ['tophub'])
+  assert.equal(old.mind.embedKey, 'sk-old')
   assert.equal(d.chat.seedHistory, false)
   assert.equal(d.group.ignoreAtOthers, false)
   assert.equal(normalize({ memory: { keepChatlogDays: -9 } }).memory.keepChatlogDays, -1)

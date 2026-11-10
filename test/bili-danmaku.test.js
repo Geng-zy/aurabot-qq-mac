@@ -18,7 +18,8 @@ function fixture() {
   const api = {
     config: () => cfg, settings: () => cfg.bili, dataDir: () => '/unused/danmaku.json',
     lib: () => ({ readJson: () => structuredClone(data), writeJson: (file, next) => { data = structuredClone(next) } }),
-    use: (name) => name === 'login-manager' ? { resolve: () => ({ handled: true, ok: !!cookie, cookie }) } : name === 'memory' ? { addEvent: (event) => memories.push(event) } : null,
+    use: (name) => name === 'login-manager' ? { resolve: () => ({ handled: true, ok: !!cookie, cookie }) } : null,
+    mind: { experience: (event) => memories.push(event) },
     onDispose: (fn) => disposers.push(fn), log: { warn() {} },
     core: { hub: { runSystemTurn: async (...args) => { prompts.push(args); return JSON.stringify({ send: true, text: '这个主题挺有趣', seconds: 0 }) } } },
   }

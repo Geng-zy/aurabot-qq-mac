@@ -16,6 +16,8 @@ import { dataDir } from './store.js'
 import { API_VERSION, builtinDir, userDir } from './modules.js'
 
 export const REGISTRY_URL = 'https://raw.githubusercontent.com/aureth-labs/dsh-aurabot-qq-mods/registry/index.json'
+// 这个 macOS 分叉自己的模块库：只有装了分叉的人看得到。和原项目同 id 的模块以这里为准（已经配合心智核心）
+export const MAC_REGISTRY_URL = 'https://raw.githubusercontent.com/Geng-zy/aurabot-qq-mac-mods/registry/index.json'
 export const SOURCE_FILE = '.aurabot-source.json'
 const MAX_ZIP_BYTES = 25 * 1024 * 1024
 const MAX_FILE_BYTES = 64 * 1024 * 1024
@@ -109,7 +111,7 @@ function safeName(name) {
   return name.split('/').every((seg) => seg && seg !== '.' && seg !== '..')
 }
 
-export function createCommunity({ mods, getConfig, setConfig, log, version, alive = () => true, registryUrl = process.env.AURABOT_REGISTRY_URL || REGISTRY_URL, fetcher = fetch, retryMs = RETRY_MS }) {
+export function createCommunity({ mods, getConfig, setConfig, log, version, alive = () => true, registryUrl = process.env.AURABOT_REGISTRY_URL || REGISTRY_URL, macRegistryUrl = process.env.AURABOT_MAC_REGISTRY_URL ?? MAC_REGISTRY_URL, fetcher = fetch, retryMs = RETRY_MS }) {
   const dirOf = (id) => join(userDir(), id)
   let cache = null // { at, index }
   let busy = null // 同一时间只跑一个安装 / 卸载
@@ -120,25 +122,47 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
   }
   const hasFolder = (id) => existsSync(dirOf(id))
 
-  async function loadIndex({ force = false } = {}) {
-    if (!force && cache && Date.now() - cache.at < INDEX_TTL) return cache.index
+  /** 读一个模块库的索引。 */
+  async function fetchIndex(url) {
     const index = await withRetry(async () => {
-      const r = await fetcher(registryUrl, { signal: AbortSignal.timeout(20_000), cache: 'no-store' })
+      const r = await fetcher(url, { signal: AbortSignal.timeout(20_000), cache: 'no-store' })
       if (!r.ok) throw new Error(`读不到社区模块索引（HTTP ${r.status}）`)
       return r.json()
     }, retryMs)
     if (index?.schema !== 1) throw new Error('社区模块索引的格式是新版的，先更新插件')
+    return index
+  }
+
+  /**
+   * 两个模块库合在一起：原项目的（upstream）和这个分叉自己的（mac）。
+   * 每条记下来自哪个库、下载地址的前缀；同 id 的以分叉的为准。一个库读不到不耽误另一个，两个都读不到才报错。
+   */
+  async function loadIndex({ force = false } = {}) {
+    if (!force && cache && Date.now() - cache.at < INDEX_TTL) return cache.index
+    const sources = [['upstream', registryUrl], ...(macRegistryUrl ? [['mac', macRegistryUrl]] : [])]
+    const got = await Promise.all(sources.map(([key, url]) => fetchIndex(url).then((index) => ({ key, index }), (error) => ({ key, error }))))
+    const ok = got.filter((x) => x.index)
+    if (!ok.length) throw got[0].error
+    for (const x of got) if (x.error) log.warn(`模块库（${x.key === 'mac' ? '本分叉' : '原项目'}）这次没读到：`, x.error.message)
+    const byId = new Map()
+    const revoked = []
+    for (const { key, index } of ok) {
+      for (const e of index.modules || []) byId.set(e.id, { ...e, registry: key, assetsBase: String(index.assetsBase || '') })
+      for (const r of index.revoked || []) revoked.push({ ...r, registry: key })
+    }
+    const index = { schema: 1, modules: [...byId.values()], revoked, generatedAt: ok.map((x) => x.index.generatedAt || '').sort().at(-1) || '', partial: got.some((x) => x.error) }
     cache = { at: Date.now(), index }
     return index
   }
 
-  const revokedReason = (index, id, v) => (index.revoked || []).find((r) => r.id === id && r.versions?.includes(v))?.reason || ''
+  // 撤回只认同一个库的：分叉库撤回了自己的某个版本，不影响从原项目装的同号版本，反过来也一样
+  const revokedReason = (index, id, v, registry = '') => (index.revoked || []).find((r) => r.id === id && r.versions?.includes(v) && (!registry || (r.registry || 'upstream') === registry))?.reason || ''
 
   /** 这一条现在装不了的原因；能装返回空串。 */
   function blocked(index, e) {
     if (Number(e.api) > API_VERSION) return `要扩展接口 v${e.api}，现在的插件只有 v${API_VERSION}，先更新插件`
     if (compareVersions(e.minPluginVersion, version) > 0) return `要插件 ${e.minPluginVersion} 以上，现在是 ${version}，先更新插件`
-    if (revokedReason(index, e.id, e.version)) return `这个版本已撤回：${revokedReason(index, e.id, e.version)}`
+    if (revokedReason(index, e.id, e.version, e.registry)) return `这个版本已撤回：${revokedReason(index, e.id, e.version, e.registry)}`
     const known = new Set(mods.status().map((m) => m.id))
     const missing = (e.requires || []).filter((dep) => !known.has(dep))
     return missing.length ? `要先装：${missing.join('、')}` : ''
@@ -150,7 +174,9 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
       ...e,
       installed: src?.version || '',
       foreign: !src && hasFolder(e.id), // 同名文件夹是用户自己写的
-      update: Boolean(src && compareVersions(e.version, src.version) > 0),
+      // 装着的是另一个库的同名模块（比如原项目的 tophub，而分叉库里有配合心智核心的版本）：也算有更新，换过来
+      update: Boolean(src && ((src.registry || 'upstream') !== e.registry || compareVersions(e.version, src.version) > 0)),
+      switchSource: Boolean(src && (src.registry || 'upstream') !== e.registry),
       blocked: blocked(index, e),
       moved: e.id in MOVED,
     }
@@ -162,12 +188,13 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
     // 已安装但索引里没有了（下架）的也列出来，好让用户卸载
     const known = new Set(entries.map((e) => e.id))
     const delisted = mods.status().filter((m) => !known.has(m.id) && readSource(m.id)).map((m) => ({ id: m.id, name: m.name, description: m.description, version: readSource(m.id).version, installed: readSource(m.id).version, delisted: true, capabilities: [], blocked: '' }))
-    const revoked = entries.concat(delisted).filter((e) => e.installed && revokedReason(index, e.id, e.installed)).map((e) => ({ id: e.id, version: e.installed, reason: revokedReason(index, e.id, e.installed) }))
-    return { list: [...entries, ...delisted], revoked, generatedAt: index.generatedAt || '' }
+    const regOf = (id) => readSource(id)?.registry || 'upstream'
+    const revoked = entries.concat(delisted).filter((e) => e.installed && revokedReason(index, e.id, e.installed, regOf(e.id))).map((e) => ({ id: e.id, version: e.installed, reason: revokedReason(index, e.id, e.installed, regOf(e.id)) }))
+    return { list: [...entries, ...delisted], revoked, generatedAt: index.generatedAt || '', partial: Boolean(index.partial) }
   }
 
   async function download(index, e) {
-    const url = String(index.assetsBase || '') + e.path
+    const url = String(e.assetsBase ?? index.assetsBase ?? '') + e.path
     if (!/^https:\/\//.test(url)) throw new Error('下载地址不对')
     const buf = await withRetry(async () => {
       progress = { id: e.id, name: e.name, stage: 'download', received: 0, total: 0 }
@@ -200,7 +227,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
         writeFileSync(dest, data)
       }
       if (!existsSync(join(stage, 'index.mjs')) && !existsSync(join(stage, 'index.js'))) throw new Error('安装包里没有入口文件')
-      writeFileSync(join(stage, SOURCE_FILE), JSON.stringify({ id: e.id, version: e.version, sha256: e.sha256, installedAt: new Date().toISOString() }, null, 2))
+      writeFileSync(join(stage, SOURCE_FILE), JSON.stringify({ id: e.id, version: e.version, sha256: e.sha256, registry: e.registry || 'upstream', installedAt: new Date().toISOString() }, null, 2))
       const target = dirOf(e.id)
       if (existsSync(target)) renameSync(target, old)
       try { renameSync(stage, target) } catch (error) {

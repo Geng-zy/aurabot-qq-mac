@@ -101,14 +101,14 @@ function fakes({ decisions, replyText = '是呀 我也觉得', cfgOver = {}, pos
     sendText: async (chatId, text) => sent.push({ chatId, text }),
     logChat: () => {},
   }
-  const memory = {
-    list: () => [{ text: '主人喜欢猫', about: '10000001' }],
-    recentEvents: () => [],
-    addEvent: (e) => { eventRecords.push(e); events.push(e.text) },
-    add: (m) => facts.push(m.text),
+  // 心智核心给模块的接口：查她记得的、最近做过的；添她的经历
+  const mind = {
+    recall: async () => [{ text: '主人喜欢猫' }],
+    recent: () => [],
+    experience: (e) => { eventRecords.push(e); events.push(e.text) },
   }
   const cfg = normalize({ enabled: true, dryRun: false, ownerQQ: '10000001', bili: { enabled: true, cookie: 'SESSDATA=x; bili_jct=y', perRun: 2, maxCommentsPerDay: 1, ...cfgOver } })
-  const b = duty.createBili({ getConfig: () => cfg, hub, memory, log: { info() {}, warn() {}, debug() {} }, api: fakeApi })
+  const b = duty.createBili({ getConfig: () => cfg, hub, mind, log: { info() {}, warn() {}, debug() {} }, api: fakeApi })
   return { b, posted, sent, events, eventRecords, facts }
 }
 

@@ -133,24 +133,36 @@ export interface Events {
   [custom: string]: (...args: any[]) => any
 }
 
-/** 平台是工具；确认平台账号对应的 QQ 后，才能写入和读取同一份私聊记忆。 */
-export interface MemoryModule {
-  [key: string]: any
-  /** 外部视频、帖子、网页用 seen；省略 kind 仍是原有做过的事。source 固定 event，仍存 items。
-   * seen 不作为事实、画像或相处经验来源，也不挂到 about 人物名下。 */
-  addEvent(args: {
-    text?: string; about?: string; aboutName?: string; tags?: string[]; importance?: number
-    saidAt?: number; chatId?: string; kind?: 'seen'
-    /** 仅保留这些字段，长度上限依次为 160 / 80 / 500 / 40 / 100 字符。 */
+/**
+ * 心智核心给模块的接口。模块不能替她做决定、不能改她的人格、不能自己另存一份她的记忆；
+ * 只能把她做过、看过的事告诉心智核心，和查她记得的事。
+ */
+export interface MindApi {
+  /** 她经历了一件事。kind：event 做过的事（默认）、seen 看过的内容、own-post 她自己发出去的东西。about 是 QQ 号。返回经历 id。 */
+  experience(e: {
+    text: string; kind?: 'event' | 'seen' | 'own-post'; about?: string; importance?: number; tags?: string[]; chatId?: ChatId
     meta?: { title?: string; author?: string; url?: string; platform?: string; id?: string | number }
-  }): { ok: boolean; message?: string; id?: string; updated?: string }
-  /** 事实时间段可选；开始默认 saidAt；旧 invalidAt 读取时作为 validUntil。 */
-  add(args: { text: string; about?: string; aboutName?: string; chatId?: string; source?: string; importance?: number; tags?: string[]; saidAt?: number; validFrom?: number | string; validUntil?: number | string; [key: string]: any }): { ok: boolean; id?: string; updated?: string; message?: string }
-  update(id: string, patch: { text?: string; validFrom?: number | string | null; validUntil?: number | string | null; [key: string]: any }): { ok: boolean; item?: any; message?: string }
-  timeline(filters?: { kind?: 'gist' | 'seen'; platform?: string; chatId?: string; level?: number | string; about?: string }): Array<{ id: string; kind: 'gist' | 'seen'; platforms: string[]; displayText: string; [key: string]: any }>
-  /** 接聊天平台时用 noteVia；确认身份后写入同一个 QQ 的私聊流水，短期状态自动生效。 */
-  noteVia(args: { via: string; qq: string | number; who: 'user' | 'bot'; text: string; at?: number }): { ok: boolean }
-  contextVia(args: { qq: string | number; query?: string }): string
+    /** 做这件事时的感受（名字用常见说法，比如 满足、开心、无聊） */
+    emotion?: { name: string; intensity: number }
+    /** 花了她多少精力，0～0.3（唱一首歌大约 0.05） */
+    effort?: number
+  }): string | null
+  /** 查她记得的事。level：clear 清楚、vague 只记得大概、tip 话到嘴边只想起一半。忘了的查不到。 */
+  recall(query: string, opts?: { limit?: number }): Promise<Array<{ at: number; text: string; level: 'clear' | 'vague' | 'tip'; kind: string }>>
+  /** 最近她做过、看过的事（可按标签筛）。 */
+  recent(opts?: { hours?: number; tag?: string; limit?: number }): Array<{ at: number; text: string; kind: string }>
+  /** 她现在的时间（按她的时区）。 */
+  now(): string
+  /** 她醒着没有。 */
+  awake(): boolean
+  /** 把一件她能做的事交给她，由她自己决定什么时候做。返回撤销函数（模块停了会自动撤）。 */
+  offer(a: {
+    id: string; label: string; needs: Record<string, number>; effort?: number; delayHours?: number; cooldownMinutes?: number
+    payoff?: number; keywords?: string[]; available?: () => true | string | false
+    run: () => Promise<{ ok: boolean; summary?: string; outcome?: number }>
+  }): () => void
+  /** 主人有没有批准她这项权限。 */
+  granted(key: string): boolean
 }
 
 export interface Api {
@@ -203,10 +215,11 @@ export interface Api {
   onDispose(fn: () => void): Off
 
   // ---- 别的模块和插件内部 ----
-  use(id: 'memory'): MemoryModule | null
   use<T = any>(id: string): T | null
   lazy<T = any>(id: string): Partial<T>
   has(id: string): boolean
+  /** 心智核心（没起来时是 null） */
+  mind: MindApi | null
   core: {
     hub: any
     onebot: { call(action: string, params?: any, opts?: any): Promise<any>; state: string }

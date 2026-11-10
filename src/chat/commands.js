@@ -33,7 +33,7 @@ const ALIASES = {
   模型: 'model', 换模型: 'model',
   唱: 'sing', 点歌: 'sing', 翻唱: 'sing',
   状态: 'status', 心情: 'mood', 日记: 'diary', 记住: 'remember', 记一下: 'remember',
-  搭话: 'speak', 主动搭话: 'speak',
+  投喂: 'feed', 喂: 'feed', 喂她: 'feed',
   重开: 'reset', 开机: 'on', 关机: 'off', 帮助: 'help', 命令: 'help', h: 'help',
 }
 
@@ -47,10 +47,10 @@ const COMMANDS = {
   model: '看或换她用的模型：/model 看列表，/model 2 或 /model 名字 换，/model 默认 跟随 DSH',
   sing: '让她翻唱一首：/sing 小幸运 田馥甄；后面加 +12 / -3 之类可以变调（原唱是男声一般 +12）',
   status: '看她现在的状态',
-  mood: '看她现在的心情',
+  mood: '看她现在的心情和身体',
+  feed: '给她吃的：/投喂 奶茶（一定算数；她会自己回你）',
   diary: '马上写一篇空间日记',
   remember: '让她记住一件事，如 /remember 我不吃香菜',
-  speak: '管主动搭话白名单：/speak 看名单，/speak add QQ 号 加人，/speak del QQ 号 移除',
   reset: '这个聊天重新开始（旧的对话在 DSH 侧栏里还能找回）',
   on: '打开总开关',
   off: '关掉总开关（之后除了命令什么都不回）',
@@ -95,10 +95,10 @@ export function createMutes() {
 
 /**
  * 执行命令，返回要回给主人的话。
- * @param {object} deps { getConfig, setConfig, mutes, hub, mood, memory, qzone, onebot }
+ * @param {object} deps { getConfig, setConfig, mutes, hub, mind, qzone, onebot }
  */
 export async function runCommand(cmd, msg, deps) {
-  const { getConfig, setConfig, mutes, hub, mood, memory, qzone } = deps
+  const { getConfig, setConfig, mutes, hub, mind, qzone } = deps
   const cfg = getConfig()
   const inGroup = msg.kind === 'group'
   const here = inGroup ? '这个群' : '这里'
@@ -114,39 +114,23 @@ export async function runCommand(cmd, msg, deps) {
     case 'silent': {
       const min = Math.max(0, Math.min(7 * 24 * 60, Number.parseInt(cmd.arg, 10) || 0))
       mutes.set(msg.chatId, min)
-      mood?.nudge?.(-6, '主人让她闭嘴') // 有点委屈
+      mind?.mind.emotion.feel([{ name: '委屈', intensity: 0.3, target: 'qq:' + msg.userId, why: '被叫闭嘴', importance: 0.3 }]) // 有点委屈
       if (inGroup) hub.leaveTopic?.(msg.groupId)
       return min ? `好，我在${here}安静 ${min} 分钟` : `好，我在${here}先不说话了，想我了发 /active`
     }
     case 'active':
       mutes.clear(msg.chatId)
-      mood?.nudge?.(4, '主人让她回来说话')
+      mind?.mind.emotion.feel([{ name: '快乐', intensity: 0.2, why: '又能说话了', importance: 0.2 }])
       if (inGroup) hub.joinTopic?.(msg.groupId)
       return inGroup ? '我回来啦' : '在呢'
     case 'quiet':
       if (!inGroup) return '这个命令要在群里用'
       setGroup({ interjectChance: 0 })
       return '好，这个群里没人叫我我就不插话'
-    case 'speak': {
-      const c = getConfig()
-      const [verb = '', target = ''] = String(cmd.arg || '').split(/\s+/)
-      const list = c.speakUp.allow || []
-      if (!verb) return list.length ? `主动搭话白名单：${list.join('、')}` : '主动搭话白名单是空的，用 /speak add QQ 号 加人'
-      const qq = target.replace(/\D/g, '')
-      if (!/^\d{5,}$/.test(qq) || !/^(add|加|添加|del|rm|删|删除|移除)$/.test(verb)) return '用法：/speak add QQ 号，或 /speak del QQ 号'
-      if (/^(add|加|添加)$/.test(verb)) {
-        if (list.includes(qq)) return `${qq} 已经在白名单里了`
-        // 要能聊得上：顺手加进私聊白名单
-        setConfig({ ...c, speakUp: { ...c.speakUp, allow: [...list, qq] }, allow: { ...c.allow, private: [...new Set([...c.allow.private, qq])] } })
-        return `好，以后也会主动找 ${qq}（对方要是她的好友才发得出去）`
-      }
-      if (!list.includes(qq)) return `${qq} 不在白名单里`
-      setConfig({ ...c, speakUp: { ...c.speakUp, allow: list.filter((x) => x !== qq) } })
-      return `好，不再主动找 ${qq} 了`
-    }
     case 'chatty':
       if (!inGroup) return '这个命令要在群里用'
-      setGroup({ interjectChance: 0.4, minRelevance: 0.1 })
+      // 有心智核心时插不插话由她自己，这里让她在这个群更想接话（两倍）；没有心智核心时按旧的概率
+      setGroup({ interjectChance: 0.4, minRelevance: 0.1, interjectScale: 2 })
       return '好耶，那我在这个群多说两句'
     case 'normal':
       if (!inGroup) return '这个命令要在群里用'
@@ -157,7 +141,7 @@ export async function runCommand(cmd, msg, deps) {
       const mu = mutes.until(msg.chatId)
       const lines = [
         `总开关：${cfg.enabled ? '开' : '关'}${cfg.dryRun ? '（试运行，不真发）' : ''}`,
-        ...(mood ? [`心情：${mood.label()}`] : []),
+        ...(mind ? [`心情：${mind.mind.feeling().mood.label}`] : []),
         `今天：收到 ${st.received} 条，发出 ${st.sent} 条`,
         `${here}：${mu === undefined ? '正常说话' : mu === 0 ? '闭嘴中' : '闭嘴到 ' + new Date(mu).toLocaleTimeString().slice(0, 5)}`,
       ]
@@ -197,18 +181,32 @@ export async function runCommand(cmd, msg, deps) {
       if (!name) return '唱哪首？比如 /sing 小幸运 田馥甄'
       return deps.song.request({ song: name, pitch: m ? Number(m[2]) : undefined, chatId: msg.chatId }).message
     }
-    case 'mood':
-      return mood ? `现在${mood.label()}` : '心情模块关着'
+    case 'mood': {
+      if (!mind) return '心智核心没起来'
+      const f = mind.mind.feeling()
+      const top = f.emotions.filter((e) => e.intensity >= 0.12).slice(0, 4).map((e) => e.name).join('、')
+      return [`心情：${f.mood.label}${top ? '（' + top + '）' : ''}`, mind.mind.body.describe(f.body).replace('【身体】', '身体：') + (f.body.asleep ? '，睡着了' : '')].join('\n')
+    }
+    case 'feed': {
+      if (!mind) return '心智核心没起来'
+      if (!cmd.arg) return '喂她什么呀？比如 /投喂 奶茶'
+      mind.feed(cmd.arg, msg.userId, msg.chatId)
+      return '' // 不替她回话：这条接着交给她，她自己回你
+    }
     case 'diary': {
       if (!qzone) return '空间日记没开'
       const r = await qzone.writeDiary()
       return r.ok ? (r.dryRun ? '写好了，不过现在是试运行，没真发' : '写好发出去啦，去空间看看') : '没写成：' + (r.message || '不知道为啥')
     }
     case 'remember': {
-      if (!memory) return '记忆模块关着'
+      if (!mind) return '心智核心没起来，记不了'
       if (!cmd.arg) return '要我记住什么呀？比如 /remember 我不吃香菜'
-      const r = memory.add({ text: cmd.arg, aboutName: cfg.ownerName || '主人', about: cfg.ownerQQ, importance: 0.8, source: 'panel', chatId: msg.chatId })
-      return r.ok ? '记住了' : '没记上：' + (r.message || '')
+      try {
+        const r = await mind.mind.memory.remember({ text: cmd.arg, window: 'qq:' + msg.chatId, about: cfg.ownerQQ ? 'qq:' + cfg.ownerQQ : '', importance: 0.8 })
+        return r.merged ? '这个我本来就记得，现在记得更牢了' : '记住了'
+      } catch (error) {
+        return '没记上：' + error.message
+      }
     }
     case 'reset':
       hub.resetChat(msg.chatId)

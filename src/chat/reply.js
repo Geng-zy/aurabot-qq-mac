@@ -179,6 +179,8 @@ function toolTextRanges (raw, { ownerPrivate = false } = {}) {
     }
   }
   for (const open of stack) if (open.key === 'thinking') found.push({ start: open.start, end: raw.length, kind: 'tag', paired: true })
+  // 她的感受标记（<feel>…</feel>）只给心智核心看：万一漏到发送这一步，连同内容整段去掉；没闭合的吞到结尾
+  for (const m of raw.matchAll(/<feel>[\s\S]*?(?:<\/feel>|$)/gi)) found.push({ start: m.index, end: m.index + m[0].length, kind: 'tag', paired: true })
 
   // 2) JSON 调用对象：单次线性括号扫描 + 长度/预算上限，避免 O(n²)
   const budget = { chars: 300_000, parses: 400 }

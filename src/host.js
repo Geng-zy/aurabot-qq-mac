@@ -38,6 +38,8 @@ import { createBridge } from './core/bridge.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode, assertPublicUrl, fetchGuarded } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
+import { createMindAdapter } from './mind-adapter/index.js'
+import { createLocalInstaller } from './mind-adapter/install.js'
 
 export const name = 'aurabot'
 export const inject = ['agents', 'sessions', 'webServer', 'timer', 'workspaceRegistry', 'attachments', 'systemPrompt', 'llm']
@@ -70,7 +72,7 @@ export function apply(ctx) {
   let bridge = null
   const getConfig = () => cfg
   setSsrpMode(() => (getConfig().security && getConfig().security.ssrfMode === 'loose' ? 'loose' : 'strict'))
-  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); registerSecret(cfg.bridge.token) }
+  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey) }
   const setConfig = (next) => {
     const before = cfg
     cfg = saveConfig(next)
@@ -88,12 +90,16 @@ export function apply(ctx) {
   secrets()
   seedPersonas()
 
+  // 心智核心的对接层（下面创建）；放在这里声明，规则变量里要用
+  let mind = null
+
   // ---------- 人格与规则：通过提示词变量注入到 Aurabot 的两个 preset ----------
   const variable = (n, fn) => ctx.effect(() => ctx.systemPrompt.variable(n, (...args) => captureSystemPrompt(n, cleanText(fn(...args)))), `aurabot: 变量 ${n}`)
-  const rulesOpts = (kind) => (mods ? { off: mods.builtinOff(), extra: mods.rules(kind) } : {})
+  const rulesOpts = (kind) => (mods ? { off: mods.builtinOff(), extra: [...mods.rules(kind), ...(mind ? mind.rules(kind) : [])] } : {})
   // 扩展模块能整段改写人格和规则（同步：提示词变量不能等）
   const rewrite = (event, text, ...args) => { const r = mods ? mods.filterSync(event, text, ...args) : text; return typeof r === 'string' ? r : r === null ? '' : text }
-  variable('aurabot_persona', () => rewrite('persona', currentPersonaText(cfg.persona.current)))
+  // 她是谁：心智核心里当前版本的人格卡 + 她自己写的价值观等 + 自我故事摘要 + 不知不觉的变化（心智核心没起来时用面板里的人格卡）
+  variable('aurabot_persona', () => rewrite('persona', (mind && (() => { try { return mind.selfPrompt() } catch (error) { return '' } })()) || currentPersonaText(cfg.persona.current)))
   variable('aurabot_rules_private', () => {
     const base = rewrite('rules', rulesText('private', cfg, rulesOpts('private')), 'private')
     // 危险命令确认开着时补一句：被拦下要如实告诉主人，别绕着写
@@ -248,7 +254,61 @@ export function apply(ctx) {
     },
   }
 
+  // 心智核心：起不来（比如这个 Node 没有 node:sqlite）也不影响聊天，只是她不记事
+  // 要扔掉的东西都进废纸篓（可找回），不直接删。测试时可以用 AURABOT_TRASH_DIR 指到临时目录。
+  const trashDir = process.env.AURABOT_TRASH_DIR || join(homedir(), '.Trash')
+  try {
+    mind = createMindAdapter({
+      dir: dataDir('mind'),
+      getConfig,
+      log: logger.child('mind'),
+      persona: () => readPersona(getConfig().persona.current),
+      legacyDir: dataDir(),
+      trashDir,
+      // 心智核心的后台用途（记经历、睡觉整理、做梦）都用 DeepSeek，思考深度按用途定
+      ask: ({ system, text, maxTokens, reasoningEffort }) => askModel(ctx, { system, text, maxTokens, reasoningEffort, temperature: 0.4, cfg: getConfig() }),
+      embedKey: () => getConfig().mind?.embedKey || '',
+      // 她想主动找人：把心里的由头交给那个私聊，话由她自己说
+      reachOut: async ({ chatId, userId, note }) => {
+        if (!hub) return
+        await hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: getConfig().ownerName || '主人' }, [{ type: 'text', text: note }], '')
+      },
+      // 她改了自己之后通知你（系统通知，不是她说的话）
+      notifyOwner: async (text) => {
+        const qq = String(getConfig().ownerQQ || '')
+        if (!hub || !qq) return
+        await hub.sendSegments('private:' + qq, [{ type: 'text', data: { text } }], '心智通知', { force: true, quiet: true, system: true }).catch(() => {})
+      },
+      // 她改了人格卡、名字：面板里正在用的那份人格卡文件跟着改，两边一致
+      onSelfChange: ({ what, after }) => {
+        const id = getConfig().persona.current
+        const cur = readPersona(id)
+        if (!cur) return
+        if (what === 'persona') savePersona(id, { name: cur.name, tags: cur.tags, body: after })
+        if (what === 'name') savePersona(id, { name: after, tags: cur.tags, body: cur.body })
+      },
+      // 群名（聊天中枢查到过的；没查到就显示群号）
+      groupName: (gid) => hub?.groupNames?.get?.(String(gid)) || '',
+      // 正在翻唱（很吃内存）：本地小模型先让路
+      heavyBusy: () => { try { return Boolean(use('song')?.status?.()?.current) } catch (error) { return false } },
+      // 醒来后把睡着时找她的消息重新交给聊天中枢（一条一条来，主人的先）
+      onWakeReplay: async (list) => {
+        for (const item of list) {
+          if (!hub) return
+          try { await hub.onMessage(item.event) } catch (error) { log.debug('补回消息失败：', error.message) }
+          await new Promise((r) => setTimeout(r, 1500))
+        }
+      },
+    })
+    mind.start().catch((error) => log.warn('心智核心启动步骤出错：', error.message))
+  } catch (error) {
+    log.warn('心智核心没起来（聊天照常）：', error.message)
+    mind = null
+  }
+
   hub = createHub({
+    mind,
+    trashDir,
     localApi: local,
     dsh: ctx,
     getConfig,
@@ -256,24 +316,23 @@ export function apply(ctx) {
     onebot,
     stickers,
     tts,
-    buildTools: (where) => mods.buildTools(where),
+    buildTools: (where) => [...mods.buildTools(where), ...(mind ? mind.tools({ ...where, ownerTurn: () => Boolean(hub?.turnSendersAllOwner?.(where.sessionId)) }) : [])],
     // 模块声明的能力（module.json capabilities）：子智能体委派这类要本机权限的能力靠它把关（一审 #177）
     capabilitiesOf: (id) => (typeof mods.capabilitiesOf === 'function' ? mods.capabilitiesOf(id) : []),
-    contextProviders: [(args) => mods.contextFor(args)],
+    contextProviders: [(args) => mind?.contextFor(args) || '', (args) => mods.contextFor(args)],
     onActivity: (a) => mods.emit('activity', a),
     // 群聊话题和她的记忆有多相关（插话判断用）
-    memoryScore: (text) => use('memory')?.topicScore?.(text) ?? 0,
-    dislikes: (qq) => use('memory')?.dislikes?.(qq) ?? false,
-    onMemoryCommand: (msg, text) => use('memory')?.handleCommand?.(msg, text),
+    memoryScore: (text) => mind?.mind.memory.topicScore(text) ?? 0,
     // QQ 里的主人命令（模块加的命令优先）
     onCommand: async (msg) => {
       const cmd = parseCommand(msg.text, mods.commands())
       if (!cmd) return null
       if (cmd.ext) return String((await cmd.ext.run(cmd.arg, msg)) ?? '')
-      return runCommand(cmd, msg, { getConfig, setConfig, mutes, hub, mood: use('mood'), memory: use('memory'), qzone: use('diary'), song: use('song'), listModels, defaultModel: () => defaultModel(ctx, { model: {} }), extraCommands: mods.commands() })
+      return runCommand(cmd, msg, { getConfig, setConfig, mutes, hub, mind, qzone: use('diary'), song: use('song'), listModels, defaultModel: () => defaultModel(ctx, { model: {} }), extraCommands: mods.commands() })
     },
     isMuted: (chatId) => mutes.muted(chatId),
-    moodEffects: () => use('mood')?.effects?.() ?? null,
+    // 心情、精力、困对说话方式的影响（表情包、语音、回复快慢、插话）
+    moodEffects: () => mind?.effects() ?? null,
     availableModels: () => modelCache,
     // 模块（重）启动代际：模块热重载后工具名没变、但实例换了，hub 要据此重挂工具（issue #73）
     toolsGeneration: () => (mods ? mods.generation?.() || 0 : 0),
@@ -500,6 +559,8 @@ export function apply(ctx) {
     http: { body: readBody, raw: readRaw, query, send },
     personas: { list: listPersonas, read: readPersona, current: () => currentPersonaText(cfg.persona.current) },
     getConfig, setConfig,
+    // 给模块的心智接口（按模块身份）；心智核心没起来时是 null
+    mindFor: (moduleId) => (mind ? mind.moduleApi(moduleId) : null),
   }
   mods = createModules({ ctx, core, getConfig, setConfig, logger, version: VERSION, builtins: BUILTINS })
   bridge = createBridge({ ctx, getConfig, setConfig, hub, mods, log: logger.child('bridge'), version: VERSION, apiVersion: API_VERSION, overview: () => overview() })
@@ -659,6 +720,7 @@ export function apply(ctx) {
     dangerGuard?.dispose()
     approvalRelay?.dispose()
     hub.dispose()
+    try { mind?.close() } catch (error) {}
     bridge.dispose()
     mods.dispose()
     onebot.stop()
@@ -674,7 +736,6 @@ export function apply(ctx) {
       } catch (error) {}
     }
     const diary = use('diary')
-    const memory = use('memory')
     return {
       ok: true,
       version: VERSION,
@@ -684,14 +745,14 @@ export function apply(ctx) {
       onebot: { state: onebotState, login, endpoint: { httpUrl: endpoint().httpUrl, wsUrl: endpoint().wsUrl }, problem: onebotState === 'connected' && loginOk ? '' : await connectionProblem() },
       stats: hub.stats(),
       // 模块关着时给个空壳，面板照常显示
-      mood: use('mood')?.state?.() ?? { value: 0, label: '心情模块关着', reason: '', history: [] },
+      // 概览上的心情（心智核心）：value 把 -1～1 的愉快度换成 0～100 显示
+      mood: (() => { try { const f = mind.mind.feeling(); return { value: Math.round((f.mood.v + 1) * 50), label: f.body.asleep ? '睡着了' : f.mood.label, reason: f.emotions[0] ? f.emotions[0].name : '', history: [] } } catch (error) { return { value: 0, label: '心智核心没起来', reason: '', history: [] } } })(),
       stickers: { count: stickers.library().items.length },
       diary: diary ? { next: diary.nextTime(), last: diary.history()[0] || null } : { next: 0, last: null },
       qzoneSocial: use('qzone-social')?.state?.() ?? null,
-      speakUp: use('speakup')?.state?.() ?? { count: 0 },
-      purpose: purposeOverview(),
       pet: petStatus(),
-      memory: { lastConsolidate: memory?.lastConsolidate?.() ?? 0 },
+      // 心智核心：上次睡觉整理的时间和结果、今天花了多少
+      mind: mind ? { sleep: mind.mind._store.get('sleep.lastReport', null), usage: mind.mind.budget.spent(), counts: mind.mind.status().counts } : null,
       avatar: avatarInfo(),
       voice: { edgeInstalled: use('voice')?.edgeInstalled?.() ?? false },
       song: use('song')?.status?.() ?? null,
@@ -714,31 +775,6 @@ export function apply(ctx) {
       : v
     return walk(value)
   }
-  // 「目的引擎」聚合：purpose 是默认关的独立内置模块，没开时 available=false，面板显示引导文案，不报错。
-  // 安静时段真相 = speakUp 醒着窗口（与 purpose/module.js 的 purposeConfig 派生保持一致）。
-  function purposeOverview() {
-    const pu = use('purpose')
-    const ext = (cfg.ext && cfg.ext.purpose) || {}
-    const sp = cfg.speakUp || {}
-    const pad2 = (n) => String(n % 24).padStart(2, '0')
-    const awakeFrom = Number.isFinite(sp.awakeFrom) ? sp.awakeFrom : 8
-    const awakeTo = Number.isFinite(sp.awakeTo) ? sp.awakeTo : 23
-    const quiet = awakeTo >= 24 || awakeFrom >= awakeTo ? { quietStart: '00:00', quietEnd: '00:00' } : { quietStart: pad2(awakeTo) + ':00', quietEnd: pad2(awakeFrom) + ':00' }
-    return {
-      available: typeof pu?.status === 'function',
-      enabled: ext.enabled === true,
-      status: pu?.status?.() ?? null,
-      count: pu?.state?.().count ?? 0,
-      carrier: ext.carrier === 'pet' ? 'pet' : 'qq',
-      petFallbackToQQ: ext.petFallbackToQQ !== false,
-      pacing: ['conservative', 'default', 'active'].includes(ext.pacing) ? ext.pacing : 'default',
-      quietStart: quiet.quietStart,
-      quietEnd: quiet.quietEnd,
-      dailyMax: Number.isFinite(sp.maxPerDay) ? sp.maxPerDay : null,
-      awakeFrom,
-      awakeTo,
-    }
-  }
   const petStatus = () => redactTokens(use('pet')?.status?.() ?? null)
 
   route('/state', async () => overview())
@@ -760,38 +796,7 @@ export function apply(ctx) {
     return { ...(await overview()), message: '保存好了' }
   })
 
-  // ---------- 面板代理：目的引擎 / 桌宠 ----------
-  // 统一走 /panel/* 前缀，避免和模块自注册的 /purpose/*、/pet/* 路由撞名；模块缺新接口时降级返回 available:false。
-  route('/panel/purpose/status', async () => ({ ok: true, purpose: purposeOverview(), pet: petStatus() }))
-  route('/panel/purpose/preview', async () => {
-    const pu = use('purpose')
-    if (typeof pu?.preview !== 'function') return { ok: false, available: false, message: '目的引擎模块没在跑，没法预览' }
-    return { ok: true, result: redactTokens(await pu.preview()) }
-  })
-  route('/panel/purpose/run', async () => {
-    const pu = use('purpose')
-    if (typeof pu?.run !== 'function') return { ok: false, available: false, message: '目的引擎模块没在跑' }
-    const r = await pu.run('面板')
-    const msg = r && { sent: '已经去找你了', silent: '她这轮想了想，决定不说（不硬发）', muted: '主人在私聊里让她闭嘴了', disabled: '目的引擎开关是关的' }[r.outcome]
-    return { ok: !r || r.outcome !== 'disabled', message: msg || (r ? `这轮结束：${r.outcome}` : '没有结果'), result: redactTokens(r) }
-  })
-  route('/panel/purpose/config', async (req) => {
-    const b = await readBody(req)
-    const patch = {}
-    const extPatch = {}
-    if (typeof b.enabled === 'boolean') extPatch.enabled = b.enabled
-    if (b.carrier === 'qq' || b.carrier === 'pet') extPatch.carrier = b.carrier
-    if (typeof b.petFallbackToQQ === 'boolean') extPatch.petFallbackToQQ = b.petFallbackToQQ
-    if (['conservative', 'default', 'active'].includes(b.pacing)) extPatch.pacing = b.pacing
-    if (Object.keys(extPatch).length) patch.ext = { purpose: extPatch }
-    const spPatch = {}
-    for (const k of ['awakeFrom', 'awakeTo', 'maxPerDay']) if (Number.isFinite(b[k])) spPatch[k] = Math.max(0, Math.floor(b[k]))
-    if (Object.keys(spPatch).length) patch.speakUp = spPatch
-    if (!Object.keys(patch).length) return { ok: false, message: '没有可保存的字段' }
-    setConfig(mergeFromPanel(cfg, patch))
-    log.info(`面板已保存目的引擎设置｜${Object.keys(extPatch).map((k) => k + '=' + extPatch[k]).concat(Object.keys(spPatch).map((k) => k + '=' + spPatch[k])).join(' ')}`)
-    return { ok: true, purpose: purposeOverview() }
-  })
+  // ---------- 面板代理：桌宠 ----------
   route('/panel/pet/status', async () => ({ ok: true, pet: petStatus() }))
   // 桌宠页下方的设置项：碎碎念（桌宠自己的气泡流）+ 干活状态动画/结束提醒
   route('/panel/pet/config', async (req) => {
@@ -1193,6 +1198,215 @@ export function apply(ctx) {
   })
 
   // 人格
+  // ---------- 心智核心（面板「心情与记忆」「人物」「心智设置」） ----------
+  const mindOff = { ok: false, message: '心智核心没起来，看日志里的原因' }
+  route('/mind/state', async () => {
+    if (!mind) return mindOff
+    const m = mind.mind
+    return { ok: true, status: m.status(), usage: m.budget.spent(), sleep: m._store.get('sleep.lastReport', null), dreams: m._store.get('dreams.log', []).slice(0, 10), pending: m.memory.pendingWindows().length }
+  })
+  route('/mind/memories', async (req) => {
+    if (!mind) return mindOff
+    const qs = query(req)
+    const status = ['live', 'archived'].includes(qs.status) ? qs.status : 'live'
+    return { ok: true, items: mind.mind.memory.list({ status, kind: qs.kind || '', q: String(qs.q || '').slice(0, 100), limit: 200, offset: Math.max(0, Number(qs.offset) || 0) }), counts: mind.mind.memory.counts() }
+  })
+  route('/mind/memory/delete', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    return mind.mind.memory.deleteEpisode(String(b.id || '')) ? { ok: true, message: '删掉了；由它整理出来的「知道的事」会跟着删或重算' } : { ok: false, message: '没有这条' }
+  })
+  route('/mind/memory/boost', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    return mind.mind.memory.boost(String(b.id || '')) ? { ok: true, message: '加强了，她会记得更牢' } : { ok: false, message: '没有这条' }
+  })
+  route('/mind/settings', async () => {
+    if (!mind) return mindOff
+    const { GROUPS, PARAMS } = await import('./mind/params.js')
+    return { ok: true, groups: GROUPS, params: PARAMS, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
+  })
+  route('/mind/settings/save', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    try {
+      const changed = mind.mind.updateSettings(b.patch || {}, 'owner')
+      return { ok: true, changed, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
+    } catch (error) {
+      return { ok: false, message: error.message }
+    }
+  })
+  route('/mind/settings/reset', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    mind.mind.resetSetting(String(b.key || ''))
+    return { ok: true, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
+  })
+  route('/mind/sleep', async () => {
+    if (!mind) return mindOff
+    const report = await mind.mind.sleep()
+    return { ok: true, report, message: '整理完了' }
+  })
+  route('/mind/now', async () => {
+    if (!mind) return mindOff
+    const f = mind.mind.feeling()
+    const cfgNow = mind.mind.settings()
+    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '主人' : mind.mind.person(e.target)?.name || e.target.replace(/^qq:/, '')) : '', why: e.why, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
+  })
+  route('/mind/feed', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    if (!String(b.food || '').trim()) return { ok: false, message: '填一个吃的' }
+    return mind.feed(String(b.food), String(getConfig().ownerQQ || ''), '')
+  })
+  route('/mind/wake', async () => {
+    if (!mind) return mindOff
+    const ev = mind.wakeUp(String(getConfig().ownerQQ || ''))
+    return ev ? { ok: true, message: `叫醒了（睡了 ${ev.hours.toFixed(1)} 小时）` } : { ok: false, message: '她没在睡' }
+  })
+  route('/mind/sleepnow', async () => {
+    if (!mind) return mindOff
+    return mind.mind.body.sleepNow() ? { ok: true, message: '让她睡了' } : { ok: false, message: '她已经在睡了' }
+  })
+  route('/mind/inner', async () => {
+    if (!mind) return mindOff
+    const m = mind.mind
+    const f = m.feeling()
+    return {
+      ok: true,
+      diary: m.inner.diary(80),
+      boredom: m.inner.boredom(),
+      motivation: m.motivation.state(f.body),
+      motives: m.motivation.motives({ body: f.body, mood: f.mood }),
+      outreach: m._store.get('outreach', { pending: null, log: [] }),
+      grants: m._store.get('grants', { requests: [], granted: {} }),
+      local: { ...mind.local.status(), install: localInstaller.status() },
+      usage: m.budget.spent(),
+    }
+  })
+  route('/mind/want/close', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    return { ok: mind.mind.motivation.closeWant(String(b.id || ''), 'dropped') }
+  })
+  route('/mind/permission/decide', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    const r = mind.decide(Number(b.n), Boolean(b.yes), 'panel')
+    return r ? { ok: true, message: r.granted ? '批准了' : '没批准' } : { ok: false, message: '这条已经处理过了' }
+  })
+  route('/mind/permission/revoke', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    mind.revoke(String(b.key || ''))
+    return { ok: true, message: '收回了' }
+  })
+  // 本地小模型一键安装：全部装在 ~/Aurabot/mind，不依赖翻唱环境
+  const localInstaller = createLocalInstaller({ trashDir, log: logger.child('mind'), mirror: () => getConfig().song?.pypiMirror || 'auto' })
+  route('/mind/local/install', async () => {
+    if (localInstaller.status().running) return { ok: false, message: '已经在装了' }
+    localInstaller.install().catch(() => {})
+    return { ok: true, message: '开始安装了（要下载约 18 GB 的官方模型，可能要一两个小时；这个页面会显示进度）' }
+  })
+  route('/mind/local/install/status', async () => ({ ok: true, ...localInstaller.status() }))
+  route('/mind/local/test', async () => {
+    if (!mind) return mindOff
+    const c = mind.local.check()
+    if (!c.ok) return { ok: false, message: c.reason }
+    const t0 = Date.now()
+    const out = await mind.local.chat([{ role: 'user', content: '用一句话说说你现在在想什么。' }], { maxTokens: 60 })
+    return out ? { ok: true, message: `能用（${((Date.now() - t0) / 1000).toFixed(1)} 秒）：${out.slice(0, 60)}` } : { ok: false, message: '没跑起来：' + (mind.local.status().lastError || '原因不明') }
+  })
+  route('/mind/act', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    const r = await mind.runAction(String(b.id || ''))
+    return { ok: Boolean(r?.ok), message: r?.summary || (r?.ok ? '做完了' : '没做成') }
+  })
+  // ---------- 关系：每个人、每个群 ----------
+  route('/mind/people', async () => {
+    if (!mind) return mindOff
+    return { ok: true, list: mind.mind.relations.list(), groups: mind.mind.relations.groups().map((g) => ({ ...g, name: hub?.groupNames?.get?.(String(g.id)) || '' })), exclusive: mind.mind.identity().exclusive }
+  })
+  route('/mind/people/edit', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    if (!b.id) return { ok: false, message: '要改谁？' }
+    const g = mind.mind.relations.edit(String(b.id), b.patch || {})
+    return { ok: true, person: g, message: '改好了' }
+  })
+
+  // ---------- 人格与自我 ----------
+  route('/mind/self', async () => {
+    if (!mind) return mindOff
+    const m = mind.mind
+    const ver = (kind, n) => m.listVersions(kind, n).map((v) => ({ id: v.id, at: v.at, by: v.by, reason: v.reason, pinned: v.pinned, data: kind === 'persona' ? { name: v.data.name, nickname: v.data.nickname, chars: String(v.data.card || '').length, card: v.data.card } : v.data }))
+    return {
+      ok: true,
+      identity: m.identity(),
+      card: m.personaCard(),
+      profile: m.self.profile(),
+      personality: m.personality.state(),
+      versions: { persona: ver('persona', 30), self: ver('self', 50), traits: ver('traits', 50) },
+      prompt: m.selfPrompt(),
+    }
+  })
+  route('/mind/self/change', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    const r = await mind.changeSelf({ what: b.what, content: b.content, why: b.why || '主人在面板里改的', trait: b.trait, dir: b.dir }, 'owner')
+    return r
+  })
+  route('/mind/self/goal/drop', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    return { ok: mind.mind.self.dropGoal(String(b.text || '')) }
+  })
+  route('/mind/self/restore', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    try {
+      if (b.kind === 'persona') {
+        mind.mind.restorePersona(Number(b.id))
+        const id = getConfig().persona.current
+        const cur = readPersona(id)
+        if (cur) savePersona(id, { name: cur.name, tags: cur.tags, body: mind.mind.personaCard() })
+        return { ok: true, message: '人格卡退回了' }
+      }
+      if (b.kind === 'traits') { mind.mind.personality.restore(Number(b.id)); return { ok: true, message: '性格退回了' } }
+      if (b.kind === 'self') return mind.mind.self.restore(Number(b.id))
+      return { ok: false, message: '不认识的版本' }
+    } catch (error) {
+      return { ok: false, message: error.message }
+    }
+  })
+  route('/mind/version/pin', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    mind.mind.pinVersion(Number(b.id), b.pinned !== false)
+    return { ok: true }
+  })
+  route('/mind/traits/confirm', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    mind.mind.personality.confirm(b.base || {})
+    return { ok: true, message: '确认好了：这就是她本来的样子' }
+  })
+  route('/mind/traits/infer', async () => {
+    if (!mind) return mindOff
+    try {
+      const r = await mind.inferTraits({ force: true })
+      return r ? { ok: true, inferred: r, message: '推好了，看看像不像她，再确认' } : { ok: false, message: '没推出来（人格卡是空的，或者模型没接上）' }
+    } catch (error) {
+      return { ok: false, message: '没推出来：' + error.message }
+    }
+  })
+  route('/mind/traits/alerts/read', async () => {
+    if (!mind) return mindOff
+    mind.mind.personality.readAlerts()
+    return { ok: true }
+  })
+
   route('/personas', async () => ({ ok: true, list: listPersonas(), current: cfg.persona.current }))
   route('/persona/get', async (req) => {
     const p = readPersona(query(req).id)
@@ -1201,6 +1415,7 @@ export function apply(ctx) {
   route('/persona/save', async (req) => {
     const b = await readBody(req)
     const p = savePersona(b.id, b)
+    if (b.id === getConfig().persona.current) mind?.syncPersona('owner', '在面板里改了人格卡')
     return { ok: true, persona: p, message: '人格已保存，下一轮起生效' }
   })
   route('/persona/delete', async (req) => {
@@ -1213,6 +1428,7 @@ export function apply(ctx) {
     const b = await readBody(req)
     if (!readPersona(b.id)) return { ok: false, message: '没有这个人格' }
     setConfig({ ...cfg, persona: { current: b.id } })
+    mind?.syncPersona('owner', `在面板里换成人格「${b.id}」`)
     log.info(`切换人格 → ${b.id}`)
     return { ok: true, current: b.id, message: '切换好了，下一轮回复起生效' }
   })
@@ -1273,7 +1489,7 @@ export function apply(ctx) {
   route('/backup/create', backupAction(async () => {
     if (backupJob?.running) return { ok: false, message: '上一个备份还在打包' }
     backupJob = { running: true, done: 0, total: 0 }
-    createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), onProgress: (p) => { backupJob = { ...backupJob, ...p } } })
+    createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), captureMind: mind ? () => mind.backupFiles() : null, onProgress: (p) => { backupJob = { ...backupJob, ...p } } })
       .then((result) => { backupJob = { running: false, result }; log.info(`备份完成：${result.name}，${result.files} 个文件`) })
       .catch((error) => { backupJob = { running: false, error: error.message }; log.error('备份失败：', error.message) })
     return { ok: true, message: '开始打包了' }
@@ -1497,7 +1713,6 @@ export function apply(ctx) {
     hub, onebot, getConfig, setConfig, logger, modules: mods, bridge, ready: booted,
     get stickers() { return use('stickers') },
     get qzone() { return use('diary') },
-    get mood() { return use('mood') },
-    get memory() { return use('memory') },
+    get mind() { return mind },
   }
 }

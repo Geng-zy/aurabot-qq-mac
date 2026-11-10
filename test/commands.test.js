@@ -26,6 +26,7 @@ test('解析：英文、中文别名、全角斜杠、中文命令不加空格',
 })
 
 function deps() {
+  const felt = []
   let cfg = normalize({ enabled: true, ownerQQ: '10000001', allow: { groups: ['555'] } })
   const calls = []
   return {
@@ -36,8 +37,15 @@ function deps() {
       setConfig: (next) => { cfg = normalize(next) },
       mutes: createMutes(),
       hub: { joinTopic: (g) => calls.push(['join', g]), leaveTopic: (g) => calls.push(['leave', g]), resetChat: (c) => calls.push(['reset', c]), stats: () => ({ received: 3, sent: 2 }) },
-      mood: { label: () => '开心' },
-      memory: { add: (x) => { calls.push(['remember', x.text]); return { ok: true, id: 'm1' } } },
+      mind: {
+        mind: {
+          memory: { remember: async (x) => { calls.push(['remember', x.text]); return { id: 'm1', merged: false } } },
+          feeling: () => ({ mood: { label: '心情不错' }, emotions: [{ name: '期待', intensity: 0.5 }], body: { asleep: false } }),
+          body: { describe: () => '【身体】精力挺足' },
+          emotion: { feel: (x) => felt.push(x[0].name) },
+        },
+        feed: (food, by, chatId) => calls.push(['feed', food, by, chatId]),
+      },
       qzone: null,
     },
   }
@@ -65,6 +73,7 @@ test('/quiet /chatty /normal 改这个群的插话频率', async () => {
   assert.equal(cfg().group.overrides['555'].interjectChance, 0)
   await runCommand(parseCommand('/chatty'), grp, d)
   assert.equal(cfg().group.overrides['555'].interjectChance, 0.4)
+  assert.equal(cfg().group.overrides['555'].interjectScale, 2, '有心智核心时：她在这个群更想接话')
   await runCommand(parseCommand('/normal'), grp, d)
   assert.equal(cfg().group.overrides['555'], undefined)
   assert.match(await runCommand(parseCommand('/quiet'), priv, d), /要在群里用/)
@@ -76,10 +85,13 @@ test('/off /on /status /remember /reset /help', async () => {
   assert.equal(cfg().enabled, false)
   await runCommand(parseCommand('/开机'), priv, d)
   assert.equal(cfg().enabled, true)
-  assert.match(await runCommand(parseCommand('/status'), grp, d), /心情：开心[\s\S]*插话：默认/)
+  assert.match(await runCommand(parseCommand('/status'), grp, d), /心情：心情不错[\s\S]*插话：默认/)
+  assert.equal(await runCommand(parseCommand('/心情'), priv, d), '心情：心情不错（期待）\n身体：精力挺足')
+  assert.equal(await runCommand(parseCommand('/投喂 奶茶'), priv, d), '', '投喂不替她回话，接着交给她')
+  assert.match(await runCommand(parseCommand('/投喂'), priv, d), /喂她什么/)
   assert.equal(await runCommand(parseCommand('/记住 我不吃香菜'), priv, d), '记住了')
   await runCommand(parseCommand('/reset'), grp, d)
-  assert.deepEqual(calls.filter((c) => c[0] !== 'join' && c[0] !== 'leave'), [['remember', '我不吃香菜'], ['reset', 'group:555']])
+  assert.deepEqual(calls.filter((c) => c[0] !== 'join' && c[0] !== 'leave'), [['feed', '奶茶', '10000001', 'private:10000001'], ['remember', '我不吃香菜'], ['reset', 'group:555']])
   assert.match(await runCommand(parseCommand('/help'), priv, d), /\/silent/)
 })
 

@@ -71,8 +71,7 @@ export function edgeInstalled() {
 /**
  * 「安装语音组件」：在 ~/Aurabot/pyenv 建一个只给 edge-tts 用的 Python 环境，装固定版本的 edge-tts。
  * 全程用 uv（翻唱安装同一套做法）：
- * - uv 用翻唱安装目录 bin/ 里的；没有就下载固定版本放进去（ensurePinnedUv）
- * - Python 和翻唱共用安装目录 python/ 里 uv 自己下载的那个（版本同 MAC_STACK.python），不碰系统的 python3
+ * - uv 和 Python 都用所有功能共用的那份（心智核心目录 ~/Aurabot/mind 里，见 core/python.js），不碰系统的 python3
  *   （那是 Xcode 命令行工具里的，没装时会弹窗要求安装）
  * - 官方源慢时自动改用国内镜像（和翻唱安装同一个判断）
  * - uv 的下载缓存放在安装目录里、装完删掉，不往 ~/.cache/uv 留东西
@@ -80,26 +79,22 @@ export function edgeInstalled() {
  * @param {{root?: string}} [o] root = 翻唱安装目录（面板里改过就传进来；留空 = ~/Aurabot/rvc）
  */
 export async function installEdge(log, { root = '' } = {}) {
-  const { ensurePinnedUv, defaultRoot, shouldUseCnMirror, MAC_STACK, CN_PYPI, CN_PYTHON } = await import('../song/studio.js')
+  const { defaultRoot, MAC_STACK } = await import('../song/studio.js')
+  const { sharedUv, shouldUseCnMirror, uvBaseEnv, CN_PYPI, PY_VERSION } = await import('../core/python.js')
   const base = root || defaultRoot()
   let uv
   try {
-    uv = await ensurePinnedUv(join(base, 'bin'), { note: (s) => log?.info(s.trim()), log })
+    uv = await sharedUv({ note: (s) => log?.info(s.trim()), log })
   } catch (error) {
     return { ok: false, message: '准备安装工具 uv 失败：' + error.message }
   }
   const cn = await shouldUseCnMirror('auto')
   const cache = join(base, 'uv-cache-voice')
-  const env = {
-    UV_CACHE_DIR: cache,
-    UV_PYTHON_INSTALL_DIR: join(base, 'python'),
-    UV_PYTHON_PREFERENCE: 'only-managed',
-    ...(cn ? { UV_PYTHON_INSTALL_MIRROR: CN_PYTHON } : {}),
-  }
+  const env = uvBaseEnv({ cache, cn })
   try {
     if (!existsSync(pyExe())) {
-      log?.info(`用 uv 准备 Python ${MAC_STACK.python}`)
-      const r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', MAC_STACK.python], { timeoutMs: 600000, env })
+      log?.info(`用 uv 准备 Python ${PY_VERSION}`)
+      const r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', PY_VERSION], { timeoutMs: 600000, env })
       if (r.code !== 0) return { ok: false, message: '准备 Python 失败：' + r.err.slice(-300) }
     }
     log?.info(`正在安装 ${MAC_STACK.edgeTts} …`)

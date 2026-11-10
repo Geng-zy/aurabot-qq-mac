@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 let studio
+let py
 let netease
 let commands
 let normalize
@@ -13,6 +14,7 @@ let normalize
 before(async () => {
   process.env.AURABOT_DATA_DIR = mkdtempSync(join(tmpdir(), 'aurabot-song-'))
   studio = await import('../src/song/studio.js')
+  py = await import('../src/core/python.js')
   netease = await import('../src/song/netease.js')
   commands = await import('../src/chat/commands.js')
   ;({ normalize } = await import('../src/core/config.js'))
@@ -196,16 +198,16 @@ test('人声分离模型：手动导入要核对校验值；下载地址先给�
   const rest = studio.separatorLinks(leap, dir)
   assert.ok(rest.length > 0 && rest.every((u) => u.endsWith('.yaml')), rest.join('\n'))
   assert.match(studio.importSeparator(dir, 'x.yaml', Buffer.from('不对')).message, /leap_xe_config_voc\.yaml/)
-  assert.ok(studio.UV_SOURCES[0].url.includes('mirrors.aliyun.com') && studio.UV_SOURCES[0].sha256)
+  assert.ok(py.UV_SOURCES[0].url.includes('mirrors.aliyun.com') && py.UV_SOURCES[0].sha256)
 })
 
 test('下载源：自动模式下官方源慢就用国内镜像；老配置自动迁移', async () => {
   const fast = async () => ({ status: 200 })
   const down = async (url) => { if (url.includes('huggingface')) throw new Error('timeout'); return { status: 200 } }
-  assert.equal(await studio.shouldUseCnMirror('auto', fast), false)
-  assert.equal(await studio.shouldUseCnMirror('auto', down), true)
-  assert.equal(await studio.shouldUseCnMirror('cn', fast), true)
-  assert.equal(await studio.shouldUseCnMirror('off', down), false)
+  assert.equal(await py.shouldUseCnMirror('auto', fast), false)
+  assert.equal(await py.shouldUseCnMirror('auto', down), true)
+  assert.equal(await py.shouldUseCnMirror('cn', fast), true)
+  assert.equal(await py.shouldUseCnMirror('off', down), false)
   assert.equal(normalize({}).song.pypiMirror, 'auto')
   assert.equal(normalize({ song: { pypiMirror: '' } }).song.pypiMirror, 'auto')
   assert.equal(normalize({ song: { pypiMirror: 'tuna' } }).song.pypiMirror, 'cn')

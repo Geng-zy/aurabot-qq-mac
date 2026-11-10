@@ -13,8 +13,6 @@ export default {
   files: ['song/studio.js'],
   setup(api) {
     const { hub, local, http } = api.core
-    const mood = api.lazy('mood')
-    const memory = api.lazy('memory')
     const song = createSongStudio({
       local,
       getConfig: api.config,
@@ -23,11 +21,10 @@ export default {
       sendText: (chatId, text) => hub.sendText(chatId, text),
       onSung: (title, chatId) => {
         const cfg = api.config()
-        mood.nudge?.(8, `唱完了「${title}」`)
         // 唱过的歌记成她的经历：私聊记到对方头上
         const uid = String(chatId).startsWith('private:') ? String(chatId).slice(8) : ''
         const who = uid === String(cfg.ownerQQ) ? cfg.ownerName || '主人' : uid ? '对方' : '群里'
-        memory.addEvent?.({ text: `给${who}唱了《${title}》`, about: uid, tags: ['唱歌'], importance: 0.5 })
+        api.mind?.experience?.({ text: `给${who}唱了《${title}》`, about: uid, chatId, tags: ['唱歌'], importance: 0.5, effort: 0.05, emotion: { name: '满足', intensity: 0.4 } })
         api.emit('song/sung', { title, chatId })
       },
     })

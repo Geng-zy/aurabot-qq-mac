@@ -40,7 +40,7 @@ export function digestOf(v, { subtitle = '', comments = [], vision = '' } = {}) 
   ].filter(Boolean).join('\n')
 }
 
-export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vision: see = lookWithVision, afterBrowse }) {
+export function createBili({ getConfig, hub, mind, log, dsh, api: injected, vision: see = lookWithVision, afterBrowse }) {
   const cfg = () => getConfig().bili
   const api = injected || createBiliApi({ getCookie: () => cfg().cookie, log })
   const shots = createShotStore({ max: () => getConfig().bili.shotLibrary })
@@ -90,8 +90,9 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
   async function chooseKeywords() {
     const c = cfg()
     const interests = [...(c.keywords || []), ...(getConfig().group.interests || [])]
-    const about = (memory?.list?.('') || []).filter((m) => String(m.about) === String(getConfig().ownerQQ) || /喜欢|爱|想|在玩|在看|追/.test(m.text)).slice(0, 12).map((m) => m.text)
-    const recent = (memory?.recentEvents?.(72, 6) || []).filter((m) => (m.tags || []).includes('B站')).map((m) => m.text)
+    // 她记得的大家喜欢什么（模糊的就是模糊的）、最近在 B 站看过什么
+    const about = mind ? (await mind.recall(`${owner()}和大家喜欢什么、最近在玩什么看什么`, { limit: 12 }).catch(() => [])).map((m) => m.text) : []
+    const recent = mind ? mind.recent({ hours: 72, tag: 'B站', limit: 6 }).map((m) => m.text) : []
     try {
       const out = await think(`你想去 B 站刷点视频。你感兴趣的：${interests.join('、') || '随便看看'}。\n你记得的关于${owner()}和大家的事：\n${about.map((t) => '- ' + t).join('\n') || '（暂无）'}\n最近刷过的：\n${recent.map((t) => '- ' + t).join('\n') || '（暂无）'}\n\n挑 3 个这次想搜的关键词（可以是你自己想看的，也可以是${owner()}可能喜欢、你想分享给${owner()}的），别和最近刷过的重复。只输出 JSON 数组，例如 ["白米饭 做法","猫咪 搞笑"]。`)
       const arr = pickJson(out, []).map((k) => String(k).trim()).filter(Boolean)
@@ -236,7 +237,7 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
         const feeling = cleanOutboundText(d.feeling, { warn: (message) => log.warn(`B 站感受：${message}`) }).trim()
         const remember = cleanOutboundText(d.remember, { warn: (message) => log.warn(`B 站见闻：${message}`) }).trim()
         if (feeling) felt.set(v.bvid, feeling)
-        memory?.addEvent?.({ kind: 'seen', meta: { title: v.title, author: v.author, url: link(v.bvid), platform: 'bili', id: v.bvid }, text: [feeling, !isSilence(remember) ? remember : ''].filter(Boolean).join('；') || v.title, tags: ['B站'], importance: 0.4 })
+        mind?.experience?.({ kind: 'seen', meta: { title: v.title, author: v.author, url: link(v.bvid), platform: 'bili', id: v.bvid }, text: [feeling, !isSilence(remember) ? remember : ''].filter(Boolean).join('；') || v.title, tags: ['B站'], importance: 0.4 })
         const comment = cleanOutboundText(atOwner(d.comment || ''), { warn: (message) => log.warn(`B 站评论：${message}`) }).trim().slice(0, 200)
         if (comment && !isSilence(comment) && commented < commentLeft && canPost(s)) {
           try {
@@ -244,7 +245,7 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
             else await api.postComment(v.aid, comment)
             commented++
             s.comments++
-            memory?.addEvent?.({ text: `在B站《${v.title}》下评论：${comment.slice(0, 60)}`, tags: ['B站'], importance: 0.4 })
+            mind?.experience?.({ text: `在B站《${v.title}》下评论：${comment.slice(0, 60)}`, tags: ['B站'], importance: 0.4 })
             record(s, { kind: 'comment', title: v.title, bvid: v.bvid, text: comment })
           } catch (error) {
             log.warn('B 站评论失败：', error.message)
@@ -328,7 +329,7 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
           else await api.postComment(x.oid, `回复 @${x.name} :${reply}`.slice(0, 200), { root: x.root, parent: x.parent })
           s.replies++
           n++
-          memory?.addEvent?.({ text: `在B站回复了 ${x.name}：${reply.slice(0, 50)}`, tags: ['B站'], importance: 0.35 })
+          mind?.experience?.({ text: `在B站回复了 ${x.name}：${reply.slice(0, 50)}`, tags: ['B站'], importance: 0.35 })
           record(s, { kind: 'reply', title: x.title, text: `${x.name}：${x.text} → ${reply}` })
         } catch (error) {
           log.warn('B 站回复失败：', error.message)
@@ -354,7 +355,7 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
       if (!id || id.short) return { ok: false, message: '短链打不开' }
     }
     const x = await lookAt(id)
-    memory?.addEvent?.({ kind: 'seen', meta: { title: x.info.title, author: x.info.author, url: link(x.info.bvid), platform: 'bili', id: x.info.bvid }, text: `看了别人发来的 B 站视频《${x.info.title}》`, tags: ['B站'], importance: 0.4 })
+    mind?.experience?.({ kind: 'seen', meta: { title: x.info.title, author: x.info.author, url: link(x.info.bvid), platform: 'bili', id: x.info.bvid }, text: `看了别人发来的 B 站视频《${x.info.title}》`, tags: ['B站'], importance: 0.4 })
     return { ok: true, message: x.digest, bvid: x.info.bvid, aid: x.info.aid, title: x.info.title }
   }
 
@@ -366,7 +367,7 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
     if (!w.ok) return w
     if (getConfig().dryRun) return { ok: true, message: `试运行：本来要在《${w.title}》下评论：${message}` }
     const r = await api.postComment(w.aid, message)
-    memory?.addEvent?.({ text: `在B站《${w.title}》下评论：${String(message).slice(0, 60)}`, tags: ['B站'], importance: 0.45 })
+    mind?.experience?.({ text: `在B站《${w.title}》下评论：${String(message).slice(0, 60)}`, tags: ['B站'], importance: 0.45 })
     const s = load(); record(s, { kind: 'comment', title: w.title, bvid: w.bvid, text: message }); save(s)
     return { ok: true, message: `评论发出去了（《${w.title}》）${r?.missed?.length ? `；没找到 ${r.missed.join('、')}，这几个没 @ 上` : ''}` }
   }
@@ -379,7 +380,7 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
     if (getConfig().dryRun) return { ok: true, message: `试运行：本来要把 B 站签名改成：${sign}` }
     if (!parseCookie(cfg().cookie).bili_jct) return { ok: false, message: '没登录 B 站，改不了签名' }
     await api.setSign(sign)
-    memory?.addEvent?.({ text: `把B站签名改成了：${sign.slice(0, 70)}`, tags: ['B站'], importance: 0.35 })
+    mind?.experience?.({ text: `把B站签名改成了：${sign.slice(0, 70)}`, tags: ['B站'], importance: 0.35 })
     return { ok: true, message: `B 站签名改好了：${sign}` }
   }
 
@@ -393,24 +394,33 @@ export function createBili({ getConfig, hub, memory, log, dsh, api: injected, vi
     } catch (error) {
       return { ok: false, message: `B 站头像没换成：${error.message}` }
     }
-    memory?.addEvent?.({ text: '换了B站头像', tags: ['B站'], importance: 0.35 })
+    mind?.experience?.({ text: '换了B站头像', tags: ['B站'], importance: 0.35 })
     return { ok: true, message: 'B 站头像换好了（B 站可能要审核一会儿才显示）' }
   }
 
   /** 每分钟调一次：醒着的时候按间隔刷、看回复。 */
+  /** 定时看看 B 站上有没有人回她（有人找她，她醒着才看）。去刷视频由她自己决定，见 canBrowse / run。 */
   async function tick() {
     const g = getConfig()
     const c = g.bili
     if (!g.enabled || !c.enabled) return
-    const h = new Date().getHours()
-    if (h < g.speakUp.awakeFrom || h >= g.speakUp.awakeTo) return
+    if (mind?.awake && !mind.awake()) return
     const s = today(load())
     if (c.reply && Date.now() - (s.lastReplyCheck || 0) > 20 * 60_000 && (await account()).isLogin) await checkReplies()
-    if (c.autoBrowse && s.runs < c.maxRunsPerDay && Date.now() - (s.lastRun || 0) > c.intervalHours * 3600_000) await run()
+  }
+
+  /** 现在能不能去刷（面板里的开关和每天上限还算数）：能就 true，不能就说原因。 */
+  function canBrowse() {
+    const g = getConfig()
+    const c = g.bili
+    if (!g.enabled || !c.enabled || !c.autoBrowse) return '刷 B 站没打开'
+    const s = today(load())
+    if (s.runs >= c.maxRunsPerDay) return '今天刷够了'
+    return true
   }
 
   return {
-    run, checkReplies, watch, comment, setSign, setAvatar, tick, account, sendShot, listShots,
+    run, canBrowse, checkReplies, watch, comment, setSign, setAvatar, tick, account, sendShot, listShots,
     libraryShots, shotFileOf, deleteShot,
     dispose() { stopped = true },
     state: () => {

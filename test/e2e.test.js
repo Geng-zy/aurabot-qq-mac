@@ -30,6 +30,7 @@ function fakePng(w, h, salt = 0) {
 
 // 「模型」脚本
 async function brain({ preset, text, images, callTool }) {
+  if (text.includes('感受测试')) return '好呀|||嘿嘿<feel>{"e":[{"n":"开心","i":0.6,"who":"10000001","why":"被夸了"}]}</feel>'
   if (text.includes('at+表情测试')) return '<at:10000001> 看这个<sticker:开心>'
   if (text.includes('热重载探针')) { const r = await callTool('probe73', {}); return r ? '探针:' + r.message : '没有探针工具' }
   if (text.includes('慢工具测试')) { const r = await callTool('slow74', {}); return r ? '慢工具好了' : '没有慢工具' }
@@ -107,6 +108,8 @@ let relayFilePath
 before(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'aurabot-e2e-'))
   process.env.AURABOT_DATA_DIR = dataDir
+  // 要扔的东西进这个临时「废纸篓」，不碰真的废纸篓
+  process.env.AURABOT_TRASH_DIR = join(dataDir, 'trash-for-test')
   process.env.AURABOT_WORKSPACE = join(dataDir, 'ws')
   mkdirSync(join(dataDir, 'ws'), { recursive: true })
   sendFilePath = join(dataDir, 'ws', '发个文件.txt')
@@ -126,7 +129,7 @@ before(async () => {
     setupDone: true,
     botQQ: BOT,
     ownerQQ: OWNER,
-    allow: { private: [OWNER], groups: ['555', '556', '557', '558', '559'] },
+    allow: { private: [OWNER], groups: ['555', '556', '557', '558', '559', '560', '561'] },
     // 556 专门测按头衔不理
     titleFilter: { enabled: true, groups: ['556'], title: '大肥鱼' },
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'no-snowluma') },
@@ -142,6 +145,10 @@ before(async () => {
   fake = createFakeDsh({ brain })
   const host = await import('../src/host.js')
   api = host.apply(fake.ctx)
+  // 这里几分钟跑上百轮：不让每轮的精力消耗把她累垮（累了少回的行为另有测试）
+  // 也不让她闲着时自己去想、去找人（内心活动和主动找人另有测试），不然会在这里插进多余的消息
+  // 群里主动接话由她自己（概率随性格、心情变），测试里默认关掉，要测插话的用例自己打开
+  api.mind.mind.updateSettings({ 'body.energyPerTurn': 0, 'attention.inner': false, 'relations.interjectScale': 0 })
   await fake.call('/onebot/reconnect')
   await until(() => mock.connected() > 0)
 })
@@ -246,6 +253,7 @@ test('群聊：叫名字（唤醒词）必回', async () => {
 
 test('群聊插话：她可以选择不说话', async () => {
   const before = fake.turns.length
+  // 557 群按群单独设成 100%：每条都给她看一眼，说不说她自己定
   mock.push(grp('557', '777', text('随便聊聊')))
   await until(() => fake.turns.length > before)
   assert.match(fake.turns.at(-1).userText, /没人叫你/)
@@ -412,8 +420,9 @@ test('空间互动：回复自己说说下的新评论、评论好友说说并�
   assert.equal(mock.sent('comment_qzone').length, 2, '同一条评论、同一条说说不会再评')
   const st = (await fake.call('/qzone/social/state')).json()
   assert.equal(st.count, 2)
-  // 她在空间评论过谁，记成了自己的经历
-  assert.ok(api.memory.recentEvents(24, 10).some((m) => m.text.includes('评论了') && m.about === OWNER))
+  // 她在空间评论过谁，记成了自己的经历（心智核心里，带着评论的是谁）
+  const did = api.mind.mind.memory.list({ limit: 50 }).filter((m) => m.gist.includes('评论了'))
+  assert.ok(did.some((m) => api.mind.mind.memory.row(m.id).data.about === 'qq:' + OWNER && api.mind.mind.memory.row(m.id).data.by === 'qzone-social'))
 })
 
 test('空间互动：别人在她的评论下面接着回她，她会接着回（一串只回一次）', async () => {
@@ -953,20 +962,26 @@ test('换头像：主人发来的图也能用，不能被「她的画作」抢�
   assert.deepEqual(sent, png, '换上去的是主人发的那张图，不是她自己的画')
 })
 
-test('每日整理：往日的临时流水整理后清空，今天的保留；空间日记进了记忆库', async () => {
-  const { existsSync } = await import('node:fs')
+test('空间日记进了她的经历；超期的聊天流水移到废纸篓，今天的留着', async () => {
+  const { existsSync, readdirSync } = await import('node:fs')
+  // 她写过的空间日记是她自己发过的东西（心智核心里，标明是空间日记模块添的）
+  const posts = api.mind.mind.memory.list({ kind: 'own-post', limit: 50 })
+  assert.ok(posts.some((m) => m.gist.includes('白米饭') && api.mind.mind.memory.row(m.id).data.by === 'diary'), '空间日记进了她的经历')
+  // 聊天流水只是近几天的工作文件：超过保留天数的按天移到废纸篓（这里是测试用的临时废纸篓）
   const dir = join(dataDir, 'chatlog')
   mkdirSync(dir, { recursive: true })
   const old = join(dir, '2026-01-01.jsonl')
-  writeFileSync(old, ['你好', '我喜欢吃辣', '周末一起打游戏吧', '好呀'].map((t, i) => JSON.stringify({ t: i, chatId: 'private:' + OWNER, who: i % 2 ? 'bot' : 'xiaoming', text: t })).join('\n') + '\n')
-  const r = (await fake.call('/memory/extract', {})).json()
-  assert.equal(r.ok, true, r.message)
-  assert.equal(existsSync(old), false, '往日的流水被清空')
+  writeFileSync(old, JSON.stringify({ t: 1, chatId: 'private:' + OWNER, who: 'xiaoming', text: '很久以前' }) + '\n')
+  // 新的一天第一次写流水时整理（测试里把「今天已整理」清掉）
+  api.hub._resetPruneForTest?.()
+  const n = sentTo('private', OWNER).length
+  mock.push(priv(OWNER, text('在吗 流水整理测试')))
+  await until(() => sentTo('private', OWNER).length > n)
+  assert.equal(existsSync(old), false, '超期的流水移走了')
+  assert.ok(readdirSync(join(dataDir, 'trash-for-test', 'aurabot-chatlog')).some((f) => f.startsWith('2026-01-01')), '在废纸篓里能找到')
   const today = new Date()
   const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
   assert.equal(existsSync(join(dir, key + '.jsonl')), true, '今天的流水保留')
-  const mem = (await fake.call('/memories')).json()
-  assert.ok(mem.items.some((m) => m.source === 'diary' && m.text.includes('白米饭')), '空间日记进了记忆库')
 })
 
 test('表情包她自己整理：改名、改标签（同步到 QQ 收藏备注）、删掉', async () => {
@@ -1477,4 +1492,106 @@ test('群聊：同一段里群友发的图也能看到（限 5 分钟、最多 2
   } finally {
     await fake.call('/save', { model: { vision: 'auto' } })
   }
+})
+
+test('心智核心：会话重开后，新会话开头接上她自己记得的之前的聊天', async () => {
+  const n = sentTo('private', OWNER).length
+  mock.push(priv(OWNER, text('在吗 心智接续测试')))
+  await until(() => sentTo('private', OWNER).length > n)
+  await fake.call('/sessions/reset', {})
+  const before = fake.turns.length
+  mock.push(priv(OWNER, text('换会话以后的第一句')))
+  await until(() => fake.turns.slice(before).some((t) => t.userText.includes('换会话以后的第一句')))
+  const t = fake.turns.slice(before).find((x) => x.userText.includes('换会话以后的第一句'))
+  assert.match(t.carried, /心智接续测试/, '之前说的话要接上')
+  assert.match(t.carried, /\n你：/, '她自己回过的话也在')
+  assert.ok(!t.carried.includes('换会话以后的第一句'), '这一轮的新消息不重复放：' + t.carried)
+})
+
+test('心智核心面板接口：状态、记忆翻找 / 加强 / 删除、心智设置保存和恢复默认', async () => {
+  const st = (await fake.call('/mind/state')).json()
+  assert.equal(st.ok, true)
+  assert.ok(st.status.counts.perception > 0, '聊过的话都在感知记录里')
+  const m = api.mind.mind.memory
+  const id = m.insert({ at: Date.now(), window: 'qq:private:' + OWNER, gist: '面板测试：主人喜欢蓝色', kind: 'fact' })
+  const found = (await fake.call('/mind/memories?q=' + encodeURIComponent('喜欢蓝色'))).json()
+  assert.deepEqual(found.items.map((x) => x.id), [id])
+  assert.equal((await fake.call('/mind/memory/boost', { id })).json().ok, true)
+  assert.equal((await fake.call('/mind/memory/delete', { id })).json().ok, true)
+  assert.equal(m.row(id), null)
+  assert.ok(api.mind.mind.deletions().some((d) => d.id === id), '删除记下了，从备份恢复也不会复活')
+  const s = (await fake.call('/mind/settings')).json()
+  assert.ok(s.params.length > 40 && s.params.every((p) => p.source && p.hint), '每个参数都有依据和说明')
+  const saved = (await fake.call('/mind/settings/save', { patch: { 'memory.reconsolidation': 0.25, 'identity.age': 20 } })).json()
+  assert.equal(saved.ok, true)
+  assert.equal(saved.values['memory.reconsolidation'], 0.25)
+  assert.equal(api.mind.mind.identity().age, 20, '面板是主人在改，只能主人改的也能改')
+  const bad = (await fake.call('/mind/settings/save', { patch: { 'identity.timezone': 'Nowhere/City' } })).json()
+  assert.equal(bad.ok, false)
+  const back = (await fake.call('/mind/settings/reset', { key: 'memory.reconsolidation' })).json()
+  assert.equal(back.values['memory.reconsolidation'], 0.15)
+  assert.equal('memory.reconsolidation' in back.saved, false)
+  const people = (await fake.call('/mind/people')).json()
+  assert.ok(people.list.some((p) => p.owner && p.typeLabel === '主人'), '认识的人里有主人')
+  const other = people.list.find((p) => !p.owner)
+  assert.equal((await fake.call('/mind/people/edit', { id: other.id, patch: { note: '面板写的印象' } })).json().ok, true)
+  assert.equal(api.mind.mind.relations.get(other.id).tom.note, '面板写的印象')
+  // 人格与自我：19 项特质、版本；主人在面板里改她写下的东西，她是谁跟着变
+  const self = (await fake.call('/mind/self')).json()
+  assert.equal(self.ok, true)
+  assert.equal(self.personality.traits.length, 19)
+  assert.ok(self.versions.persona.length >= 1, '人格卡有版本')
+  assert.equal((await fake.call('/mind/self/change', { what: 'hobbies', content: '面板测试爱好' })).json().ok, true)
+  assert.match(fake.variables.get('aurabot_persona')(), /爱好：面板测试爱好/, '系统提示词开头的「她是谁」来自心智核心')
+  const v = api.mind.mind.self.history(1)[0]
+  assert.equal(v.by, 'owner')
+  assert.equal((await fake.call('/mind/self/restore', { kind: 'self', id: v.id })).json().ok, true)
+  assert.doesNotMatch(fake.variables.get('aurabot_persona')(), /面板测试爱好/)
+  const conf = (await fake.call('/mind/traits/confirm', { base: { sociability: 0.6 } })).json()
+  assert.equal(conf.ok, true)
+  assert.equal(api.mind.mind.personality.value('sociability'), 0.6)
+})
+
+test('心智核心：回复里的 <feel> 只给心智核心，发到 QQ 的没有；情绪记下了，冲着谁也记下了', async () => {
+  const n = sentTo('private', OWNER).length
+  mock.push(priv(OWNER, text('感受测试')))
+  // 等这一轮自己的两条（别的测试晚到的气泡可能夹在中间，按内容等）
+  await until(() => JSON.stringify(sentTo('private', OWNER).slice(n).map((c) => c.params.message)).includes('嘿嘿'))
+  const sent = JSON.stringify(sentTo('private', OWNER).slice(n).map((c) => c.params.message))
+  assert.match(sent, /嘿嘿/)
+  assert.doesNotMatch(sent, /feel|被夸了|"n"/)
+  const happy = api.mind.mind.emotion.state().active.find((e) => e.name === '快乐')
+  assert.equal(happy.target, 'qq:' + OWNER)
+})
+
+test('心智核心：睡着时群友叫不醒她；主人私聊叫醒她；醒来补回群友那条', async () => {
+  api.mind.mind.body.sleepNow()
+  const g = sentTo('group', '555').length
+  mock.push(grp('555', '777', [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 睡了吗 补回测试' } }]))
+  await sleep(1500)
+  assert.equal(sentTo('group', '555').length, g, '睡着了，群友 @ 她不回')
+  const p = sentTo('private', OWNER).length
+  mock.push(priv(OWNER, text('在吗')))
+  await until(() => sentTo('private', OWNER).length > p)
+  assert.equal(api.mind.mind.body.state().asleep, false, '主人把她叫醒了')
+  await until(() => sentTo('group', '555').length > g, 15000)
+})
+
+test('心智核心：单一注意力——她在一个群里回话时，另一个群先等着，回完再看；主人的私聊可以插队', async () => {
+  const g1 = sentTo('group', '560').length
+  const g2 = sentTo('group', '561').length
+  const p = sentTo('private', OWNER).length
+  mock.push(grp('560', '777', [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 跑个慢任务' } }]))
+  await sleep(700)
+  mock.push(grp('561', '778', [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 在吗' } }]))
+  mock.push(priv(OWNER, text('在吗 插队测试')))
+  await until(() => sentTo('private', OWNER).length > p)
+  const dump = () => JSON.stringify({ g560: sentTo('group', '560').slice(g1).map((c) => c.params.message), g561: sentTo('group', '561').slice(g2).map((c) => c.params.message), p: sentTo('private', OWNER).slice(p).map((c) => c.params.message) })
+  assert.equal(sentTo('group', '560').length, g1, '主人插队：慢任务还没回完，私聊先回了 ' + dump())
+  assert.equal(sentTo('group', '561').length, g2, '另一个群在等')
+  await until(() => sentTo('group', '560').length > g1, 15000)
+  await until(() => sentTo('group', '561').length > g2, 15000)
+  const t560 = mock.calls.findIndex((c, i) => c.action === 'send_group_msg' && String(c.params.group_id) === '560' && i >= 0 && sentTo('group', '560').indexOf(c) >= g1)
+  const t561 = mock.calls.findIndex((c) => c.action === 'send_group_msg' && String(c.params.group_id) === '561' && sentTo('group', '561').indexOf(c) >= g2)
+  assert.ok(t560 < t561, '先回完正在回的那个群，再回等着的那个')
 })

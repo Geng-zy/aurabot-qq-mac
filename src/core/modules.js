@@ -275,6 +275,12 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
       lazy: (other) => lazyProxy(() => exportsOf(other)),
       has: (other) => live.has(other),
       core: scopedCore,
+      // 心智核心：模块只能往她的经历里添她做过、看过的事，和查她记得的事；不能替她做决定、不能改她
+      mind: (() => {
+        const m = typeof core.mindFor === 'function' ? core.mindFor(id) : null
+        // 模块停了（关掉、热重载、替换），它交给她的事跟着撤掉，免得她去调用一个已经停了的模块
+        return m ? Object.freeze({ ...m, offer: (a) => track(m.offer(a)) }) : null
+      })(),
       dsh: ctx,
       lib,
       // ---- 往插件里加东西 ----

@@ -9,7 +9,8 @@ import { homedir } from 'node:os'
 import { createHash } from 'node:crypto'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { searchSongs, songUrl, account } from './netease.js'
-import { readZip } from './zip.js'
+import { readZip } from '../core/zip.js'
+import { CN_PYPI, CN_PYTHON, shouldUseCnMirror, uvSources, UV_SOURCES, findSystemUv, ensurePinnedUv, extractZip, findFile, sharedUvDir, sharedPythonDir, uvBaseEnv, PY_VERSION } from '../core/python.js'
 import { findLocalSong, MUSIC_DIR } from './local_music.js'
 import { findFfmpeg } from '../core/img.js'
 import { runPipeline, ENHANCE_DEFAULTS, PIPELINE_MODELS } from './pipeline.js'
@@ -25,35 +26,12 @@ export const APPLIO_COMMIT = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
  *   硬装进一套会退到 audio-separator 0.45，实测 Leap Xe 等 Roformer 模型分离直接失败。
  */
 export const MAC_STACK = {
-  // Python 3.13：比 Applio 官方脚本写的 3.12 新一档，两套环境都用它
-  python: '3.13.18',
   applioExtras: ['python-ffmpeg==2.0.12'],
   // librosa 1.0 不再带 audioread，而 audio-separator 0.48 还在直接 import 它，所以显式补装
   separator: ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'],
   // 语音页「安装语音组件」装的 edge-tts（2026-11-09 在 Python 3.13.18 上实测装好并念出语音）
   edgeTts: 'edge-tts==7.3.1',
 }
-// 国内镜像：PyPI 用阿里云，Python 本体用 npmmirror
-export const CN_PYPI = 'https://mirrors.aliyun.com/pypi/simple'
-export const CN_PYTHON = 'https://registry.npmmirror.com/-/binary/python-build-standalone'
-
-/** 自动模式下判断要不要用国内镜像：官方源 4 秒内连不上或者很慢就用。 */
-export async function shouldUseCnMirror(mode, fetchImpl = fetch) {
-  if (mode === 'cn' || mode === 'tuna') return true
-  if (mode === 'off') return false
-  const probe = async (url) => {
-    const t = Date.now()
-    try {
-      const r = await fetchImpl(url, { method: 'HEAD', signal: AbortSignal.timeout(4000) })
-      return r.status < 500 ? Date.now() - t : Infinity
-    } catch (error) {
-      return Infinity
-    }
-  }
-  const times = await Promise.all([probe('https://pypi.org/simple/pip/'), probe('https://huggingface.co/'), probe('https://github.com/')])
-  return times.some((t) => t > 2500)
-}
-
 // RVC 推理要的预训练文件（Applio 放在 HuggingFace 上）：[远端相对路径, 本地相对 Applio 的路径]
 const PREREQS = [
   ['predictors/rmvpe.pt', 'rvc/models/predictors/rmvpe.pt'],
@@ -71,119 +49,6 @@ const FETCH_SCRIPT = fileURLToPath(new URL('./fetch_file.py', import.meta.url))
  */
 async function downloadWithMirror(python, rel, dest, note, log, onProgress) {
   return fetchFile(python, dest, HF_HOSTS.map((host) => `${host}/IAHispano/Applio/resolve/main/Resources/${rel}`), note, log, onProgress, rel)
-}
-
-// uv 的下载源：PyPI 上的 uv 0.13.7 安装包（wheel 就是 zip，里面带 uv 程序），先走国内镜像。
-// Apple 芯片 / Intel 各一份，校验值取自 PyPI 官方。
-const UV_WHEELS = {
-  arm64: ['packages/40/a5/8756c38ace102fa13fd4e653e8bc40e1f65924f1c0a0d23350339dac97e5/uv-0.13.7-py3-none-macosx_11_0_arm64.whl', 'f91a229093163eefca89ea1b220a221d64c3beade05d03519a6584d1797a5a5f'],
-  x64: ['packages/3d/5b/e0379e7b172659420b1ec99a8e8229830aa85ea59684847c80b1c959a056/uv-0.13.7-py3-none-macosx_10_12_x86_64.whl', 'fd04bf01ba5f2829f4f94ca8f0c24a743f21e73d75045613ed6fc2fd66fc7bda'],
-}
-/** 这台 Mac 能用的 uv 下载源（按顺序试）；没有对应的安装包时返回空数组。 */
-export function uvSources(arch = process.arch) {
-  const hit = UV_WHEELS[arch]
-  if (!hit) return []
-  const [wheel, sha256] = hit
-  return [{ url: `https://mirrors.aliyun.com/pypi/${wheel}`, sha256 }, { url: `https://files.pythonhosted.org/${wheel}`, sha256 }]
-}
-export const UV_SOURCES = uvSources()
-
-/** 电脑上已经装好的 uv：PATH、Homebrew、官方安装脚本的位置（从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。找不到返回 ''。 */
-export async function findSystemUv({ log } = {}) {
-  const cands = ['uv', '/opt/homebrew/bin/uv', '/usr/local/bin/uv', join(homedir(), '.local', 'bin', 'uv'), join(homedir(), '.cargo', 'bin', 'uv')]
-  for (const c of cands) {
-    if (c !== 'uv' && !existsSync(c)) continue
-    try {
-      await run(c, ['--version'], { log, timeoutMs: 15_000 })
-      return c
-    } catch (error) {}
-  }
-  return ''
-}
-
-/**
- * 准备 uv（装 Python 和各种包的工具），翻唱安装和语音组件安装共用：
- * binDir/uv 已经有了就用它；没有就下载固定版本（uvSources，带校验）放进去，这样每台 Mac 装出来的都一样；
- * 下载不成才退回电脑上已经装好的 uv。都没有就抛错。
- * @param {string} binDir 放 uv 的文件夹（翻唱安装目录的 bin/）
- * @param {object} [o]
- * @param {(s: string) => void} [o.note] 进度说明
- * @param {(url: string, dest: string) => Promise<void>} [o.download] 下载一个文件（默认用系统自带的 curl）
- */
-export async function ensurePinnedUv(binDir, { note = () => {}, log, download } = {}) {
-  if (process.env.AURABOT_UV) return process.env.AURABOT_UV
-  const local = join(binDir, 'uv')
-  if (existsSync(local)) return local
-  const work = join(dirname(binDir), 'downloads-uv')
-  const zip = join(work, 'uv.zip')
-  const tmp = join(work, 'uv')
-  const get = download || (async (url, dest) => {
-    mkdirSync(dirname(dest), { recursive: true })
-    rmSync(dest, { force: true })
-    await run('curl', ['-fL', '--retry', '3', '--max-time', '300', '-o', dest, url], { log, timeoutMs: 360_000 })
-  })
-  let lastError = null
-  const sources = uvSources()
-  if (sources.length) note('  下载 uv（固定版本）')
-  try {
-    for (const src of sources) {
-      try {
-        await get(src.url, zip)
-        if (!existsSync(zip) || !statSync(zip).size) throw new Error('没下载下来')
-        if (createHash('sha256').update(readFileSync(zip)).digest('hex') !== src.sha256) throw new Error('下载的文件校验对不上')
-        rmSync(tmp, { recursive: true, force: true })
-        extractZip(readFileSync(zip), tmp)
-        const exe = findFile(tmp, 'uv')
-        if (!exe) throw new Error('里面没找到 uv')
-        mkdirSync(binDir, { recursive: true })
-        copyFileSync(exe, local)
-        chmodSync(local, 0o755)
-        return local
-      } catch (error) {
-        lastError = error
-        note(`  从 ${new URL(src.url).host} 下 uv 没成功（${error.message.slice(0, 80)}），换一个源`)
-      }
-    }
-  } finally {
-    rmSync(work, { recursive: true, force: true })
-  }
-  const sys = await findSystemUv({ log })
-  if (sys) { note(`  改用电脑上已经装好的 uv：${sys}`); return sys }
-  if (!sources.length) throw new Error(`没有适合这台电脑（${process.platform}-${process.arch}）的 uv 安装包，请先自己装好 uv（https://docs.astral.sh/uv/）`)
-  throw new Error('uv 下载失败：' + (lastError?.message || ''))
-}
-/**
- * 把 zip 解到目录里（不靠外部工具）。拒绝跳出目标目录的路径；
- * bin/ 里的文件和没有扩展名的程序（uv、ffmpeg 等）加上可执行权限。
- */
-export function extractZip(buf, dir) {
-  const root = resolvePath(dir)
-  mkdirSync(root, { recursive: true })
-  for (const f of readZip(buf)) {
-    const dest = resolvePath(root, f.name.replace(/\\/g, '/'))
-    if (dest !== root && !dest.startsWith(root + sep)) throw new Error(`压缩包里有越界路径：${f.name}`)
-    mkdirSync(dirname(dest), { recursive: true })
-    writeFileSync(dest, f.data)
-    if ((/(^|\/)(bin|scripts)\//i.test(f.name) || !/\.[a-z0-9]{1,5}$/i.test(basename(f.name)))) {
-      try { chmodSync(dest, 0o755) } catch (error) {}
-    }
-  }
-}
-
-/** 在目录里（含子目录）找一个文件名。 */
-function findFile(dir, name) {
-  const stack = [dir]
-  while (stack.length) {
-    const d = stack.pop()
-    let names
-    try { names = readdirSync(d, { withFileTypes: true }) } catch (error) { continue }
-    for (const e of names) {
-      const full = join(d, e.name)
-      if (e.isDirectory()) stack.push(full)
-      else if (e.name.toLowerCase() === name) return full
-    }
-  }
-  return ''
 }
 
 /** 默认分离模型的文件都在不在。 */
@@ -657,25 +522,19 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
     const cacheDir = join(p.root, 'uv-cache')
     const cn = await shouldUseCnMirror(cfg().pypiMirror)
     if (cn) note(cfg().pypiMirror === 'cn' ? '用国内镜像下载' : '官方源连得慢，自动改用国内镜像下载')
-    const uvEnv = {
-      UV_CACHE_DIR: cacheDir,
-      UV_HTTP_TIMEOUT: '300',
-      UV_HTTP_RETRIES: '6',
-      UV_PYTHON_INSTALL_DIR: join(p.root, 'python'), // Python 也装在安装目录里，不往 ~/.local/share/uv 放
-      UV_PYTHON_PREFERENCE: 'only-managed', // 只用 uv 自己下的 Python，不拿 Homebrew / 系统的（那些一升级环境就坏）
-      ...(cn ? { UV_PYTHON_INSTALL_MIRROR: CN_PYTHON } : {}),
-    }
+    // Python 用共用的那份（心智核心目录里），环境建在翻唱安装目录里
+    const uvEnv = uvBaseEnv({ cache: cacheDir, cn })
     const mirror = cn ? ['--default-index', CN_PYPI] : []
     let uv = 'uv'
     try {
       mkdirSync(p.root, { recursive: true })
       mkdirSync(p.models, { recursive: true })
-      await step('创建 Python 环境', `第一次要下载 Python ${MAC_STACK.python}（约 30 MB）和安装工具，一般 1~3 分钟`, async () => {
+      await step('创建 Python 环境', `第一次要下载 Python ${PY_VERSION}（约 30 MB）和安装工具，一般 1~3 分钟`, async () => {
         uv = await ensureUv(note)
         if (existsSync(p.python)) return note('  已经有了，跳过')
-        const stop = watchDownload(join(p.root, 'python'))
+        const stop = watchDownload(sharedPythonDir())
         try {
-          await run(uv, ['venv', '-q', join(p.root, 'env'), '--python', MAC_STACK.python], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
+          await run(uv, ['venv', '-q', join(p.root, 'env'), '--python', PY_VERSION], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
         } finally {
           stop()
         }
@@ -711,7 +570,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
           const vpy = join(venv, 'bin', 'python')
           if (!(existsSync(vpy) && await canImport(vpy, ['torch', 'faiss', 'librosa', 'soundfile']))) {
             note('  建 Applio 自己的环境（Applio/.venv，和 Applio 官方 Mac 安装方式一样）')
-            if (!existsSync(vpy)) await run(uv, ['venv', '-q', venv, '--python', MAC_STACK.python], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
+            if (!existsSync(vpy)) await run(uv, ['venv', '-q', venv, '--python', PY_VERSION], { log, onLine: note, env: uvEnv, timeoutMs: 30 * 60_000 })
             await run(uv, ['pip', 'install', '--python', vpy, ...MAC_STACK.applioExtras, '-r', join(p.applio, 'requirements.txt'), ...mirror],
               { log, onLine: note, env: uvEnv, timeoutMs: 120 * 60_000 })
           } else note('  Applio 的环境已经能用，跳过')
@@ -793,7 +652,8 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, onSu
 
   /** 准备 uv：见 ensurePinnedUv（下载时在面板上显示进度）。 */
   async function ensureUv(note) {
-    return ensurePinnedUv(P().bin, { note, log, download: (url, dest) => fetchWithProgress(url, dest, 5 * 60) })
+    // uv 和 Python 都用心智核心目录里共用的那份（见 core/python.js）；翻唱只建自己的环境
+    return ensurePinnedUv(sharedUvDir(), { note, log, download: (url, dest) => fetchWithProgress(url, dest, 5 * 60) })
   }
 
   /** 每 4 秒统计一次下载缓存有多大，算出已下载多少、网速多少，给面板看。返回停止函数。 */

@@ -15,6 +15,7 @@
   候选选择、提示词构建、回执解析、状态迁移）移植自该项目的 `src/purpose-engine.js`，
   并按 Aurabot 的模块与配置语境做了改写（接线层 `src/purpose/module.js`、独立模块
   `src/modules/purpose/index.js` 是我们为 Aurabot 新写的，不属于移植范围）。
+- 现状：本分叉换成心智核心（`src/mind/`）后，这部分移植代码已经删除，不再随插件分发；署名保留给仍包含它的旧版本。
 
 其原许可全文如下：
 

@@ -120,7 +120,7 @@ test('自己写的模块加载了；同名的替换了内置的；关掉的内�
   assert.equal(diary.builtin, true)
   assert.equal(diary.forkedFrom, '1.0.0', '记下了替换时内置模块的版本')
   assert.equal((await mod('bili')).running, null)
-  assert.equal((await mod('memory')).running, 'builtin')
+  assert.equal((await mod('stickers')).running, 'builtin')
   // 被替换的接口走自己写的；关掉模块的接口告诉面板「模块没开」
   assert.equal((await fake.call('/diary/history')).json().mine, true)
   const off = (await fake.call('/bili/state')).json()
@@ -154,7 +154,7 @@ test('模块接管消息、改写回复、加命令；她的规则里有模块�
   const agent = [...fake.agents.values()].find((a) => String(a.preset).startsWith('aurabot-private'))
   assert.ok(agent.tools.has('echo_tool'))
   assert.ok(!agent.tools.has('bili_watch'))
-  assert.ok(agent.tools.has('remember'))
+  assert.ok(agent.tools.has('mind_remember'), '心智核心的记忆工具一直在')
 })
 
 test('面板里关掉内置模块：马上停，它的工具和接口都没了；再打开又回来', async () => {
@@ -173,11 +173,10 @@ test('改了模块文件：几秒内自动重新加载', async () => {
 })
 
 test('替换版写坏了：先用回内置的，面板看得到报错', async () => {
-  writeMod('mood', 'export default { id: "mood", setup( {')
-  const m = await until(async () => { const x = await mod('mood'); return x.error ? x : null }, 15000)
-  assert.equal(m.running, 'builtin')
+  writeMod('contacts', 'export default { id: "contacts", setup( {')
+  const m = await until(async () => { const x = await mod('contacts'); return x.error ? x : null }, 15000)
+  assert.equal(m.running, 'builtin', '写坏的替换版没用上，内置的照常在跑')
   assert.equal(m.fallback, true)
-  assert.ok(api.mood.label(), '内置的心情照常能用')
 })
 
 test('安全模式：自己写的一个都不加载，内置的回来', async () => {
@@ -190,7 +189,7 @@ test('安全模式：自己写的一个都不加载，内置的回来', async ()
 })
 
 test('复制内置模块来改：复制出来的能直接跑（连翻唱这种带数据文件的）', async () => {
-  for (const id of ['speakup', 'song']) {
+  for (const id of ['qzone-social', 'song']) {
     const r = (await fake.call('/modules/fork', { id })).json()
     assert.equal(r.ok, true, r.message)
     const code = readdirSync(modDir(id), { withFileTypes: true }).filter((e) => e.isFile()).map((e) => readFileSync(join(modDir(id), e.name), 'utf8')).join('\n')

@@ -57,7 +57,7 @@ function setup(packs, { cfg = {}, revoked = [], status = [] } = {}) {
   }
   const mods = { status: () => status, sync: async () => {}, stop: () => true }
   const log = { info() {}, warn() {} }
-  const c = createCommunity({ mods, getConfig: () => config, setConfig: (n) => { config = n }, log, version: '1.2.0', registryUrl: 'https://x/index.json', fetcher })
+  const c = createCommunity({ mods, getConfig: () => config, setConfig: (n) => { config = n }, log, version: '1.2.0', registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher })
   return { c, cfg: () => config }
 }
 
@@ -83,7 +83,7 @@ test('安装时报进度，装完清空', async () => {
       seen.push({ ...c.progress() })
     })() }
   }
-  c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn() {} }, version: '1.2.0', registryUrl: 'https://x/index.json', fetcher })
+  c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn() {} }, version: '1.2.0', registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher })
   const r = await c.install('progress-mod')
   assert.equal(r.ok, true, r.message)
   assert.deepEqual(seen.map((s) => [s.stage, s.received, s.total]), [['download', 10, p.buf.length], ['download', p.buf.length, p.buf.length]])
@@ -100,7 +100,7 @@ test('安装每一步都报进度，含启动模块', async () => {
     return { ok: true, arrayBuffer: async () => p.buf }
   }
   const mods = { status: () => [], sync: async () => { stages.push(c.progress()?.stage); assert.equal(c.progress().name, 'stage-mod') }, stop: () => true }
-  c = createCommunity({ mods, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn() {} }, version: '1.2.0', registryUrl: 'https://x/index.json', fetcher })
+  c = createCommunity({ mods, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn() {} }, version: '1.2.0', registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher })
   assert.equal((await c.install('stage-mod')).ok, true)
   assert.deepEqual(stages, ['index', 'download', 'start'])
   assert.equal(c.progress(), null)
@@ -110,7 +110,7 @@ test('断网先重试，再失败说人话并写日志', async () => {
   const p = pack('flaky-mod', '1.0.0')
   const index = { ok: true, json: async () => ({ schema: 1, assetsBase: 'https://x/', modules: [p.entry] }) }
   const down = () => Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } })
-  const make = (fetcher, warns = []) => createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn: (...a) => warns.push(a.join(' ')) }, version: '1.2.0', registryUrl: 'https://x/index.json', fetcher, retryMs: 1 })
+  const make = (fetcher, warns = []) => createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn: (...a) => warns.push(a.join(' ')) }, version: '1.2.0', registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher, retryMs: 1 })
 
   let tries = 0
   const once = make(async (url) => {
@@ -203,7 +203,7 @@ test('迁移：插件卸载后旧实例不再安装、不写配置', async () =>
   let alive = true
   let config = { setupDone: true, douyin: { enabled: true } }
   let writes = 0
-  const c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => config, setConfig: (n) => { writes++; config = n }, log: { info() {}, warn() {} }, version: '1.2.0', alive: () => alive, registryUrl: 'https://x/index.json', fetcher: async () => { alive = false; return { ok: false, status: 500 } } })
+  const c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => config, setConfig: (n) => { writes++; config = n }, log: { info() {}, warn() {} }, version: '1.2.0', alive: () => alive, registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher: async () => { alive = false; return { ok: false, status: 500 } } })
   await c.migrate()
   assert.equal(writes, 0)
 })
@@ -241,10 +241,69 @@ test('安装：id 必须是白名单（防被篡改索引/调用方越目录写�
 })
 
 test('安装：替换内置必须确认，索引 replacesBuiltin 漏填也拦（按真实内置目录判断）', async () => {
-  const p = pack('memory', '9.9.9')
+  const p = pack('stickers', '9.9.9')
   const { c } = setup([p])
-  const r = await c.install('memory')
+  const r = await c.install('stickers')
   assert.equal(r.ok, false)
   assert.equal(r.needConfirm, true)
   assert.match(String(r.message), /替换内置/)
+})
+
+test('两个模块库：原项目的和分叉自己的合在一起；同 id 以分叉的为准，从哪个库装就记哪个库', async () => {
+  const up = pack('both-mod', '1.0.0')
+  const upOnly = pack('up-only', '1.0.0')
+  const mac = pack('both-mod', '1.1.0')
+  const macOnly = pack('mac-only', '0.1.0')
+  const downloads = []
+  let macDown = false
+  const fetcher = async (url) => {
+    if (url === 'https://up/index.json') return { ok: true, json: async () => ({ schema: 1, assetsBase: 'https://up-assets/', modules: [up.entry, upOnly.entry], revoked: [{ id: 'mac-only', versions: ['0.1.0'], reason: '原项目撤回的不算' }] }) }
+    if (url === 'https://mac/index.json') {
+      if (macDown) throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } })
+      return { ok: true, json: async () => ({ schema: 1, assetsBase: 'https://mac-assets/', modules: [mac.entry, macOnly.entry] }) }
+    }
+    downloads.push(url)
+    const p = [up, upOnly, mac, macOnly].find((x) => url.endsWith(x.entry.path) && url.startsWith(x === up || x === upOnly ? 'https://up-assets/' : 'https://mac-assets/'))
+    return { ok: true, arrayBuffer: async () => p.buf }
+  }
+  const warns = []
+  const c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn: (...a) => warns.push(a.join(' ')) }, version: '1.2.0', registryUrl: 'https://up/index.json', macRegistryUrl: 'https://mac/index.json', fetcher, retryMs: 1 })
+  const { list } = await c.list({ force: true })
+  const byId = Object.fromEntries(list.map((e) => [e.id, e]))
+  assert.deepEqual(Object.keys(byId).sort(), ['both-mod', 'mac-only', 'up-only'])
+  assert.equal(byId['both-mod'].version, '1.1.0', '同 id 以分叉的为准')
+  assert.equal(byId['both-mod'].registry, 'mac')
+  assert.equal(byId['up-only'].registry, 'upstream')
+  assert.equal(byId['mac-only'].blocked, '', '原项目撤回的同名版本不影响分叉库的')
+  assert.equal((await c.install('both-mod')).ok, true)
+  assert.ok(downloads.at(-1).startsWith('https://mac-assets/'), '从分叉库的地址下载')
+  assert.equal(c.source('both-mod').registry, 'mac')
+  assert.equal((await c.install('up-only')).ok, true)
+  assert.equal(c.source('up-only').registry, 'upstream')
+  // 分叉库一时读不到：原项目的照样能看，只是少了分叉的
+  macDown = true
+  const half = await c.list({ force: true })
+  assert.equal(half.partial, true)
+  assert.equal(half.list.find((e) => e.id === 'both-mod').version, '1.0.0')
+  assert.ok(warns.some((w) => /本分叉/.test(w)))
+})
+
+test('装着原项目的同名模块、分叉库里有配合心智核心的版本：显示有更新，换过来', async () => {
+  const up = pack('swap-mod', '1.0.0')
+  const mac = pack('swap-mod', '1.0.0')
+  let useMac = false
+  const fetcher = async (url) => {
+    if (url === 'https://up/index.json') return { ok: true, json: async () => ({ schema: 1, assetsBase: 'https://up-assets/', modules: [up.entry] }) }
+    if (url === 'https://mac/index.json') return useMac ? { ok: true, json: async () => ({ schema: 1, assetsBase: 'https://mac-assets/', modules: [mac.entry] }) } : { ok: false, status: 404 }
+    return { ok: true, arrayBuffer: async () => (url.startsWith('https://mac-assets/') ? mac.buf : up.buf) }
+  }
+  const c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => ({}), setConfig() {}, log: { info() {}, warn() {} }, version: '1.2.0', registryUrl: 'https://up/index.json', macRegistryUrl: 'https://mac/index.json', fetcher, retryMs: 1 })
+  assert.equal((await c.install('swap-mod')).ok, true)
+  assert.equal(c.source('swap-mod').registry, 'upstream')
+  useMac = true
+  const e = (await c.list({ force: true })).list.find((x) => x.id === 'swap-mod')
+  assert.equal(e.update, true, '版本号一样也算：来源不一样')
+  assert.equal(e.switchSource, true)
+  assert.equal((await c.install('swap-mod')).ok, true)
+  assert.equal(c.source('swap-mod').registry, 'mac')
 })
