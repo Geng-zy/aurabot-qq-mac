@@ -724,6 +724,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       { id: 'group', label: '聊天', flag: 'group' },
       { id: 'model', label: '模型' },
       { id: 'voice', label: '语音', flag: 'voice.enabled' },
+      { id: 'asr', label: '语音识别', flag: 'voice.asr' },
       { id: 'stickers', label: '表情包', flag: 'stickers.enabled' },
       { id: 'imagegen', label: '生图', flag: 'imageGen.enabled' },
       { id: 'diary', label: '空间日记', flag: 'diary.enabled' },
@@ -747,7 +748,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       { id: 'logs', label: '日志' },
     ]
     // 内置标签页属于哪个模块：模块都没在跑就不显示这一页
-    const TAB_MODS = { voice: ['voice'], stickers: ['stickers'], imagegen: ['imagegen'], diary: ['diary', 'qzone-social'], pet: ['pet'], song: ['song'], bili: ['bili'], douyin: ['douyin'], heybox: ['heybox'] }
+    const TAB_MODS = { voice: ['voice'], asr: ['voice'], stickers: ['stickers'], imagegen: ['imagegen'], diary: ['diary', 'qzone-social'], pet: ['pet'], song: ['song'], bili: ['bili'], douyin: ['douyin'], heybox: ['heybox'] }
     const modOn = (st, id) => (st.modules || []).some((m) => m.id === id && m.running)
 
     // 两层导航：上面一排是分组，下面一排是这组里的页面；每组记住上次看的那页，Alt+K 查找功能
@@ -755,7 +756,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     const NAV_GROUPS = [
       { id: 'home', label: '概览', icon: 'M3 10.5 12 3l9 7.5M5.5 9v11.5h13V9M10 20.5v-6h4v6', tabs: ['overview'] },
       { id: 'self', label: '人设', icon: 'M12 12.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5zM4.5 20.5c.9-3.6 3.9-5.5 7.5-5.5s6.6 1.9 7.5 5.5', tabs: ['now', 'inner', 'character', 'selfmind', 'group', 'mood', 'persona', 'mindsettings'] },
-      { id: 'express', label: '表达', icon: 'M20.5 11.5a8 8 0 0 1-11.7 7.1L4 20l1.4-4.4A8 8 0 1 1 20.5 11.5zM9 13.2s1.1 1.5 3 1.5 3-1.5 3-1.5M9.5 9.6h.01M14.5 9.6h.01', tabs: ['voice', 'stickers', 'imagegen', 'song', 'pet'] },
+      { id: 'express', label: '表达', icon: 'M20.5 11.5a8 8 0 0 1-11.7 7.1L4 20l1.4-4.4A8 8 0 1 1 20.5 11.5zM9 13.2s1.1 1.5 3 1.5 3-1.5 3-1.5M9.5 9.6h.01M14.5 9.6h.01', tabs: ['voice', 'asr', 'stickers', 'imagegen', 'song', 'pet'] },
       { id: 'platform', label: '平台', icon: 'M3.5 6.5h17v11h-17zM10.5 9.8v4.4l3.8-2.2z', tabs: ['diary', 'bili', 'douyin', 'heybox'] },
       { id: 'system', label: '系统', icon: 'M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1M15 5v4M9 10v4M17 15v4', tabs: ['connect', 'model', 'access', 'security', 'backup', 'about', 'logs'] },
       { id: 'market', label: '模块', icon: 'M4 9.5 5.5 4h13L20 9.5M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0M5.5 12.5V20h13v-7.5M10 20v-4.5h4V20', tabs: ['market', 'modules', 'local'] },
@@ -766,7 +767,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     const navOrder = (g, t) => { const i = g.tabs.indexOf(t.id); return i >= 0 ? i : g.tabs.length - (g.tabs.includes('logs') ? 1.5 : 0) }
     const NAV_ALIAS = {
       overview: '首页 状态', connect: 'qq 网关 snowluma onebot 登录 工作区', character: '人设 性格 设定 头像', persona: '关系 人物 认识的人 曾用名 亲近 信任 喜欢 心结 老梗 群', selfmind: '人格 性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 名字 小名 影子模式', mindsettings: '心智 参数 记性 遗忘 改写 情绪 预算 时区 年龄 生日', access: '主人 白名单 权限 群管 改资料',
-      group: '群聊 插话 合并', model: 'ai 大模型 视觉 思考强度', voice: '语音 tts 说话 音色 edge', stickers: '表情 小黄脸 gif 商城表情',
+      group: '群聊 插话 合并', model: 'ai 大模型 视觉 思考强度', voice: '语音 tts 说话 音色 edge breeze', asr: '语音识别 听语音 转文字 asr 语音转文本', stickers: '表情 小黄脸 gif 商城表情',
       imagegen: '画图 图片', diary: '空间 说说 日记', inner: '内心 念头 日记 想要 动力 犯懒 主动找 权限 申请 本地模型 小模型', now: '心情 情绪 精力 困 饿 投喂 喂 睡觉 叫醒 身体', mood: '记忆 梦 遗忘', song: '唱歌 翻唱 rvc 点歌',
       bili: 'b站 bilibili 视频', douyin: '抖音 短视频 私信', pet: '桌宠 宠物 悬浮窗 气泡 electron', local: '本地 接口 sd sovits', security: '安全 防护 ssrf 内网 图片 下载', modules: '扩展 自己写 模板 安全模式', market: '模块 市场 插件 社区 下载 安装 桌宠 抖音 小黑盒 群管', logs: '日志 报错', about: '关于 关于我们 版本 许可 鸣谢 开源', backup: '备份 恢复 换电脑 迁移 导入 导出',
     }
@@ -1779,10 +1780,12 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
 
     function Voice({ st, draft, setDraft, toast, reload }) {
       const f = useField(draft, setDraft)
+      const voiceDirty = Boolean(st && st.config) && JSON.stringify(draft.voice) !== JSON.stringify(st.config.voice)
       const [txt, setTxt] = useState('晚安啦，今天也辛苦了，明天见～')
       const [src, setSrc] = useState('')
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '说话（文字转语音）', right: f.sw('voice.enabled'), desc: '回复里写了 <voice>…</voice> 的部分会变成 QQ 语音条；对方明确要语音时一定发语音；短回复也有一定概率整条变语音。' },
+          voiceDirty ? h('div', { className: 'ab-note' }, '语音设置有没保存的改动：点「生成」试听会直接用这一页现在的设置；真正聊天要点底部「保存设置」后才生效。') : null,
           h('div', { style: { margin: '4px 0 12px' } }, f.choices('voice.engine', [
             { value: 'auto', label: '自动', desc: 'edge-tts 优先，不行用 macOS 自带语音' },
             { value: 'edge', label: '微软 edge-tts', desc: st.voice.edgeInstalled ? '在线，音色自然（已装好）' : '在线，音色自然（还没装）' },
@@ -1875,13 +1878,52 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '短回复变语音的概率' }, f.percent('voice.autoChance')),
           h(Row, { label: '多短算短回复' }, f.range('voice.autoMaxChars', 10, 200, 5, (v) => v + ' 字')),
           h(Row, { label: '表情和语音分开发', hint: '语音条里的表情 / emoji 不念出来，语音发完再单独补一条文字发出去（没有表情就不补）；关掉 = 表情直接丢掉，不补发' }, f.sw('voice.emojiSeparate')),
-          h(Row, { label: '试听', hint: '先保存设置再试听' },
+          h(Row, { label: '试听', hint: '用这一页现在的设置试听（没保存也行；本地接口不会把这里顶掉）' },
             h('input', { className: 'ab-input', value: txt, onChange: (e) => setTxt(e.target.value) }),
-            h(Btn, { small: true, onClick: async () => { const r = await post('/voice/test', { text: txt }); if (r.ok) setSrc('data:' + r.mime + ';base64,' + r.data); else toast(r.message) } }, '生成'),
-            src ? h('audio', { src, controls: true, autoPlay: true, style: { height: 32 } }) : null),
+            h(Btn, { small: true, onClick: async () => {
+              setSrc('')
+              const r = await post('/voice/test', { text: txt, voice: draft.voice })
+              if (r.ok) setSrc('data:' + r.mime + ';base64,' + r.data)
+              else toast(r.message)
+            } }, '生成'),
+            src ? h('audio', { key: src, src, controls: true, autoPlay: true, style: { height: 32 } }) : null),
         ),
         h(VoiceSongModel, { draft, setDraft }),
-        h(Card, { title: '听语音（语音转文字）', right: f.sw('voice.asr'), desc: '别人发来的语音会先转成文字再交给ta：优先用 QQ 自带的转文字，不行再用 DSH 自带的语音识别（要在 DSH「插件」里开启「语音输入」）。' },
+      )
+    }
+
+    /** 语音识别单独一页：和「语音」「表情包」同级（移植自原项目 2baf896）。 */
+    function Asr({ draft, setDraft, toast }) {
+      const f = useField(draft, setDraft)
+      const a = draft.voice.asrApi || {}
+      const ph = (sf, oa, other) => (a.provider === 'siliconflow' ? sf : a.provider === 'openai' ? oa : other)
+      return h('div', { className: 'ab-grid' },
+        h(Card, { title: '听语音（语音转文字）', right: f.sw('voice.asr'), desc: '别人发来的语音会先转成文字再交给ta（群里没 @ 她的语音也会转，她能接上话）：本地接口 → QQ 自带转文字 → 云端识别（可选）→ DSH 自带识别，哪一层不行就试下一层。' },
+          h(Row, { label: '云端识别', hint: '可选；不选就按 本地接口 → QQ → DSH 的顺序' },
+            f.select('voice.asrApi.provider', [
+              { value: '', label: '不用云端识别' },
+              { value: 'siliconflow', label: '硅基流动' },
+              { value: 'openai', label: 'OpenAI' },
+              { value: 'custom', label: '自定义（OpenAI 兼容）' },
+            ], { width: 220 })),
+          a.provider ? [
+            h(Row, { key: 'u', label: '服务地址', hint: '只填到 /v1，不要带 /audio/transcriptions；留空用预置地址' },
+              f.text('voice.asrApi.baseUrl', { size: 'wide', placeholder: ph('https://api.siliconflow.cn/v1', 'https://api.openai.com/v1', 'http://127.0.0.1:8000/v1') })),
+            h(Row, { key: 'm', label: '模型', hint: '留空用预置：硅基 FunAudioLLM/SenseVoiceSmall（免费），OpenAI whisper-1' },
+              f.text('voice.asrApi.model', { size: 'wide', placeholder: ph('FunAudioLLM/SenseVoiceSmall', 'whisper-1', 'whisper-1') })),
+            h(Row, { key: 'k', label: 'API Key', hint: '只存在本机，面板不回显；本地服务可留空。硅基的 Key 可以和「记忆」页的向量 Key 是同一个' },
+              f.text('voice.asrApi.apiKey', { type: 'password', placeholder: a.apiKeySet ? '已保存（不改就留空）' : '没有就留空' })),
+            h(Row, { key: 'l', label: '语言', hint: '可留空；只对支持 language 的模型有效' },
+              f.text('voice.asrApi.language', { placeholder: 'zh' })),
+            h(Row, { key: 'p', label: '先用谁', hint: 'QQ 自带一般 1~2 秒；硅基 SenseVoice 实测约 14 秒，建议先 QQ' },
+              f.select('voice.asrApi.prefer', [{ value: 'qq', label: '先 QQ 自带（推荐）' }, { value: 'cloud', label: '先云端识别' }], { width: 220 })),
+            h(Row, { key: 't', label: '测试', hint: '先用 macOS 自带语音念一句，再交给云端识别；用这一页现在的设置，没保存也行' },
+              h(Btn, { small: true, onClick: async () => {
+                toast('正在念一句再识别，可能要十几秒…')
+                const r = await post('/voice/asr-provider-test', { text: '今天天气不错', voice: draft.voice })
+                toast(r.ok ? '念的是「' + r.said + '」，听成了「' + r.heard + '」（' + r.ms + ' 毫秒）' : r.message)
+              } }, '测试云端识别')),
+          ] : null,
           h(AsrStatus, { toast })),
       )
     }
@@ -4904,11 +4946,11 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       tabs.splice(tabs.findIndex((t) => t.id === 'logs'), 0, ...extTabs)
       const curTab = tabs.find((t) => t.id === tab) || tabs[0]
       const body = curTab.ext ? ExtPage : {
-        overview: Overview, connect: Connect, character: Persona, access: Access, group: Group, model: Model, voice: Voice,
+        overview: Overview, connect: Connect, character: Persona, access: Access, group: Group, model: Model, voice: Voice, asr: Asr,
         stickers: Stickers, imagegen: ImageGen, diary: Diary, inner: MindInner, pet: PetPanel, now: MindNow, mood: Mood, persona: MindPeople, selfmind: MindSelf, mindsettings: MindSettings, song: Song, bili: Bili, douyin: Douyin, heybox: Heybox, local: LocalApi, security: Security, market: Market, modules: Modules, logs: Logs, about: About, backup: Backup,
       }[curTab.id] || Overview
       // 哪些标签有没保存的改动
-      const TAB_KEYS = { connect: ['snowluma', 'botQQ'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'approvalNotify', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow'], group: ['group', 'merge', 'titleFilter', 'chat'], model: ['model', 'chatModels'], voice: ['voice'], stickers: ['stickers'], imagegen: ['imageGen'], diary: ['diary', 'qzoneSocial'], pet: [], mood: ['mind', 'memory'], song: ['song'], bili: ['bili'], douyin: ['douyin'], heybox: ['heybox'], local: ['local'], security: ['security', 'update'] }
+      const TAB_KEYS = { connect: ['snowluma', 'botQQ'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'approvalNotify', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow'], group: ['group', 'merge', 'titleFilter', 'chat'], model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice'], stickers: ['stickers'], imagegen: ['imageGen'], diary: ['diary', 'qzoneSocial'], pet: [], mood: ['mind', 'memory'], song: ['song'], bili: ['bili'], douyin: ['douyin'], heybox: ['heybox'], local: ['local'], security: ['security', 'update'] }
       const tabDirty = (id) => {
         if (!dirty) return false
         if (id.startsWith('ext:')) { const k = id.slice(4); return JSON.stringify((draft.ext || {})[k]) !== JSON.stringify((cfg.ext || {})[k]) }

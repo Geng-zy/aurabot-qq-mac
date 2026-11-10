@@ -116,7 +116,7 @@ export async function startMockOneBot({ selfId = '20000002', token = 'mock-token
       case 'get_stranger_info': return String(params.user_id) === String(selfId)
         ? { user_id: Number(selfId), ...state.selfProfile }
         : { user_id: params.user_id, nickname: '路人' + params.user_id }
-      case 'fetch_ptt_text': return { text: '今天想吃白米饭' }
+      case 'fetch_ptt_text': return { text: state.pttText || '今天想吃白米饭' }
       case 'set_group_ban': case 'set_group_kick': case 'set_group_special_title': case '_send_group_notice': return null
       default: return null
     }

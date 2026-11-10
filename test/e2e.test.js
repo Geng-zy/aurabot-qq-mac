@@ -572,6 +572,25 @@ test('引用 + 语音：语音条单独一条发，不和引用/@ 拼在同一�
   }
 })
 
+test('试听用当前页面草稿：换地址后不用先保存也会变（移植自原项目 2baf896）', async () => {
+  const http = await import('node:http')
+  const wavA = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(1000, 1)])
+  const wavB = Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(1000, 2)])
+  const srv = http.createServer((req, res) => { res.setHeader('content-type', 'audio/wav'); res.end(req.url.includes('/b') ? wavB : wavA) })
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r))
+  try {
+    const post = async (voice) => (await fake.call('/voice/test', { text: '试听', voice })).json()
+    const a = await post({ engine: 'http', http: { urlTemplate: `http://127.0.0.1:${srv.address().port}/a?text={text}` } })
+    const b = await post({ engine: 'http', http: { urlTemplate: `http://127.0.0.1:${srv.address().port}/b?text={text}` } })
+    assert.equal(a.ok, true)
+    assert.equal(b.ok, true)
+    assert.equal(a.engine, 'http')
+    assert.notEqual(a.data, b.data, '草稿换了服务地址，音频必须跟着换')
+  } finally {
+    srv.close()
+  }
+})
+
 test('语音条不把 QQ 表情/emoji 念出来（face 标签和 emoji 在 TTS 前去掉）', async () => {
   const http = await import('node:http')
   let spoken = ''
@@ -593,6 +612,23 @@ test('语音条不把 QQ 表情/emoji 念出来（face 标签和 emoji 在 TTS �
 test('听语音：收到语音先转文字再交给她', async () => {
   mock.push(priv(OWNER, [{ type: 'record', data: { file: 'abc.amr' } }]))
   await until(() => fake.turns.at(-1)?.userText.includes('[语音] 今天想吃白米饭'))
+})
+
+test('群语音：没 @ 也先转写，后面 @ 时上下文能看到；她也听得到说了什么（#197）', async () => {
+  const at = (t) => [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' ' + t } }]
+  mock.state.pttText = '周六一起去爬山吧'
+  try {
+    mock.push(grp('555', '999', [{ type: 'record', data: { file: 'group.amr' } }], '小明'))
+    mock.push(grp('555', '999', at('刚才那条语音说了什么'), '小明'))
+    await until(() => fake.turns.some((t) => String(t.userText).includes('周六一起去爬山吧')), 20000)
+    const turn = fake.turns.findLast((t) => String(t.userText).includes('周六一起去爬山吧'))
+    assert.match(String(turn.userText), /\[语音\] 周六一起去爬山吧/, '没 @ 的群语音也要出现在后面的群聊上下文里')
+    assert.match(String(turn.userText), /刚才那条语音说了什么/)
+    const heard = api.mind.mind.history('qq:group:555').filter((r) => r.dir === 'in' && r.text.includes('周六一起去爬山吧'))
+    assert.equal(heard.length, 1, '心智核心记下的是转出来的字，只记一次')
+  } finally {
+    delete mock.state.pttText
+  }
 })
 
 test('引用消息：私聊能看到被引用的内容；引用她自己时标「你」', async () => {

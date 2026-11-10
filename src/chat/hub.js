@@ -16,6 +16,7 @@ import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, 
 import { checkAllowed, levelFor, presetFor, isOwner } from './access.js'
 import { fetchImage, segmentBytes } from '../core/net.js'
 import { toMono16k } from '../voice/wav.js'
+import { asrConfigured, transcribeAudio } from '../voice/asr.js'
 import { mimeOf } from './inbound.js'
 import { forwardBody, readForward } from './forward.js'
 import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../core/img.js'
@@ -1605,19 +1606,25 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     return Boolean(q && q.ok && q.isBot)
   }
 
+  /** QQ 语音是 silk：让网关转成 wav，再统一成 16kHz 单声道 PCM16。 */
+  async function recordWav(rec) {
+    const info = await onebot.call('get_record', { file: rec.data?.file, out_format: 'wav' }, { timeoutMs: 30000 })
+    const raw = info?.base64 ? Buffer.from(info.base64, 'base64') : await fetchImage(info?.file || info?.url, { maxBytes: 30 * 1024 * 1024 })
+    return toMono16k(raw)
+  }
+
   async function transcribe(msg) {
     for (const rec of msg.records) {
       // 本地接口接管：用用户自己的识别服务（最先试）
       if (localApi?.active('asr')) {
         try {
-          const info = await onebot.call('get_record', { file: rec.data?.file, out_format: 'wav' }, { timeoutMs: 30000 })
-          const raw = info?.base64 ? Buffer.from(info.base64, 'base64') : await fetchImage(info?.file || info?.url, { maxBytes: 30 * 1024 * 1024 })
+          const wav = await recordWav(rec)
           const { writeFileSync, mkdirSync } = await import('node:fs')
           const { join } = await import('node:path')
           const dir = localApi.dir() + '/out'
           mkdirSync(dir, { recursive: true })
           const file = join(dir, `asr-${Date.now()}.wav`)
-          writeFileSync(file, toMono16k(raw))
+          writeFileSync(file, wav)
           const r = await localApi.call('asr', { file })
           const text = String(typeof r === 'string' ? r : r?.text || '').trim()
           if (text) return `[语音] ${text}`
@@ -1625,11 +1632,29 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
           log.debug('本地接口语音识别失败：', error.message)
         }
       }
-      try {
-        const r = await onebot.call('fetch_ptt_text', { message_id: Number(msg.messageId) || msg.messageId }, { timeoutMs: 20000 })
-        if (r?.text) return `[语音] ${r.text}`
-      } catch (error) {
-        log.debug('QQ 语音转文字失败：', error.message)
+      const voiceCfg = getConfig().voice
+      const viaCloud = async () => {
+        if (!asrConfigured(voiceCfg)) return ''
+        try { return await transcribeAudio(await recordWav(rec), voiceCfg, log) } catch (error) {
+          log.debug('云端语音识别失败：', error.message)
+          return ''
+        }
+      }
+      const viaQq = async () => {
+        try {
+          const r = await onebot.call('fetch_ptt_text', { message_id: Number(msg.messageId) || msg.messageId }, { timeoutMs: 20000 })
+          return String(r?.text || '').trim()
+        } catch (error) {
+          log.debug('QQ 语音转文字失败：', error.message)
+          return ''
+        }
+      }
+      // 默认 QQ 优先（快、免费），云端做兜底；硅基 SenseVoice 实测一次约 14 秒，
+      // 所以只有把「先用谁」设成云端才提前（移植自原项目 2baf896）
+      const order = voiceCfg.asrApi?.prefer === 'cloud' ? [viaCloud, viaQq] : [viaQq, viaCloud]
+      for (const via of order) {
+        const text = await via()
+        if (text) return `[语音] ${text}`
       }
       try {
         const text = await localTranscribe(rec)
@@ -1657,9 +1682,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       try { stt.prepare(pid) } catch (error) {}
       throw new Error(`识别模型还在准备（${prov.preparation.phase}）`)
     }
-    const info = await onebot.call('get_record', { file: rec.data?.file, out_format: 'wav' }, { timeoutMs: 30000 })
-    const raw = info?.base64 ? Buffer.from(info.base64, 'base64') : await fetchImage(info?.file || info?.url, { maxBytes: 30 * 1024 * 1024 })
-    const spec = stt.resolve({ audio: new Uint8Array(toMono16k(raw)) })
+    const spec = stt.resolve({ audio: new Uint8Array(await recordWav(rec)) })
     const r = await stt.transcribe(spec, AbortSignal.timeout(60000))
     const text = typeof r === 'string' ? r : r?.text || r?.transcript
     return text ? String(text).trim() : ''
@@ -1713,7 +1736,8 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     let groupEntry = null
     if (msg.kind === 'group') {
       const buf = groupBuf.get(msg.groupId) || []
-      groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: msg.text, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers }
+      const entryText = msg.text || (!cfg.voice.asr && msg.records.length ? '[发来一条语音]' : '')
+      groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: entryText, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers, voicePromise: null, voiceText: '' }
       buf.push(groupEntry)
       while (buf.length > 40) buf.shift()
       groupBuf.set(msg.groupId, buf)
@@ -1748,8 +1772,29 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       log.debug(`忽略 ${msg.chatId}（${allowed.reason}）`)
       return
     }
-    // 心智核心：白名单里的每条消息都记进她的感知记录（回不回都记）
-    try { mind?.perceive?.(msg) } catch (error) { log.debug('心智感知失败：', error.message) }
+    // 语音先异步转写（私聊、群聊都一样），不挡后面的判断；转出来的字补进群聊缓冲。
+    // 以前群里只有「这一条要回」时才转，没 @ 的语音永远是空的，后面 @ 她也看不到（移植自原项目 2baf896，#197）
+    let voicePromise = null
+    if (cfg.voice.asr && msg.records.length) {
+      voicePromise = transcribe(msg)
+        .then((t) => {
+          if (t && groupEntry) {
+            groupEntry.text = groupEntry.text ? `${groupEntry.text} ${t}` : t
+            groupEntry.voiceText = t
+          }
+          return t
+        })
+        .catch((error) => {
+          log.debug('语音转写失败：', error.message)
+          return ''
+        })
+      if (groupEntry) groupEntry.voicePromise = voicePromise
+    }
+    // 心智核心：白名单里的每条消息都记进她的感知记录（回不回都记）；语音等转出字再记，她才知道说了什么
+    const perceive = (text) => { try { mind?.perceive?.(text === undefined ? msg : { ...msg, text }) } catch (error) { log.debug('心智感知失败：', error.message) } }
+    if (!msg.records.length) perceive()
+    else if (!voicePromise) perceive([msg.text, '[发来一条语音]'].filter(Boolean).join(' '))
+    else voicePromise.then((t) => { if (!disposed) perceive([msg.text, t || '[发来一条语音，没听清]'].filter(Boolean).join(' ')) })
     // 文件先记着，她要读的时候用 qq_read_file 取
     if (msg.files.length) {
       const list = (recentFiles.get(msg.chatId) || []).concat(msg.files.map((f) => ({ ...f, userId: msg.userId, at: now })))
@@ -1837,6 +1882,13 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
         pol = { ...pol0, interjectChance: Math.min(1, pol0.interjectChance * mood().chatty) }
         try { memScore = typeof memoryScore === 'function' ? memoryScore(recentTexts.join(' ')) : 0 } catch (error) {}
       }
+      // 这一条要是语音，最多等 2 秒看能不能转出来：叫她的名字在语音里时也能叫动她；
+      // 转得慢（比如云端兜底）就先走群聊判断，交给她时再等完整结果
+      if (groupEntry?.voicePromise) {
+        await Promise.race([groupEntry.voicePromise, sleep(2000)])
+        if (disposed) return
+        if (groupEntry.voiceText) msg.wakeText = [msg.wakeText, groupEntry.voiceText].filter(Boolean).join(' ')
+      }
       const quotedBot = await repliedToBot(msg.replyId, msg)
       if (disposed) return
       // 这一条之前最近一条是不是她说的：判断「人呢」是不是在追问她（#182）
@@ -1905,14 +1957,9 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
         if (last) last.text = text
       }
     }
-    const voiceText = cfg.voice.asr && msg.records.length ? await transcribe(msg) : msg.records.length ? '[发来一条语音]' : ''
+    const voiceText = voicePromise ? await voicePromise : msg.records.length ? '[发来一条语音]' : ''
     if (disposed) return
     if (voiceText) text = (text ? text + ' ' : '') + voiceText
-    if (voiceText && msg.kind === 'group') {
-      // 群消息的文字在 groupBuf 里，语音转出来的字补进去，拼提示词时才看得到
-      const last = (groupBuf.get(msg.groupId) || []).findLast?.((x) => x.uid === msg.userId)
-      if (last) last.text = text
-    }
     // 引用消息：私聊现在就把被引用的内容取出来拼进正文；群聊留给 groupPrompt 懒加载（没交给她就白取）
     const quoted = msg.kind === 'private' && msg.replyId ? await quotedInfo(msg.replyId, msg) : null
     if (disposed) return
@@ -2053,6 +2100,9 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     // 时间戳可能同一毫秒：直接取上一轮之后的消息，避免紧接着到达的消息丢失。
     const fresh = buf.filter((x) => !x.fed).slice(-20)
     const older = buf.filter((x) => x.fed).slice(-8)
+    // 这一段里还没转完的群语音：等它一下，免得交给她时那条还是空的（#197）
+    const pendingVoices = fresh.filter((x) => x.voicePromise && !x.voiceText).map((x) => x.voicePromise)
+    if (pendingVoices.length) await Promise.all(pendingVoices)
     for (const x of buf) x.fed = true
     // 引用内容只在这一段真要交给她时才取（缓存在 quoteCache 里，取失败也会记一笔）
     const need = fresh.filter((x) => x.replyId && !('quote' in x))
