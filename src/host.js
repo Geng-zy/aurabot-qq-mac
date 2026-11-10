@@ -1540,6 +1540,8 @@ export function apply(ctx) {
     })
   }
   // 备份：文件里有账号凭证，只存在本机文件夹，不提供网页下载（backupJob 声明在文件顶部，云备份的定时器要提前用到）
+  // 心智核心的库：本地备份、云备份（包括「仅配置」）都要带一份完整的
+  const captureMind = () => (mind ? () => mind.backupFiles() : null)
   const backupAction = (run) => async (req) => {
     if (req.method !== 'POST' || req.headers?.['x-aurabot-backup'] !== '1') return { ok: false, message: '请从面板发起操作' }
     return run(req)
@@ -1548,7 +1550,7 @@ export function apply(ctx) {
   route('/backup/create', backupAction(async () => {
     if (backupJob?.running) return { ok: false, message: '上一个备份还在打包' }
     backupJob = { running: true, done: 0, total: 0 }
-    createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), captureMind: mind ? () => mind.backupFiles() : null, onProgress: (p) => { backupJob = { ...backupJob, ...p } } })
+    createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), captureMind: captureMind(), onProgress: (p) => { backupJob = { ...backupJob, ...p } } })
       .then((result) => { backupJob = { running: false, result }; log.info(`备份完成：${result.name}，${result.files} 个文件`) })
       .catch((error) => { backupJob = { running: false, error: error.message }; log.error('备份失败：', error.message) })
     return { ok: true, message: '开始打包了' }
@@ -1609,7 +1611,7 @@ export function apply(ctx) {
       const configOnly = remote.provider === 'webdav' && remote.webdav?.configOnly === true
       let sourceName = ''
       if (pack || configOnly) {
-        const result = await createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), configOnly })
+        const result = await createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), captureMind: captureMind(), configOnly })
         sourceName = result.name
         log.info(`${configOnly ? '仅配置' : ''}云备份打包完成：${result.name}，${result.files} 个文件`)
       }

@@ -783,6 +783,33 @@ test('空间日记：手动写一篇（仅自己可见），配今天画的图�
   try { unlinkSync(painting) } catch (error) {}
 })
 
+test('云备份：WebDAV「仅配置」推上去的包里也有心智核心的库', async () => {
+  const push = await import('../src/core/backup-push.js')
+  const oldFetch = push.pushHooks.fetch
+  const puts = []
+  push.pushHooks.fetch = async (url, init = {}) => {
+    const method = init.method || 'GET'
+    if (method === 'PUT') { puts.push({ url, body: Buffer.from(init.body) }); return { ok: true, status: 201 } }
+    if (method === 'MKCOL') return { ok: true, status: 201 }
+    if (method === 'PROPFIND') return { ok: true, status: 207, text: async () => '<d:multistatus></d:multistatus>' }
+    return { ok: true, status: 204 }
+  }
+  const H = { 'x-aurabot-backup': '1' }
+  try {
+    const set = await (await fake.call('/backup/remote/config', { provider: 'webdav', webdav: { url: 'https://dav.example.com/', username: 'u', password: 'p', configOnly: true }, keep: 3 }, H)).json()
+    assert.equal(set.ok, true, JSON.stringify(set))
+    await fake.call('/backup/push', {}, H)
+    const st = await (await fake.call('/backup/remote/state')).json()
+    assert.equal(st.job?.ok, true, JSON.stringify(st.job))
+    const zip = puts.find((x) => /aurabot-config-\d{8}-\d{4}\.zip$/.test(x.url))
+    assert.ok(zip, '推了一个仅配置的包：' + puts.map((x) => x.url).join(','))
+    assert.ok(zip.body.includes(Buffer.from('mind/mind.sqlite')), '包里要有 mind/mind.sqlite')
+  } finally {
+    push.pushHooks.fetch = oldFetch
+    await fake.call('/backup/remote/config', { enabled: false }, H)
+  }
+})
+
 test('面板接口：概览、人格切换', async () => {
   const s = (await fake.call('/state')).json()
   assert.equal(s.ok, true)
