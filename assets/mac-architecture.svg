@@ -10,7 +10,7 @@
   <rect width="1200" height="440" rx="18" fill="#f7f5f0"/>
   <g font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif">
     <text x="40" y="48" fill="#1f3a3d" font-size="22" font-weight="700">在一台 Mac 上怎么跑起来</text>
-    <text x="40" y="74" fill="#6b7575" font-size="14">全部在本机：QQ 网关在 OrbStack 容器里，插件和翻唱环境在 macOS 上</text>
+    <text x="40" y="74" fill="#6b7575" font-size="14">全部在本机：QQ 网关在 OrbStack 容器里，插件、心智核心和翻唱环境在 macOS 上（Python 共用 ~/Aurabot/mind）</text>
 
     <!-- QQ -->
     <rect x="40" y="120" width="150" height="96" rx="14" fill="#ffffff" stroke="#c9d6d6"/>
@@ -28,7 +28,7 @@
     <rect x="580" y="104" width="300" height="128" rx="14" fill="#fff4e6" stroke="#e0a560"/>
     <text x="598" y="128" fill="#b0702a" font-size="12">DeepSeek Harness 插件</text>
     <text x="730" y="168" text-anchor="middle" fill="#1f3a3d" font-size="20" font-weight="800">Aurabot for macOS</text>
-    <text x="730" y="194" text-anchor="middle" fill="#6b7575" font-size="13">人格 · 记忆 · 语音 · 表情 · 模块</text>
+    <text x="730" y="194" text-anchor="middle" fill="#6b7575" font-size="13">心智核心 · 语音 · 表情 · 模块</text>
     <text x="730" y="214" text-anchor="middle" fill="#6b7575" font-size="13">系统语音兜底（say）</text>
 
     <!-- DSH -->
@@ -57,8 +57,8 @@
       <text x="864" y="366" text-anchor="middle" font-weight="600">env/</text>
       <text x="864" y="386" text-anchor="middle" fill="#6b7575">人声分离 · torch 2.15</text>
       <rect x="960" y="344" width="182" height="52" rx="10" fill="#f2f7f6"/>
-      <text x="1051" y="366" text-anchor="middle" font-weight="600">bin/ · python/</text>
-      <text x="1051" y="386" text-anchor="middle" fill="#6b7575">ffmpeg · uv · rubberband</text>
+      <text x="1051" y="366" text-anchor="middle" font-weight="600">bin/</text>
+      <text x="1051" y="386" text-anchor="middle" fill="#6b7575">ffmpeg · rubberband</text>
     </g>
     <path d="M820 234V300" stroke="#5b6b6b" stroke-width="2" marker-end="url(#arr)"/>
     <text x="830" y="272" fill="#5b6b6b" font-size="12">翻唱</text>

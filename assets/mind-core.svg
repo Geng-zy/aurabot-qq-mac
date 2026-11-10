@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-label="心智核心的结构：QQ 消息进来变成她的感知，心智核心七个部分（身体、注意与意识流、记忆、情绪、动机与行动、人格与自我、社会认知与关系）共用一个心智；出去的是她说的话和她自己去做的事；每晚睡觉时整理">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6b6f86"/></marker>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1b2a44"/>
+      <stop offset="1" stop-color="#2b2350"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="560" rx="18" fill="#f7f5f0"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="40" y="48" fill="#1f2340" font-size="22" font-weight="700">一个心智，七个部分</text>
+    <text x="40" y="74" fill="#6b6f86" font-size="14">她是谁、记得什么、现在什么心情都在心智核心里，每轮重新放进上下文；DSH 的会话换新、被压缩，她本人不受影响</text>
+
+    <!-- 进来 -->
+    <rect x="40" y="120" width="170" height="250" rx="14" fill="#ffffff" stroke="#c9cede"/>
+    <text x="125" y="150" text-anchor="middle" fill="#1f2340" font-size="16" font-weight="700">进来的</text>
+    <g font-size="13" fill="#4a4e63" text-anchor="middle">
+      <text x="125" y="186">私聊、群聊的每条消息</text>
+      <text x="125" y="210">（白名单由插件管）</text>
+      <text x="125" y="246">看过的视频、热榜</text>
+      <text x="125" y="270">唱过的歌、画过的画</text>
+      <text x="125" y="294">（模块告诉她）</text>
+      <text x="125" y="336">你的投喂、叫醒</text>
+    </g>
+    <path d="M212 245H252" stroke="#6b6f86" stroke-width="2" marker-end="url(#a)"/>
+
+    <!-- 核心 -->
+    <rect x="256" y="104" width="688" height="300" rx="18" fill="url(#core)"/>
+    <text x="600" y="136" text-anchor="middle" fill="#ffd08a" font-size="16" font-weight="700" letter-spacing="2">心智核心</text>
+    <g font-size="13">
+      <!-- 第一行 -->
+      <rect x="280" y="154" width="200" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#ffd08a" stroke-opacity="0.5"/>
+      <text x="296" y="180" fill="#ffffff" font-size="15" font-weight="700">身体</text>
+      <text x="296" y="204" fill="#c9d4ec">精力、困、饿</text>
+      <text x="296" y="224" fill="#c9d4ec">睡觉和被叫醒、倒时差</text>
+      <text x="296" y="244" fill="#8f9cc0">双过程睡眠模型</text>
+
+      <rect x="500" y="154" width="200" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#ffd08a" stroke-opacity="0.5"/>
+      <text x="516" y="180" fill="#ffffff" font-size="15" font-weight="700">注意与意识流</text>
+      <text x="516" y="204" fill="#c9d4ec">一次专心一个聊天</text>
+      <text x="516" y="224" fill="#c9d4ec">闲着时一步一步地想</text>
+      <text x="516" y="244" fill="#8f9cc0">走神比例 ≈ 40%</text>
+
+      <rect x="720" y="154" width="200" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#ffd08a" stroke-opacity="0.5"/>
+      <text x="736" y="180" fill="#ffffff" font-size="15" font-weight="700">记忆</text>
+      <text x="736" y="204" fill="#c9d4ec">记住、遗忘、想起、改写</text>
+      <text x="736" y="224" fill="#c9d4ec">清楚 / 大概 / 话到嘴边</text>
+      <text x="736" y="244" fill="#8f9cc0">FSRS-4.5 遗忘曲线</text>
+
+      <!-- 第二行 -->
+      <rect x="280" y="278" width="150" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#9fc4ff" stroke-opacity="0.5"/>
+      <text x="296" y="304" fill="#ffffff" font-size="15" font-weight="700">情绪</text>
+      <text x="296" y="328" fill="#c9d4ec">66 种，有对象</text>
+      <text x="296" y="348" fill="#c9d4ec">会过去、会传染</text>
+      <text x="296" y="368" fill="#8f9cc0">Verduyn 2015</text>
+
+      <rect x="442" y="278" width="150" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#9fc4ff" stroke-opacity="0.5"/>
+      <text x="458" y="304" fill="#ffffff" font-size="15" font-weight="700">动机与行动</text>
+      <text x="458" y="328" fill="#c9d4ec">16 项需要、想要</text>
+      <text x="458" y="348" fill="#c9d4ec">会犯懒、会学</text>
+      <text x="458" y="368" fill="#8f9cc0">时间动机理论</text>
+
+      <rect x="604" y="278" width="150" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#9fc4ff" stroke-opacity="0.5"/>
+      <text x="620" y="304" fill="#ffffff" font-size="15" font-weight="700">人格与自我</text>
+      <text x="620" y="328" fill="#c9d4ec">19 项性格慢慢变</text>
+      <text x="620" y="348" fill="#c9d4ec">自己改自己、写故事</text>
+      <text x="620" y="368" fill="#8f9cc0">BFI-2 · HEXACO</text>
+
+      <rect x="766" y="278" width="154" height="110" rx="12" fill="#ffffff" fill-opacity="0.08" stroke="#9fc4ff" stroke-opacity="0.5"/>
+      <text x="782" y="304" fill="#ffffff" font-size="15" font-weight="700">社会认知与关系</text>
+      <text x="782" y="328" fill="#c9d4ec">按 QQ 号记每个人</text>
+      <text x="782" y="348" fill="#c9d4ec">亲近、信任、分寸</text>
+      <text x="782" y="368" fill="#8f9cc0">专一默认开</text>
+    </g>
+
+    <!-- 出去 -->
+    <path d="M946 245H986" stroke="#6b6f86" stroke-width="2" marker-end="url(#a)"/>
+    <rect x="990" y="120" width="170" height="250" rx="14" fill="#ffffff" stroke="#c9cede"/>
+    <text x="1075" y="150" text-anchor="middle" fill="#1f2340" font-size="16" font-weight="700">出去的</text>
+    <g font-size="13" fill="#4a4e63" text-anchor="middle">
+      <text x="1075" y="186">她说的话</text>
+      <text x="1075" y="210">（回不回、插不插话她定）</text>
+      <text x="1075" y="246">她自己去做的事</text>
+      <text x="1075" y="270">刷 B 站、写日记</text>
+      <text x="1075" y="294">逛空间、逛热榜、找你</text>
+      <text x="1075" y="336">她改了自己 → 通知你</text>
+    </g>
+
+    <!-- 睡觉 -->
+    <rect x="256" y="424" width="688" height="56" rx="14" fill="#efeaf9" stroke="#b7aee3"/>
+    <text x="600" y="448" text-anchor="middle" fill="#3b3470" font-size="14" font-weight="700">每晚睡一觉</text>
+    <text x="600" y="469" text-anchor="middle" fill="#5b5490" font-size="13">整理记忆 · 做梦 · 情绪变淡 · 性格过了门槛走一小步 · 不联系的关系变淡 · 更新自我故事</text>
+    <path d="M600 406V420" stroke="#6b6f86" stroke-width="2" marker-end="url(#a)" marker-start="url(#a)"/>
+
+    <!-- 模型 -->
+    <text x="40" y="512" fill="#6b6f86" font-size="13">聊天和后台整理：DSH 里配的模型（后台每天有 token 上限）· 闲着时的念头：本机 Qwen3.5-9B 4 位（可选，不花钱）· 想起意思相近的事：bge-m3 向量</text>
+    <text x="40" y="534" fill="#6b6f86" font-size="13">所有参数都在面板「心智设置」里，每项写着默认值、研究出处和调了会怎样</text>
+  </g>
+</svg>

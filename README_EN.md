@@ -1,44 +1,64 @@
 <div align="center">
 
-<img src="assets/mac-banner.svg" alt="Aurabot for macOS · a macOS fork of the Dafeiyu QQ plugin" width="100%" />
+<img src="assets/mind-banner-en.svg" alt="Aurabot mind core: she isn't role-playing, she has one mind" width="100%" />
 
-**Run "Dafeiyu" fully on an Apple-silicon Mac: chat, voice, file sending and one-click song covers**
+**A QQ character with a mind of her own: she remembers and forgets, gets happy and hurt, tired and hungry, and her days slowly shape who she is**
+
+A DeepSeek Harness plugin · runs on Apple-silicon Macs
 
 [简体中文](README.md) · **English**
 
-[![fork of](https://img.shields.io/badge/fork%20of-aureth--labs%2Fdsh--aurabot--qq-555?logo=github)](https://github.com/aureth-labs/dsh-aurabot-qq)
+[![mind core](https://img.shields.io/badge/mind%20core-memory·emotion·body·personality·relationships-2b2350)](#-the-mind-core-she-is-one-person)
 [![platform](https://img.shields.io/badge/platform-macOS%20·%20Apple%20silicon-1d4a4f?logo=apple)](#-install)
 [![license](https://img.shields.io/github/license/Geng-zy/aurabot-qq-mac?color=d9822b)](LICENSE)
+[![fork of](https://img.shields.io/badge/fork%20of-aureth--labs%2Fdsh--aurabot--qq-555?logo=github)](https://github.com/aureth-labs/dsh-aurabot-qq)
 
 </div>
 
+## 🧠 The mind core: she is one person
+
+Most character bots are "a persona card plus a chat log": they re-enact the character every turn, forget as the log grows, feel like someone else in a new session, re-judge their mood on every message, and "reach out" on a timer.
+
+Aurabot's mind core works the other way round: **she has exactly one mind**. Memory, emotion, body, motivation, personality and relationships live in it, shared across every chat and put back into context each turn. When a DSH session is rotated or compacted she only loses a few recent details; she herself is unchanged.
+
+| | A typical character bot | Her, with the mind core |
+|---|---|---|
+| **Memory** | Everything stuffed into context, or keyword search | Fades fast then slowly; recalling strengthens it; vague memories stay vague, some are on the tip of her tongue; she consolidates and dreams while asleep |
+| **Mood** | Re-judged every message | Emotions have a target, a reason, and research-based durations (sadness lasts far longer than embarrassment); mood has inertia; anger at one person isn't taken out on another |
+| **Daily rhythm** | Always online, always fresh | Gets tired, sleepy and hungry; sleeps during her night and only you can wake her; stays up chatting with you and is sleepier the next day |
+| **Initiative** | A timer fires a message | Thinks on her own when idle; does what she wants (browse Bilibili, post to Qzone, read trending lists, message you) only when motivated enough; procrastinates; learns from outcomes |
+| **Personality** | Fixed in the card — or swayed by one message, different every day | 19 traits move in small steps only after repeated experience; your own influence is capped; she can also decide to rewrite her persona, rename herself and write her own story |
+| **Relationships** | Same with everyone | A record per QQ number: closeness, liking, trust, nicknames, inside jokes, no-go topics, grudges; fades without contact; "exclusive" is on by default — romantic feelings are only for you |
+| **Group chats** | Fixed interjection probability | She decides, from her sociability, mood, how relevant the topic is to her, and how close she is to who's talking |
+
+<img src="assets/mind-core.svg" alt="Mind core: incoming messages, seven parts, outgoing words and actions, nightly sleep" width="100%" />
+
+**Grounded in research, every number adjustable.** Forgetting follows the FSRS-4.5 power curve; emotion durations come from Verduyn & Lavrijsen 2015; sleep pressure from Borbély's two-process model; baseline mood from Diener & Diener 1996 and inertia from Kuppens et al. 2010; mind-wandering from Killingsworth & Gilbert 2010; procrastination from Steel's temporal motivation theory (2007); personality change from Roberts et al. 2017 and Hudson & Fraley 2015; relationships from Sternberg's triangular theory, Rusbult's investment model and attachment theory. Every parameter in the panel's mind settings shows its default, its source (or "rule of thumb") and what changing it does.
+
+Panel pages: **Right now** (body, feelings, feed her, wake her), **Inner life** (thoughts, wants, permission requests, local model), **Memory**, **Relationships**, **Personality & self** (original vs current traits, her own edits, her story, versions you can roll back) and **Mind settings**.
+
 ## 📌 What this repository is
 
-This repository is a **fork of [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)** (MIT, branched from upstream v1.2.0). Upstream is the "Aurabot / Dafeiyu" QQ bot plugin for DeepSeek Harness (DSH). **All of its features come from upstream and its contributors.**
+A **fork of [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)** (MIT, branched from upstream v1.2.0), the "Aurabot / Dafeiyu" QQ bot plugin for DeepSeek Harness (DSH). Chat, voice, stickers, song covers, Qzone, Bilibili and the module system **come from upstream and its contributors**.
 
-Upstream targets Windows only. This fork does one thing: **make it work on macOS (Apple silicon)**. Windows / Linux-only code was removed, so use [upstream](https://github.com/aureth-labs/dsh-aurabot-qq) on Windows. Please file only macOS-specific issues here.
+This fork does two things:
+
+1. **The mind core** (above), written from scratch, replacing upstream's separate memory, mood and speak-up modules. Code in `src/mind/` (imports nothing from the plugin); the QQ side is `src/mind-adapter/`.
+2. **macOS (Apple silicon) only**: Windows / Linux-only code was removed. On Windows use [upstream](https://github.com/aureth-labs/dsh-aurabot-qq).
+
+It keeps the upstream package name and plugin id (`dsh-aurabot-qq`), so it replaces upstream and can't be installed alongside it; when you switch, your old memories, mood and impressions of people move into the mind core on first start.
 
 ## 🍎 What differs from upstream
 
 | Area | Upstream (Windows) | This fork (macOS) |
 |---|---|---|
+| Her "mind" | persona card + mood module + memory module + speak-up, each separate | **mind core**: one mind for memory, emotion, body, motivation, personality and relationships |
 | QQ gateway | Plugin downloads, starts and injects Windows SnowLuma | SnowLuma has no macOS build: run its official image in OrbStack / Docker; the plugin only connects to the OneBot address you enter |
 | Song environment | PowerShell, CUDA PyTorch, one environment | curl + built-in unzip, MPS on Apple silicon, **two environments** (voice conversion and vocal separation), every version pinned to a verified set |
 | Song quality | separate → convert → mix | plus local originals first, de-reverb, lead/backing or duet split, auto key and octave folding from a per-voice profile, tone matching |
 | Fallback TTS | Windows System.Speech | macOS `say` |
 | Sending files | gateway reads local paths | gateway in a container can't: small files as base64, **files over 30 MB through a loopback-only temporary download link** |
-| Her "mind" | persona card + mood module + memory module + speak-up, each separate | replaced by a from-scratch **mind core** (`src/mind/`, see below): one mind holding memory, emotion, body, personality, relationships and wants |
-
-## 🧠 Mind core
-
-She is one person: body, memory, emotions, personality and relationships live in the mind core (`~/.dsh/plugins-data/aurabot/mind/mind.sqlite`) and are put back into context every turn, so DSH session rotation or compaction doesn't change who she is. The core in `src/mind/` imports nothing from the plugin; the QQ side is `src/mind-adapter/`.
-
-- **Body**: energy, sleepiness (a simplified two-process sleep model), hunger, sleeping and being woken, jet lag, feeding.
-- **Memory**: power-law forgetting (the FSRS-4.5 curve), strengthened and possibly rewritten on recall (adjustable; originals are always kept), consolidated and dreamt over during sleep; embeddings via SiliconFlow's free bge-m3.
-- **Emotion**: 66 emotions with durations from Verduyn & Lavrijsen 2015; targets, regulation, contagion, mood inertia.
-- **Inner life and motivation**: step-by-step thinking while idle (optionally on a local Qwen3.5-9B 4-bit model, free), 16 basic needs plus wants she grows herself, temporal motivation theory for whether to act (procrastination emerges), learning from outcomes; she decides when to browse Bilibili, visit Qzone, write a diary or message you.
-- **Personality and relationships**: 19 traits (BFI-2's 15 facets + honesty-humility + two attachment dimensions + expressiveness) that move only in small steps after repeated experience, with a cap on the owner's influence; she can edit her own persona card, name and values and writes her own life story; per-QQ-number relationships (closeness, liking, trust, nicknames, grudges…), exclusivity on by default.
-- **Every parameter** is in the panel's mind settings with its default, source (a study, or "rule of thumb") and what changing it does.
+| Module market | upstream's module index | upstream's plus [this fork's](https://github.com/Geng-zy/aurabot-qq-mac-mods); same-id modules use this fork's mind-core-ready version |
 
 ## 🚀 Install
 
