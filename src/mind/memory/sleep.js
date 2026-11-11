@@ -236,8 +236,23 @@ export function createSleep(mem, deps) {
       for (const j of jobs) mem.doneJob(j.id)
       return n
     })
+    // 换过向量模型：每晚分批把旧记忆用新模型重新算一遍（新的先算），算完的又能按意思想起来；
+    // 没算到的这几晚照常按字面找。算好的顺手和相像的事连上
+    let reembedded = []
+    await step('reembed', async () => {
+      if (!mem.canEmbed()) return '没接向量接口'
+      const per = Number(S('reembedPerNight') ?? 500)
+      if (!(per > 0)) return '关着'
+      const ids = mem.staleVectorIds(per)
+      if (!ids.length) return 0
+      const n = await mem.embedEpisodes(ids)
+      if (n) reembedded = ids
+      const p = mem.vectorProgress()
+      log.info(`睡觉时重新算了 ${n} 条记忆的向量（${p.done}/${p.total}）`)
+      return n
+    })
     const fresh = store.prep('SELECT id FROM episodes WHERE at >= ?').all(since).map((r) => r.id)
-    await step('links', () => linkSimilar(fresh))
+    await step('links', () => linkSimilar([...new Set([...fresh, ...reembedded])]))
     if (quality >= 0.3) await step('replay', () => replay(since))
     await step('reconsolidate', () => reconsolidate(Math.round(20 * quality)))
     await step('recompute', () => recompute())

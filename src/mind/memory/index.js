@@ -636,9 +636,26 @@ export function createMemory(deps) {
     return Object.fromEntries(store.prep('SELECT status, COUNT(*) AS n FROM episodes GROUP BY status').all().map((r) => [r.status, r.n]))
   }
 
+  /**
+   * 还没用现在这个向量模型算过的记忆（换过向量模型、或者当时没算成的）：新的先算。
+   * 向量按模型存，换了模型以后旧的比不了，这些记忆只能按字面找，要重新算一遍才能按意思想起来。
+   */
+  function staleVectorIds(limit = 500) {
+    return store.prep(`SELECT e.id FROM episodes e LEFT JOIN vectors v ON v.id = e.id
+      WHERE e.status = 'live' AND (v.id IS NULL OR v.model != ?) ORDER BY e.at DESC LIMIT ?`).all(embedModel(), limit).map((r) => r.id)
+  }
+  /** 向量算到哪了：{ done, total }（只算还记得的）。 */
+  function vectorProgress() {
+    const total = store.prep("SELECT COUNT(*) AS n FROM episodes WHERE status = 'live'").get().n
+    const done = store.prep("SELECT COUNT(*) AS n FROM episodes e JOIN vectors v ON v.id = e.id WHERE e.status = 'live' AND v.model = ?").get(embedModel()).n
+    return { done, total, model: embedModel() }
+  }
+  /** 能不能算向量（接上了向量接口）。 */
+  const canEmbed = () => Boolean(embed)
+
   return {
     connect, encodeWindow, encodePending, pendingWindows, recall, strengthen, workingMemory,
     dueIntentions, completeIntention, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
-    embedEpisodes, queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
+    embedEpisodes, staleVectorIds, vectorProgress, canEmbed, queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }

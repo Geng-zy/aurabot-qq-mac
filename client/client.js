@@ -3022,10 +3022,13 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     function Mood({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const mc = draft.mind || {}
+      const [vp, setVp] = useState(null)
+      useEffect(() => { get('/mind/vectors').then((r) => setVp(r && r.ok ? r : null)).catch(() => {}) }, [])
       return h('div', { className: 'ab-grid' },
         h(MindMemory, { toast }),
         h(Card, { title: '想起意思相近的事', desc: '她想事情时，除了按字找，还会按意思找相近的记忆（「香菜」也能想起「芫荽」）。要用 SiliconFlow 的 bge-m3 向量模型（免费），在 siliconflow.cn 注册后建一个 API 密钥填在这里；记忆文字会发给它算向量，向量存在本机。不填也能用，只是只按字找。接口地址和模型在「心智设置 → 记忆」里改。' },
-          h(Row, { label: 'SiliconFlow 密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「心智设置 → 记忆」里打开）都用它' }, f.text('mind.embedKey', { type: 'password', placeholder: mc.embedKeySet ? '已保存（不改就留空）' : '没有就留空' }))),
+          h(Row, { label: 'SiliconFlow 密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「心智设置 → 记忆」里打开）都用它' }, f.text('mind.embedKey', { type: 'password', placeholder: mc.embedKeySet ? '已保存（不改就留空）' : '没有就留空' })),
+          vp && vp.total ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, vp.done >= vp.total ? '全部 ' + vp.total + ' 条记忆都算好了（' + vp.model + '）。' : '已经按意思算好 ' + vp.done + ' / ' + vp.total + ' 条（' + vp.model + '）。换过向量模型或刚填密钥时，剩下的她每晚睡觉时分批算，没算到的照常按字找。') : null),
         h(Card, { title: '聊天流水', desc: '聊天中枢自己的近几天流水（空间日记等功能会看今天的）。她的完整经历在心智核心里，和这个无关。' },
           h(Row, { label: '聊天流水留多久', hint: '超过的按天移到废纸篓（不直接删）；-1 = 一直留；0 = 只留今天' }, f.num('memory.keepChatlogDays', { min: -1, max: 3650 }))))
     }

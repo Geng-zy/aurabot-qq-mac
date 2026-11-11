@@ -74,6 +74,7 @@ export const PARAMS = [
   { key: 'memory.assocHops', group: 'memory', label: '联想最多想几步', def: 2, min: 1, max: 3, step: 1, source: EXP, hint: 'A 想到 B 是一步，B 再想到 C 是两步。步数越多越容易想偏。', advanced: true },
   { key: 'memory.assocLimit', group: 'memory', label: '每轮最多联想出几条', def: 2, min: 0, max: 5, step: 1, source: EXP, hint: '联想出来的放在直接想起的后面，也受工作记忆字数上限约束。', advanced: true },
   { key: 'memory.assocDecay', group: 'memory', label: '每多想一步淡多少', def: 0.6, min: 0.3, max: 0.9, step: 0.05, source: 'Collins & Loftus 1975（激活随距离衰减；具体比例是经验值）', hint: '每多一步，联想的强度乘上这个数；太弱的就想不起来了。', advanced: true },
+  { key: 'memory.reembedPerNight', group: 'memory', label: '换向量模型后每晚重算几条', def: 500, min: 0, max: 5000, step: 50, source: '经验值', hint: '向量按模型存，换了向量模型或接口后，旧记忆要用新模型重新算一遍才能按意思想起来。每晚睡觉时算这么多条（新的先算），没算到的照常按字面找。SiliconFlow 的 bge-m3 免费；0 = 不重算。', advanced: true },
   { key: 'memory.rerank', group: 'memory', label: '精排', def: false, source: 'Nogueira & Cho 2019（用交叉编码器给「问题-段落」逐对打分重排，比只看向量相近准得多）', hint: '想起来的候选多的时候，让精排模型逐条看「线索和这件事有多相关」再排。更准，代价是每次多一次小请求（SiliconFlow 的 bge-reranker-v2-m3 免费，用「记忆」页同一个密钥）。超时或出错就按原来的顺序，不拖慢回复。' },
   { key: 'memory.rerankModel', group: 'memory', label: '精排模型', def: 'BAAI/bge-reranker-v2-m3', source: '设计决定', hint: '和向量模型同一个接口地址；换别家要支持 /rerank。', advanced: true },
   { key: 'memory.rerankTopN', group: 'memory', label: '精排看前几条', def: 20, min: 2, max: 50, step: 1, source: EXP, hint: '越多越准、越慢。', advanced: true },

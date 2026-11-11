@@ -1441,6 +1441,7 @@ export function apply(ctx) {
     const m = mind.mind
     return { ok: true, status: m.status(), usage: m.budget.spent(), sleep: m._store.get('sleep.lastReport', null), dreams: m._store.get('dreams.log', []).slice(0, 10), pending: m.memory.pendingWindows().length }
   })
+  route('/mind/vectors', async () => (mind ? { ok: true, ...mind.mind.memory.vectorProgress() } : mindOff))
   route('/mind/memories', async (req) => {
     if (!mind) return mindOff
     const qs = query(req)
