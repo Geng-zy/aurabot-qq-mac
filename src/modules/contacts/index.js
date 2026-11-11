@@ -85,6 +85,15 @@ export default {
     }
     const groupInFlight = new Set()
 
+    // 要主人拿主意的事（加好友、进群申请）：由她用自己的话跟主人说，说不出来才发固定文字
+    const tellOwner = (facts, plain) => {
+      const cfg = api.config()
+      const voice = api.core.herVoice
+      const send = () => api.sendText(`private:${cfg.ownerQQ}`, plain).catch(() => {})
+      if (!voice) return send()
+      Promise.resolve(voice.tell({ facts, fallback: plain })).then((r) => { if (!r) send() }).catch(() => send())
+    }
+
     const onGroupRequest = (ev) => {
       if (!ev.flag || !['add', 'invite'].includes(ev.sub_type)) return
       const userId = String(ev.user_id || '')
@@ -97,7 +106,8 @@ export default {
       const cfg = api.config()
       if (cfg.ownerQQ && (cfg.profilePerms?.qqFriendRequest || 'owner') !== 'off') {
         const note = req.comment ? `，验证消息：「${req.comment}」` : ''
-        api.sendText(`private:${cfg.ownerQQ}`, `${groupRequestText(req, cfg.botQQ)}${note}。可以让我列出待处理的加群申请并通过或拒绝。`).catch(() => {})
+        const plain = `${groupRequestText(req, cfg.botQQ)}${note}。可以让我列出待处理的加群申请并通过或拒绝。`
+        tellOwner(`${groupRequestText(req, cfg.botQQ)}${note}。这要他拿主意：他让你通过或拒绝，你就去办（能列出待处理的加群申请）。`, plain)
       }
     }
 
@@ -117,7 +127,8 @@ export default {
       const cfg = api.config()
       if (isNew && cfg.ownerQQ && (cfg.profilePerms?.qqFriendRequest || 'owner') !== 'off') {
         const note = ev.comment ? `，验证消息：「${String(ev.comment).slice(0, 80)}」` : ''
-        api.sendText(`private:${cfg.ownerQQ}`, `有人想加我好友：QQ ${userId}${note}。要通过就跟我说「通过 ${userId}」，不想加说「拒绝 ${userId}」。`).catch(() => {})
+        const plain = `有人想加我好友：QQ ${userId}${note}。要通过就跟我说「通过 ${userId}」，不想加说「拒绝 ${userId}」。`
+        tellOwner(`有人想加你 QQ 好友：QQ ${userId}${note}。这要他拿主意：他说通过就加，说拒绝就不加。`, plain)
       }
     })
 

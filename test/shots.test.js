@@ -217,9 +217,10 @@ test('sendShot：关闭和试运行不发送、不记成功；发送失败如实
   }
 })
 
-function browsing({ dryRun = false, sendResult = { message_id: 1 }, failVision = false } = {}) {
+function browsing({ dryRun = false, sendResult = { message_id: 1 }, failVision = false, withMind = true } = {}) {
   const cfg = normalize({ enabled: true, dryRun, ownerQQ: '10000001', bili: { enabled: true, vision: true, shotChance: 1, perRun: 1 } })
   const sent = []
+  const shares = []
   const info = { bvid: 'BV1aaaaaaaaa', cid: 1, aid: 1, title: '猫的视频', duration: 60 }
   const bili = createBili({
     getConfig: () => cfg, log: { info() {}, debug() {}, warn() {} },
@@ -230,8 +231,9 @@ function browsing({ dryRun = false, sendResult = { message_id: 1 }, failVision =
       sendImage: async (chatId, path) => { sent.push({ chatId, path }); return sendResult },
       sendText: async () => ({}),
     },
+    mind: withMind ? { experience() {}, recall: async () => [], recent: () => [], share: async (e) => { shares.push(e); return { ok: true } } } : null,
   })
-  return { bili, sent }
+  return { bili, sent, shares }
 }
 
 test('watch：画面和字幕进入阅读结果并存图，视觉失败仍返回文字', async () => {
@@ -249,20 +251,21 @@ test('watch：画面和字幕进入阅读结果并存图，视觉失败仍返回
   assert.ok(!fallback.message.includes('画面（抽帧）'))
 })
 
-test('自动截图：只发主人私聊、使用真实文件路径，试运行和失败不计发送', async () => {
-  for (const mode of ['sent', 'dry', 'failed']) {
-    freshDir()
-    const { bili, sent } = browsing({ dryRun: mode === 'dry', sendResult: mode === 'failed' ? null : { message_id: 1 } })
-    const r = await bili.run({ force: true })
-    assert.equal(r.ok, true, r.message)
-    assert.equal(r.shots, mode === 'sent' ? 1 : 0, mode)
-    assert.equal(bili.state().history.filter((i) => i.kind === 'shot').length, r.shots)
-    assert.equal(sent.length, mode === 'dry' ? 0 : 1)
-    if (sent.length) {
-      assert.equal(sent[0].chatId, 'private:10000001')
-      assert.equal(readFileSync(sent[0].path, 'utf8'), 'frame')
-    }
-  }
+test('刷完挑的截图：不直接发给主人，交给她（她想发就用 qq_send_shot）；没有心智核心就不挑', async () => {
+  freshDir()
+  const { bili, sent, shares } = browsing()
+  const r = await bili.run({ force: true })
+  assert.equal(r.ok, true, r.message)
+  assert.equal(r.shots, 1)
+  assert.equal(sent.length, 0, '不直接发')
+  assert.equal(shares.length, 1)
+  assert.match(shares[0].text, /猫的视频.*截到一张画面/)
+  assert.match(shares[0].hint, /qq_send_shot.*猫的视频/)
+  assert.equal(bili.state().history.filter((i) => i.kind === 'shot').length, 1)
+  freshDir()
+  const none = browsing({ withMind: false })
+  assert.equal((await none.bili.run({ force: true })).shots, 0)
+  assert.equal(none.sent.length, 0)
 })
 
 test('B 站模块：截图库路由预览 / 删除、工具固定发当前会话、关闭后隐藏', async () => {

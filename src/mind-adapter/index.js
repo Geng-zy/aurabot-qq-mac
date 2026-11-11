@@ -230,6 +230,10 @@ export function createMindAdapter(opts) {
       if (doing) parts.push(`（你本来在${doing.label}，有人找你就先放下了。）`)
       const social = relationContext(args.chat)
       if (social) parts.push(social)
+      if (args.chat?.kind === 'private' && String(args.chat.userId) === ownerId() && !debug()) {
+        const shares = pendingShares()
+        if (shares) parts.push(shares)
+      }
       return parts.join('\n')
     } catch (error) {
       return ''
@@ -497,6 +501,25 @@ export function createMindAdapter(opts) {
       offer(a) {
         return mind.motivation.offer({ ...a, id: moduleId + ':' + a.id, by: moduleId })
       },
+      /**
+       * 她刷到 / 做了想给主人看的东西。模块只提供手：东西交给她，要不要说、什么时候说由她。
+       * 现在能找主人（不在勿扰时段、今天还没找够、上次找他他回了）就由她自己开口（不想说可以不说）；
+       * 不能就先记着，接下来两天里和主人私聊时她会想起来，聊到合适的时候提。
+       * @param {{ text: string, url?: string, hint?: string, importance?: number }} e
+       *   text：是什么、她觉得怎么样；url：链接；hint：她要发的话怎么发（比如「用 qq_send_shot 发截图」）
+       */
+      async share(e = {}) {
+        const text = String(e.text || '').trim().slice(0, 160)
+        if (!text || !ownerId() || debug()) return { ok: false, summary: '没有可分享的' }
+        const url = String(e.url || '').trim().slice(0, 200)
+        const hint = String(e.hint || '').trim().slice(0, 120)
+        const list = sharesOf().filter((x) => now() - x.at < SHARE_TTL)
+        list.unshift({ at: now(), text, url, hint, by: moduleId, shown: 0 })
+        mind._store.set('shares', list.slice(0, 8))
+        const r = await reachOwner(`刷到了想给他看的：${text}${url ? ' ' + url : ''}${hint ? `（${hint}）` : ''}`, { kind: 'share' }).catch(() => ({ ok: false }))
+        if (r.ok) mind._store.set('shares', sharesOf().filter((x) => !(x.at === list[0].at && x.text === text)))
+        return r.ok ? { ok: true, summary: '她去找主人说了' } : { ok: true, summary: '先记着，和主人聊天时再说' }
+      },
       /** 主人有没有批准她这项权限（她通过 QQ 私聊向主人申请，主人亲口同意才算）。 */
       granted: (key) => granted(String(key || '')),
       /** 她醒着没有（睡着时模块别替她做事、也别替她看消息）。 */
@@ -552,6 +575,17 @@ export function createMindAdapter(opts) {
     } finally {
       doing = null
     }
+  }
+
+  // ---------- 想给主人看的东西（模块交来的，她自己决定说不说） ----------
+  const SHARE_TTL = 2 * 86400000
+  const sharesOf = () => { const v = mind._store.get('shares', []); return Array.isArray(v) ? v : [] }
+  /** 和主人私聊时想起来的「之前想给他看的」：每条最多想起两次，两天后就算了。 */
+  function pendingShares() {
+    const list = sharesOf().filter((x) => now() - x.at < SHARE_TTL && x.shown < 2)
+    if (!list.length) return ''
+    mind._store.set('shares', list.map((x) => ({ ...x, shown: x.shown + 1 })))
+    return '（你之前刷到、想给他看的：' + list.slice(0, 3).map((x) => x.text + (x.url ? ' ' + x.url : '') + (x.hint ? `（${x.hint}）` : '')).join('；') + '。聊到合适的时候可以提，不提也行。）'
   }
 
   // ---------- 主动找你 ----------

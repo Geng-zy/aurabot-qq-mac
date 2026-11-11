@@ -75,6 +75,7 @@ test('过滤：播放量、发布时间、看过的', () => {
 function fakes({ decisions, replyText = '是呀 我也觉得', cfgOver = {}, postError = null } = {}) {
   const posted = []
   const sent = []
+  const shares = []
   const events = []
   const eventRecords = []
   const facts = []
@@ -106,14 +107,16 @@ function fakes({ decisions, replyText = '是呀 我也觉得', cfgOver = {}, pos
     recall: async () => [{ text: '主人喜欢猫' }],
     recent: () => [],
     experience: (e) => { eventRecords.push(e); events.push(e.text) },
+    // 想给主人看的：交给她，由她决定说不说（模块只提供手）
+    share: async (e) => { shares.push(e); return { ok: true } },
   }
   const cfg = normalize({ enabled: true, dryRun: false, ownerQQ: '10000001', bili: { enabled: true, cookie: 'SESSDATA=x; bili_jct=y', perRun: 2, maxCommentsPerDay: 1, ...cfgOver } })
   const b = duty.createBili({ getConfig: () => cfg, hub, mind, log: { info() {}, warn() {}, debug() {} }, api: fakeApi })
-  return { b, posted, sent, events, eventRecords, facts }
+  return { b, posted, sent, events, eventRecords, facts, shares }
 }
 
 test('刷一轮：看视频、按每天上限评论、分享给主人、记成她的经历', async () => {
-  const { b, posted, sent, events, eventRecords, facts } = fakes({ decisions: [
+  const { b, posted, sent, events, eventRecords, facts, shares } = fakes({ decisions: [
     { i: 1, feeling: '米饭好香', comment: '看饿了', share: '', remember: '有个米饭大赛很好玩' },
     { i: 2, feeling: '猫好可爱', comment: '猫猫好会', share: '主人你看这只猫会做饭！', remember: '' },
   ] })
@@ -122,9 +125,10 @@ test('刷一轮：看视频、按每天上限评论、分享给主人、记成�
   assert.equal(r.watched, 2)
   assert.equal(posted.length, 1, '每天最多 1 条，只发了第一条')
   assert.equal(posted[0].message, '看饿了')
-  assert.equal(sent.length, 1)
-  assert.equal(sent[0].chatId, 'private:10000001')
-  assert.match(sent[0].text, /会做饭！\nhttps:\/\/www\.bilibili\.com\/video\/BV1/)
+  assert.equal(sent.length, 0, '不直接发给主人')
+  assert.equal(shares.length, 1, '想分享的交给她')
+  assert.match(shares[0].text, /猫猫做饭.*会做饭！/)
+  assert.match(shares[0].url, /^https:\/\/www\.bilibili\.com\/video\/BV1/)
   const seen = eventRecords.filter((e) => e.kind === 'seen')
   assert.equal(seen.length, 2)
   assert.equal(seen[0].meta.title, '米饭大赛')

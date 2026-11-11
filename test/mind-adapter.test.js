@@ -204,7 +204,7 @@ test('模块接口：只能添经历、查记忆；添的经历标着是哪个�
   const { a } = memAdapter()
   const api = a.moduleApi('song')
   assert.ok(Object.isFrozen(api))
-  assert.deepEqual(Object.keys(api).sort(), ['awake', 'experience', 'granted', 'now', 'offer', 'recall', 'recent'])
+  assert.deepEqual(Object.keys(api).sort(), ['awake', 'experience', 'granted', 'now', 'offer', 'recall', 'recent', 'share'])
   const id = api.experience({ text: '给主人唱了《小幸运》', about: '1', tags: ['唱歌'], importance: 0.5, chatId: 'private:1' })
   const e = a.mind.memory.row(id)
   assert.equal(e.data.by, 'song')

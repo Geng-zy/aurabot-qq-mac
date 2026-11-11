@@ -336,7 +336,7 @@ return function Panel({ settings, save, toast }) {
 ## 心智核心
 
 她只有一个心智：记忆、情绪、性格都在心智核心里（`src/mind/`），不在任何模块里。模块**不能**替她做决定、不能改她的人格、不能自己另存一份她的记忆；
-模块能做的只有两件事：把她做过、看过的事告诉心智核心，和查她记得的事。都通过 `api.mind`：
+模块能做的是：把她做过、看过、想给主人看的事告诉心智核心，查她记得的事，把她能做的事交给她。都通过 `api.mind`：
 
 | | |
 |---|---|
@@ -346,6 +346,7 @@ return function Panel({ settings, save, toast }) {
 | `api.mind.now()` | 她现在的时间（按她的时区） |
 | `api.mind.awake()` | 她醒着没有。睡着时模块别替她做事、别替她看消息 |
 | `api.mind.offer({ id, label, needs, effort, delayHours, cooldownMinutes, payoff, keywords, available, run })` | 把一件她能做的事交给她，**由她自己决定什么时候做**（模块不再自己定时去做）。`needs` 是这件事满足哪些基本需要（`fun` 新鲜和乐趣、`curiosity` 好奇、`beauty` 美、`companion` 陪伴、`recognition` 被认可、`meaning` 意义……），0～1；`effort` 多费力（0～1）；`delayHours` 回报要等多久；`available()` 返回 `true` 或者做不了的原因（面板里的开关、每天上限照旧在这里判断）；`run()` 返回 `{ ok, summary, outcome }`，`outcome` 0～1 是她做完有多满意，她会按它学下次还想不想做。模块停了，交出去的事自动撤掉 |
+| `await api.mind.share({ text, url, hint })` | 刷到 / 做了想给主人看的东西。**模块只提供手，别自己私聊主人**：交给她，她现在能找主人（不在勿扰时段、今天还没找够、上次找他他回了）就自己开口，不想说可以不说；不能就先记着，接下来两天里和主人私聊时她会想起来。`text` 是什么、她觉得怎么样；`url` 链接；`hint` 她要发的话怎么发（比如「用 qq_send_shot 发截图」） |
 | `api.mind.granted(名字)` | 主人有没有批准她这项权限。她通过 QQ 私聊向主人申请，只有主人本人在私聊里说「同意 #编号」才算 |
 
 看见的内容（`seen`）只是她看过，不是作者对她说的话。真实聊天平台上和人的对话不要用 `experience`，那是她的感知，由聊天中枢交给心智核心。

@@ -259,33 +259,24 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
         }
         if (c.like && !getConfig().dryRun) api.likeVideo(v.aid).catch(() => {})
         const share = cleanOutboundText(d.share, { warn: (message) => log.warn(`B 站分享：${message}`) }).trim()
-        if (share && !isSilence(share) && c.shareToOwner && getConfig().ownerQQ) {
-          await hub.sendText(`private:${getConfig().ownerQQ}`, `${share}\n${link(v.bvid)}`)
+        // 想分享给主人：不直接发，交给她——现在能找主人就她自己开口，不能就先记着，聊天时再提（模块只提供手）
+        if (share && !isSilence(share) && c.shareToOwner && getConfig().ownerQQ && mind?.share) {
+          await mind.share({ text: `B 站《${v.title}》：${share}`, url: link(v.bvid) })
           shared++
           record(s, { kind: 'share', title: v.title, bvid: v.bvid, text: share })
         }
         record(s, { kind: 'watch', title: v.title, bvid: v.bvid, text: feeling })
       }
-      // 刷完按概率顺手甩一张截图给主人：默认概率和发一张表情包一样，0 = 从不
+      // 刷完按概率挑一张截图想给主人看：不直接甩过去，交给她（她想发就用 qq_send_shot 发）
       let shotSent = 0
-      const shotTo = getConfig().ownerQQ ? `private:${getConfig().ownerQQ}` : ''
-      if (shotTo && c.enabled && getConfig().enabled && !getConfig().dryRun && Number(c.shotChance) > 0) {
+      if (getConfig().ownerQQ && c.enabled && getConfig().enabled && Number(c.shotChance) > 0 && mind?.share) {
         const pool = looked.filter((x) => x.shotIds && x.shotIds.length)
         if (pool.length && Math.random() < Number(c.shotChance)) {
           const x = pool[Math.floor(Math.random() * pool.length)]
-          const file = x.shotIds[Math.floor(Math.random() * x.shotIds.length)]
-          try {
-            const line = felt.get(x.info.bvid) || ''
-            const r = await hub.sendImage(shotTo, shotPath({ file }))
-            if (r?.message_id !== undefined && !String(r.message_id).startsWith('sim-')) {
-              shotSent = 1
-              record(s, { kind: 'shot', title: x.info.title, bvid: x.info.bvid, text: line })
-              log.info(`刷完顺手发了张截图《${x.info.title}》`)
-              if (line) await hub.sendText(shotTo, line)
-            }
-          } catch (error) {
-            log.warn('顺手发截图失败：', error.message)
-          }
+          const line = felt.get(x.info.bvid) || ''
+          await mind.share({ text: `B 站《${x.info.title}》里截到一张画面${line ? '：' + line : ''}`, hint: `想发给他看就用 qq_send_shot，query 填「${x.info.title.slice(0, 20)}」` })
+          shotSent = 1
+          record(s, { kind: 'shot', title: x.info.title, bvid: x.info.bvid, text: line })
         }
       }
       if (!force) s.runs++
@@ -294,8 +285,8 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
         try { await afterBrowse(looked.map(({ info }) => ({ bvid: info.bvid, title: info.title, text: felt.get(info.bvid) || '' }))) }
         catch (error) { log.debug('本轮弹幕未完成：', error.message) }
       }
-      log.info(`刷了一轮 B 站：看了 ${looked.length} 个，评论 ${commented} 条，分享 ${shared} 个，截图 ${shotSent} 张`)
-      return { ok: true, message: `看了 ${looked.length} 个视频，评论 ${commented} 条，分享给你 ${shared} 个${shotSent ? '，还发了张截图' : ''}`, watched: looked.length, commented, shared, shots: shotSent }
+      log.info(`刷了一轮 B 站：看了 ${looked.length} 个，评论 ${commented} 条，想分享 ${shared} 个，挑了截图 ${shotSent} 张（交给她决定说不说）`)
+      return { ok: true, message: `看了 ${looked.length} 个视频，评论 ${commented} 条，想给你看的 ${shared} 个${shotSent ? '，还挑了张截图' : ''}（说不说由她）`, watched: looked.length, commented, shared, shots: shotSent }
     } catch (error) {
       if (isSessionBackoff(error)) return { ok: false, skipped: true, retryAt: error.retryAt, message: error.message }
       log.warn('刷 B 站出错：', error.message)
