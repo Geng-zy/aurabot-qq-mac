@@ -202,7 +202,9 @@ export function createMemory(deps) {
     if (!rows.length) return { encoded: 0 }
     const last = rows[rows.length - 1]
     const idle = now() - last.at >= (Number(S('encodeIdleMinutes')) || 5) * 60000
-    if (!force && !idle && rows.length < batch) return { encoded: 0, waiting: true }
+    // 一直没停下来的聊天（热闹的群）：最早那条没记的等太久了也先记一段，别处才能及时想起这里聊过什么
+    const waitedTooLong = now() - rows[0].at >= (Number(S('encodeMaxWaitMinutes')) || 30) * 60000
+    if (!force && !idle && !waitedTooLong && rows.length < batch) return { encoded: 0, waiting: true }
     const name = deps.identity().name
     const fmt = (t) => dayKey(t, tz) + ' ' + shortTime(t, tz).slice(6)
     const lines = rows.map((r, i) => {

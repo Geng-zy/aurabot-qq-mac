@@ -89,6 +89,7 @@ export const PARAMS = [
   { key: 'memory.contextBonus', group: 'memory', label: '同一个地方更容易想起', def: 0.15, min: 0, max: 0.5, step: 0.05, source: 'Tulving & Thomson 1973（编码特异性）；Godden & Baddeley 1975（在哪学的在哪想得起）；加成大小是经验值', hint: '在同一个群、和同一个人聊时，更容易想起在那里发生的事。', advanced: true },
   { key: 'memory.moodCongruence', group: 'memory', label: '心境一致', def: 0.15, min: 0, max: 0.5, step: 0.05, source: 'Bower 1981；Matt、Vázquez & Campbell 1992 元分析（心境一致回忆效应稳定但中等）；加成大小是经验值', hint: '开心时更容易想起开心的事，难过时更容易想起难过的事。', advanced: true },
   { key: 'memory.encodeIdleMinutes', group: 'memory', label: '聊天停多久记一段', def: 5, min: 1, max: 60, step: 1, unit: '分钟', source: EXP, hint: '一个聊天停了这么久，就把刚才这段经历记下来。', advanced: true },
+  { key: 'memory.encodeMaxWaitMinutes', group: 'memory', label: '一直没停下的聊天多久记一段', def: 30, min: 5, max: 240, step: 5, unit: '分钟', source: EXP, hint: '热闹的群可能一直没停下来：最早那条没记的等了这么久，就先把攒下的记成经历，她在别的聊天里才能及时想起这里聊过什么。攒够一批（默认 60 条）也会先记。', advanced: true },
   { key: 'memory.encodeBatch', group: 'memory', label: '一段最多多少条消息', def: 60, min: 10, max: 200, step: 10, unit: '条', source: EXP, hint: '消息太多时分几段记；越大越省调用，但每次花的 token 越多。', advanced: true },
   { key: 'memory.dreamRecall', group: 'memory', label: '醒来记得梦的机会', def: 0.2, min: 0, max: 1, step: 0.05, source: 'Schredl 等的梦回忆频率调查（一般人一周记得一两次梦）', hint: '情绪越强的梦越容易记得；被叫醒时更容易记得。', advanced: true },
   { key: 'memory.embedUrl', group: 'memory', label: '向量模型接口地址', def: 'https://api.siliconflow.cn/v1', source: '设计决定', hint: '用来找意思相近的记忆；记忆文字会发给这个服务算向量，向量存在本机。' },
