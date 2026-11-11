@@ -1,11 +1,11 @@
 // 心智核心入口。
-// 规矩：本目录不引用 Aurabot 的任何代码；外部服务（时间、日志、模型、DSH 会话）都由对接层注入。
+// 规矩：本目录不引用 Aurabot 的任何代码；外部服务（时间、日志、模型、宿主的会话、聊天平台）都由对接层注入；不认识任何聊天平台。
 // 第一阶段（骨架）：数据库、设置、身份（名字、小名、年龄生日、时区、专一）、人格卡版本、
 // 感知记录（收到和发出的每条消息）、认识的人、版本管理、删除记录、快照备份。
 
 import { join } from 'node:path'
 import { readdirSync, statSync, renameSync, existsSync, mkdirSync } from 'node:fs'
-import { openStore } from './store.js'
+import { openStore, GENERATED_COLUMNS } from './store.js'
 import { resolveSettings, paramOf, clampParam, PARAMS, GROUPS } from './params.js'
 import { currentAge, dayKey, describeNow, isBirthday, validTimeZone } from './clock.js'
 import { createBudget } from './budget.js'
@@ -18,15 +18,18 @@ import { createInner } from './inner/index.js'
 import { createPersonality } from './personality/index.js'
 import { createSelf } from './self/index.js'
 import { createRelations } from './relations/index.js'
+import { makePlace, shortId } from './place.js'
 
 export { PARAMS, GROUPS } from './params.js'
+export { placeOf, shortId } from './place.js'
 
 const noopLog = { debug() {}, info() {}, warn() {}, error() {} }
 
 /**
  * @param {{
  *   dir: string,                         // 数据目录，数据库放在 dir/mind.sqlite
- *   ownerId?: string,                    // 主人的稳定 id，例如 'qq:12345'
+ *   ownerId?: string,                    // 主人的稳定 id，例如 'qq:12345'（平台:账号）
+ *   place?: (window: string) => { kind: 'private'|'group'|'other', id?: string, platform?: string }, // 窗口是私聊还是群；不给就按「平台:private|group:id」认
  *   now?: () => number,                  // 取时间，默认系统时间
  *   log?: { debug: Function, info: Function, warn: Function, error: Function },
  *   memoryDb?: boolean,                  // 测试用：数据库放内存
@@ -38,7 +41,18 @@ export function createMind(opts) {
   const now = opts.now || (() => Date.now())
   const file = opts.memoryDb ? ':memory:' : join(opts.dir, 'mind.sqlite')
   const store = openStore(file)
-  let ownerId = opts.ownerId || ''
+  const place = makePlace(opts.place)
+
+  // ---------- 同一个人在不同平台的 id ----------
+  // 主人或朋友在 QQ、微信、飞书上各有一个 id：连起来以后都算同一个人（记忆、关系、主人身份都通用）。
+  // kv 'person.same'：{ 别的 id → 主 id }，只有一层。
+  function sameMap() { return store.get('person.same', {}) || {} }
+  /** 这个 id 实际是谁（连过就给主 id）。 */
+  function canon(id) {
+    const k = String(id || '')
+    return (k && sameMap()[k]) || k
+  }
+  let ownerId = canon(opts.ownerId || '')
 
   // ---------- 设置 ----------
   function savedSettings() {
@@ -97,10 +111,10 @@ export function createMind(opts) {
     }
   }
   function setOwner(id) {
-    ownerId = String(id || '')
+    ownerId = canon(id)
   }
   function isOwner(personId) {
-    return Boolean(ownerId) && String(personId) === ownerId
+    return Boolean(ownerId) && canon(personId) === canon(ownerId)
   }
   /** 名字和小名（她改名后自动跟着变），加上主人额外加的昵称。 */
   function wakeWords(extra = []) {
@@ -161,12 +175,12 @@ export function createMind(opts) {
 
   // ---------- 认识的人 ----------
   function person(id) {
-    const row = store.prep('SELECT json FROM people WHERE id = ?').get(String(id))
+    const row = store.prep('SELECT json FROM people WHERE id = ?').get(canon(id))
     return row ? JSON.parse(row.json) : null
   }
   /** 记下或更新一个人：名字变了会留下曾用名。 */
   function notePerson(id, { name } = {}) {
-    const key = String(id)
+    const key = canon(id)
     const p = person(key) || { id: key, name: '', aliases: [], firstSeen: now(), lastSeen: 0 }
     const n = String(name || '').trim()
     if (n && n !== p.name) {
@@ -181,7 +195,55 @@ export function createMind(opts) {
     return store.prep('SELECT json FROM people').all().map((r) => JSON.parse(r.json))
   }
   function savePerson(p) {
-    store.prep('INSERT INTO people (id, json) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json').run(String(p.id), JSON.stringify(p))
+    const id = canon(p.id)
+    store.prep('INSERT INTO people (id, json) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json').run(id, JSON.stringify({ ...p, id }))
+  }
+
+  /**
+   * 「这两个 id 是同一个人」（比如主人的 QQ 和微信）：other 并进 main。
+   * 名字留作曾用名，关系以 main 的为准（main 还没有就用 other 的），原话和经历里的 id 都改成 main。
+   * 以后 other 发来的消息都算 main 的。
+   */
+  function linkPerson(otherId, mainId) {
+    const other = String(otherId || '').trim()
+    const main = canon(mainId)
+    if (!other || !main || canon(other) === main) return { ok: false, message: canon(other) === main ? '已经是同一个人了' : 'id 是空的' }
+    if (isOwner(other) && !isOwner(main)) return { ok: false, message: '要把别的 id 连到主人身上，不能反过来' }
+    const from = canon(other)
+    store.tx(() => {
+      const map = sameMap()
+      // 原来连到 from 的也都改连 main
+      for (const [k, v] of Object.entries(map)) if (v === from) map[k] = main
+      map[from] = main
+      if (other !== from) map[other] = main
+      store.set('person.same', map)
+      const a = store.prep('SELECT json FROM people WHERE id = ?').get(from)
+      const b = store.prep('SELECT json FROM people WHERE id = ?').get(main)
+      const pa = a ? JSON.parse(a.json) : null
+      const pb = b ? JSON.parse(b.json) : { id: main, name: pa?.name || '', aliases: [], firstSeen: pa?.firstSeen || now(), lastSeen: 0 }
+      if (pa) {
+        const names = [pa.name, ...(pa.aliases || [])].filter((n) => n && n !== pb.name && !(pb.aliases || []).includes(n))
+        pb.aliases = [...(pb.aliases || []), ...names]
+        pb.firstSeen = Math.min(pb.firstSeen || Infinity, pa.firstSeen || Infinity)
+        pb.lastSeen = Math.max(pb.lastSeen || 0, pa.lastSeen || 0)
+        if (!pb.rel && pa.rel) pb.rel = pa.rel
+        if (!pb.tom && pa.tom) pb.tom = pa.tom
+        store.prep('DELETE FROM people WHERE id = ?').run(from)
+      }
+      pb.ids = [...new Set([...(pb.ids || []), ...(pa?.ids || []), from, other])].filter((x) => x !== main)
+      store.prep('INSERT INTO people (id, json) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET json = excluded.json').run(main, JSON.stringify({ ...pb, id: main }))
+      store.prep('UPDATE perception SET who = ? WHERE who = ?').run(main, from)
+      const q = JSON.stringify(from)
+      store.prep('UPDATE episodes SET json = replace(json, ?, ?) WHERE instr(json, ?) > 0').run(q, JSON.stringify(main), q)
+    })
+    if (isOwner(main)) ownerId = main
+    log.info(`${other} 和 ${main} 连成了同一个人`)
+    return { ok: true, main }
+  }
+  /** 这个人连着哪些 id（含主 id）。 */
+  function idsOf(id) {
+    const main = canon(id)
+    return [main, ...Object.entries(sameMap()).filter(([, v]) => v === main).map(([k]) => k)]
   }
 
   // ---------- 感知记录 ----------
@@ -192,9 +254,10 @@ export function createMind(opts) {
    */
   function perceive(m) {
     const at = Number(m.at) || now()
-    if (m.who) notePerson(m.who, { name: m.name })
+    const who = canon(m.who)
+    if (who) notePerson(who, { name: m.name })
     const r = store.prep('INSERT OR IGNORE INTO perception (at, window, who, dir, text, msg_id, json) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(at, String(m.window), String(m.who || ''), 'in', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ name: m.name || '', seen: m.seen || 'pending' }))
+      .run(at, String(m.window), who, 'in', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ name: m.name || '', seen: m.seen || 'pending' }))
     return r.changes > 0
   }
   /**
@@ -205,7 +268,18 @@ export function createMind(opts) {
     const at = Number(m.at) || now()
     const r = store.prep('INSERT OR IGNORE INTO perception (at, window, who, dir, text, msg_id, json) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(at, String(m.window), 'self', 'out', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ kind: m.kind || 'reply' }))
+    // 她刚想起来的事说出口了：记下跟这里的人说过（在场 = 最近两小时在这里说过话的人）
+    if (r.changes > 0) {
+      try { memory.noteSaid({ window: String(m.window), text: String(m.text || ''), audience: audienceOf(String(m.window), at) }) } catch (error) { log.debug('记「说过」出错：', error.message) }
+    }
     return r.changes > 0
+  }
+  /** 这个窗口里此刻在场的人：最近两小时在这里说过话的（私聊没人说话时，算最近一个月说过话的那个人）。 */
+  function audienceOf(window, at = now()) {
+    const q = store.prep("SELECT DISTINCT who FROM perception WHERE window = ? AND dir = 'in' AND at >= ? LIMIT 30")
+    const recent = q.all(window, at - 2 * 3600000).map((r) => r.who)
+    if (recent.length || place(window).kind !== 'private') return recent
+    return q.all(window, at - 30 * 86400000).map((r) => r.who).slice(0, 1)
   }
   /** 「翻聊天记录」：按窗口和时间取原话。 */
   function history(window, { since = 0, until = Infinity, limit = 200 } = {}) {
@@ -308,7 +382,8 @@ export function createMind(opts) {
   const forgottenKey = (id) => 'forgotten:' + id
   /** 一行原样放回去（列名照原来的）。 */
   function putRow(table, r) {
-    const cols = Object.keys(r)
+    const skip = GENERATED_COLUMNS[table] || new Set()
+    const cols = Object.keys(r).filter((c) => !skip.has(c))
     store.prep(`INSERT OR IGNORE INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...cols.map((c) => r[c]))
   }
   /**
@@ -319,22 +394,30 @@ export function createMind(opts) {
    *   keepPerson：人留着、标成「以后不记」（不传 = 连人带关系一起删）；windows：和他的私聊窗口
    */
   function forgetPerson(id, { keepPerson = false, windows = [] } = {}) {
-    const pid = String(id || '')
+    const pid = canon(id)
     if (!pid || isOwner(pid)) return { ok: false, message: '主人不能忘' }
     const p = person(pid)
-    const like = (k) => `%"${k}":"${pid.replace(/[%_"]/g, '')}"%`
+    // 按字面找 id（不用 LIKE：微信这类 id 里有 _ 和 %，会被当成通配符）
+    const q = JSON.stringify(pid)
     const wins = windows.map(String).filter(Boolean)
     const winSql = wins.length ? ` OR window IN (${wins.map(() => '?').join(', ')})` : ''
-    const eps = store.prep(`SELECT * FROM episodes WHERE json LIKE ? OR json LIKE ? OR json LIKE ?${winSql}`).all(like('about'), like('speaker'), `%"who":["${pid.replace(/[%_"]/g, '')}"]%`, ...wins)
+    const eps = store.prep(`SELECT * FROM episodes WHERE instr(json, ?) > 0${winSql}`).all(q, ...wins)
       .filter((r) => {
         if (wins.includes(r.window)) return true
         const d = JSON.parse(r.json)
         return d.about === pid || d.speaker === pid || (Array.isArray(d.who) && d.who.length === 1 && d.who[0] === pid)
       })
     const per = store.prep(`SELECT * FROM perception WHERE who = ?${winSql}`).all(pid, ...wins)
-    const kept = store.prep('SELECT COUNT(*) AS n FROM episodes WHERE json LIKE ?').get(`%"who":[%"${pid.replace(/[%_"]/g, '')}"%`).n - eps.filter((r) => /"who":\[/.test(r.json)).length
+    const gone = new Set(eps.map((r) => r.id))
+    const kept = store.prep('SELECT id, json FROM episodes WHERE instr(json, ?) > 0').all(q)
+      .filter((r) => !gone.has(r.id) && Array.isArray(JSON.parse(r.json).who) && JSON.parse(r.json).who.includes(pid)).length
+    // 这些事之间、和别的事之间的联想连线也一起收着，放回来时连回去
+    const linkRows = []
+    const linkQ = store.prep('SELECT a, b, kind, weight FROM links WHERE a = ? OR b = ?')
+    for (const r of eps) linkRows.push(...linkQ.all(r.id, r.id))
     const prev = store.get(forgottenKey(pid), null)
     const bundle = {
+      links: [...(prev?.links || []), ...linkRows],
       id: pid, at: now(), name: p?.name || prev?.name || '', keepPerson: Boolean(keepPerson),
       person: p || prev?.person || null,
       episodes: [...(prev?.episodes || []), ...eps], perception: [...(prev?.perception || []), ...per],
@@ -354,7 +437,7 @@ export function createMind(opts) {
   }
   /** 以后记不记这个人（不动以前的记忆）。 */
   function setNoMemory(id, on) {
-    const pid = String(id || '')
+    const pid = canon(id)
     if (!pid || (on && isOwner(pid))) return false
     const p = person(pid) || { id: pid, name: '', aliases: [], firstSeen: now(), lastSeen: 0 }
     if (on) p.noMemory = true
@@ -374,7 +457,7 @@ export function createMind(opts) {
   }
   /** 从恢复区整份放回去；返回放回的事的 id（向量要重新算）。 */
   function restorePerson(id) {
-    const pid = String(id || '')
+    const pid = canon(id)
     const b = store.get(forgottenKey(pid), null)
     if (!b) return null
     store.tx(() => {
@@ -383,6 +466,9 @@ export function createMind(opts) {
         store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'episode'").run(r.id)
       }
       for (const r of b.perception) putRow('perception', r)
+      // 联想连线：两头的事都还在才连
+      const has = store.prep('SELECT 1 FROM episodes WHERE id = ?')
+      for (const l of b.links || []) if (has.get(l.a) && has.get(l.b)) putRow('links', l)
       store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'person'").run(pid)
       const cur = person(pid)
       if (b.person) {
@@ -456,10 +542,11 @@ export function createMind(opts) {
     store, now, setting, log, identity: () => identity(), personaCard: () => personaCard(), setPersonaCard: (...a) => setPersonaCard(...a), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a),
     // 对主人的称呼：主人一开始设的叫法；她改了以后关系里「你叫他」也跟着改
     ownerName: () => String(opts.ownerName?.() || ''),
+    dayKey: (at) => dayKey(at, tz()),
     onOwnerCall: (call) => { const o = identity().ownerId; if (o) relations.edit(o, { call }) },
   })
   const personality = createPersonality({ store, now, setting, tz, log, isOwner: (id) => isOwner(id), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), goals: () => self.goals() })
-  const relations = createRelations({ store, now, setting, log, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
+  const relations = createRelations({ store, now, setting, log, place, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
   // ---------- 身体和情绪 ----------
   const body = createBody({ store, now, setting, tz, log })
   const emotion = createEmotion({ store, now, setting, log, random: opts.random, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), closeness: (id) => relations.closeness(id), trait: (id) => personality.value(id) })
@@ -477,6 +564,11 @@ export function createMind(opts) {
     person: (id) => person(id),
     recordDeletion: (id, kind) => recordDeletion(id, kind),
     // 惦记别人的事问不问、问几次：她有多心疼人（同情心）和她跟这个人多亲近
+    place,
+    isOwner: (id) => isOwner(id),
+    nameOf: (pid) => person(pid)?.name || shortId(pid),
+    // 认识满一年、两年……：只算主人和挺熟的人
+    firstMet: () => listPeople().filter((p) => p.firstSeen && (isOwner(p.id) || (Number(p.rel?.closeness) || 0) >= 0.4)).map((p) => ({ id: p.id, firstSeen: p.firstSeen, owner: isOwner(p.id) })),
     care: (pid) => 0.5 * personality.value('compassion') + 0.5 * (isOwner(pid) ? 0.9 : relations.closeness(pid)),
     onRecalled: (list, { window } = {}) => emotion.rekindle(list, { window }),
   })
@@ -512,9 +604,10 @@ export function createMind(opts) {
 
   // ---------- 动机和内心活动 ----------
   // 尽责性里的「勤快」越低越容易分心拖着（Steel 2007 的 Γ）
-  const motivation = createMotivation({ store, now, setting, log, distractScale: () => 1.5 - personality.value('productiveness') })
+  const motivation = createMotivation({ store, now, setting, log, distractScale: () => 1.5 - personality.value('productiveness'), trait: (id) => personality.value(id) })
   const inner = createInner({
-    store, now, setting, tz, log, random: opts.random, memory, emotion, body, motivation, budget,
+    store, now, setting, tz, log, random: opts.random, memory, emotion, body, motivation, budget, place,
+    ownerCall: () => self.ownerCall(),
     identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id),
   })
 
@@ -549,6 +642,8 @@ export function createMind(opts) {
     settings, setting, updateSettings, resetSetting, savedSettings,
     // 身份
     identity, setOwner, isOwner, wakeWords,
+    // 同一个人在不同平台的 id；窗口是私聊还是群
+    canon, linkPerson, idsOf, place,
     // 人格卡与版本
     personaCard, setPersonaCard, restorePersona, addVersion, listVersions, deleteVersion, pinVersion,
     // 人

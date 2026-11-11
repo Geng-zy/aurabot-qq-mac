@@ -5,6 +5,8 @@
 // 信任掉得比涨得快；第一印象要多次相反的经历才改得过来；长期不联系慢慢变淡。
 // 专一（主人在面板设）：亲密、激情、承诺只对主人记，别人最高到好朋友；激情还要满 18 岁。
 
+import { placeOf } from '../place.js'
+
 const DAY = 86400000
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, Number(x) || 0))
 const r3 = (x) => Math.round(x * 1000) / 1000
@@ -32,6 +34,7 @@ function freshMind() {
 export function createRelations(deps) {
   const { store, now, setting } = deps
   const R = (k) => setting('relations.' + k)
+  const place = deps.place || placeOf
 
   function relOf(p, id) {
     const owner = deps.isOwner(id)
@@ -98,7 +101,8 @@ export function createRelations(deps) {
     const list = Array.isArray(parsed?.rel) ? parsed.rel : []
     const spoke = new Set(rows.filter((r) => r.dir === 'in').map((r) => String(r.who)))
     const at = rows.length ? rows[rows.length - 1].at : now()
-    const isPrivate = /^qq:private:/.test(String(window))
+    const where = place(String(window))
+    const isPrivate = where.kind === 'private'
     const ratio = Number(R('trustLossRatio')) || 2
     const id0 = deps.identity()
     const pester = []
@@ -170,14 +174,14 @@ export function createRelations(deps) {
       updated++
     }
     // 群：风格和规矩，她慢慢摸清楚
-    const gm = String(window).match(/^qq:group:(.+)$/)
-    if (gm && parsed?.group && typeof parsed.group === 'object') {
-      const gs = groupOf(gm[1])
+    // 群按整个窗口记（不同平台的群号可能一样）
+    if (where.kind === 'group' && parsed?.group && typeof parsed.group === 'object') {
+      const gs = groupOf(String(window))
       const add = (arr, t) => (t && !arr.includes(clip(t, 30)) ? [...arr, clip(t, 30)].slice(-6) : arr)
       gs.style = add(gs.style, parsed.group.style)
       gs.rules = add(gs.rules, parsed.group.rule)
       gs.at = at
-      store.set('rel.group.' + gm[1], gs)
+      store.set('rel.group.' + String(window), gs)
     }
     if (pester.length) store.set('relations.pester', [...new Set([...(store.get('relations.pester', []) || []), ...pester])].slice(-20))
     return { updated, pester }
@@ -190,6 +194,11 @@ export function createRelations(deps) {
     put(id, g.rel, null)
   }
 
+  /** 主人或迁移给这个群写一句了解（不覆盖她自己摸清的风格和规矩）。 */
+  function setGroupNote(window, note) {
+    const gs = groupOf(String(window))
+    store.set('rel.group.' + String(window), { ...gs, note: clip(note, 200) })
+  }
   function groupOf(gid) {
     const g = store.get('rel.group.' + gid, null)
     return { style: [], rules: [], note: '', at: 0, ...(g || {}) }
@@ -219,7 +228,7 @@ export function createRelations(deps) {
    * 眼前这些人的关系（每轮放进工作记忆）。
    * @param {string[]} ids
    */
-  function describe(ids, { nameOf = (id) => id, groupId = '' } = {}) {
+  function describe(ids, { nameOf = (id) => id, window = '' } = {}) {
     const lines = []
     for (const id of [...new Set(ids)].slice(0, 3)) {
       const g = get(id)
@@ -251,8 +260,8 @@ export function createRelations(deps) {
       if (t.note) more.push(t.note)
       lines.push(`- ${name}：${bits.filter(Boolean).join('，')}${more.length ? '。' + more.join('；') : ''}`)
     }
-    if (groupId) {
-      const gs = groupOf(groupId)
+    if (window && place(String(window)).kind === 'group') {
+      const gs = groupOf(String(window))
       const body = [...gs.style, ...gs.rules.map((x) => '规矩：' + x), gs.note].filter(Boolean).join('；')
       if (body) lines.push(`- 这个群：${clip(body, 160)}`)
     }
@@ -283,5 +292,5 @@ export function createRelations(deps) {
     return get(id)
   }
 
-  return { get, closeness, dislikes, encodeAsk, observe, touch, nightly, describe, list, groups, groupOf, edit, typeOf: (id) => get(id).type, REL_TYPES }
+  return { get, closeness, dislikes, encodeAsk, observe, touch, nightly, describe, list, groups, groupOf, edit, setGroupNote, typeOf: (id) => get(id).type, REL_TYPES }
 }

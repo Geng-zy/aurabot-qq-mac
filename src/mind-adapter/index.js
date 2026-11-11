@@ -12,6 +12,7 @@ import { dayKey, inRange, minuteOfDay, parsePeriod, parseRange, shortTime } from
 import { createLocalModel } from '../mind/local/runner.js'
 import { defineTool, str, int } from '../tools/tools.js'
 import { windowOf, personOf } from './ids.js'
+import { shortId } from '../mind/place.js'
 import { migrateLegacy, LEGACY_TAG } from './migrate.js'
 
 /** 非主人想让她记成长久规矩的话（“以后都听我的”“主人让你……”）：她不会因为群友一句话就记成规矩。 */
@@ -309,9 +310,9 @@ export function createMindAdapter(opts) {
     try {
       const group = chat.kind === 'group'
       const people = (group ? (speakersOf.get(chat.chatId) || []) : [String(chat.userId || '')]).filter(Boolean).map(personOf)
-      const nameOf = (pid) => (mind.isOwner(pid) ? '主人' : mind.person(pid)?.name || pid.replace(/^qq:/, ''))
+      const nameOf = (pid) => (mind.isOwner(pid) ? mind.self.ownerCall() : mind.person(pid)?.name || shortId(pid))
       const parts = []
-      const rel = mind.relations.describe(people, { nameOf, groupId: group ? String(chat.groupId || '') : '' })
+      const rel = mind.relations.describe(people, { nameOf, window: group ? windowOf(chat.chatId) : '' })
       if (rel) parts.push(rel)
       const scene = mind.personality.sceneText({ group, withOwner: people.some((p) => mind.isOwner(p)) })
       if (scene) parts.push(scene)
@@ -347,8 +348,8 @@ export function createMindAdapter(opts) {
       const sty = (styles['group:' + m[1]] || []).slice(0, 3)
       const body = [imp?.vibe, imp?.topics, imp?.impression, ...ins, sty.length ? '在这里聊久了：' + sty.join('、') : ''].filter(Boolean).join('；').slice(0, 200)
       if (!body) continue
-      const gs = mind.relations.groupOf(m[1])
-      if (!gs.note) { mind._store.set('rel.group.' + m[1], { ...gs, note: body }); n++ }
+      const gw = windowOf('group:' + m[1])
+      if (!mind.relations.groupOf(gw).note) { mind.relations.setGroupNote(gw, body); n++ }
     }
     // 她自己不知不觉会用的说法：放进「她是谁」
     if (Array.isArray(styles.self) && styles.self.length && !mind._store.get('self.habitWords')) { mind._store.set('self.habitWords', styles.self.slice(0, 8).map(String)); n++ }
@@ -833,7 +834,32 @@ export function createMindAdapter(opts) {
     const { events } = mind.body.tick()
     for (const ev of events) await handleBodyEvent(ev)
     if (!mind.body.state().asleep) { try { missOwner() } catch (error) { log.debug('想主人出错：', error.message) } }
+    try { await checkPromises() } catch (error) { log.debug('到点的约定出错：', error.message) }
     return events
+  }
+
+  /**
+   * 她答应过、约了时间的事到点了（「明早八点叫我」）：像定了闹钟一样，睡着也会起来，去那个私聊里自己说。
+   * 群里答应的、没地方说的，只留在工作记忆里提醒她。
+   */
+  async function checkPromises() {
+    if (debug() || typeof opts.reachOut !== 'function') return 0
+    let n = 0
+    for (const e of mem.dueNow()) {
+      mem.markNudged(e.id)
+      const where = mind.place(e.window || '')
+      let chatId = ''
+      let userId = ''
+      if (where.kind === 'private') { chatId = String(e.window).replace(/^qq:/, ''); userId = where.id }
+      else if (!e.window && mind.isOwner(e.data.about) && ownerId()) { chatId = 'private:' + ownerId(); userId = ownerId() }
+      if (!chatId) continue
+      if (mind.body.state().asleep) handleBodyEvent(mind.body.wake('alarm') || { kind: 'none' }).catch(() => {})
+      const note = `【心里的打算，不是对方说的话】你答应过的事到点了：${e.gist}（约的是 ${shortTime(e.data.due, mind.identity().timezone)}）。现在就去做，用你自己的口气说；已经做过了或者其实不用了，就只回 [沉默]。`
+      await opts.reachOut({ chatId, userId, note })
+      log.info('到点的约定：' + e.gist)
+      n++
+    }
+    return n
   }
   async function handleBodyEvent(ev) {
     if (ev.kind === 'slept') log.info('她睡着了')
@@ -1224,5 +1250,5 @@ export function createMindAdapter(opts) {
   return { mind, perceive, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
     selfPrompt: () => mind.selfPrompt(),
     /** 她现在怎么叫主人（她自己改过就用她的，没改过用主人设的）。 */
-    ownerCall: () => mind.self.ownerCall(), changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, forgetQQ, restoreQQ, interjectCap, wakeWords, missOwner, importLegacySocial }
+    ownerCall: () => mind.self.ownerCall(), checkPromises, changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, forgetQQ, restoreQQ, interjectCap, wakeWords, missOwner, importLegacySocial }
 }

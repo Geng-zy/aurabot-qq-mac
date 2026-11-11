@@ -366,7 +366,12 @@ export function apply(ctx) {
       legacyDir: dataDir(),
       trashDir,
       // 心智核心的后台用途（记经历、睡觉整理、做梦）都用 DeepSeek，思考深度按用途定
-      ask: ({ scene, system, text, maxTokens, reasoningEffort }) => askModel(ctx, { system, text, maxTokens, reasoningEffort, temperature: 0.4, cfg: getConfig(), module: 'mind:' + (scene || 'think') }),
+      // 带回真实用量（输入 + 输出 token），每天的后台预算按它记，拿不到时心智核心按字数估
+      ask: async ({ scene, system, text, maxTokens, reasoningEffort }) => {
+        let tokens = 0
+        const out = await askModel(ctx, { system, text, maxTokens, reasoningEffort, temperature: 0.4, cfg: getConfig(), module: 'mind:' + (scene || 'think'), onUsage: (u) => { tokens += (Number(u?.inputTokens) || 0) + (Number(u?.outputTokens) || 0) } })
+        return tokens ? { text: out, tokens } : out
+      },
       embedKey: () => getConfig().mind?.embedKey || '',
       // 她想主动找人：把心里的由头交给那个私聊，话由她自己说
       reachOut: async ({ chatId, userId, note }) => {

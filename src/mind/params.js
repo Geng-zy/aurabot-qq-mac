@@ -55,7 +55,7 @@ export const PARAMS = [
   { key: 'attention.thoughtGapMinutes', group: 'attention', label: '两个念头的间隔', def: 3, min: 0.5, max: 30, step: 0.5, unit: '分钟', source: EXP, hint: '平均间隔；兴奋时更短，累了更长。没有本地小模型时自动拉长以省钱。' },
   { key: 'attention.ownerCutsQueue', group: 'attention', label: '主人的消息插队', def: true, source: '设计决定', hint: '单一注意力开着时，主人的消息优先处理。' },
   { key: 'attention.inner', group: 'attention', label: '闲着时的内心活动', def: true, source: '设计决定', hint: '醒着、没人找时她一步一步地想；关掉就只在有人找她时才「醒」。' },
-  { key: 'attention.thinkWithoutLocal', group: 'attention', label: '没装本地小模型时用 DeepSeek 想', def: true, source: '设计决定', hint: '会花钱，所以间隔拉长到四倍；也受每天后台预算限制。关掉就只在装了本地小模型时才有内心活动。' },
+  { key: 'attention.thinkWithoutLocal', group: 'attention', label: '没装本地小模型时用聊天模型想', def: true, source: '设计决定', hint: '会花钱，所以间隔拉长到四倍；也受每天后台预算限制。关掉就只在装了本地小模型时才有内心活动。' },
   { key: 'attention.afterChatMinutes', group: 'attention', label: '聊完多久才开始走神', def: 2, min: 0, max: 30, step: 1, unit: '分钟', source: EXP, hint: '刚聊完注意力还在那段对话上。', advanced: true },
   { key: 'attention.elsewhereMinutes', group: 'attention', label: '知道别的聊天刚发生了什么（多久以内）', def: 15, min: 0, max: 120, step: 5, unit: '分钟', source: '设计决定（一个心智：工作记忆里有「别的聊天里刚发生了什么」）；时长是经验值', hint: '在一个聊天里，也给她看其他聊天最近这么久的几句原话（还没整理成经历的那几分钟）。0 = 不给。说不说由她自己拿分寸。' },
   { key: 'attention.elsewhereLines', group: 'attention', label: '每个别的聊天给几句', def: 4, min: 0, max: 20, step: 1, unit: '句', source: EXP, hint: '最多看 3 个别的聊天，每个最近这么多句。越多越清楚，也越占上下文。', advanced: true },
@@ -133,14 +133,14 @@ export const PARAMS = [
   { key: 'relations.missOwnerHours', group: 'relations', label: '多久没见主人会想', def: 24, min: 2, max: 168, step: 1, unit: '小时', source: '依恋理论（Bowlby；安全基地不在会不安）；时长是经验值', hint: '你这么久没理她，她会想你；依恋焦虑越高想得越早、越不安。' },
 
   // ---------- 会话 ----------
-  { key: 'session.rotateRatio', group: 'session', label: '换新会话的比例', def: 0.5, min: 0.2, max: 0.9, step: 0.05, source: '设计决定', hint: '会话输入到了模型上限的这个比例就换新会话，设在 DSH 自己压缩的阈值之下。' },
+  { key: 'session.rotateRatio', group: 'session', label: '换新会话的比例', def: 0.5, min: 0.2, max: 0.9, step: 0.05, source: '设计决定', hint: '会话输入到了模型上限的这个比例就换新会话，设在宿主自己压缩上下文的阈值之下。' },
   { key: 'session.idleNewSceneHours', group: 'session', label: '停多久算新的一段', def: 6, min: 1, max: 72, step: 1, unit: '小时', source: EXP, hint: '聊天停了这么久，下次就换新会话开始新的一段。' },
 
   // ---------- 模型和预算 ----------
   { key: 'models.deepThinkDaily', group: 'models', label: '每天最多深想几次', def: 30, min: 0, max: 500, step: 1, source: '设计决定', hint: '超出的按重要程度排到第二天；聊天不受影响。' },
   { key: 'models.backgroundTokensDaily', group: 'models', label: '每天后台最多用多少 token', def: 1500000, min: 0, max: 20000000, step: 100000, unit: 'token', source: '设计决定（按价格表约 ¥3/天上限）', hint: '状态记录、睡觉整理、深想、自己去做事合计；超了就排到第二天。' },
-  { key: 'models.localModelDir', group: 'models', label: '本地小模型位置', def: '', source: '设计决定（实测 Qwen3.5-9B 4 位：深想判断 10/10，约 1.6 秒一步，峰值约 6 GB 内存；4B 版 8/10 且会编记忆，没选）', hint: '模型文件夹（MLX 格式）。留空 = 默认安装位置（Aurabot 里是 ~/Aurabot/mind/models/Qwen3.5-9B-mlx4）。没装时日常念头改用 DeepSeek，想得慢一些。' },
-  { key: 'models.localPython', group: 'models', label: '本地小模型用的 Python', def: '', source: '设计决定', hint: '装了 mlx-lm 的 Python。留空 = 默认安装位置（Aurabot 里是 ~/Aurabot/mind/env/bin/python）。' },
+  { key: 'models.localModelDir', group: 'models', label: '本地小模型位置', def: '', source: '设计决定（实测 Qwen3.5-9B 4 位：深想判断 10/10，约 1.6 秒一步，峰值约 6 GB 内存；4B 版 8/10 且会编记忆，没选）', hint: '模型文件夹（MLX 格式）。留空 = 用对接层装好的默认位置。没装时日常念头改用聊天模型，想得慢一些。' },
+  { key: 'models.localPython', group: 'models', label: '本地小模型用的 Python', def: '', source: '设计决定', hint: '装了 mlx-lm 的 Python。留空 = 用对接层装好的默认位置。' },
   { key: 'models.localIdleMinutes', group: 'models', label: '本地小模型闲置多久自动停', def: 30, min: 5, max: 240, step: 5, unit: '分钟', source: EXP, hint: '停了省内存（约 6 GB），下次要用时再启动（要等一会儿）。', advanced: true },
 ]
 

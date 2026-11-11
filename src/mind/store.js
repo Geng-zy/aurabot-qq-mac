@@ -8,9 +8,9 @@ let DatabaseSync
 let loadError
 try { ({ DatabaseSync } = await import('node:sqlite')) } catch (error) { loadError = error }
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
-const SCHEMA = `
+export const SCHEMA = `
   CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, json TEXT NOT NULL);
   -- 感知记录：收到和发出的每条消息原文。msg_id 去重，同一条消息重复投递只记一次。
   CREATE TABLE IF NOT EXISTS perception (
@@ -41,7 +41,7 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS episodes_at ON episodes(at);
   -- 经历之间的联系。
   CREATE TABLE IF NOT EXISTS links (a TEXT NOT NULL, b TEXT NOT NULL, kind TEXT NOT NULL, weight REAL NOT NULL, PRIMARY KEY (a, b, kind));
-  -- 认识的人（按稳定的 id，例如 qq:12345）。
+  -- 认识的人（按稳定的 id「平台:账号」，例如 qq:12345、wechat:wxid_x）。
   CREATE TABLE IF NOT EXISTS people (id TEXT PRIMARY KEY, json TEXT NOT NULL);
   -- 版本：人格卡、特质、价值观等每次变化一条。
   CREATE TABLE IF NOT EXISTS versions (
@@ -61,7 +61,7 @@ const SCHEMA = `
 `
 
 // 往后每加一版结构，在这里加一段；老库打开时按顺序补上，数据不动。
-const MIGRATIONS = {
+export const MIGRATIONS = {
   2: `
     -- 经历的全文检索（trigram 分词，中文也能按字找）。和 episodes 用触发器保持同步。
     CREATE VIRTUAL TABLE IF NOT EXISTS episodes_fts USING fts5(gist, detail, content='episodes', content_rowid='rowid', tokenize='trigram');
@@ -84,7 +84,18 @@ const MIGRATIONS = {
     -- 每天的模型用量（预算用）
     CREATE TABLE IF NOT EXISTS usage (day TEXT NOT NULL, kind TEXT NOT NULL, calls INTEGER NOT NULL DEFAULT 0, tokens INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, kind));
   `,
+  3: `
+    -- 经历的种类和「主要关于谁」直接从 json 里取出来建索引（不存两份，json 改了它们跟着变）：
+    -- 每轮要找「要做的事」「惦记的事」「关于眼前这个人的事」，不用再逐行比对文字
+    ALTER TABLE episodes ADD COLUMN kind TEXT GENERATED ALWAYS AS (json_extract(json, '$.kind')) VIRTUAL;
+    ALTER TABLE episodes ADD COLUMN about TEXT GENERATED ALWAYS AS (json_extract(json, '$.about')) VIRTUAL;
+    CREATE INDEX IF NOT EXISTS episodes_kind ON episodes(kind, status, at);
+    CREATE INDEX IF NOT EXISTS episodes_about ON episodes(about, status, at);
+  `,
 }
+
+/** episodes 里由 json 算出来的列：原样放回一行时要跳过（不能直接写）。 */
+export const GENERATED_COLUMNS = { episodes: new Set(['kind', 'about']) }
 
 /**
  * 打开（或新建）心智数据库。

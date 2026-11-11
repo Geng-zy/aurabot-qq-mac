@@ -214,7 +214,11 @@ export async function askModel (dsh, o) {
   let effort = await pickReasoningEffort(dsh, t.provider, t.model, o.reasoningEffort === undefined ? 'low' : o.reasoningEffort)
   let widened = false
   // 记用量：模块名由调用方给（模块 API 会自动带上自己的 id），没给就算后台任务
-  const onUsage = (usage) => recordUsage({ module: moduleLabel(o.module || 'background'), model: t.model, usage })
+  // 调用方想知道这次实际花了多少（心智核心的每日后台预算按真实用量记）也传给它
+  const onUsage = (usage) => {
+    recordUsage({ module: moduleLabel(o.module || 'background'), model: t.model, usage })
+    if (typeof o.onUsage === 'function') { try { o.onUsage(usage) } catch {} }
+  }
   for (let attempt = 0; ; attempt++) {
     try {
       const out = await runStream(llm, effort ? { ...base, reasoningEffort: effort } : base, onUsage)

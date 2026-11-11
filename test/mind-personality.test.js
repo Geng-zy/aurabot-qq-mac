@@ -378,7 +378,7 @@ test('关系的细节：称呼、老梗、别碰的、心结和和好、对方�
     rel: [{ who: 'qq:2', call: '阿二', callMe: '鱼鱼', joke: '鸽子王', limit: '别提他前任', knot: '上次放我鸽子', mood: '在赶论文', likes: '猫', helped: 'me' }],
     group: { style: '爱玩梗', rule: '不许刷屏' },
   }, { window: 'qq:group:9', rows: relRows('qq:2') })
-  const text = R.describe(['qq:2'], { nameOf: () => '老二', groupId: '9' })
+  const text = R.describe(['qq:2'], { nameOf: () => '老二', window: 'qq:group:9' })
   assert.match(text, /- 老二：/)
   assert.match(text, /你叫他「阿二」/)
   assert.match(text, /他叫你「鱼鱼」/)
@@ -450,7 +450,7 @@ test('对接层：记经历时顺带问状态和看法；回来的状态记录�
   const g = env.a.mind.relations.get('qq:2')
   assert.ok(g.rel.liking > 0.5)
   assert.equal(g.rel.topics[0].text, '小笨鱼')
-  assert.deepEqual(env.a.mind.relations.groupOf('9').style, ['爱互怼'])
+  assert.deepEqual(env.a.mind.relations.groupOf('qq:group:9').style, ['爱互怼'])
   const ctx = env.a.contextFor({ chat: { chatId: 'group:9', kind: 'group', groupId: '9' } })
   assert.match(ctx, /【你和眼前的人/)
   assert.match(ctx, /这个群：爱互怼/)

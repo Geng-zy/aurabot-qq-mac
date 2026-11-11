@@ -32,6 +32,44 @@ export const NEEDS = [
 const NEED = new Map(NEEDS.map((n) => [n.id, n]))
 
 /**
+ * 每项需要有多强，由性格定（0.5 = 一般人）：爱社交、依恋焦虑高的更需要陪伴，好奇的更想知道新东西……
+ * 对应关系参考大五细分项和依恋维度的含义；权重是经验值。性格慢慢变，需要的强弱也跟着变。
+ */
+export const NEED_FROM_TRAITS = {
+  companion: { sociability: 0.5, attachAnxiety: 0.3, attachAvoidance: -0.2 },
+  intimacy: { attachAvoidance: -0.6, attachAnxiety: 0.4 },
+  safety: { anxiety: 0.5, attachAnxiety: 0.5 },
+  autonomy: { assertiveness: 1 },
+  competence: { productiveness: 1 },
+  recognition: { attachAnxiety: 0.5, honesty: -0.5 },
+  curiosity: { curiosity: 1 },
+  fun: { energy: 0.5, imagination: 0.5 },
+  beauty: { aesthetic: 1 },
+  order: { organization: 1 },
+  fairness: { honesty: 0.5, respect: 0.5 },
+  care: { compassion: 1 },
+  rest: { energy: -1 },
+  meaning: { imagination: 0.5, responsibility: 0.5 },
+}
+/** 按性格算需要的强弱（负权重表示「越低越需要」）。 */
+export function needStrengths(trait) {
+  const out = {}
+  for (const n of NEEDS) {
+    const w = NEED_FROM_TRAITS[n.id]
+    if (!w) { out[n.id] = 0.5; continue }
+    let v = 0
+    let sum = 0
+    for (const [t, k] of Object.entries(w)) {
+      const x = Math.min(1, Math.max(0, Number(trait(t) ?? 0.5)))
+      v += Math.abs(k) * (k >= 0 ? x : 1 - x)
+      sum += Math.abs(k)
+    }
+    out[n.id] = Math.round((sum ? v / sum : 0.5) * 1000) / 1000
+  }
+  return out
+}
+
+/**
  * @param {{ store: any, now: () => number, setting: (k: string) => any, log?: any }} deps
  */
 export function createMotivation(deps) {
@@ -53,9 +91,13 @@ export function createMotivation(deps) {
   function advance(s, body) {
     const at = now()
     const h = Math.max(0, at - (s.at || at)) / HOUR
+    let strong = null
+    try { strong = deps.trait ? needStrengths(deps.trait) : null } catch {}
     for (const n of NEEDS) {
       const x = s.needs[n.id] || (s.needs[n.id] = { strength: 0.5, deficit: 0.3 })
-      if (n.rise) x.deficit = clamp(x.deficit + n.rise * h)
+      if (strong) x.strength = strong[n.id]
+      // 越需要的缺得越快（强弱 0.5 时按原来的速度）
+      if (n.rise) x.deficit = clamp(x.deficit + n.rise * h * (0.5 + x.strength))
     }
     if (body) {
       s.needs.rest.deficit = clamp(1 - (body.energy ?? 1))

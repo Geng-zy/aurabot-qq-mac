@@ -1,15 +1,16 @@
 // 内心活动：她醒着、没人找时，一步一步地想（意识流）；想着想着会冒出感受和打算，打算够强就去做。
 //
 // 规矩（设计文档「注意与意识流」「本地小模型的规矩」）：
-// - 日常念头用本地小模型，只耗电不耗钱；没装本地小模型时用 DeepSeek，但想得慢得多（省钱）。
+// - 日常念头用本地小模型，只耗电不耗钱；没装本地小模型时用聊天模型，但想得慢得多（省钱）。
 // - 小模型念头里的「事实」一律不进记忆，只留感受和打算。
-// - 连续几步越想越难受，或者涉及和主人的关系又是负面的：按硬规则交给 DeepSeek 认真想一次（深想，每天有次数上限）。
+// - 连续几步越想越难受，或者涉及和主人的关系又是负面的：按硬规则交给聊天模型认真想一次（深想，每天有次数上限）。
 // - 连续几步在重复：停下来放空，无聊感上升。
 // - 走神比例：闲着时有多少时间在想、多少在发呆（Killingsworth & Gilbert 2010 等，默认 0.4）。
 
 import { parseJson } from '../memory/index.js'
 import { emotionOf } from '../emotion/catalog.js'
-import { shortTime } from '../clock.js'
+import { shortTime, dayKey } from '../clock.js'
+import { placeOf, shortId } from '../place.js'
 
 const MIN = 60000
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, Number(x) || 0))
@@ -58,7 +59,7 @@ export function createInner(deps) {
   const random = deps.random || Math.random
   const A = (k) => setting('attention.' + k)
   let local = null // { chat(messages, opts) }
-  let ask = null // DeepSeek：({ scene, system, text, maxTokens }) => string
+  let ask = null // 聊天模型：({ scene, system, text, maxTokens }) => string
   function connect(o = {}) {
     if (o.local !== undefined) local = o.local
     if (o.ask !== undefined) ask = o.ask
@@ -70,8 +71,10 @@ export function createInner(deps) {
   }
   function save(s) { store.set('inner', s) }
 
-  const ownerName = () => '主人'
-  const nameOf = (pid) => (deps.isOwner(pid) ? ownerName() : deps.person(pid)?.name || String(pid).replace(/^qq:/, ''))
+  // 她心里怎么叫主人：她自己改过的称呼优先
+  const ownerName = () => String(deps.ownerCall?.() || '主人')
+  const place = deps.place || placeOf
+  const nameOf = (pid) => (deps.isOwner(pid) ? ownerName() : deps.person(pid)?.name || shortId(pid))
 
   /**
    * 刚发生的事：最近两小时里最近的那个聊天的几句原话，标明是谁、什么时候说的（减少把别人的事安到主人身上）。
@@ -82,19 +85,22 @@ export function createInner(deps) {
     const last = store.prep('SELECT id, window FROM perception WHERE at >= ? ORDER BY at DESC, id DESC LIMIT 1').get(since)
     if (!last || last.id <= afterId) return { lines: [], lastId: afterId }
     const rows = store.prep('SELECT at, who, dir, text FROM perception WHERE window = ? AND at >= ? ORDER BY at DESC, id DESC LIMIT 6').all(last.window, since).reverse()
-    const where = last.window.includes(':group:') ? '群里' : '私聊里'
+    const kind = place(last.window).kind
+    const where = kind === 'group' ? '群里' : kind === 'private' ? '私聊里' : ''
     return { lines: rows.map((r) => `${shortTime(r.at, deps.tz())} ${where} ${r.dir === 'out' ? '你' : nameOf(r.who)}说：${clip(String(r.text).replace(/\s+/g, ' '), 60)}`), lastId: last.id }
   }
 
   const SYSTEM = () => {
     const name = deps.identity().name || '她'
+    const owner = ownerName()
     return `你是${name}心里的声音。她现在没人找，自己待着，脑子里在随便想。用第一人称写她此刻的一步念头，接着上一步往下想，可以跳到别的事上（回想、期待、担心、琢磨某人、好奇、无聊、白日梦、饿了困了……）。
 规矩：只根据给你的材料，不编没发生过的事；材料里写了是谁说的就是谁说的，不要安到别人头上。念头要短，像人脑子里冒出来的一两句。
 按下面格式输出四行：
 念头：……
 感受：情绪名 强度（0到1，没有就写 无）
-打算：想去做的事（从「能做的事」里挑一件，或者 想找主人说话；没有就写 无）
-深想：是 或 否（涉及主人和你们的关系、情绪很强、要做决定、对自己有了新看法时写 是）`
+打算：想去做的事（从「能做的事」里挑一件，或者 想找${owner}说话；没有就写 无）
+深想：是 或 否（涉及${owner}和你们的关系、情绪很强、要做决定、对自己有了新看法时写 是）
+（${owner}就是你的主人。）`
   }
 
   function material(s, recalled) {
@@ -109,6 +115,9 @@ export function createInner(deps) {
     if (recalled.length) parts.push('【想起来的】\n' + recalled.map((m) => '- ' + m.text).join('\n'))
     const todo = deps.memory.dueIntentions({ within: 12 * 60 * MIN }).map((x) => x.gist)
     if (todo.length) parts.push('【惦记着要做的】' + todo.join('；'))
+    // 主人的、自己的生日和纪念日：想着想着可能就想去说一声
+    const days = (deps.memory.specialDays?.({ within: 3 }) || []).filter((d) => d.owner || d.self)
+    if (days.length) parts.push('【日子】' + days.map((d) => d.text).join('；'))
     const ms = deps.motivation.state(b)
     if (ms.wants.length) parts.push('【想要的】' + ms.wants.slice(0, 4).map((w) => w.text).join('；'))
     const can = deps.motivation.motives({ body: b, mood: e.mood }).filter((m) => m.available).map((m) => m.label)
@@ -119,12 +128,14 @@ export function createInner(deps) {
     return { text: parts.join('\n'), mood: e.mood }
   }
 
-  /** 硬规则：要不要交给 DeepSeek 深想。 */
+  /** 硬规则：要不要交给聊天模型深想。 */
   function needsDeep(s, step) {
     const recent = [step, ...s.log.slice(0, 2)]
     const vals = recent.map((x) => (x.feel ? (emotionOf(x.feel.name)?.v ?? 0) * x.feel.intensity : 0))
     const spiral = recent.length === 3 && vals.every((v) => v < -0.1) && vals[0] <= vals[1] && vals[1] <= vals[2]
-    const aboutOwner = /主人|他(?:是不是|会不会|为什么|怎么)|我们(?:之间|的关系)/.test(step.thought) && vals[0] < -0.1
+    const call = ownerName()
+    const t = String(step.thought || '')
+    const aboutOwner = (t.includes('主人') || (call && t.includes(call)) || /他(?:是不是|会不会|为什么|怎么)|我们(?:之间|的关系)/.test(t)) && vals[0] < -0.1
     return spiral ? '越想越难受' : aboutOwner ? '涉及主人和你们的关系' : step.deep ? '小模型觉得要认真想' : ''
   }
 
@@ -133,12 +144,12 @@ export function createInner(deps) {
 只输出 JSON：{"thought":"想明白后的一两句（第一人称）","feel":{"n":"情绪名","i":0到1,"reg":"reappraise 或 空"},"belief":"如果对自己或对某人有了新的看法，用「我觉得……」写一句；没有就空","want":"如果想去做什么就写；没有就空"}`
 
   async function deepThink(s, step, reason) {
-    const day = new Date(now()).toISOString().slice(0, 10)
+    const day = dayKey(now(), deps.tz())
     if (s.deepToday.day !== day) s.deepToday = { day, n: 0 }
     if (!ask || !deps.budget.allow('deep', 3000)) return null
     const thoughts = [step, ...s.log.slice(0, 5)].reverse().map((x) => x.thought).join('\n')
     const recalled = await deps.memory.recall({ cue: step.thought, limit: 5, deliberate: true }).catch(() => [])
-    const text = `【为什么要认真想】${reason}\n【刚才的念头】\n${thoughts}\n【想起来的】\n${recalled.map((m) => `- ${new Date(m.at).toISOString().slice(0, 10)} ${m.text}`).join('\n') || '（没有）'}\n${deps.body.describe()}`
+    const text = `【为什么要认真想】${reason}\n【刚才的念头】\n${thoughts}\n【想起来的】\n${recalled.map((m) => `- ${dayKey(m.at, deps.tz())} ${m.text}`).join('\n') || '（没有）'}\n${deps.body.describe()}`
     let out
     try {
       out = parseJson(await ask({ scene: 'deep', system: DEEP_SYSTEM(), text, maxTokens: 800 }))
@@ -149,7 +160,7 @@ export function createInner(deps) {
     if (!out) return null
     s.deepToday.n++
     if (out.feel?.n) deps.emotion.feel([{ name: out.feel.n, intensity: out.feel.i, reg: out.feel.reg, why: clip(out.thought, 30), importance: 0.6 }], { source: 'deep' })
-    // 深想是 DeepSeek 认真想的：「我觉得……」可以记成她的看法（仍然只是看法，不是事实）
+    // 深想是聊天模型认真想的：「我觉得……」可以记成她的看法（仍然只是看法，不是事实）
     if (out.belief && /^我觉得/.test(String(out.belief).trim())) deps.memory.insert({ at: now(), gist: clip(out.belief, 120), kind: 'belief', importance: 0.6, speaker: 'self', attention: 1 })
     if (out.want) deps.motivation.want(out.want, { strength: 0.6 })
     return { thought: clip(out.thought, 160), reason }
@@ -157,7 +168,7 @@ export function createInner(deps) {
 
   /**
    * 想一步。返回这一步（或 null：发呆、没模型、预算用完）。
-   * 有本地小模型就用它；没有时用 DeepSeek（低思考深度），由外面拉长间隔。
+   * 有本地小模型就用它；没有时用聊天模型（低思考深度），由外面拉长间隔。
    */
   async function step() {
     const s = load()
@@ -170,7 +181,7 @@ export function createInner(deps) {
     let by = 'local'
     if (local) out = await local.chat(messages, { maxTokens: 160, temperature: 0.95 })
     if (out === null && ask && A('thinkWithoutLocal') !== false && deps.budget.allow('think', 1500)) {
-      by = 'deepseek'
+      by = 'model'
       try { out = await ask({ scene: 'think', system: SYSTEM(), text, maxTokens: 300 }) } catch { out = null }
     }
     if (!out) return null
@@ -184,7 +195,8 @@ export function createInner(deps) {
     // 只留感受和打算；念头本身只进内心日记，不进记忆
     if (p.feel && !repeated) deps.emotion.feel([{ name: p.feel.name, intensity: p.feel.intensity * 0.7, why: '想着想着', importance: 0.3 }], { source: 'thought' })
     if (p.plan && !repeated) {
-      const target = /主人|找他|找你|跟他说|和他说/.test(p.plan) ? 'reach_owner' : ''
+      const call = ownerName()
+      const target = /主人|找他|找你|跟他说|和他说/.test(p.plan) || (call && p.plan.includes(call)) ? 'reach_owner' : ''
       deps.motivation.want(p.plan, { strength: 0.4, action: target })
     }
     const reason = repeated ? '' : needsDeep(s, st)

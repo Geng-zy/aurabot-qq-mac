@@ -185,9 +185,9 @@ test('越想越难受：交给 DeepSeek 深想一次；想明白的「我觉得�
   assert.ok(m.emotion.state().active.some((e) => e.name === '安心'))
 })
 
-test('没装本地小模型：用 DeepSeek 想（受预算限制）；关掉这个选项就不想', async () => {
+test('没装本地小模型：用聊天模型想（受预算限制）；关掉这个选项就不想', async () => {
   const { m } = innerMind({ reply: null, ask: async (o) => (o.scene === 'think' ? '念头：下午好安静' : '') })
-  assert.equal((await m.inner.step()).by, 'deepseek')
+  assert.equal((await m.inner.step()).by, 'model')
   m.updateSettings({ 'attention.thinkWithoutLocal': false })
   assert.equal(await m.inner.step(), null)
 })

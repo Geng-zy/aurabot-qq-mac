@@ -20,9 +20,10 @@ const sentences = (t) => String(t || '').split(/[。！？!?\n；;]/).map((x) =>
  * 新写进去的句子里，有没提主人、却有恋爱说法的（「我不想谈恋爱」这种否定的不算）：「专一」开着时她写不进去。
  * 原来就有的句子不管（人格卡里本来写着的，由主人负责）。
  */
-export function romanceElsewhere(text, before = '') {
+export function romanceElsewhere(text, before = '', ownerWords = ['主人']) {
   const old = new Set(sentences(before))
-  return sentences(text).some((s) => !old.has(s) && ROMANCE.test(s) && !/主人/.test(s) && !NEGATED.test(s))
+  const words = ['主人', ...ownerWords].map((w) => String(w || '').trim()).filter(Boolean)
+  return sentences(text).some((s) => !old.has(s) && ROMANCE.test(s) && !words.some((w) => s.includes(w)) && !NEGATED.test(s))
 }
 /** 新文字里出现了旧文字里没有的年龄、生日说法。 */
 export function touchesAge(before, after) {
@@ -89,7 +90,7 @@ export function createSelf(deps) {
       }
     }
     if (by === 'self' && what !== 'ownerCall') {
-      if (id.exclusive && romanceElsewhere(content, before)) return { ok: false, message: '「专一」是主人设的：你的喜欢只给主人，写不进喜欢别人' }
+      if (id.exclusive && romanceElsewhere(content, before, [ownerCall(), deps.ownerName?.()])) return { ok: false, message: '「专一」是主人设的：你的喜欢只给主人，写不进喜欢别人' }
       if (touchesAge(before, content)) return { ok: false, message: '年龄和生日只有主人能在面板里改' }
     }
     if (what === 'name' && !content) return { ok: false, message: '名字不能是空的' }
@@ -155,12 +156,13 @@ export function createSelf(deps) {
     const p = profile()
     if (p.story.at && now() - p.story.at < DAY * 0.8) return null
     const fresh = (episodes() || []).filter((e) => e.at > (p.story.at || 0)).slice(0, 20)
+    const day = (at) => (deps.dayKey ? deps.dayKey(at) : new Date(at).toISOString().slice(0, 10))
     if (!fresh.length) return null
     const id = deps.identity()
     const text = [
       `现在的故事：\n${p.story.text || '（还没写过）'}`,
       `人格卡（你对自己的描述）：\n${deps.personaCard().slice(0, 1500)}`,
-      `最近重要的经历：\n${fresh.map((e) => `- ${new Date(e.at).toISOString().slice(0, 10)} ${e.gist}`).join('\n')}`,
+      `最近重要的经历：\n${fresh.map((e) => `- ${day(e.at)} ${e.gist}`).join('\n')}`,
     ].join('\n\n')
     const j = parseJson(await ask('selfstory', STORY_SYSTEM(id.name), text, 1500))
     const story = String(j?.story || '').trim()
@@ -199,7 +201,7 @@ export function createSelf(deps) {
   function historyText(limit = 4) {
     const h = history(limit)
     if (!h.length) return '你还没改过自己。'
-    return '你以前改过：' + h.map((x) => `${new Date(x.at).toISOString().slice(0, 10)} ${WHAT[x.what] || x.what}（${String(x.reason || '').slice(0, 40)}）`).join('；')
+    return '你以前改过：' + h.map((x) => `${deps.dayKey ? deps.dayKey(x.at) : new Date(x.at).toISOString().slice(0, 10)} ${WHAT[x.what] || x.what}（${String(x.reason || '').slice(0, 40)}）`).join('；')
   }
 
   return { profile, ownerCall, canChangeOwnerCall, change, dropGoal, restore, history, historyText, updateStory, prompt, goals: () => profile().goals, WHAT, TRAITS }

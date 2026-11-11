@@ -6,7 +6,9 @@ import { createHash } from 'node:crypto'
 import { retention, initialStability, afterRecall, levelOf } from './curve.js'
 import { createVectorIndex } from './vectors.js'
 import { estimateTokens } from '../budget.js'
-import { zonedToEpoch, shortTime, dayKey } from '../clock.js'
+import { zonedToEpoch, shortTime, dayKey, localParts, parseBirthday } from '../clock.js'
+import { placeOf, shortId } from '../place.js'
+import { keywords } from './words.js'
 
 const DAY = 86400000
 const hash = (s) => createHash('sha1').update(String(s)).digest('hex').slice(0, 16)
@@ -34,6 +36,9 @@ export const KINDS = {
   experience: '经历',
   'own-post': '自己发过的',
   'day-summary': '那天的事',
+  'week-summary': '那一周的事',
+  'month-summary': '那个月的事',
+  date: '每年的日子',
 }
 
 /**
@@ -54,6 +59,8 @@ export function createMemory(deps) {
   const { store, now, setting } = deps
   const log = deps.log || { debug() {}, info() {}, warn() {}, error() {} }
   const random = deps.random || Math.random
+  const place = deps.place || placeOf
+  const nameOf = (pid) => deps.nameOf?.(pid) || deps.person?.(pid)?.name || shortId(pid)
   const vectors = createVectorIndex(store)
   // 外面接进来的能力：想（模型）、算向量、此刻的心情和精力
   let think = null
@@ -159,6 +166,8 @@ export function createMemory(deps) {
     const eid = id || 'm:' + hash([at, window, gist, random()].join('|'))
     store.prep('INSERT OR IGNORE INTO episodes (id, at, window, gist, detail, strength, stability, last_recall, status, json) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)')
       .run(eid, at, window || null, String(gist), detail ? String(detail) : null, clamp01(importance), stability, 'live', JSON.stringify(data))
+    // 不管从哪来的（聊天、整理出来的、梦、模块交来的）都要有向量，才能按意思想起来；算过的会自动跳过
+    queueJob('embed', eid)
     return eid
   }
 
@@ -179,6 +188,7 @@ export function createMemory(deps) {
 - 你自己的猜测、看法记成 belief，gist 用“我觉得……”开头，不要当成事实。
 - 你答应要做、或者打算做的事记成 intention，能看出时间就填 due（格式 YYYY-MM-DD HH:mm，按聊天里的时间），看不出就填 null。
 - 别人说到他自己一件还没结果、他在意的事（面试、考试、体检、等录取或通知、比赛、看病、搬家……）记成 pending，about 和 speaker 都是他，due 填结果大概出来的时间（看不出就填 null）。
+- 别人说到的生日、纪念日这类每年都会再来的日子，记成 date：yearly 填 MM-DD，about 是谁的（你自己的填 self），gist 写清是什么日子。
 - 其他经历记成 event。
 - 只记聊天里真有的内容，不要补充、不要编。
 - gist 一句话大意；detail 补充细节（谁、说了什么、怎么回事），可以空。
@@ -188,7 +198,7 @@ export function createMemory(deps) {
 - sources：依据的行号。
 - secret：有人明说“别告诉别人”“只跟你说”的事填 true，否则不写。
 
-只输出 JSON：{"episodes":[{"type":"event|fact|hearsay|belief|intention|pending","gist":"","detail":"","importance":0.5,"emotion":{"name":"","intensity":0.5,"valence":0},"who":[],"about":"","speaker":"","due":null,"sources":[1]}]}；没有值得记的就输出 {"episodes":[]}。`
+只输出 JSON：{"episodes":[{"type":"event|fact|hearsay|belief|intention|pending|date","gist":"","detail":"","importance":0.5,"emotion":{"name":"","intensity":0.5,"valence":0},"who":[],"about":"","speaker":"","due":null,"yearly":null,"sources":[1]}]}；没有值得记的就输出 {"episodes":[]}。`
 
   /**
    * 把一个窗口里还没记的消息记成经历。
@@ -223,6 +233,21 @@ export function createMemory(deps) {
       if (error.code === 'BUDGET') return { encoded: 0, budget: true }
       throw error
     }
+    // 模型没按格式回（不是 JSON、没有 episodes）：这段先不算记过，下次再记；连着三次都不行才跳过，免得卡死
+    if (!parsed || typeof parsed !== 'object' || (parsed.episodes !== undefined && !Array.isArray(parsed.episodes)) || (!Array.isArray(parsed.episodes) && !('self' in parsed) && !('rel' in parsed))) {
+      const failKey = 'encode.fail.' + window
+      const n = Number(store.get(failKey, 0)) + 1
+      if (n < 3) {
+        store.set(failKey, n)
+        log.warn(`记 ${window} 时模型没按格式回，下次再记（第 ${n} 次）`)
+        return { encoded: 0, failed: true }
+      }
+      store.del(failKey)
+      log.warn(`记 ${window} 时模型连着 ${n} 次没按格式回，这 ${rows.length} 条先跳过（原话还在，翻聊天记录能看到）`)
+      store.set('encode.cursor.' + window, last.id)
+      return { encoded: 0, failed: true, skipped: rows.length }
+    }
+    store.del('encode.fail.' + window)
     // 她在这段里说过话就是专心在聊；只是在群里看着，记得浅一些
     const attention = rows.some((r) => r.dir === 'out') ? 1 : 0.6
     const ids = []
@@ -231,7 +256,10 @@ export function createMemory(deps) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue
         const src = (Array.isArray(ep.sources) ? ep.sources : []).map((n) => rows[Number(n) - 1]).filter(Boolean)
-        let type = ['event', 'fact', 'hearsay', 'belief', 'intention', 'pending'].includes(ep.type) ? ep.type : 'event'
+        let type = ['event', 'fact', 'hearsay', 'belief', 'intention', 'pending', 'date'].includes(ep.type) ? ep.type : 'event'
+        // 每年的日子：认不出月日就当普通的事
+        const yb = type === 'date' ? parseBirthday(ep.yearly) : null
+        if (type === 'date' && !yb) type = 'fact'
         const about = String(ep.about || '')
         const speaker = String(ep.speaker || '')
         // 别人说的事实只认他自己的原话
@@ -253,7 +281,7 @@ export function createMemory(deps) {
           importance: ep.importance ?? 0.5, emotion: emo, about, speaker,
           who: Array.isArray(ep.who) ? ep.who.map(String) : [],
           sources: src.map((r) => r.id), due, attention,
-          extra: { ...(ep.secret === true ? { secret: true } : {}), ...follow },
+          extra: { ...(ep.secret === true ? { secret: true } : {}), ...follow, ...(yb ? { yearly: `${String(yb.month).padStart(2, '0')}-${String(yb.day).padStart(2, '0')}` } : {}) },
         }))
       }
       store.set('encode.cursor.' + window, last.id)
@@ -273,13 +301,40 @@ export function createMemory(deps) {
         for (let i = 0; i < 20; i++) {
           const r = await encodeWindow(w.window, { force })
           n += r.encoded || 0
-          if (!r.encoded && (r.waiting || r.budget || cursorOf(w.window) >= (store.prep('SELECT MAX(id) AS m FROM perception WHERE window = ?').get(w.window).m || 0))) break
+          if (!r.encoded && (r.waiting || r.budget || r.failed || cursorOf(w.window) >= (store.prep('SELECT MAX(id) AS m FROM perception WHERE window = ?').get(w.window).m || 0))) break
         }
       } catch (error) {
         log.warn(`记 ${w.window} 失败：`, error.message)
       }
     }
     return n
+  }
+
+  // ---------- 关键词 ----------
+  const ftsQ = () => store.prep("SELECT e.id FROM episodes_fts f JOIN episodes e ON e.rowid = f.rowid WHERE episodes_fts MATCH ? AND e.status = 'live' LIMIT 30")
+  const likeQ = () => store.prep("SELECT id FROM episodes WHERE status = 'live' AND (gist LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\') ORDER BY at DESC LIMIT 30")
+  /** 线索里的词各自命中哪些经历：id → 命中的分量占全部分量的比例（0～1）。 */
+  function keywordHits(text) {
+    const got = new Map()
+    const found = []
+    for (const { w, weight } of keywords(text)) {
+      let ids = []
+      try {
+        // 三个字以上用全文索引（trigram）；两个字的索引查不了，直接按字面找
+        ids = [...w].length >= 3
+          ? ftsQ().all('"' + w.replace(/"/g, '""') + '"').map((r) => r.id)
+          : likeQ().all(...Array(2).fill('%' + w.replace(/[%_\\]/g, (c) => '\\' + c) + '%')).map((r) => r.id)
+      } catch {}
+      // 到处都有的词（常见的人名、口头禅）分不出是哪件事：分量打折
+      found.push({ ids: [...new Set(ids)], weight: ids.length >= 30 ? weight * 0.25 : weight })
+    }
+    // 记忆里一次都没出现过的词说明不了想到哪件事，不算进总数；只剩到处都有的词时，等于没有线索
+    const hit = found.filter((t) => t.ids.length)
+    if (!hit.some((t) => t.ids.length < 30)) return got
+    const total = hit.reduce((n, t) => n + t.weight, 0)
+    for (const { ids, weight } of found) for (const id of ids) got.set(id, (got.get(id) || 0) + weight)
+    for (const [id, n] of got) got.set(id, Math.min(1, n / Math.min(total, 3)))
+    return got
   }
 
   // ---------- 想起 ----------
@@ -300,26 +355,31 @@ export function createMemory(deps) {
     const cand = new Map() // id → sim
     // 只给了时间没给线索：这段时间里的事都算线索，按重要程度排
     if (period && !String(cue || '').trim()) {
-      for (const r of store.prep("SELECT id, json FROM episodes WHERE status = 'live' AND at >= ? AND at < ? ORDER BY at DESC LIMIT 200").all(period.start, period.end)) {
+      // 问的是好几天以上：那段时间的回顾（每天、每周、每月写的）排在最前面，一段话就能想起个大概
+      const long = period.end - period.start > 2 * DAY
+      for (const r of store.prep("SELECT id, kind, json FROM episodes WHERE status = 'live' AND at >= ? AND at < ? ORDER BY at DESC LIMIT 200").all(period.start, period.end)) {
         let imp = 0.4
         try { imp = Number(JSON.parse(r.json).importance) || 0.4 } catch {}
-        cand.set(r.id, cueMatch + 0.2 * imp)
+        // 越大的回顾越靠前（月 > 周 > 天）；只问一天时不用回顾，直接想那天的事
+        const bonus = { 'day-summary': 0.2, 'week-summary': 0.3, 'month-summary': 0.4 }[String(r.kind || '')]
+        cand.set(r.id, cueMatch + 0.2 * imp + (bonus ? (long ? bonus : -0.1) : 0))
+      }
+      if (long) {
+        for (const r of store.prep("SELECT id FROM episodes WHERE kind IN ('week-summary', 'month-summary', 'day-summary') AND status IN ('live', 'archived') AND at >= ? AND at < ? ORDER BY at DESC LIMIT 40").all(period.start, period.end)) {
+          if (!cand.has(r.id)) cand.set(r.id, cueMatch + 0.35)
+        }
       }
     }
     const qv = String(cue || '').trim() ? await embedText(cue) : null
     if (qv) for (const h of vectors.search(qv, { model: embedModel(), limit: period ? 200 : 80, min: cueMatch * 0.8 })) cand.set(h.id, h.sim)
-    // 关键词（三个字以上才能用 trigram）
-    const words = String(cue || '').split(/[\s，。！？、,.!?：:；;“”"'（）()【】\[\]]+/).filter((w) => [...w].length >= 3).slice(0, 6)
-    for (const w of words) {
-      try {
-        for (const r of store.prep('SELECT e.id FROM episodes_fts f JOIN episodes e ON e.rowid = f.rowid WHERE episodes_fts MATCH ? LIMIT 20').all('"' + w.replace(/"/g, '""') + '"')) {
-          cand.set(r.id, Math.max(cand.get(r.id) || 0, deliberate ? cueMatch : cueMatch * 0.95))
-        }
-      } catch {}
+    // 关键词：命中的词越多（按分量算）越像想到了；全中的能单独把记忆勾起来，向量服务慢或连不上时也想得起
+    for (const [id, cov] of keywordHits(cue)) {
+      const sim = cueMatch * ((deliberate ? 0.9 : 0.85) + 0.3 * cov)
+      cand.set(id, Math.max(cand.get(id) || 0, sim))
     }
     // 眼前的人也是线索：关于他们的事
     for (const p of people) {
-      for (const r of store.prep("SELECT id FROM episodes WHERE status = 'live' AND json LIKE ? ORDER BY at DESC LIMIT 10").all(`%"about":"${p.replace(/[%_"]/g, '')}"%`)) {
+      for (const r of store.prep("SELECT id FROM episodes WHERE about = ? AND status = 'live' ORDER BY at DESC LIMIT 10").all(String(p))) {
         cand.set(r.id, Math.max(cand.get(r.id) || 0, cueMatch * 0.9))
       }
     }
@@ -338,7 +398,8 @@ export function createMemory(deps) {
       const ev = e.data.emotion?.valence || 0
       score += Number(S('moodCongruence')) * (st.valence || 0) * ev
       if (sim < cueMatch && score < cueMatch) continue
-      scored.push({ e, r, sim, level, score: score * (0.5 + 0.5 * r) })
+      // 过时的说法排后面一些（还记得，但不是现在的情况）
+      scored.push({ e, r, sim, level, score: score * (0.5 + 0.5 * r) * (e.data.outdated ? 0.6 : 1) })
     }
     scored.sort((a, b) => b.score - a.score)
     // 精排（可选）：候选多的时候，让精排模型逐条看「线索和这件事有多相关」，按它重新排；遗忘照样算进去。
@@ -392,12 +453,14 @@ export function createMemory(deps) {
       found.sort((a, b) => a.hop - b.hop || b.sim - a.sim)
       top.push(...found.slice(0, cap))
     }
-    return top.map(({ e, r, level, associated, hop }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), hop: hop || 0, text: render(e, level), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret) }))
+    return top.map(({ e, r, level, associated, hop }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), hop: hop || 0, text: render(e, level), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret), toldTo: e.data.toldTo || null }))
   }
 
   /** 按想起的清楚程度给出她脑子里的样子。 */
   function render(e, level) {
     const tag = KINDS[e.data.kind] && e.data.kind !== 'event' && e.data.kind !== 'experience' ? `（${KINDS[e.data.kind]}）` : ''
+    // 过时了的：知道那是以前的情况
+    if (e.data.outdated && level !== 'tip') return `以前：${e.gist}${tag}——后来变了：${e.data.outdated.now}`
     if (level === 'clear') return `${e.gist}${e.detail ? '——' + e.detail : ''}${tag}`
     if (level === 'vague') return `好像有这么回事：${e.gist}${tag}`
     // 话到嘴边：只想起前一半
@@ -430,15 +493,15 @@ export function createMemory(deps) {
    * 到时候该问一问的事：这几个人的、没放下的、还没问够的、到了该问的时间的。
    * deps.care(人) 0～1：她有多在乎这个人（心疼人的程度 + 亲近），决定问不问、问几次、隔多久。
    */
-  function pendingRows() {
-    return store.prep("SELECT * FROM episodes WHERE status = 'live' AND json LIKE '%\"kind\":\"pending\"%' ORDER BY at DESC LIMIT 200").all()
+  function pendingRows({ open = false } = {}) {
+    return store.prep(`SELECT * FROM episodes WHERE kind = 'pending' AND status = 'live'${open ? " AND json_extract(json, '$.followup.done') IS NULL" : ''} ORDER BY at DESC LIMIT 200`).all()
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
   }
   function dueFollowups({ people = [], limit = 2 } = {}) {
     if (S('followup') === false || !people.length) return []
     const at = now()
     const out = []
-    for (const e of pendingRows()) {
+    for (const e of pendingRows({ open: true })) {
       const f = e.data.followup
       if (!f || f.done || !people.includes(e.data.about)) continue
       const care = Math.max(0, Math.min(1, Number(deps.care?.(e.data.about) ?? 0.5)))
@@ -466,7 +529,7 @@ export function createMemory(deps) {
   }
   /** 还惦记着的（面板用）：某个人的，或者全部。 */
   function followups({ person: pid = '', all = false } = {}) {
-    return pendingRows()
+    return pendingRows({ open: !all })
       .filter((e) => (all || !e.data.followup?.done) && (!pid || e.data.about === pid))
       .map((e) => ({ id: e.id, at: e.at, gist: e.gist, about: e.data.about, due: e.data.due || null, asks: e.data.followup?.asks || 0, nextAt: e.data.followup?.nextAt || 0, done: e.data.followup?.done || 0 }))
   }
@@ -475,16 +538,96 @@ export function createMemory(deps) {
   /** 到期或快到期的要做的事（前瞻记忆）。 */
   function dueIntentions({ window = '', within = 2 * 3600000 } = {}) {
     const at = now()
-    return store.prep("SELECT * FROM episodes WHERE status = 'live' AND json LIKE '%\"kind\":\"intention\"%' ORDER BY at DESC LIMIT 50").all()
+    return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL ORDER BY at DESC LIMIT 50").all()
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
-      // 到期或快到期的；过期三天还没做的慢慢就不惦记了（还在记忆里，只是不再每轮提醒）
-      .filter((e) => !e.data.done && (!e.data.due || (e.data.due <= at + within && e.data.due >= at - 3 * DAY)) && (!window || !e.window || e.window === window || e.data.due))
+      // 到期或快到期的；过期三天还没做的慢慢就不惦记了（还在记忆里，只是不再每轮提醒）。
+      // 没说时间的：答应后（或上次想起后）一周内每轮记着，之后就不再时时挂在心上，聊到了还想得起来
+      .filter((e) => !e.data.done && (e.data.due ? e.data.due <= at + within && e.data.due >= at - 3 * DAY : at - Math.max(e.at || 0, e.last_recall || 0) < 7 * DAY) && (!window || !e.window || e.window === window || e.data.due))
       .slice(0, 5)
   }
   function completeIntention(id) {
     const e = row(id)
     if (!e || e.data.kind !== 'intention') return false
     e.data.done = now()
+    save(e)
+    return true
+  }
+
+  // ---------- 跟谁说过什么 ----------
+  const lastRecalled = new Map() // window → 这一轮想起来的 [{ id, at }]
+  /**
+   * 她在一个窗口里说了一句话：这一轮想起来的事里被她说出口的，记下「跟谁说过」（以后同一个人面前不再当新鲜事讲）。
+   * audience：在场的人（id）。按事情里的关键词在她的话里出现了多少判断。
+   */
+  function noteSaid({ window, text, audience = [] }) {
+    const list = (lastRecalled.get(window) || []).filter((x) => now() - x.at < 30 * 60000)
+    const said = String(text || '')
+    if (!list.length || !audience.length || !said.trim()) return []
+    const out = []
+    for (const x of list) {
+      const e = row(x.id)
+      if (!e) continue
+      const ks = keywords(e.gist, { limit: 10 })
+      if (!ks.length) continue
+      const hit = ks.filter((k) => said.includes(k.w)).length
+      if (hit < Math.min(2, ks.length) || hit / ks.length < 0.35) continue
+      e.data.toldTo = { ...(e.data.toldTo || {}) }
+      for (const p of audience) if (p && p !== 'self') e.data.toldTo[p] = now()
+      save(e)
+      out.push(e.id)
+    }
+    return out
+  }
+
+  // ---------- 每年的日子 ----------
+  /**
+   * 今天（和接下来 within 天）有哪些日子：记下来的生日、纪念日，以及和亲近的人认识满一年、两年……
+   * @returns {Array<{ text: string, about: string, inDays: number, owner: boolean, self: boolean, kind: string }>}
+   */
+  function specialDays({ within = 0 } = {}) {
+    const tz = deps.tz()
+    const at = now()
+    const today = localParts(at, tz)
+    const md = (m, d) => `${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const ahead = []
+    for (let i = 0; i <= within; i++) {
+      const p = localParts(at + i * DAY, tz)
+      ahead.push({ key: md(p.month, p.day), year: p.year, i })
+    }
+    const isOwner = (id) => Boolean(deps.isOwner?.(id))
+    const out = []
+    const seen = new Set()
+    const label = (i) => (i === 0 ? '今天' : i === 1 ? '明天' : i === 2 ? '后天' : `${i} 天后`)
+    for (const r of store.prep("SELECT * FROM episodes WHERE kind = 'date' AND status IN ('live', 'archived') ORDER BY at DESC LIMIT 300").all()) {
+      const e = { ...r, data: JSON.parse(r.json) }
+      const day = ahead.find((a) => a.key === e.data.yearly)
+      if (!day) continue
+      const key = (e.data.about || '') + '|' + e.data.yearly
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push({ text: `${label(day.i)}：${e.gist}`, about: e.data.about || '', inDays: day.i, owner: isOwner(e.data.about), self: e.data.about === 'self', kind: 'date' })
+    }
+    for (const p of deps.firstMet?.() || []) {
+      if (!p.firstSeen) continue
+      const f = localParts(p.firstSeen, tz)
+      const day = ahead.find((a) => a.key === md(f.month, f.day) && a.year > f.year)
+      if (!day) continue
+      out.push({ text: `${label(day.i)}：和${p.owner ? '主人' : nameOf(p.id)}认识满 ${day.year - f.year} 年`, about: p.id, inDays: day.i, owner: Boolean(p.owner), self: false, kind: 'met' })
+    }
+    return out.sort((a, b) => a.inDays - b.inDays)
+  }
+
+  // ---------- 到点的约定 ----------
+  /** 到点（或快到点）还没做、也还没提醒过她的约定：对接层拿去让她主动做。 */
+  function dueNow({ within = 10 * 60000 } = {}) {
+    const at = now()
+    return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL AND json_extract(json, '$.nudged') IS NULL AND json_extract(json, '$.due') BETWEEN ? AND ? ORDER BY json_extract(json, '$.due') LIMIT 5")
+      .all(at - 30 * 60000, at + within).map((r) => ({ ...r, data: JSON.parse(r.json) }))
+  }
+  function markNudged(id) {
+    const e = row(id)
+    if (!e) return false
+    e.data.nudged = now()
     save(e)
     return true
   }
@@ -503,8 +646,11 @@ export function createMemory(deps) {
       const when = dayKey(m.at, deps.tz())
       // 分寸：秘密、别处私聊里的事，提醒她是在哪听来的
       const elsewhere = m.window && window && m.window !== window
-      const note = m.secret ? (elsewhere ? '（这是别人私下跟你说的秘密，别在这里说）' : '（秘密，别往外说）') : elsewhere && /:private:/.test(m.window) && !/:private:/.test(window) ? '（私聊里的事，在群里说之前想想合不合适）' : ''
-      const line = `- ${when} ${m.associated ? '（由此想到）' : ''}${m.text}${note}`
+      const note = m.secret ? (elsewhere ? '（这是别人私下跟你说的秘密，别在这里说）' : '（秘密，别往外说）') : elsewhere && place(m.window).kind === 'private' && place(window).kind !== 'private' ? '（私聊里的事，在群里说之前想想合不合适）' : ''
+      // 跟眼前的人说过这件事了：别当新鲜事再讲一遍
+      const told = people.filter((p) => m.toldTo?.[p]).map((p) => `${nameOf(p)}（${shortTime(m.toldTo[p], deps.tz()).slice(0, 5)}）`)
+      const toldNote = told.length ? `（这事你已经跟${told.join('、')}说过了）` : ''
+      const line = `- ${when} ${m.associated ? '（由此想到）' : ''}${m.text}${note}${toldNote}`
       if (total + line.length > max) break
       total += line.length
       lines.push(line)
@@ -514,7 +660,11 @@ export function createMemory(deps) {
     // 在场的人有到了该问的事：提一句，问过就往后推（调试模式只看不推）
     const follow = dueFollowups({ people })
     if (!readOnly) for (const { e, care } of follow) markAsked(e, care)
-    const asks = follow.map(({ e }) => `- ${dayKey(e.at, deps.tz())} ${deps.person?.(e.data.about)?.name || String(e.data.about).replace(/^qq:/, '')}：${e.gist}`)
+    const asks = follow.map(({ e }) => `- ${dayKey(e.at, deps.tz())} ${nameOf(e.data.about)}：${e.gist}`)
+    // 记下这一轮想起了什么：她接下来说出口的，算「跟这里的人说过了」
+    if (!readOnly && window) lastRecalled.set(window, got.filter((m) => used.includes(m.id) && m.level !== 'tip').map((m) => ({ id: m.id, at: now() })))
+    // 今天和快到的日子（生日、纪念日、认识几周年）：眼前的人的、主人的、她自己的
+    const days = specialDays({ within: 3 }).filter((d) => d.self || d.owner || people.includes(d.about))
     // readOnly（调试模式）：只想起来，不加强、不重新点燃情绪，不留下痕迹
     if (used.length && !readOnly) {
       strengthen(used)
@@ -523,6 +673,7 @@ export function createMemory(deps) {
     }
     const parts = []
     if (lines.length) parts.push('【你想起来的】\n' + lines.join('\n'))
+    if (days.length) parts.push('【日子】\n' + days.map((d) => '- ' + d.text).join('\n'))
     if (todo.length) parts.push('【你惦记着要做的事】\n' + todo.join('\n'))
     if (asks.length) parts.push('【你惦记着别人的事，还不知道结果】\n' + asks.join('\n') + '\n（聊到合适的时候自然地问一句，不合适就别硬问；知道结果了或者对方说别问了，就用 mind_followup_done 放下）')
     return { text: parts.join('\n'), recalled: used }
@@ -565,7 +716,7 @@ export function createMemory(deps) {
     store.prep('DELETE FROM jobs WHERE ref = ?').run(e.id)
     if (record) deps.recordDeletion(e.id, 'episode')
     // 由它整理出来的知道的事：来源都没了就一起删，还有别的来源就排进重算
-    for (const r of store.prep("SELECT * FROM episodes WHERE json LIKE ?").all(`%"derivedFrom":%${e.id.replace(/[%_"]/g, '')}%`)) {
+    for (const r of store.prep("SELECT * FROM episodes WHERE kind = 'semantic' AND instr(json, ?) > 0").all(JSON.stringify(e.id))) {
       const f = { ...r, data: JSON.parse(r.json) }
       const left = (f.data.derivedFrom || []).filter((x) => x !== e.id)
       if (!left.length) removeOne(f, record)
@@ -606,16 +757,9 @@ export function createMemory(deps) {
    * 只算她还记得的（没归档的）；三个字以上的词才能查。
    */
   function topicScore(text) {
-    const words = [...new Set(String(text || '').split(/[\s，。！？、,.!?：:；;“”"'（）()【】\[\]@]+/).filter((w) => [...w].length >= 3))].slice(0, 12)
-    if (!words.length) return 0
-    let hit = 0
-    for (const w of words) {
-      try {
-        const r = store.prep("SELECT 1 FROM episodes_fts f JOIN episodes e ON e.rowid = f.rowid WHERE episodes_fts MATCH ? AND e.status = 'live' LIMIT 1").get('"' + w.replace(/"/g, '""') + '"')
-        if (r) hit++
-      } catch {}
-    }
-    return Math.min(1, hit / Math.min(words.length, 4))
+    let best = 0
+    for (const cov of keywordHits(text).values()) best = Math.max(best, cov)
+    return best
   }
 
   // ---------- 给面板看 ----------
@@ -625,13 +769,13 @@ export function createMemory(deps) {
     const like = (x) => '%' + String(x).replace(/[%_\\]/g, (c) => '\\' + c) + '%'
     const where = ['status = ?']
     const args = [status]
-    if (kind) { where.push('json LIKE ?'); args.push(`%"kind":"${String(kind).replace(/[%_"]/g, '')}"%`) }
+    if (kind) { where.push('kind = ?'); args.push(String(kind)) }
     if (q) { where.push("(gist LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR json LIKE ? ESCAPE '\\')"); args.push(like(q), like(q), like(q)) }
     const rows = store.prep(`SELECT * FROM episodes WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ? OFFSET ?`).all(...args, limit, offset)
     return rows.map((r) => {
       const e = { ...r, data: JSON.parse(r.json) }
       const rv = rOf(e, at)
-      return { id: e.id, at: e.at, window: e.window, gist: e.gist, detail: e.detail, kind: e.data.kind, r: rv, level: levelOf(rv, 1, levels()), stability: e.stability, original: e.data.original || null, emotion: e.data.emotion || null }
+      return { id: e.id, at: e.at, window: e.window, gist: e.gist, detail: e.detail, kind: e.data.kind, r: rv, level: levelOf(rv, 1, levels()), stability: e.stability, original: e.data.original || null, emotion: e.data.emotion || null, outdated: e.data.outdated || null, toldTo: e.data.toldTo || null }
     })
   }
   function counts() {
@@ -657,7 +801,7 @@ export function createMemory(deps) {
 
   return {
     connect, encodeWindow, encodePending, pendingWindows, recall, strengthen, workingMemory,
-    dueIntentions, completeIntention, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
+    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, markNudged, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
     embedEpisodes, staleVectorIds, vectorProgress, canEmbed, queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }

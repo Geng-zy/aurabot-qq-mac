@@ -2533,7 +2533,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       return h(Fragment, null,
         h(Card, { title: '内心日记', desc: '她醒着、没人找时一步一步地想（闲着时大约四成时间在想，其余在发呆）。念头本身只记在这里，不进记忆；只有感受和打算会留下。越想越难受、或者涉及你们的关系时，会交给 DeepSeek 认真想一次（标着「深想」）。' + (d.boredom >= 0.5 ? '　现在有点无聊。' : '') },
           (d.diary || []).length ? h('div', { className: 'ab-list' }, d.diary.slice(0, 40).map((x, i) => h('div', { key: i, className: 'ab-li' },
-            h('div', { className: 'meta' }, timeAgo(x.at) + (x.by === 'deepseek' ? ' · DeepSeek' : ' · 本地') + (x.repeated ? ' · 在重复，放空了' : '')),
+            h('div', { className: 'meta' }, timeAgo(x.at) + (x.by === 'local' ? ' · 本地' : ' · 聊天模型') + (x.repeated ? ' · 在重复，放空了' : '')),
             h('div', { className: 'body' }, x.thought,
               x.feel ? h('span', { className: 'ab-muted ab-small' }, '  （' + x.feel.name + '）') : null,
               x.plan ? h('div', { className: 'ab-small' }, '想去：' + x.plan) : null,
@@ -3126,7 +3126,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     }
 
     // ---------- 心智核心：记忆、人物、心智设置 ----------
-    const MIND_KIND = { event: '经历', experience: '看过的', fact: '知道的事', hearsay: '听说的', belief: '我觉得', intention: '要做的事', semantic: '整理出来的', noted: '特意记下的', dream: '梦', 'own-post': '自己发过的', 'day-summary': '那天的事' }
+    const MIND_KIND = { event: '经历', experience: '看过的', fact: '知道的事', hearsay: '听说的', belief: '我觉得', intention: '要做的事', semantic: '整理出来的', noted: '特意记下的', dream: '梦', 'own-post': '自己发过的', pending: '惦记别人的事', date: '每年的日子', 'day-summary': '那天的回顾', 'week-summary': '那一周的回顾', 'month-summary': '那个月的回顾' }
     const MIND_LEVEL = { clear: '记得清楚', vague: '只记得大概', tip: '要很强的线索才想得起' }
     const mindDay = (at) => {
       if (!at) return '时间未知'
@@ -3181,7 +3181,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h(Seg, { value: status, onChange: setStatus, options: [{ value: 'live', label: '记得的' }, { value: 'archived', label: '想不起来的' }] }),
             h(Select, { value: kind, onChange: setKind, options: [{ value: '', label: '全部种类' }, ...Object.entries(MIND_KIND).map(([value, label]) => ({ value, label }))] })),
           !items ? h('p', { className: 'ab-muted' }, '读取中…') : !items.length ? h(Empty, { text: '没有' }) : h('div', { className: 'ab-list' }, items.map((m) => h('div', { key: m.id, className: 'ab-li' },
-            h('div', { className: 'meta' }, mindDay(m.at), ' · ', MIND_KIND[m.kind] || m.kind, ' · ', MIND_LEVEL[m.level] || '想不起来了', m.emotion ? ' · ' + m.emotion.name : ''),
+            h('div', { className: 'meta' }, mindDay(m.at), ' · ', MIND_KIND[m.kind] || m.kind, ' · ', MIND_LEVEL[m.level] || '想不起来了', m.emotion ? ' · ' + m.emotion.name : '', m.outdated ? ' · 已过时：' + m.outdated.now : ''),
             h('div', { className: 'body' }, m.gist, m.detail ? h('div', { className: 'ab-muted ab-small' }, m.detail) : null,
               m.original ? h('div', { className: 'ab-muted ab-small', title: '她看不到原始记录；这里给你对照' }, '原来记的：' + m.original.gist) : null),
             h('div', { className: 'ab-flex', style: { gap: 6 } },
