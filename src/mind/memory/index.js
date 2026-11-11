@@ -338,19 +338,41 @@ export function createMemory(deps) {
     }
     scored.sort((a, b) => b.score - a.score)
     const top = scored.slice(0, limit)
-    // 联想：最相关的那条带出一条有联系的
-    if (top.length && top.length < limit) {
-      const links = store.prep('SELECT b AS id, weight FROM links WHERE a = ? UNION SELECT a AS id, weight FROM links WHERE b = ? ORDER BY weight DESC LIMIT 3').all(top[0].e.id, top[0].e.id)
-      for (const l of links) {
-        if (top.some((x) => x.e.id === l.id)) continue
-        const e = row(l.id)
-        if (!e || e.status !== 'live') continue
-        const r = rOf(e, at)
-        const level = levelOf(r, 1, levels())
-        if (level && level !== 'tip') { top.push({ e, r, sim: l.weight, level, score: 0, associated: true }); break }
+    // 联想（扩散激活）：从最相关的两条出发，顺着联系往下想几步；离得越远越淡，太淡的想不起来。
+    // 不限在哪个聊天（群里也能想到私聊里的事），说不说由工作记忆里的分寸提醒管。按日期查的时候不联想。
+    if (top.length && S('assoc') !== false && !period) {
+      const hops = Math.max(1, Math.min(3, Number(S('assocHops')) || 2))
+      const cap = Math.max(0, Math.min(5, Number(S('assocLimit') ?? 2)))
+      const decay = Math.max(0.3, Math.min(0.9, Number(S('assocDecay')) || 0.6))
+      const seen = new Set(top.map((x) => x.e.id))
+      const found = []
+      let frontier = top.filter((x) => x.level !== 'tip').slice(0, 2).map((x) => ({ id: x.e.id, act: 1 }))
+      const linksOf = store.prep('SELECT b AS id, weight FROM links WHERE a = ? UNION SELECT a AS id, weight FROM links WHERE b = ? ORDER BY weight DESC LIMIT 4')
+      for (let hop = 1; hop <= hops && frontier.length && found.length < cap; hop++) {
+        const next = []
+        for (const f of frontier) {
+          for (const l of linksOf.all(f.id, f.id)) {
+            if (seen.has(l.id)) continue
+            const act = f.act * Math.max(0, Math.min(1, Number(l.weight) || 0)) * decay
+            if (act < 0.2) continue
+            const e = row(l.id)
+            if (!e || e.status !== 'live' || (e.data.kind === 'intention' && e.data.done)) continue
+            seen.add(l.id)
+            const r = rOf(e, at)
+            let level = levelOf(r, 1, levels())
+            if (!level || level === 'tip') continue
+            // 想得越远越淡：两步以外的只记得个大概
+            if (hop >= 2 && level === 'clear') level = 'vague'
+            next.push({ id: l.id, act })
+            found.push({ e, r, sim: act, level, score: 0, associated: true, hop })
+          }
+        }
+        frontier = next.sort((a, b) => b.act - a.act).slice(0, 3)
       }
+      found.sort((a, b) => a.hop - b.hop || b.sim - a.sim)
+      top.push(...found.slice(0, cap))
     }
-    return top.map(({ e, r, level, associated }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), text: render(e, level), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret) }))
+    return top.map(({ e, r, level, associated, hop }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), hop: hop || 0, text: render(e, level), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret) }))
   }
 
   /** 按想起的清楚程度给出她脑子里的样子。 */
@@ -462,7 +484,7 @@ export function createMemory(deps) {
       // 分寸：秘密、别处私聊里的事，提醒她是在哪听来的
       const elsewhere = m.window && window && m.window !== window
       const note = m.secret ? (elsewhere ? '（这是别人私下跟你说的秘密，别在这里说）' : '（秘密，别往外说）') : elsewhere && /:private:/.test(m.window) && !/:private:/.test(window) ? '（私聊里的事，在群里说之前想想合不合适）' : ''
-      const line = `- ${when} ${m.text}${note}`
+      const line = `- ${when} ${m.associated ? '（由此想到）' : ''}${m.text}${note}`
       if (total + line.length > max) break
       total += line.length
       lines.push(line)
