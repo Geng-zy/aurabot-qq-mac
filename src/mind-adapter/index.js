@@ -802,12 +802,28 @@ export function createMindAdapter(opts) {
   }
 
   // ---------- 记忆：聊天停下来就记；夜里睡觉整理 ----------
-  let encoding = false
+  // 同一时间只记一份（两份同时记同一个聊天会记重）：正在记的那次挂在这里
+  let encodingP = null
   let sleeping = false
   async function encodeTick() {
-    if (encoding || closed || !opts.ask || debug()) return
-    encoding = true
-    try { await mem.encodePending() } catch (error) { log.warn('记经历出错：', error.message) } finally { encoding = false }
+    if (encodingP || closed || !opts.ask || debug()) return
+    encodingP = mem.encodePending().catch((error) => log.warn('记经历出错：', error.message)).finally(() => { encodingP = null })
+    await encodingP
+  }
+  /**
+   * 换新会话时：把这个聊天里还没记的马上记成经历（不等聊天停下来），换完以后随时想得起来。
+   * 正在记别的就等它记完再记。
+   */
+  async function encodeChat(chatId) {
+    if (closed || !opts.ask || debug()) return 0
+    while (encodingP) await encodingP.catch(() => {})
+    let n = 0
+    encodingP = mem.encodeWindow(windowOf(chatId), { force: true })
+      .then((r) => { n = r?.encoded || 0 })
+      .catch((error) => log.warn('换会话时记经历出错：', error.message))
+      .finally(() => { encodingP = null })
+    await encodingP
+    return n
   }
   // ---------- 身体：每分钟推进一次；睡、醒、自己吃都由身体决定 ----------
   const missed = new Map() // 睡着时找她、但叫不醒她的消息：chatId → { event, owner, at }
@@ -1205,7 +1221,7 @@ export function createMindAdapter(opts) {
     mind.close()
   }
 
-  return { mind, perceive, said, shouldRotate, carryOver, contextFor, beforeTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
+  return { mind, perceive, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
     selfPrompt: () => mind.selfPrompt(),
     /** 她现在怎么叫主人（她自己改过就用她的，没改过用主人设的）。 */
     ownerCall: () => mind.self.ownerCall(), changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, forgetQQ, restoreQQ, interjectCap, wakeWords, missOwner, importLegacySocial }

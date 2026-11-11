@@ -674,6 +674,8 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
           log.debug('归档会话失败：', error.message)
         }
         log.info(`${chat.chatId} 换新会话（${reason}），旧会话 ${sid.slice(-8)} 已归档`)
+        // 旧会话里还没记成经历的，马上记（不等聊天停下来）：最近几十条原话会接到新会话里，更早的靠这一步才想得起来
+        try { Promise.resolve(mind?.encodeChat?.(chat.chatId)).catch(() => {}) } catch (error) {}
         sessionToChat.delete(sessionKey(sid))
         turnState.delete(sessionKey(sid))
         sid = ''
