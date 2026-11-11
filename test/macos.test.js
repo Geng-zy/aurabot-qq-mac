@@ -80,9 +80,15 @@ test('解压：不靠外部工具；建好子目录，程序加可执行权限�
   assert.equal(existsSync(join(root, 'evil.txt')), false)
 })
 
-test('更新命令：用 DSH.app 自带的命令行', () => {
-  assert.equal(updateCommand('a/b', 'main'), '"/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:a/b')
-  assert.match(updateCommand('a/b', 'beta'), /github:a\/b#beta$/)
+test('更新命令：用 DSH.app 自带的命令行', async () => {
+  // 不在 DSH 里跑也指向 /Applications 里的 DSH.app（找得到的话）；找不到就用 PATH 里的 dsh
+  const { findCli } = await import('../src/core/update.js')
+  const app = '/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh'
+  const env = { platform: 'darwin', cli: findCli({ platform: 'darwin', exePath: '/usr/local/bin/node', resourcesPath: '', env: { HOME: '/Users/x' } }).cli, profile: 'desktop' }
+  const { existsSync } = await import('node:fs')
+  assert.equal(env.cli, existsSync(app) ? app : 'dsh')
+  assert.equal(updateCommand('a/b', 'main', { env }), `"${env.cli}" plugin --profile desktop add github:a/b`)
+  assert.match(updateCommand('a/b', 'main', { env, ref: 'v1.2.3' }), /github:a\/b#v1\.2\.3$/)
 })
 
 test('macOS 兜底语音：优先 Tingting，没有就用第一个中文（中国大陆）声音', () => {
