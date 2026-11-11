@@ -373,7 +373,7 @@ export function createMindAdapter(opts) {
     if (!chat || chat.kind === 'system') return []
     const list = buildTools(chat, ownerTurn)
     // 调试模式：会改她的工具照样给（她照常会想用），但不真的写进心智
-    const writes = new Set(['mind_remember', 'mind_want', 'mind_request_permission', 'mind_change_self', 'mind_promise_done'])
+    const writes = new Set(['mind_remember', 'mind_want', 'mind_request_permission', 'mind_change_self', 'mind_promise_done', 'mind_followup_done'])
     return list.map((t) => (writes.has(t.name) ? { ...t, execute: async (...a) => (debug() ? { ok: true, message: '（调试模式：这次没有真的写进她的心智）' } : t.execute(...a)) } : t))
   }
   function buildTools(chat, ownerTurn) {
@@ -472,6 +472,19 @@ export function createMindAdapter(opts) {
         },
         required: ['what', 'content', 'why'],
         execute: async (a) => changeSelf(a, 'self'),
+      }),
+      defineTool({
+        name: 'mind_followup_done',
+        description: '惦记着的别人的事有结果了（面试过没过、考得怎样……），或者对方说别再问了，就放下它，不再惦记。',
+        properties: { what: str('是哪件事（照着「你惦记着别人的事」里写的）') },
+        required: ['what'],
+        execute: async ({ what }) => {
+          const w = String(what || '').trim()
+          const hit = mem.followups().find((f) => f.gist.includes(w) || w.includes(f.gist))
+          if (!hit) return { ok: false, message: '没找到这件事' }
+          mem.closeFollowup(hit.id, 'done')
+          return { ok: true, message: '放下了：' + hit.gist }
+        },
       }),
       defineTool({
         name: 'mind_promise_done',

@@ -3152,7 +3152,13 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const [q, setQ] = useState('')
       const [open, setOpen] = useState('')
       const [gone, setGone] = useState([])
-      const load = () => { get('/mind/people').then(setD); get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {}) }
+      const [follows, setFollows] = useState([])
+      const load = () => {
+        get('/mind/people').then(setD)
+        get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {})
+        get('/mind/followups').then((r) => setFollows((r && r.list) || [])).catch(() => {})
+      }
+      const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
       useEffect(() => { load() }, [])
       if (d && !d.ok) return h(Card, { title: '关系' }, h(Empty, { text: d.message || '心智核心没起来' }))
       // 忘掉一个人：删除要确认两次；「以后不记」可以选要不要连以前的一起移走；都先进恢复区，30 天内能放回来
@@ -3184,7 +3190,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             const t = p.tom || {}
             const isOpen = open === p.id
             return h('div', { key: p.id, className: 'ab-li' },
-              h('div', { className: 'meta' }, p.typeLabel + ' · ' + p.id.replace(/^qq:/, 'QQ ') + (r.lastContact ? ' · ' + timeAgo(r.lastContact) + '联系过' : p.lastSeen ? ' · ' + mindDay(p.lastSeen) + ' 来过' : '') + (r.n ? ' · 聊过 ' + r.n + ' 段' : '') + (p.noMemory ? ' · 以后不记他' : '')),
+              h('div', { className: 'meta' }, (follows.some((f) => f.about === p.id) ? '惦记着 ' + follows.filter((f) => f.about === p.id).length + ' 件事 · ' : '') + p.typeLabel + ' · ' + p.id.replace(/^qq:/, 'QQ ') + (r.lastContact ? ' · ' + timeAgo(r.lastContact) + '联系过' : p.lastSeen ? ' · ' + mindDay(p.lastSeen) + ' 来过' : '') + (r.n ? ' · 聊过 ' + r.n + ' 段' : '') + (p.noMemory ? ' · 以后不记他' : '')),
               h('div', { className: 'body' },
                 h('b', null, p.name || '（没名字）'), (p.aliases || []).length ? h('span', { className: 'ab-muted ab-small' }, '  曾用名：' + p.aliases.join('、')) : null,
                 h('div', { className: 'ab-small' }, `亲近 ${pct(r.closeness)} · 喜欢 ${pct(r.liking)} · 尊重 ${pct(r.respect)} · 信任 ${pct(r.trust)}` + (p.owner || r.intimacy ? ` · 亲密 ${pct(r.intimacy)} · 承诺 ${pct(r.commitment)}` + (r.passion ? ` · 激情 ${pct(r.passion)}` : '') : '') + (r.debt ? ` · 人情 ${r.debt > 0 ? '她欠 ' + r.debt : '对方欠 ' + -r.debt}` : '')),
@@ -3198,6 +3204,9 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
                   (r.limits || []).length ? h('div', null, '别碰：' + texts(r.limits)) : null,
                   (r.moments || []).length ? h('div', null, '重要时刻：' + r.moments.map((m) => mindDay(m.at).slice(0, 10) + ' ' + m.text).join('；')) : null,
                   (r.knots || []).length ? h('div', null, '没解开的结：' + texts(r.knots)) : null,
+                  follows.filter((f) => f.about === p.id).length ? h('div', null, '惦记着他的事：', follows.filter((f) => f.about === p.id).map((f) => h('div', { key: f.id, className: 'ab-flex', style: { gap: 6, marginLeft: 8 } },
+                    h('span', null, mindDay(f.at).slice(0, 10) + ' ' + f.gist + (f.asks ? '（问过 ' + f.asks + ' 次）' : f.nextAt > Date.now() ? '（' + mindDay(f.nextAt).slice(0, 10) + ' 以后会问）' : '（下次聊天时会问）')),
+                    h(Btn, { small: true, kind: 'ghost', onClick: () => stopAsking(f) }, '不用问了')))) : null,
                   r.rivalry >= 0.3 ? h('div', null, '有点暗暗较劲') : null,
                   (r.flirts || []).length >= 3 ? h('div', { style: { color: 'var(--ab-warn)' } }, '最近老撩她、纠缠她') : null) : null),
               h('div', { className: 'ab-flex', style: { gap: 6 } },

@@ -1570,6 +1570,12 @@ export function apply(ctx) {
     if (r.ok) log.info(`关系：${qq} → ${b.mode}${b.clear ? '（清掉以前的）' : ''}`)
     return r
   })
+  // 她惦记着的别人的事（还没结果的）；主人可以让她别问了
+  route('/mind/followups', async () => (mind ? { ok: true, list: mind.mind.memory.followups() } : mindOff))
+  route('/mind/followups/close', async (req) => {
+    if (!mind) return mindOff
+    return mind.mind.memory.closeFollowup(String((await readBody(req)).id || ''), 'owner') ? { ok: true, message: '好，不问了' } : { ok: false, message: '没有这件事' }
+  })
   route('/mind/people/forgotten', async () => (mind ? { ok: true, list: mind.mind.forgottenList() } : mindOff))
   route('/mind/people/restore', async (req) => {
     if (!mind) return mindOff

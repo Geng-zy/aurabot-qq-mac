@@ -446,6 +446,8 @@ export function createMind(opts) {
     identity: () => identity(),
     person: (id) => person(id),
     recordDeletion: (id, kind) => recordDeletion(id, kind),
+    // 惦记别人的事问不问、问几次：她有多心疼人（同情心）和她跟这个人多亲近
+    care: (pid) => 0.5 * personality.value('compassion') + 0.5 * (isOwner(pid) ? 0.9 : relations.closeness(pid)),
     onRecalled: (list, { window } = {}) => emotion.rekindle(list, { window }),
   })
   // 记得多牢、心境一致都看此刻真实的心情和精力

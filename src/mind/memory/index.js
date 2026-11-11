@@ -176,6 +176,7 @@ export function createMemory(deps) {
 - 别人说的关于他自己的事，才算 fact（about 和 speaker 是同一个人）；A 说 B 的事，记成 hearsay。
 - 你自己的猜测、看法记成 belief，gist 用“我觉得……”开头，不要当成事实。
 - 你答应要做、或者打算做的事记成 intention，能看出时间就填 due（格式 YYYY-MM-DD HH:mm，按聊天里的时间），看不出就填 null。
+- 别人说到他自己一件还没结果、他在意的事（面试、考试、体检、等录取或通知、比赛、看病、搬家……）记成 pending，about 和 speaker 都是他，due 填结果大概出来的时间（看不出就填 null）。
 - 其他经历记成 event。
 - 只记聊天里真有的内容，不要补充、不要编。
 - gist 一句话大意；detail 补充细节（谁、说了什么、怎么回事），可以空。
@@ -185,7 +186,7 @@ export function createMemory(deps) {
 - sources：依据的行号。
 - secret：有人明说“别告诉别人”“只跟你说”的事填 true，否则不写。
 
-只输出 JSON：{"episodes":[{"type":"event|fact|hearsay|belief|intention","gist":"","detail":"","importance":0.5,"emotion":{"name":"","intensity":0.5,"valence":0},"who":[],"about":"","speaker":"","due":null,"sources":[1]}]}；没有值得记的就输出 {"episodes":[]}。`
+只输出 JSON：{"episodes":[{"type":"event|fact|hearsay|belief|intention|pending","gist":"","detail":"","importance":0.5,"emotion":{"name":"","intensity":0.5,"valence":0},"who":[],"about":"","speaker":"","due":null,"sources":[1]}]}；没有值得记的就输出 {"episodes":[]}。`
 
   /**
    * 把一个窗口里还没记的消息记成经历。
@@ -226,25 +227,29 @@ export function createMemory(deps) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue
         const src = (Array.isArray(ep.sources) ? ep.sources : []).map((n) => rows[Number(n) - 1]).filter(Boolean)
-        let type = ['event', 'fact', 'hearsay', 'belief', 'intention'].includes(ep.type) ? ep.type : 'event'
+        let type = ['event', 'fact', 'hearsay', 'belief', 'intention', 'pending'].includes(ep.type) ? ep.type : 'event'
         const about = String(ep.about || '')
         const speaker = String(ep.speaker || '')
         // 别人说的事实只认他自己的原话
         if (type === 'fact' && about && speaker && about !== speaker && speaker !== 'self') type = 'hearsay'
+        // 惦记的事只认本人说的自己的事；不是的话当普通的事 / 听说的事
+        if (type === 'pending' && (!about || about === 'self' || (speaker && speaker !== about))) type = about && about !== 'self' && speaker && speaker !== about ? 'hearsay' : 'fact'
         const emo = ep.emotion && typeof ep.emotion === 'object' && ep.emotion.name
           ? { name: String(ep.emotion.name), intensity: clamp01(ep.emotion.intensity), valence: Math.max(-1, Math.min(1, Number(ep.emotion.valence) || 0)) }
           : null
         let due = null
-        if (type === 'intention' && ep.due) {
+        if ((type === 'intention' || type === 'pending') && ep.due) {
           due = zonedToEpoch(ep.due, tz)
         }
         const at = src.length ? src[0].at : rows[0].at
+        // 惦记的事：结果出来的时候再问（看不出来、或者说的时间不靠谱，就两天后）
+        const follow = type === 'pending' ? { followup: { asks: 0, nextAt: due && due > at && due < at + 60 * DAY ? due : at + 2 * DAY } } : {}
         ids.push(insert({
           at, window, gist, detail: String(ep.detail || '').trim(), kind: type,
           importance: ep.importance ?? 0.5, emotion: emo, about, speaker,
           who: Array.isArray(ep.who) ? ep.who.map(String) : [],
           sources: src.map((r) => r.id), due, attention,
-          extra: ep.secret === true ? { secret: true } : {},
+          extra: { ...(ep.secret === true ? { secret: true } : {}), ...follow },
         }))
       }
       store.set('encode.cursor.' + window, last.id)
@@ -378,6 +383,52 @@ export function createMemory(deps) {
     })
   }
 
+  // ---------- 惦记别人的事 ----------
+  /**
+   * 到时候该问一问的事：这几个人的、没放下的、还没问够的、到了该问的时间的。
+   * deps.care(人) 0～1：她有多在乎这个人（心疼人的程度 + 亲近），决定问不问、问几次、隔多久。
+   */
+  function pendingRows() {
+    return store.prep("SELECT * FROM episodes WHERE status = 'live' AND json LIKE '%\"kind\":\"pending\"%' ORDER BY at DESC LIMIT 200").all()
+      .map((r) => ({ ...r, data: JSON.parse(r.json) }))
+  }
+  function dueFollowups({ people = [], limit = 2 } = {}) {
+    if (S('followup') === false || !people.length) return []
+    const at = now()
+    const out = []
+    for (const e of pendingRows()) {
+      const f = e.data.followup
+      if (!f || f.done || !people.includes(e.data.about)) continue
+      const care = Math.max(0, Math.min(1, Number(deps.care?.(e.data.about) ?? 0.5)))
+      if (care < 0.3) continue // 不熟、她又不特别心疼人的：不追问
+      const max = Math.max(1, Math.round((Number(S('followupMaxAsks')) || 3) * (0.4 + 0.6 * care)))
+      if (f.asks >= max || f.nextAt > at) continue
+      out.push({ e, care })
+      if (out.length >= limit) break
+    }
+    return out
+  }
+  /** 这件事她提过一次了：往后推（越在乎隔得越短）。 */
+  function markAsked(e, care = 0.5) {
+    const gap = (Number(S('followupGapDays')) || 2) * (1.5 - care) * DAY
+    e.data.followup = { ...e.data.followup, asks: (e.data.followup?.asks || 0) + 1, nextAt: now() + gap, lastAt: now() }
+    save(e)
+  }
+  /** 有结果了 / 对方说别问了 / 主人在面板里取消：放下。 */
+  function closeFollowup(id, why = 'done') {
+    const e = row(id)
+    if (!e || e.data.kind !== 'pending') return false
+    e.data.followup = { ...(e.data.followup || {}), done: now(), why }
+    save(e)
+    return true
+  }
+  /** 还惦记着的（面板用）：某个人的，或者全部。 */
+  function followups({ person: pid = '', all = false } = {}) {
+    return pendingRows()
+      .filter((e) => (all || !e.data.followup?.done) && (!pid || e.data.about === pid))
+      .map((e) => ({ id: e.id, at: e.at, gist: e.gist, about: e.data.about, due: e.data.due || null, asks: e.data.followup?.asks || 0, nextAt: e.data.followup?.nextAt || 0, done: e.data.followup?.done || 0 }))
+  }
+
   // ---------- 工作记忆 ----------
   /** 到期或快到期的要做的事（前瞻记忆）。 */
   function dueIntentions({ window = '', within = 2 * 3600000 } = {}) {
@@ -418,6 +469,10 @@ export function createMemory(deps) {
       used.push(m.id)
     }
     const todo = dueIntentions({ window }).map((e) => `- ${e.gist}${e.data.due ? `（${shortTime(e.data.due, deps.tz())} 前）` : ''}`)
+    // 在场的人有到了该问的事：提一句，问过就往后推（调试模式只看不推）
+    const follow = dueFollowups({ people })
+    if (!readOnly) for (const { e, care } of follow) markAsked(e, care)
+    const asks = follow.map(({ e }) => `- ${dayKey(e.at, deps.tz())} ${deps.person?.(e.data.about)?.name || String(e.data.about).replace(/^qq:/, '')}：${e.gist}`)
     // readOnly（调试模式）：只想起来，不加强、不重新点燃情绪，不留下痕迹
     if (used.length && !readOnly) {
       strengthen(used)
@@ -427,6 +482,7 @@ export function createMemory(deps) {
     const parts = []
     if (lines.length) parts.push('【你想起来的】\n' + lines.join('\n'))
     if (todo.length) parts.push('【你惦记着要做的事】\n' + todo.join('\n'))
+    if (asks.length) parts.push('【你惦记着别人的事，还不知道结果】\n' + asks.join('\n') + '\n（聊到合适的时候自然地问一句，不合适就别硬问；知道结果了或者对方说别问了，就用 mind_followup_done 放下）')
     return { text: parts.join('\n'), recalled: used }
   }
 
@@ -542,7 +598,7 @@ export function createMemory(deps) {
 
   return {
     connect, encodeWindow, encodePending, pendingWindows, recall, strengthen, workingMemory,
-    dueIntentions, completeIntention, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
+    dueIntentions, completeIntention, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
     embedEpisodes, queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }
