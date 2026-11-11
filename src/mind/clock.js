@@ -155,3 +155,91 @@ export function shortTime(at, tz) {
   const z = (n) => String(n).padStart(2, '0')
   return `${z(p.month)}-${z(p.day)} ${z(p.hour)}:${z(p.minute)}`
 }
+
+const pad2 = (n) => String(n).padStart(2, '0')
+const ymd = (y, m, d) => `${y}-${pad2(m)}-${pad2(d)}`
+const daysIn = (y, m) => new Date(Date.UTC(y, m, 0)).getUTCDate()
+const CN_DIGIT = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+/** 「3」「三」「十一」「二十三」「三十一」→ 数字；认不出 NaN。 */
+const num = (s) => {
+  if (/^\d+$/.test(s)) return Number(s)
+  const m = String(s).match(/^([一二两三四五六七八九])?(十)?([一二三四五六七八九])?$/)
+  if (!m || (!m[1] && !m[2] && !m[3])) return NaN
+  if (!m[2]) return m[3] ? NaN : CN_DIGIT[m[1]]
+  return (m[1] ? CN_DIGIT[m[1]] : 1) * 10 + (m[3] ? CN_DIGIT[m[3]] : 0)
+}
+
+/**
+ * 把一句说时间的话变成一段时间（按她的时区），用来「想想那天 / 那段时间发生了什么」。
+ * 认：2026-11-03、2026-11-01..2026-11-30、11月3日 / 11月3号、2026年3月、去年3月、3月（今年）、
+ * 今天、昨天、前天、大前天、这周 / 本周、上周、这个月、上个月、今年、去年、N天前、最近N天。
+ * 认不出返回 null。结果 { start, end, label }，end 不含。
+ * @param {string} text
+ * @param {number} now
+ * @param {string} tz
+ */
+export function parsePeriod(text, now, tz) {
+  const s = String(text || '').trim().replace(/\s+/g, '')
+  if (!s) return null
+  const today = localParts(now, tz)
+  const day0 = (y, m, d) => zonedToEpoch(ymd(y, m, d), tz)
+  const dayRange = (y, m, d, n = 1) => {
+    const start = day0(y, m, d)
+    const startDate = new Date(Date.UTC(y, m - 1, d))
+    const endDate = new Date(startDate.getTime() + n * 86400000)
+    const end = day0(endDate.getUTCFullYear(), endDate.getUTCMonth() + 1, endDate.getUTCDate())
+    return start === null || end === null ? null : { start, end }
+  }
+  const back = (k) => { const d = new Date(Date.UTC(today.year, today.month - 1, today.day) - k * 86400000); return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()] }
+  const month = (y, m) => {
+    if (!(m >= 1 && m <= 12)) return null
+    const r = dayRange(y, m, 1, daysIn(y, m))
+    return r && { ...r, label: `${y}年${m}月` }
+  }
+  let m
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:\.\.|~|到|至)(\d{4})-(\d{1,2})-(\d{1,2})$/))) {
+    const [a, b] = [m.slice(1, 4).map(Number), m.slice(4, 7).map(Number)]
+    const start = day0(...a)
+    const last = dayRange(...b)
+    return start !== null && last && last.end > start ? { start, end: last.end, label: `${ymd(...a)} 到 ${ymd(...b)}` } : null
+  }
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) {
+    const r = dayRange(...m.slice(1, 4).map(Number))
+    return r && { ...r, label: ymd(...m.slice(1, 4).map(Number)) }
+  }
+  if ((m = s.match(/^(?:(\d{4})年)?(\d{1,2}|[一二三四五六七八九十]{1,3})月(\d{1,2}|[一二三四五六七八九十]{1,3})[日号]?$/))) {
+    const y = m[1] ? Number(m[1]) : today.year
+    const mo = num(m[2])
+    const d = num(m[3])
+    if (!(mo >= 1 && mo <= 12) || d < 1 || d > daysIn(y, mo)) return null
+    // 没说年份、而且这一天还没到：说的是去年那天
+    const yy = !m[1] && (mo > today.month || (mo === today.month && d > today.day)) ? y - 1 : y
+    const r = dayRange(yy, mo, d)
+    return r && { ...r, label: ymd(yy, mo, d) }
+  }
+  if ((m = s.match(/^(\d{4})年(\d{1,2}|[一二三四五六七八九十]{1,3})月(?:份)?$/))) return month(Number(m[1]), num(m[2]))
+  if ((m = s.match(/^(\d{4})-(\d{1,2})$/))) return month(Number(m[1]), Number(m[2]))
+  if ((m = s.match(/^(今年|去年|前年)?(\d{1,2}|[一二三四五六七八九十]{1,3})月(?:份)?$/))) {
+    const shift = { 今年: 0, 去年: 1, 前年: 2 }[m[1] || ''] ?? 0
+    const mo = num(m[2])
+    // 只说「3月」：今年 3 月还没到的话是去年 3 月
+    const y = today.year - shift - (!m[1] && mo > today.month ? 1 : 0)
+    return month(y, mo)
+  }
+  const named = { 今天: 0, 昨天: 1, 前天: 2, 大前天: 3 }
+  if (s in named) { const [y, mo, d] = back(named[s]); const r = dayRange(y, mo, d); return r && { ...r, label: s } }
+  if ((m = s.match(/^(\d{1,3})天前$/))) { const [y, mo, d] = back(Number(m[1])); const r = dayRange(y, mo, d); return r && { ...r, label: s } }
+  if ((m = s.match(/^(?:最近|近|过去)(\d{1,3})天$/))) { const [y, mo, d] = back(Number(m[1]) - 1); const r = dayRange(y, mo, d, Number(m[1])); return r && { ...r, label: s } }
+  const wd = (today.weekday + 6) % 7 // 周一 = 0
+  if (/^(这周|本周|这个星期|这礼拜)$/.test(s)) { const [y, mo, d] = back(wd); const r = dayRange(y, mo, d, 7); return r && { ...r, label: '这周' } }
+  if (/^(上周|上个星期|上礼拜)$/.test(s)) { const [y, mo, d] = back(wd + 7); const r = dayRange(y, mo, d, 7); return r && { ...r, label: '上周' } }
+  if (/^(这个月|本月)$/.test(s)) return { ...month(today.year, today.month), label: '这个月' }
+  if (/^上个?月$/.test(s)) return { ...(today.month === 1 ? month(today.year - 1, 12) : month(today.year, today.month - 1)), label: '上个月' }
+  if (/^(今年|去年|前年)$/.test(s)) {
+    const y = today.year - { 今年: 0, 去年: 1, 前年: 2 }[s]
+    const start = day0(y, 1, 1)
+    const end = day0(y + 1, 1, 1)
+    return start === null || end === null ? null : { start, end, label: s }
+  }
+  return null
+}

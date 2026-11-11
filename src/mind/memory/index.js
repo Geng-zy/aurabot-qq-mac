@@ -279,14 +279,26 @@ export function createMemory(deps) {
    * @param {{ cue: string, window?: string, people?: string[], limit?: number, deliberate?: boolean }} q
    *   deliberate：她自己在使劲想（翻记忆），线索门槛放低一点。
    */
-  async function recall({ cue, window = '', people = [], limit = Number(S('recallLimit')) || 6, deliberate = false } = {}) {
+  /**
+   * period：{ start, end } 只想这段时间里的事（end 不含）。线索空着就按重要程度列这段时间的事。
+   */
+  async function recall({ cue, window = '', people = [], limit = Number(S('recallLimit')) || 6, deliberate = false, period = null } = {}) {
     if (!limit) return []
     const at = now()
+    const inPeriod = (e) => !period || (e.at >= period.start && e.at < period.end)
     const st = state() || {}
     const cueMatch = Number(S('cueMatch')) * (deliberate ? 0.85 : 1)
     const cand = new Map() // id → sim
-    const qv = await embedText(cue)
-    if (qv) for (const h of vectors.search(qv, { model: embedModel(), limit: 80, min: cueMatch * 0.8 })) cand.set(h.id, h.sim)
+    // 只给了时间没给线索：这段时间里的事都算线索，按重要程度排
+    if (period && !String(cue || '').trim()) {
+      for (const r of store.prep("SELECT id, json FROM episodes WHERE status = 'live' AND at >= ? AND at < ? ORDER BY at DESC LIMIT 200").all(period.start, period.end)) {
+        let imp = 0.4
+        try { imp = Number(JSON.parse(r.json).importance) || 0.4 } catch {}
+        cand.set(r.id, cueMatch + 0.2 * imp)
+      }
+    }
+    const qv = String(cue || '').trim() ? await embedText(cue) : null
+    if (qv) for (const h of vectors.search(qv, { model: embedModel(), limit: period ? 200 : 80, min: cueMatch * 0.8 })) cand.set(h.id, h.sim)
     // 关键词（三个字以上才能用 trigram）
     const words = String(cue || '').split(/[\s，。！？、,.!?：:；;“”"'（）()【】\[\]]+/).filter((w) => [...w].length >= 3).slice(0, 6)
     for (const w of words) {
@@ -306,6 +318,7 @@ export function createMemory(deps) {
     for (const [id, sim] of cand) {
       const e = row(id)
       if (!e || e.status !== 'live') continue
+      if (!inPeriod(e)) continue
       if (e.data.kind === 'intention' && e.data.done) continue
       const r = rOf(e, at)
       const level = levelOf(r, sim, levels())
