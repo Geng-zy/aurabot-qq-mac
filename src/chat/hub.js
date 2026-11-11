@@ -83,6 +83,8 @@ export function assistantReplyText (message) {
 
 export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf, mind, trashDir }) {
   // 心情对行为的影响（表情 / 语音概率、回复快慢、插话积极程度），没接就是 1
+  /** 她现在怎么叫主人：心智核心里她自己改过就用她的，没改过用主人设的。 */
+  const ownerLabel = () => { try { return mind?.ownerCall?.() || getConfig().ownerName || '主人' } catch { return getConfig().ownerName || '主人' } }
   const mood = () => (typeof moodEffects === 'function' ? moodEffects() : null) || { sticker: 1, voice: 1, delay: 1, chatty: 1 }
   const mapFile = () => dataDir('sessions.json')
   const map = () => readJson(mapFile(), () => ({ chats: {} }))
@@ -482,7 +484,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
   }
 
   function titleFor(chat) {
-    const owner = getConfig().ownerName || '主人'
+    const owner = ownerLabel()
     if (chat.kind === 'system') {
       // 扩展模块传进来的 title 可能自带「QQ · 」前缀，别再拼一次
       const t = String(chat.title || '后台')
@@ -717,7 +719,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     const cfg = getConfig()
     if (!cfg.debug) return { ok: false, message: '没开调试模式' }
     if (!cfg.ownerQQ) return { ok: false, message: '还没填主人 QQ' }
-    const chat = { kind: 'private', chatId: `private:${cfg.ownerQQ}`, userId: String(cfg.ownerQQ), groupId: '', nickname: cfg.ownerName || '主人' }
+    const chat = { kind: 'private', chatId: `private:${cfg.ownerQQ}`, userId: String(cfg.ownerQQ), groupId: '', nickname: ownerLabel() }
     const before = map().chats[chat.chatId]
     const existed = Boolean(before && ((before.sessions && before.sessions.debug) || (before.mode || 'live') === 'debug'))
     const r = await agentFor(chat)
@@ -2706,7 +2708,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
       if (!cfg.enabled || !owner || String(cfg.ownerQQ || '') !== owner) throw Object.assign(new Error('请先启用 Aurabot 并配置主人身份'), { status: 503, code: 'not_ready' })
       const match = /^(private|group):(\d+)$/.exec(String(chatId))
       if (!map().chats[chatId]?.sessionId || !match) throw Object.assign(new Error('会话不存在'), { status: 404, code: 'chat_not_found' })
-      const chat = { chatId, kind: match[1], userId: match[1] === 'private' ? match[2] : owner, groupId: match[1] === 'group' ? match[2] : '', nickname: cfg.ownerName || '主人' }
+      const chat = { chatId, kind: match[1], userId: match[1] === 'private' ? match[2] : owner, groupId: match[1] === 'group' ? match[2] : '', nickname: ownerLabel() }
       if (!checkAllowed(cfg, chat).allowed || isMuted?.(chatId)) throw Object.assign(new Error('这个聊天未开放或已暂停'), { status: 403, code: 'chat_disabled' })
       return chat
     }
@@ -2904,7 +2906,7 @@ export function createHub({ dsh, getConfig, log, onebot, outbox, stickers, tts, 
     const say = String(text || '').trim().slice(0, 2000)
     if (!say) return { ok: false, message: '说点什么吧' }
     const owner = String(cfg.ownerQQ)
-    const chat = { kind: 'private', chatId: `private:${owner}`, userId: owner, groupId: '', nickname: cfg.ownerName || '主人' }
+    const chat = { kind: 'private', chatId: `private:${owner}`, userId: owner, groupId: '', nickname: ownerLabel() }
     if (isBusy(chat.chatId)) return { ok: false, message: '她还在回上一句，等一下' }
     log.info(`[调试] 面板 → ${chat.chatId}：${say.slice(0, 300)}`)
     let timer

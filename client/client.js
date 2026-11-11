@@ -1547,7 +1547,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '主人', desc: '主人的 QQ 号。群管、点歌、电脑上的操作只听主人的。' },
           h(Row, { label: '主人 QQ 号' }, f.text('ownerQQ')),
-          h(Row, { label: 'ta怎么称呼你' }, f.text('ownerName', { placeholder: '主人' })),
+          h(Row, { label: 'ta怎么称呼你', hint: '一开始她这么叫你；认识久了她可以自己换个叫法（会通知你，「人格与自我」页能看、能退回）。你在这里改了，就以你改的为准。' }, f.text('ownerName', { placeholder: '主人' })),
           h(Row, { label: '主人私聊的权限', hint: '群聊永远没有电脑操作权限，这里管不到群。' },
             h('div', { style: { width: '100%' } },
               h(Choices, { value: draft.ownerLevel, onChange: (v) => setDraft(setPath(draft, 'ownerLevel', v)), options: [
@@ -3311,7 +3311,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const infer = async () => { if (ps.confirmed && !confirm('重新从人格卡推一份？只是给你参考，确认之前不会改她本来的样子。')) return; setBusy(true); const r = await post('/mind/traits/infer', {}); setBusy(false); toast(r.message); load() }
       const confirmBase = async () => { const r = await post('/mind/traits/confirm', { base: draft }); toast(r.message); load() }
       const changeSelf = async (what, label, multiline) => {
-        const cur = what === 'values' || what === 'hobbies' || what === 'looks' ? d.profile[what] : what === 'story' ? d.profile.story.text : what === 'name' ? d.identity.name : d.identity.nickname
+        const cur = what === 'values' || what === 'hobbies' || what === 'looks' ? d.profile[what] : what === 'story' ? d.profile.story.text : what === 'name' ? d.identity.name : what === 'ownerCall' ? d.ownerCall : d.identity.nickname
         const v = prompt('改' + label + '（会存一个版本）' + (multiline ? '，长文字建议在「人设」页改' : ''), cur || '')
         if (v === null) return
         const r = await post('/mind/self/change', { what, content: v, why: '主人在面板里改的' })
@@ -3341,6 +3341,8 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           h(Row, { label: '价值观', hint: d.profile.values || '（没写）' }, h(Btn, { small: true, onClick: () => changeSelf('values', '价值观') }, '改')),
           h(Row, { label: '爱好', hint: (d.profile.hobbies || '（没写）') + '（群里聊到这些，她更想接话）' }, h(Btn, { small: true, onClick: () => changeSelf('hobbies', '爱好') }, '改')),
           h(Row, { label: '外貌', hint: d.profile.looks || '（没写）' }, h(Btn, { small: true, onClick: () => changeSelf('looks', '外貌') }, '改')),
+          h(Row, { label: '对你的称呼', hint: '她现在叫你「' + (d.ownerCall || '主人') + '」' + (d.profile.ownerCall ? '' : '（你一开始设的）') + '。' + (d.ownerCallOk === true ? '认识久了她可以自己换个叫法，会通知你。' : '她现在还不能自己改：' + d.ownerCallOk + '。') + '开关和间隔在「心智设置 → 身份」。' },
+            h(Btn, { small: true, onClick: () => changeSelf('ownerCall', '对你的称呼') }, '改')),
           h(Row, { label: '想变成的样子', hint: (d.profile.goals || []).length ? d.profile.goals.map((g) => g.text).join('；') : '（没有）' }, (d.profile.goals || []).length ? h(Btn, { small: true, onClick: async () => { const g = d.profile.goals[0]; if (!confirm('删掉「' + g.text + '」？')) return; await post('/mind/self/goal/drop', { text: g.text }); load() } }, '删一个') : null)),
         h(Card, { title: '她的故事', desc: '她用自己的话写的「我是怎么变成现在这样的」（叙事身份，McAdams）；有重要的经历时，睡觉整理会更新，重要的经历成为新的一章。', right: h(Btn, { small: true, onClick: () => changeSelf('story', '她的故事', true) }, '改') },
           d.profile.story.text ? h('div', { className: 'ab-small', style: { whiteSpace: 'pre-wrap' } }, d.profile.story.text) : h(Empty, { text: '还没写' }),

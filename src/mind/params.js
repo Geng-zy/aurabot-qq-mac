@@ -29,6 +29,9 @@ export const PARAMS = [
   { key: 'identity.exclusive', group: 'identity', label: '专一：喜欢只给主人', def: true, source: '设计决定', hint: '开着时，心动、爱慕、性欲这类恋爱式情绪只对主人，别人最多是好朋友。关掉后她也可能慢慢喜欢上别人。', ownerOnly: true },
   { key: 'identity.mustReplyOwner', group: 'identity', label: '主人叫她必须回', def: false, source: '设计决定', hint: '开着时，你叫她一定会回（睡着、累了、生你气也回）。关着时按她当时的状态来。', ownerOnly: true },
   { key: 'identity.wakers', group: 'identity', label: '谁能叫醒她', def: 'owner', options: [{ value: 'owner', label: '只有主人' }, { value: 'close', label: '主人和很亲近的人' }], source: '设计决定', hint: '她睡着时，只有这些人叫她才会醒；其他人的消息等她醒了再看。', ownerOnly: true },
+  { key: 'identity.ownerCallChange', group: 'identity', label: '她可以自己改对你的称呼', def: true, source: '设计决定', hint: '一开始她按你在「访问」页填的叫你；认识久了、关系变了，她可以自己换个叫法（会通知你，你随时能在「人格与自我」页退回，或关掉这个开关）。你在面板里改「ta怎么称呼你」，就以你改的为准。', ownerOnly: true },
+  { key: 'identity.ownerCallMinDays', group: 'identity', label: '认识多久以后才能改称呼', def: 30, min: 1, max: 365, step: 1, unit: '天', source: '经验值', hint: '从她第一次见到你算。', ownerOnly: true, advanced: true },
+  { key: 'identity.ownerCallGapDays', group: 'identity', label: '两次改称呼至少隔几天', def: 14, min: 1, max: 365, step: 1, unit: '天', source: '经验值', hint: '你退回或在面板里改过，也从那天重新算。', ownerOnly: true, advanced: true },
   { key: 'identity.notifySelfChange', group: 'identity', label: '她改自己后通知你', def: true, source: '设计决定', hint: '她改人格卡、价值观、名字等之后发一条通知，说改了什么、为什么。' },
 
   // ---------- 身体与节律 ----------

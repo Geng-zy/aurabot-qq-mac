@@ -818,6 +818,16 @@ test('面板接口：贴表情能用的表情列表（取不到网关目录也�
   assert.ok(r.emojis.length > 0)
 })
 
+test('称呼：她自己改过，主人在面板里改「ta怎么称呼你」就以主人为准；规则里用现在的叫法', async () => {
+  const m = api.mind.mind
+  m.self.change({ what: 'ownerCall', content: '阿耿', why: '测试' }, { by: 'owner' })
+  assert.equal(api.mind.ownerCall(), '阿耿')
+  await fake.call('/save', { ownerName: '老大' })
+  assert.equal(api.mind.ownerCall(), '老大')
+  assert.match(fake.variables.get('aurabot_rules_private')(), /是你的老大/)
+  await fake.call('/save', { ownerName: '主人' })
+})
+
 test('面板接口：概览、人格切换', async () => {
   const s = (await fake.call('/state')).json()
   assert.equal(s.ok, true)

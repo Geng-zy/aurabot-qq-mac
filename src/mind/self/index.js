@@ -9,7 +9,7 @@ import { TRAIT, TRAITS } from '../personality/traits.js'
 
 const DAY = 86400000
 const WHAT = {
-  persona: '人格卡', name: '名字', nickname: '小名', values: '价值观', hobbies: '爱好', looks: '外貌', story: '自我故事', goal: '想变成的样子',
+  persona: '人格卡', name: '名字', nickname: '小名', values: '价值观', hobbies: '爱好', looks: '外貌', story: '自我故事', goal: '想变成的样子', ownerCall: '对主人的称呼',
 }
 export const SELF_FIELDS = Object.keys(WHAT)
 
@@ -37,6 +37,7 @@ export function touchesAge(before, after) {
  */
 export function createSelf(deps) {
   const { store, now } = deps
+  const setting = (k) => deps.setting?.(k)
   const log = deps.log || { info() {}, warn() {} }
 
   function profile() {
@@ -44,6 +45,26 @@ export function createSelf(deps) {
     return p && typeof p === 'object' ? { values: '', hobbies: '', looks: '', goals: [], story: { text: '', chapters: [], at: 0 }, ...p } : { values: '', hobbies: '', looks: '', goals: [], story: { text: '', chapters: [], at: 0 } }
   }
   function saveProfile(p) { store.set('self.profile', p) }
+
+  // ---------- 对主人的称呼 ----------
+  /** 她现在怎么叫主人：她自己改过就用她的，没改过用主人一开始设的。 */
+  function ownerCall() {
+    return String(profile().ownerCall || deps.ownerName?.() || '主人')
+  }
+  /**
+   * 她现在能不能自己改对主人的称呼：开关开着、认识够久了、离上次改（不管谁改的）够久了。
+   * @returns {true|string} 能改返回 true，不能返回原因
+   */
+  function canChangeOwnerCall() {
+    if (setting('identity.ownerCallChange') === false) return '主人没开「她可以自己改对你的称呼」'
+    const since = Number(deps.ownerSince?.()) || 0
+    const minDays = Number(setting('identity.ownerCallMinDays')) || 30
+    if (!since || now() - since < minDays * DAY) return `和主人认识还不到 ${minDays} 天`
+    const last = deps.listVersions('self', 500).find((v) => v.data?.what === 'ownerCall')
+    const gap = Number(setting('identity.ownerCallGapDays')) || 14
+    if (last && now() - last.at < gap * DAY) return `上次换称呼才 ${Math.floor((now() - last.at) / DAY)} 天，至少隔 ${gap} 天`
+    return true
+  }
 
   /** 她以前改过什么（最近几次），改的时候给她看。 */
   function history(limit = 10) {
@@ -63,16 +84,24 @@ export function createSelf(deps) {
     if (by === 'self' && !why) return { ok: false, message: '改自己要有理由：为什么想改？' }
     const id = deps.identity()
     const p = profile()
-    const before = what === 'persona' ? deps.personaCard() : what === 'name' ? id.name : what === 'nickname' ? id.nickname : what === 'story' ? p.story.text : what === 'goal' ? '' : p[what] || ''
+    const before = what === 'persona' ? deps.personaCard() : what === 'name' ? id.name : what === 'nickname' ? id.nickname : what === 'story' ? p.story.text : what === 'goal' ? '' : what === 'ownerCall' ? ownerCall() : p[what] || ''
     if (what !== 'goal' && content === before) return { ok: false, message: '和现在一样，不用改' }
-    if (by === 'self') {
+    if (what === 'ownerCall') {
+      if (!content) return { ok: false, message: '想怎么叫他？' }
+      if ([...content].length > 12) return { ok: false, message: '称呼太长了（12 个字以内）' }
+      if (by === 'self') {
+        const ok = canChangeOwnerCall()
+        if (ok !== true) return { ok: false, message: '现在还不能改称呼：' + ok }
+      }
+    }
+    if (by === 'self' && what !== 'ownerCall') {
       if (id.exclusive && romanceElsewhere(content, before)) return { ok: false, message: '「专一」是主人设的：你的喜欢只给主人，写不进喜欢别人' }
       if (touchesAge(before, content)) return { ok: false, message: '年龄和生日只有主人能在面板里改' }
     }
     if (what === 'name' && !content) return { ok: false, message: '名字不能是空的' }
     if ((what === 'name' || what === 'nickname') && [...content].length > 20) return { ok: false, message: '名字太长了' }
     if (what === 'persona' && content.length < 20) return { ok: false, message: '人格卡要写完整的（整段新的人格卡原文）' }
-    const limit = what === 'persona' ? 20000 : what === 'story' ? 3000 : 600
+    const limit = what === 'persona' ? 20000 : what === 'story' ? 3000 : what === 'ownerCall' ? 12 : 600
     const after = content.slice(0, limit)
     const reason = (by === 'self' ? '她自己改的：' : by === 'owner' ? '主人改的：' : '') + (why || WHAT[what])
     if (what === 'persona') deps.setPersonaCard(after, { by, reason })
@@ -84,6 +113,10 @@ export function createSelf(deps) {
       const dir = Number(c.dir) > 0 ? 1 : Number(c.dir) < 0 ? -1 : 0
       p.goals = [{ text: after.slice(0, 120), trait, dir: trait ? dir || 1 : 0, at: now() }, ...p.goals.filter((g) => g.text !== after)].slice(0, 5)
       saveProfile(p)
+    } else if (what === 'ownerCall') {
+      p.ownerCall = after
+      saveProfile(p)
+      try { deps.onOwnerCall?.(after) } catch {}
     } else if (what === 'story') {
       p.story = { ...p.story, text: after, at: now() }
       saveProfile(p)
@@ -153,6 +186,7 @@ export function createSelf(deps) {
     const parts = [deps.personaCard()]
     const nameLine = [id.name ? `你现在的名字是「${id.name}」` : '', id.nickname ? `小名「${id.nickname}」` : ''].filter(Boolean).join('，')
     if (nameLine) parts.push(`【你的名字】${nameLine}（以这里为准）。`)
+    if (p.ownerCall) parts.push(`【你怎么叫主人】你现在叫他「${p.ownerCall}」（这是你自己改的，以这里为准）。`)
     if (id.age !== null && id.age !== undefined) parts.push(`【年龄】你 ${id.age} 岁${id.birthday ? `，生日是 ${id.birthday}` : ''}（以这里为准）。`)
     const own = [
       p.values ? `价值观：${p.values}` : '',
@@ -174,5 +208,5 @@ export function createSelf(deps) {
     return '你以前改过：' + h.map((x) => `${new Date(x.at).toISOString().slice(0, 10)} ${WHAT[x.what] || x.what}（${String(x.reason || '').slice(0, 40)}）`).join('；')
   }
 
-  return { profile, change, dropGoal, restore, history, historyText, updateStory, prompt, goals: () => profile().goals, WHAT, TRAITS }
+  return { profile, ownerCall, canChangeOwnerCall, change, dropGoal, restore, history, historyText, updateStory, prompt, goals: () => profile().goals, WHAT, TRAITS }
 }

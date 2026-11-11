@@ -89,8 +89,9 @@ export function currentPersonaText(currentId) {
  * opts.off：没在运行的内置模块（关了或被替换了），对应的本事就不告诉她
  * opts.extra：扩展模块补充的规则（每条一行）
  */
-export function rulesText(kind, cfg, { off = new Set(), extra = [] } = {}) {
-  const owner = cfg.ownerName || '主人'
+export function rulesText(kind, cfg, { off = new Set(), extra = [], ownerCall = '' } = {}) {
+  // 称呼：她自己改过就用她现在的叫法（心智核心给），没改过用主人设的
+  const owner = ownerCall || cfg.ownerName || '主人'
   const common = [
     '【你现在在 QQ 上】',
     `- 每条用户消息开头会标明来源，例如「【私聊】某某(QQ号)：…」或「【群聊 群名】某某(QQ号)：…」。QQ 号是 ${cfg.ownerQQ} 的人是你的${owner}。`,

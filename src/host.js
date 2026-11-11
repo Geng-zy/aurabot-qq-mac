@@ -155,6 +155,10 @@ export function apply(ctx) {
     }
     secrets()
     if (bridge && before.bridge.dshTools !== cfg.bridge.dshTools) bridge.refresh()
+    // 主人在面板里改了「ta怎么称呼你」：以主人改的为准（她自己改过的叫法被盖掉，记一个版本）
+    if (mind && String(before.ownerName || '') !== String(cfg.ownerName || '') && String(cfg.ownerName || '').trim()) {
+      try { mind.mind.self.change({ what: 'ownerCall', content: String(cfg.ownerName).trim(), why: '主人在面板里改了称呼' }, { by: 'owner' }) } catch (error) { log.debug('称呼没跟着改：', error.message) }
+    }
     if (mods && (JSON.stringify(before.modules) !== JSON.stringify(cfg.modules) || before.safeMode !== cfg.safeMode)) mods.sync().catch(() => {})
     mods?.emit('config', cfg, before)
     if (JSON.stringify(before.backup?.remote) !== JSON.stringify(cfg.backup?.remote)) scheduleRemoteBackup()
@@ -170,7 +174,8 @@ export function apply(ctx) {
 
   // ---------- 人格与规则：通过提示词变量注入到 Aurabot 的两个 preset ----------
   const variable = (n, fn) => ctx.effect(() => ctx.systemPrompt.variable(n, (...args) => captureSystemPrompt(n, cleanText(fn(...args)))), `aurabot: 变量 ${n}`)
-  const rulesOpts = (kind) => (mods ? { off: mods.builtinOff(), extra: [...mods.rules(kind), ...(mind ? mind.rules(kind) : [])] } : {})
+  const ownerCall = () => { try { return (mind && mind.ownerCall()) || cfg.ownerName || '主人' } catch (error) { return cfg.ownerName || '主人' } }
+  const rulesOpts = (kind) => ({ ...(mods ? { off: mods.builtinOff(), extra: [...mods.rules(kind), ...(mind ? mind.rules(kind) : [])] } : {}), ownerCall: ownerCall() })
   // 扩展模块能整段改写人格和规则（同步：提示词变量不能等）
   const rewrite = (event, text, ...args) => { const r = mods ? mods.filterSync(event, text, ...args) : text; return typeof r === 'string' ? r : r === null ? '' : text }
   // 她是谁：心智核心里当前版本的人格卡 + 她自己写的价值观等 + 自我故事摘要 + 不知不觉的变化（心智核心没起来时用面板里的人格卡）
@@ -365,7 +370,7 @@ export function apply(ctx) {
       // 她想主动找人：把心里的由头交给那个私聊，话由她自己说
       reachOut: async ({ chatId, userId, note }) => {
         if (!hub) return
-        await hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: getConfig().ownerName || '主人' }, [{ type: 'text', text: note }], '')
+        await hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '')
       },
       // 她改了自己之后通知你（系统通知，不是她说的话）
       notifyOwner: async (text) => {
@@ -684,13 +689,13 @@ export function apply(ctx) {
   })
   core.dangerGuard = dangerGuard
   // 要告诉主人的事（授权、提问、QQ 里批没批）由她用自己的话说，不发固定模板（见 features/her-voice.js）
-  const ownerChatOf = () => { const qq = String(getConfig().ownerQQ || ''); return qq ? { chatId: 'private:' + qq, kind: 'private', userId: qq, nickname: getConfig().ownerName || '主人' } : null }
+  const ownerChatOf = () => { const qq = String(getConfig().ownerQQ || ''); return qq ? { chatId: 'private:' + qq, kind: 'private', userId: qq, nickname: ownerCall() } : null }
   /** chatId（private:QQ / group:群号）→ 聊天中枢要的聊天对象 */
   const chatOfId = (chatId) => {
     const [kind, id] = String(chatId || '').split(':')
     if (kind === 'group') return { chatId, kind: 'group', groupId: id, userId: '', nickname: '' }
     const owner = String(getConfig().ownerQQ || '')
-    return { chatId, kind: 'private', userId: id, nickname: id === owner ? getConfig().ownerName || '主人' : '' }
+    return { chatId, kind: 'private', userId: id, nickname: id === owner ? ownerCall() : '' }
   }
   const herVoice = createHerVoice({
     ownerChatId: () => ownerChatOf()?.chatId || '',
@@ -1600,6 +1605,8 @@ export function apply(ctx) {
       identity: m.identity(),
       card: m.personaCard(),
       profile: m.self.profile(),
+      ownerCall: m.self.ownerCall(),
+      ownerCallOk: m.self.canChangeOwnerCall(),
       personality: m.personality.state(),
       versions: { persona: ver('persona', 30), self: ver('self', 50), traits: ver('traits', 50) },
       prompt: m.selfPrompt(),

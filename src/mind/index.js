@@ -452,7 +452,13 @@ export function createMind(opts) {
   // ---------- 记忆 ----------
   const budget = createBudget({ store, today: () => dayKey(now(), tz()), setting })
   // ---------- 人格、自我、关系 ----------
-  const self = createSelf({ store, now, setting, log, identity: () => identity(), personaCard: () => personaCard(), setPersonaCard: (...a) => setPersonaCard(...a), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a) })
+  const self = createSelf({
+    store, now, setting, log, identity: () => identity(), personaCard: () => personaCard(), setPersonaCard: (...a) => setPersonaCard(...a), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a),
+    // 对主人的称呼：主人一开始设的叫法、认识多久了；她改了以后关系里「你叫他」也跟着改
+    ownerName: () => String(opts.ownerName?.() || ''),
+    ownerSince: () => { const o = identity().ownerId; return o ? person(o)?.firstSeen || 0 : 0 },
+    onOwnerCall: (call) => { const o = identity().ownerId; if (o) relations.edit(o, { call }) },
+  })
   const personality = createPersonality({ store, now, setting, tz, log, isOwner: (id) => isOwner(id), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), goals: () => self.goals() })
   const relations = createRelations({ store, now, setting, log, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
   // ---------- 身体和情绪 ----------
