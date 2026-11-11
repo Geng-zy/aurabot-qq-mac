@@ -1233,7 +1233,16 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const [pubBase, setPubBase] = useState(null)
       const conn = st.onebot.state === 'connected'
       const login = st.onebot.login
+      const [diag, setDiag] = useState(null)
+      const runDiag = async () => { setDiag({ busy: true }); try { setDiag(await get('/onebot/diagnose')) } catch (e) { setDiag(null); toast(e.message, 'err') } }
+      const diagView = diag ? (diag.busy ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '正在一项项检查…') : h('div', { style: { marginTop: 10 } },
+        diag.problem ? h('div', { className: 'ab-note warn' }, diag.problem) : h('div', { className: 'ab-note' }, '每一项都正常。'),
+        h('table', { className: 'ab-table', style: { marginTop: 6 } }, h('tbody', null, (diag.items || []).map((it, i) => h('tr', { key: i },
+          h('td', { style: { width: 24 } }, it.ok === true ? '✓' : it.ok === false ? '✗' : '·'),
+          h('td', null, it.label),
+          h('td', null, it.detail, it.ok === false && it.hint ? h('div', { className: 'ab-small ab-muted' }, it.hint) : null))))))) : null
       const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 8 } },
+        h(Btn, { small: true, kind: 'primary', onClick: runDiag }, '一键诊断'),
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
       return h('div', { className: 'ab-grid' },
@@ -1241,7 +1250,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
           h(Row, { label: '机器人 QQ 号' }, f.text('botQQ')),
-          testBtns),
+          testBtns, diagView),
         h(Card, { title: 'QQ 会话放在哪', desc: '每个 QQ 私聊 / 群都是 DSH 里「Aurabot · QQ」工作区下的一个会话，ta在会话里读写文件也在这个文件夹。改了以后新开的会话放到新位置；已有的会话还在原来的地方，想全部挪过去就在「概览」点「重新开始所有 QQ 会话」。' },
           h(Row, { label: '工作区文件夹', hint: '填完整路径（比如 ' + exPath('Aurabot/qq-chats') + '）；留空 = 默认位置' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
           h('div', { className: 'ab-muted ab-small' }, '现在用的：' + (st.workspaceDir || '—') + (st.workspaceReal && st.workspaceReal !== st.workspaceDir ? '（文件实际在 ' + st.workspaceReal + '）' : '')),

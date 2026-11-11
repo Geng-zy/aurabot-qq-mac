@@ -19,6 +19,7 @@ import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
 import { createOneBotClient } from './onebot/client.js'
 import { createOutbox } from './onebot/outbox.js'
+import { diagnose as diagnoseOneBot } from './onebot/diagnose.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
 import { createLocal, fileOf, toImageBuffer } from './local/local.js'
@@ -1395,6 +1396,8 @@ export function apply(ctx) {
     if (wrongAccount) return `连上的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
     return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认 OneBot 服务（比如 OrbStack 里的 SnowLuma）开着、地址和 token 填对了`
   }
+  // 一键诊断：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 一项项看
+  route('/onebot/diagnose', async () => diagnoseOneBot({ cfg, state: onebotState, wrongAccount, call: (a, p, o) => onebot.call(a, p, o) }))
   route('/onebot/reconnect', async () => {
     if (!cfg.enabled) return { ok: false, message: await connectionProblem() }
     wrongAccount = ''
