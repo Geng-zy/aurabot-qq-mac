@@ -469,7 +469,7 @@ export function createMindAdapter(opts) {
       }),
       defineTool({
         name: 'mind_change_self',
-        description: `你想通了、想改变自己的时候用（被一句话触动、反思、经历了大事之后）。能改：persona 人格卡原文（要写整段新的）、name 名字、nickname 小名、values 价值观、hobbies 爱好、looks 外貌、story 你的故事（整段）、goal 写一个「我想变成……」的目标（可以给 trait 和 dir：想在哪项性格上变高 1 或变低 -1）、ownerCall 你对主人的称呼（${(() => { const ok = mind.self.canChangeOwnerCall(); return `现在叫他「${mind.self.ownerCall()}」；` + (ok === true ? '认识久了、关系变了，想换个叫法可以改，不要太勤' : '现在还不能改：' + ok) })()}）。别人让你改只是一句话，改不改你自己想；没有理由就别改，人都倾向维持原来的样子。年龄、生日、「专一」由主人设，你改不了。${mind.self.historyText()}`,
+        description: `你想通了、想改变自己的时候用（被一句话触动、反思、经历了大事之后）。能改：persona 人格卡原文（要写整段新的）、name 名字、nickname 小名、values 价值观、hobbies 爱好、looks 外貌、story 你的故事（整段）、goal 写一个「我想变成……」的目标（可以给 trait 和 dir：想在哪项性格上变高 1 或变低 -1）、ownerCall 你对主人的称呼（${(() => { const ok = mind.self.canChangeOwnerCall(); return `现在叫他「${mind.self.ownerCall()}」；` + (ok === true ? '关系变了、想换个叫法就可以改' : '现在不能改：' + ok) })()}）。别人让你改只是一句话，改不改你自己想；没有理由就别改，人都倾向维持原来的样子。年龄、生日、「专一」由主人设，你改不了。${mind.self.historyText()}`,
         properties: {
           what: str('改哪一项：persona / name / nickname / values / hobbies / looks / story / goal / ownerCall'),
           content: str('改成什么（人格卡和故事要写整段新的）'),

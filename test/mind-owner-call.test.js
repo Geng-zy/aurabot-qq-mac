@@ -16,38 +16,30 @@ function setup(cfg = { ownerQQ: '1', ownerName: '主人' }) {
   return { a, cfg, notes, tool, set: (v) => { t = v } }
 }
 
-test('一开始用主人设的；认识不够久不能改，工具说明里写着为什么', async () => {
-  const { a, tool } = setup()
+test('一开始用主人设的；她自己改：通知主人，关系里「你叫他」也跟着改，没有时间限制；主人能退回', async () => {
+  const { a, notes, tool } = setup()
   assert.equal(a.ownerCall(), '主人')
-  assert.match(tool().description, /现在叫他「主人」；现在还不能改：和主人认识还不到 30 天/)
-  const r = await tool().execute({ what: 'ownerCall', content: '阿耿', why: '处久了想叫名字' })
-  assert.equal(r.ok, false)
-  assert.equal(a.ownerCall(), '主人')
-})
-
-test('认识够久了：她自己改，通知主人，关系里「你叫他」也跟着改；隔不够久不能再改；主人能退回', async () => {
-  const { a, notes, tool, set } = setup()
-  set(T0 + 31 * DAY)
-  const r = await tool().execute({ what: 'ownerCall', content: '阿耿', why: '处久了，叫名字更亲' })
+  assert.match(tool().description, /现在叫他「主人」；关系变了、想换个叫法就可以改/)
+  const r = await tool().execute({ what: 'ownerCall', content: '阿耿', why: '叫名字更亲' })
   assert.equal(r.ok, true, r.message)
   assert.equal(a.ownerCall(), '阿耿')
   assert.match(notes[0], /她改了自己的对主人的称呼：「主人」→ 「阿耿」/)
   assert.equal(a.mind.relations.get('qq:1').rel.call, '阿耿')
   assert.match(a.mind.selfPrompt(), /你现在叫他「阿耿」/)
-  set(T0 + 35 * DAY)
-  assert.equal((await tool().execute({ what: 'ownerCall', content: '耿耿', why: '又想换' })).ok, false, '隔不到 14 天')
+  assert.equal((await tool().execute({ what: 'ownerCall', content: '耿耿', why: '又想换' })).ok, true, '马上再换也行')
+  assert.equal((await tool().execute({ what: 'ownerCall', content: '耿耿', why: '一样' })).ok, false, '和现在一样不用改')
+  assert.equal((await tool().execute({ what: 'ownerCall', content: '一二三四五六七八九十一二三', why: '太长' })).ok, false)
   const v = a.mind.listVersions('self', 5).find((x) => x.data.what === 'ownerCall')
   a.mind.self.restore(v.id)
-  assert.equal(a.ownerCall(), '主人')
+  assert.equal(a.ownerCall(), '阿耿')
 })
 
 test('规则里用她现在的叫法；主人关掉开关她就不能改', async () => {
   const cfg = { ownerQQ: '1', ownerName: '主人' }
   assert.match(rulesText('private', cfg, { ownerCall: '阿耿' }), /QQ 号是 1 的人是你的阿耿/)
   assert.match(rulesText('private', cfg), /QQ 号是 1 的人是你的主人/)
-  const { a, tool, set } = setup()
+  const { a, tool } = setup()
   a.mind.updateSettings({ 'identity.ownerCallChange': false })
-  set(T0 + 60 * DAY)
   assert.equal((await tool().execute({ what: 'ownerCall', content: '阿耿', why: 'x' })).ok, false)
   assert.equal(a.mind.self.change({ what: 'ownerCall', content: '宝', why: '主人改的' }, { by: 'owner' }).ok, true, '主人自己改不受限')
   assert.equal(a.ownerCall(), '宝')

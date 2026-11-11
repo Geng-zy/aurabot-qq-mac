@@ -52,17 +52,11 @@ export function createSelf(deps) {
     return String(profile().ownerCall || deps.ownerName?.() || '主人')
   }
   /**
-   * 她现在能不能自己改对主人的称呼：开关开着、认识够久了、离上次改（不管谁改的）够久了。
+   * 她现在能不能自己改对主人的称呼：只看主人开没开这个开关（什么时候改由她自己）。
    * @returns {true|string} 能改返回 true，不能返回原因
    */
   function canChangeOwnerCall() {
     if (setting('identity.ownerCallChange') === false) return '主人没开「她可以自己改对你的称呼」'
-    const since = Number(deps.ownerSince?.()) || 0
-    const minDays = Number(setting('identity.ownerCallMinDays')) || 30
-    if (!since || now() - since < minDays * DAY) return `和主人认识还不到 ${minDays} 天`
-    const last = deps.listVersions('self', 500).find((v) => v.data?.what === 'ownerCall')
-    const gap = Number(setting('identity.ownerCallGapDays')) || 14
-    if (last && now() - last.at < gap * DAY) return `上次换称呼才 ${Math.floor((now() - last.at) / DAY)} 天，至少隔 ${gap} 天`
     return true
   }
 
