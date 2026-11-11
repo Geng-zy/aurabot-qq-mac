@@ -1576,6 +1576,7 @@ export function apply(ctx) {
     if (!mind) return mindOff
     return mind.mind.memory.closeFollowup(String((await readBody(req)).id || ''), 'owner') ? { ok: true, message: '好，不问了' } : { ok: false, message: '没有这件事' }
   })
+  route('/mind/people/graph', async () => (mind ? { ok: true, ...mind.mind.peopleGraph(), self: mind.mind.identity().name || '她' } : mindOff))
   route('/mind/people/forgotten', async () => (mind ? { ok: true, list: mind.mind.forgottenList() } : mindOff))
   route('/mind/people/restore', async (req) => {
     if (!mind) return mindOff
