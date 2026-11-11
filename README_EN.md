@@ -23,19 +23,20 @@ Aurabot's mind core works the other way round: **she has exactly one mind**. Mem
 
 | | A typical character bot | Her, with the mind core |
 |---|---|---|
-| **Memory** | Everything stuffed into context, or keyword search | Fades fast then slowly; recalling strengthens it; vague memories stay vague, some are on the tip of her tongue; she consolidates and dreams while asleep |
+| **Memory** | Everything stuffed into context, or keyword search | Fades fast then slowly; recalling strengthens it; vague memories stay vague, some are on the tip of her tongue; one memory leads to the next by association; "what did we do last month?" works by date; she consolidates and dreams while asleep |
 | **Mood** | Re-judged every message | Emotions have a target, a reason, and research-based durations (sadness lasts far longer than embarrassment); mood has inertia; anger at one person isn't taken out on another |
 | **Daily rhythm** | Always online, always fresh | Gets tired, sleepy and hungry; sleeps during her night and only you can wake her; stays up chatting with you and is sleepier the next day |
-| **Initiative** | A timer fires a message | Thinks on her own when idle; does what she wants (browse Bilibili, post to Qzone, read trending lists, message you) only when motivated enough; procrastinates; learns from outcomes |
+| **Initiative** | A timer fires a message; every feature DMs you on its own | Thinks on her own when idle; does what she wants (browse Bilibili, post to Qzone, read trending lists, message you) only when motivated enough; procrastinates; learns from outcomes; modules only do the work — whether to tell you what they found is her call |
 | **Personality** | Fixed in the card — or swayed by one message, different every day | 19 traits move in small steps only after repeated experience; your own influence is capped; she can also decide to rewrite her persona, rename herself and write her own story |
-| **Relationships** | Same with everyone | A record per QQ number: closeness, liking, trust, nicknames, inside jokes, no-go topics, grudges; fades without contact; "exclusive" is on by default — romantic feelings are only for you |
-| **Group chats** | Fixed interjection probability | She decides, from her sociability, mood, how relevant the topic is to her, and how close she is to who's talking |
+| **Relationships** | Same with everyone | A record per QQ number: closeness, liking, trust, nicknames, inside jokes, no-go topics, grudges; remembers people's pending things (an interview, an exam) and asks how it went; fades without contact; "exclusive" is on by default — romantic feelings are only for you |
+| **Group chats** | Fixed interjection probability | She decides, from her sociability, mood, how relevant the topic is to her, and how close she is to who's talking; emoji reactions follow her mood too |
+| **Telling you things** | Fixed-format notices | Approval prompts, questions waiting for you, a song that failed — she tells you in her own words |
 
 <img src="assets/mind-core.svg" alt="Mind core: incoming messages, seven parts, outgoing words and actions, nightly sleep" width="100%" />
 
-**Grounded in research, every number adjustable.** Forgetting follows the FSRS-4.5 power curve; emotion durations come from Verduyn & Lavrijsen 2015; sleep pressure from Borbély's two-process model; baseline mood from Diener & Diener 1996 and inertia from Kuppens et al. 2010; mind-wandering from Killingsworth & Gilbert 2010; procrastination from Steel's temporal motivation theory (2007); personality change from Roberts et al. 2017 and Hudson & Fraley 2015; relationships from Sternberg's triangular theory, Rusbult's investment model and attachment theory. Every parameter in the panel's mind settings shows its default, its source (or "rule of thumb") and what changing it does.
+**Grounded in research, every number adjustable.** Forgetting follows the FSRS-4.5 power curve; emotion durations come from Verduyn & Lavrijsen 2015; sleep pressure from Borbély's two-process model; baseline mood from Diener & Diener 1996 and inertia from Kuppens et al. 2010; mind-wandering from Killingsworth & Gilbert 2010; procrastination from Steel's temporal motivation theory (2007); personality change from Roberts et al. 2017 and Hudson & Fraley 2015; relationships from Sternberg's triangular theory, Rusbult's investment model and attachment theory; association from Collins & Loftus 1975 spreading activation; follow-up questions from Huang et al. 2017; optional reranking after Nogueira & Cho 2019. Every parameter in the panel's mind settings shows its default, its source (or "rule of thumb") and what changing it does.
 
-Panel pages: **Right now** (body, feelings, feed her, wake her), **Inner life** (thoughts, wants, permission requests, local model), **Memory**, **Relationships**, **Personality & self** (original vs current traits, her own edits, her story, versions you can roll back) and **Mind settings**.
+Panel pages: **Right now** (body, feelings, feed her, wake her), **Inner life** (thoughts, wants, permission requests, local model), **Memory**, **Relationships** (with a star map of who she knows and who appears together, the things she's waiting to hear about, and "stop remembering" / "forget this person" with a 30-day recovery area), **Personality & self** (original vs current traits, her own edits, her story, versions you can roll back) and **Mind settings**.
 
 ## 📌 What this repository is
 
@@ -46,6 +47,8 @@ This fork does two things:
 1. **The mind core** (above), written from scratch, replacing upstream's separate memory, mood and speak-up modules. Code in `src/mind/` (imports nothing from the plugin); the QQ side is `src/mind-adapter/`.
 2. **macOS (Apple silicon) only**: Windows / Linux-only code was removed. On Windows use [upstream](https://github.com/aureth-labs/dsh-aurabot-qq).
 
+Features from upstream's 1.3.0 beta that don't overlap the mind core were ported and adapted: Breeze TTS, cloud speech recognition, cloud backup (Gitee / WebDAV, always including her mind), DSH sidebar browser, owner-only local tools in groups, emoji reactions, Bilibili QR login, one-click update and security hardening — see the [changelog](CHANGELOG.md).
+
 It keeps the upstream package name and plugin id (`dsh-aurabot-qq`), so it replaces upstream and can't be installed alongside it; when you switch, your old memories, mood and impressions of people move into the mind core on first start.
 
 ## 🍎 What differs from upstream
@@ -53,12 +56,14 @@ It keeps the upstream package name and plugin id (`dsh-aurabot-qq`), so it repla
 | Area | Upstream (Windows) | This fork (macOS) |
 |---|---|---|
 | Her "mind" | persona card + mood module + memory module + speak-up, each separate | **mind core**: one mind for memory, emotion, body, motivation, personality and relationships |
-| QQ gateway | Plugin downloads, starts and injects Windows SnowLuma | SnowLuma has no macOS build: run its official image in OrbStack / Docker; the plugin only connects to the OneBot address you enter |
+| QQ gateway | Plugin downloads, starts and injects Windows SnowLuma | SnowLuma has no macOS build: run its official image in OrbStack / Docker; the plugin only connects to the OneBot address you enter; a one-click diagnosis walks OrbStack → container → ports → logged-in account |
 | Song environment | PowerShell, CUDA PyTorch, one environment | curl + built-in unzip, MPS on Apple silicon, **two environments** (voice conversion and vocal separation), every version pinned to a verified set |
 | Song quality | separate → convert → mix | plus local originals first, de-reverb, lead/backing or duet split, auto key and octave folding from a per-voice profile, tone matching |
 | Fallback TTS | Windows System.Speech | macOS `say` |
 | Sending files | gateway reads local paths | gateway in a container can't: small files as base64, **files over 30 MB through a loopback-only temporary download link** |
 | Module market | upstream's module index | upstream's plus [this fork's](https://github.com/Geng-zy/aurabot-qq-mac-mods); same-id modules use this fork's mind-core-ready version |
+| Notices | fixed-format text | in her own words (approvals, questions, friend / group requests, failed songs) |
+| Cloud backup | no mind to include | every Gitee / WebDAV backup includes her mind database, config-only ones too |
 
 ## 🚀 Install
 
