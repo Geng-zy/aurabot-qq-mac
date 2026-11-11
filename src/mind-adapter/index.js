@@ -124,9 +124,13 @@ export function createMindAdapter(opts) {
     if (id !== mind.identity().ownerId) mind.setOwner(id)
   }
 
+  /** 这个人设成了「以后不记」：他的话不进感知记录，和他私聊时她说的也不记。 */
+  const notRemembered = (userId) => { try { return Boolean(userId) && mind.person(personOf(userId))?.noMemory === true } catch { return false } }
+
   /** 收到的一条 QQ 消息（已经过白名单）。 */
   function perceive(msg) {
     if (debug()) return false
+    if (notRemembered(msg.userId)) return false
     try {
       syncOwner()
       // 只有找她的（私聊）才把注意力拉过来；群里别人在聊不算，她自己插话时由 noteTurn / said 算
@@ -149,6 +153,7 @@ export function createMindAdapter(opts) {
   /** 她真发出去的一条消息。 */
   function said({ chatId, message, note, messageId, kind = 'reply' }) {
     if (debug()) return false
+    if (String(chatId).startsWith('private:') && notRemembered(String(chatId).slice(8))) return false
     try {
       lastChatAt = now()
       const text = segmentsText(message, note)
@@ -614,6 +619,33 @@ export function createMindAdapter(opts) {
     } finally {
       doing = null
     }
+  }
+
+  // ---------- 忘掉一个人（面板「关系」页） ----------
+  /**
+   * @param {string} qq
+   * @param {'delete'|'stop'|'resume'} mode delete = 连人带关系和关于他的记忆一起移进恢复区；
+   *   stop = 以后不记他（clear 时以前的也移进恢复区）；resume = 撤销「以后不记」
+   */
+  function forgetQQ(qq, mode, { clear = false } = {}) {
+    const pid = personOf(qq)
+    if (mind.isOwner(pid)) return { ok: false, message: '主人不能忘' }
+    const windows = [windowOf('private:' + String(qq))]
+    if (mode === 'delete') return { ...mind.forgetPerson(pid, { windows }), message: '忘掉了：关于他的事都移进了恢复区，30 天内能放回来' }
+    if (mode === 'stop') {
+      if (clear) return { ...mind.forgetPerson(pid, { keepPerson: true, windows }), message: '以后不记他了，以前的也移进了恢复区（30 天内能放回来）' }
+      mind.setNoMemory(pid, true)
+      return { ok: true, message: '以后不记他了（以前的记忆还在）' }
+    }
+    if (mode === 'resume') { mind.setNoMemory(pid, false); return { ok: true, message: '又会记他了' } }
+    return { ok: false, message: '不认识的操作' }
+  }
+  /** 从恢复区放回来，向量重新算。 */
+  async function restoreQQ(qq) {
+    const ids = mind.restorePerson(personOf(qq))
+    if (!ids) return { ok: false, message: '恢复区里没有这个人（可能已经过了 30 天）' }
+    mem.embedEpisodes(ids).catch(() => {})
+    return { ok: true, message: `放回来了：${ids.length} 件事` }
   }
 
   // ---------- 想给主人看的东西（模块交来的，她自己决定说不说） ----------
@@ -1148,5 +1180,5 @@ export function createMindAdapter(opts) {
   }
 
   return { mind, perceive, said, shouldRotate, carryOver, contextFor, beforeTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
-    selfPrompt: () => mind.selfPrompt(), changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, interjectCap, wakeWords, missOwner, importLegacySocial }
+    selfPrompt: () => mind.selfPrompt(), changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, forgetQQ, restoreQQ, interjectCap, wakeWords, missOwner, importLegacySocial }
 }

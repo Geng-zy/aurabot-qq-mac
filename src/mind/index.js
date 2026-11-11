@@ -302,6 +302,100 @@ export function createMind(opts) {
     return store.prep('SELECT id, kind, at FROM deletions').all()
   }
 
+  // ---------- 忘掉一个人 ----------
+  // 删掉的东西先放进恢复区（kv 里 forgotten:<id>），FORGET_KEEP_DAYS 天内能整份放回去，过期才真的没了。
+  const FORGET_KEEP_DAYS = 30
+  const forgottenKey = (id) => 'forgotten:' + id
+  /** 一行原样放回去（列名照原来的）。 */
+  function putRow(table, r) {
+    const cols = Object.keys(r)
+    store.prep(`INSERT OR IGNORE INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`).run(...cols.map((c) => r[c]))
+  }
+  /**
+   * 忘掉一个人：关于他的事（主要关于他、他说的、只涉及他的）、和他的私聊、他说过的原话都移进恢复区。
+   * 和别人一起经历、他只是在场的事留着（那也是别人的记忆）。主人不能忘。
+   * @param {string} id 人的 id（例如 qq:12345）
+   * @param {{ keepPerson?: boolean, windows?: string[] }} [o]
+   *   keepPerson：人留着、标成「以后不记」（不传 = 连人带关系一起删）；windows：和他的私聊窗口
+   */
+  function forgetPerson(id, { keepPerson = false, windows = [] } = {}) {
+    const pid = String(id || '')
+    if (!pid || isOwner(pid)) return { ok: false, message: '主人不能忘' }
+    const p = person(pid)
+    const like = (k) => `%"${k}":"${pid.replace(/[%_"]/g, '')}"%`
+    const wins = windows.map(String).filter(Boolean)
+    const winSql = wins.length ? ` OR window IN (${wins.map(() => '?').join(', ')})` : ''
+    const eps = store.prep(`SELECT * FROM episodes WHERE json LIKE ? OR json LIKE ? OR json LIKE ?${winSql}`).all(like('about'), like('speaker'), `%"who":["${pid.replace(/[%_"]/g, '')}"]%`, ...wins)
+      .filter((r) => {
+        if (wins.includes(r.window)) return true
+        const d = JSON.parse(r.json)
+        return d.about === pid || d.speaker === pid || (Array.isArray(d.who) && d.who.length === 1 && d.who[0] === pid)
+      })
+    const per = store.prep(`SELECT * FROM perception WHERE who = ?${winSql}`).all(pid, ...wins)
+    const kept = store.prep('SELECT COUNT(*) AS n FROM episodes WHERE json LIKE ?').get(`%"who":[%"${pid.replace(/[%_"]/g, '')}"%`).n - eps.filter((r) => /"who":\[/.test(r.json)).length
+    const prev = store.get(forgottenKey(pid), null)
+    const bundle = {
+      id: pid, at: now(), name: p?.name || prev?.name || '', keepPerson: Boolean(keepPerson),
+      person: p || prev?.person || null,
+      episodes: [...(prev?.episodes || []), ...eps], perception: [...(prev?.perception || []), ...per],
+    }
+    store.set(forgottenKey(pid), bundle)
+    for (const r of eps) memory.deleteEpisode(r.id)
+    store.tx(() => {
+      for (const r of per) store.prep('DELETE FROM perception WHERE id = ?').run(r.id)
+      if (!keepPerson) { store.prep('DELETE FROM people WHERE id = ?').run(pid); recordDeletion(pid, 'person') }
+      else if (p) {
+        const { rel, tom, ...rest } = p
+        savePerson({ ...rest, noMemory: true })
+      }
+    })
+    log?.info?.(`忘掉 ${p?.name || pid}：${eps.length} 件事、${per.length} 句原话移进恢复区${keepPerson ? '，以后也不记他' : ''}`)
+    return { ok: true, episodes: eps.length, perception: per.length, keptShared: Math.max(0, kept) }
+  }
+  /** 以后记不记这个人（不动以前的记忆）。 */
+  function setNoMemory(id, on) {
+    const pid = String(id || '')
+    if (!pid || (on && isOwner(pid))) return false
+    const p = person(pid) || { id: pid, name: '', aliases: [], firstSeen: now(), lastSeen: 0 }
+    if (on) p.noMemory = true
+    else delete p.noMemory
+    savePerson(p)
+    return true
+  }
+  /** 恢复区里的人（过期的顺手清掉）。 */
+  function forgottenList() {
+    const out = []
+    for (const r of store.prep("SELECT key, json FROM kv WHERE key LIKE 'forgotten:%'").all()) {
+      const b = JSON.parse(r.json)
+      if (now() - b.at > FORGET_KEEP_DAYS * 86400000) { store.del(r.key); continue }
+      out.push({ id: b.id, name: b.name, at: b.at, keepPerson: b.keepPerson, episodes: b.episodes.length, perception: b.perception.length, until: b.at + FORGET_KEEP_DAYS * 86400000 })
+    }
+    return out.sort((a, b) => b.at - a.at)
+  }
+  /** 从恢复区整份放回去；返回放回的事的 id（向量要重新算）。 */
+  function restorePerson(id) {
+    const pid = String(id || '')
+    const b = store.get(forgottenKey(pid), null)
+    if (!b) return null
+    store.tx(() => {
+      for (const r of b.episodes) {
+        putRow('episodes', r)
+        store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'episode'").run(r.id)
+      }
+      for (const r of b.perception) putRow('perception', r)
+      store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'person'").run(pid)
+      const cur = person(pid)
+      if (b.person) {
+        const merged = cur ? { ...b.person, ...cur, rel: cur.rel || b.person.rel, tom: cur.tom || b.person.tom, lastSeen: Math.max(cur.lastSeen || 0, b.person.lastSeen || 0) } : { ...b.person }
+        delete merged.noMemory
+        savePerson(merged)
+      } else if (cur?.noMemory) setNoMemory(pid, false)
+      store.del(forgottenKey(pid))
+    })
+    log?.info?.(`${b.name || pid} 从恢复区放回来了：${b.episodes.length} 件事、${b.perception.length} 句原话`)
+    return b.episodes.map((r) => r.id)
+  }
+
   // ---------- 备份 ----------
   /** 存一份快照到 dir/snapshots/，按保留份数清理旧的（移到 trashDir，不直接删）。 */
   function snapshot({ keep = 14, trashDir } = {}) {
@@ -427,6 +521,7 @@ export function createMind(opts) {
     personaCard, setPersonaCard, restorePersona, addVersion, listVersions, deleteVersion, pinVersion,
     // 人
     person, notePerson, listPeople,
+    forgetPerson, setNoMemory, forgottenList, restorePerson,
     // 感知
     perceive, said, history,
     // 导入

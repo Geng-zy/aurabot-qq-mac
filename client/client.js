@@ -3151,9 +3151,26 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const [d, setD] = useState(null)
       const [q, setQ] = useState('')
       const [open, setOpen] = useState('')
-      const load = () => get('/mind/people').then(setD)
+      const [gone, setGone] = useState([])
+      const load = () => { get('/mind/people').then(setD); get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {}) }
       useEffect(() => { load() }, [])
       if (d && !d.ok) return h(Card, { title: '关系' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      // 忘掉一个人：删除要确认两次；「以后不记」可以选要不要连以前的一起移走；都先进恢复区，30 天内能放回来
+      const forget = async (p, mode) => {
+        const who = (p.name || '这个人') + '（' + p.id.replace(/^qq:/, 'QQ ') + '）'
+        let body = { id: p.id, mode }
+        if (mode === 'delete') {
+          if (!confirm('忘掉 ' + who + '？\n\n她对他的关系、关于他的事、和他的私聊、他说过的原话都会移进恢复区（30 天内能放回来，之后就真的没了）。和别人一起经历、他只是在场的事留着。')) return
+          if (!confirm('再确认一次：现在就忘掉 ' + who + '？')) return
+          body.confirm = true
+        } else if (mode === 'stop') {
+          const clear = confirm('以后不记 ' + who + ' 了：他说的话不再进她的记忆（聊天照常回）。\n\n以前关于他的记忆要不要也一起移走？\n「确定」= 一起移进恢复区；「取消」= 以前的留着')
+          body.clear = clear
+        }
+        const r = await post('/mind/people/forget', body)
+        toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err'); load()
+      }
+      const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
       const list = (d && d.list) || []
       const shown = list.filter((p) => !q || [p.name, p.id, ...(p.aliases || []), p.typeLabel, p.tom && p.tom.note].join(' ').includes(q))
       const edit = async (id, patch) => { const r = await post('/mind/people/edit', { id, patch }); toast(r.message || (r.ok ? '改好了' : '没成功')); load() }
@@ -3167,7 +3184,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             const t = p.tom || {}
             const isOpen = open === p.id
             return h('div', { key: p.id, className: 'ab-li' },
-              h('div', { className: 'meta' }, p.typeLabel + ' · ' + p.id.replace(/^qq:/, 'QQ ') + (r.lastContact ? ' · ' + timeAgo(r.lastContact) + '联系过' : p.lastSeen ? ' · ' + mindDay(p.lastSeen) + ' 来过' : '') + (r.n ? ' · 聊过 ' + r.n + ' 段' : '')),
+              h('div', { className: 'meta' }, p.typeLabel + ' · ' + p.id.replace(/^qq:/, 'QQ ') + (r.lastContact ? ' · ' + timeAgo(r.lastContact) + '联系过' : p.lastSeen ? ' · ' + mindDay(p.lastSeen) + ' 来过' : '') + (r.n ? ' · 聊过 ' + r.n + ' 段' : '') + (p.noMemory ? ' · 以后不记他' : '')),
               h('div', { className: 'body' },
                 h('b', null, p.name || '（没名字）'), (p.aliases || []).length ? h('span', { className: 'ab-muted ab-small' }, '  曾用名：' + p.aliases.join('、')) : null,
                 h('div', { className: 'ab-small' }, `亲近 ${pct(r.closeness)} · 喜欢 ${pct(r.liking)} · 尊重 ${pct(r.respect)} · 信任 ${pct(r.trust)}` + (p.owner || r.intimacy ? ` · 亲密 ${pct(r.intimacy)} · 承诺 ${pct(r.commitment)}` + (r.passion ? ` · 激情 ${pct(r.passion)}` : '') : '') + (r.debt ? ` · 人情 ${r.debt > 0 ? '她欠 ' + r.debt : '对方欠 ' + -r.debt}` : '')),
@@ -3186,8 +3203,17 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
               h('div', { className: 'ab-flex', style: { gap: 6 } },
                 h(Btn, { small: true, onClick: () => setOpen(isOpen ? '' : p.id) }, isOpen ? '收起' : '详细'),
                 h(Btn, { small: true, onClick: async () => { const v = prompt('你对这个人的补充说明（她会当成自己的印象，留空清掉）', t.note || ''); if (v !== null) await edit(p.id, { note: v }) } }, '写印象'),
-                (r.knots || []).length ? h(Btn, { small: true, onClick: () => { if (confirm('把她对这个人的心结都清掉？')) edit(p.id, { knots: [] }) } }, '清掉心结') : null))
+                (r.knots || []).length ? h(Btn, { small: true, onClick: () => { if (confirm('把她对这个人的心结都清掉？')) edit(p.id, { knots: [] }) } }, '清掉心结') : null,
+                p.owner ? null : p.noMemory
+                  ? h(Btn, { small: true, onClick: async () => { const r = await post('/mind/people/forget', { id: p.id, mode: 'resume' }); toast(r.message); load() } }, '重新记他')
+                  : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'stop') }, '以后不记他'),
+                p.owner ? null : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'delete') }, '忘掉这个人')))
           }))),
+        gone.length ? h(Card, { title: '恢复区', desc: '忘掉的人先放在这里，30 天内能整份放回来；过了 30 天就真的没了。' },
+          h('div', { className: 'ab-list' }, gone.map((g) => h('div', { key: g.id, className: 'ab-li' },
+            h('div', { className: 'meta' }, mindDay(g.at) + ' 忘掉的 · ' + g.id.replace(/^qq:/, 'QQ ') + ' · 保留到 ' + mindDay(g.until).slice(0, 10)),
+            h('div', { className: 'body' }, h('b', null, g.name || '（没名字）'), h('span', { className: 'ab-muted ab-small' }, '  ' + g.episodes + ' 件事、' + g.perception + ' 句原话' + (g.keepPerson ? '（人还在，以后不记他）' : ''))),
+            h(Btn, { small: true, onClick: () => restorePerson(g) }, '放回来'))))) : null,
         d && (d.groups || []).length ? h(Card, { title: '她对群的了解', desc: '每个群的风格和规矩，她慢慢摸清楚的。' }, h('div', { className: 'ab-list' }, d.groups.map((g) => h('div', { key: g.id, className: 'ab-li' },
           h('div', { className: 'meta' }, (g.name || '群') + ' · ' + g.id + (g.at ? ' · ' + timeAgo(g.at) : '')),
           h('div', { className: 'body' }, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null)

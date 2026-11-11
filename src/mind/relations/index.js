@@ -263,7 +263,7 @@ export function createRelations(deps) {
   function list() {
     return deps.listPeople().map((p) => {
       const g = get(p.id)
-      return { id: p.id, name: p.name, aliases: p.aliases || [], firstSeen: p.firstSeen, lastSeen: p.lastSeen, fedCount: p.fedCount || 0, type: g.type, typeLabel: REL_TYPES[g.type], owner: g.owner, rel: g.rel, tom: g.tom }
+      return { id: p.id, name: p.name, aliases: p.aliases || [], firstSeen: p.firstSeen, lastSeen: p.lastSeen, fedCount: p.fedCount || 0, noMemory: p.noMemory === true, type: g.type, typeLabel: REL_TYPES[g.type], owner: g.owner, rel: g.rel, tom: g.tom }
     }).sort((a, b) => Number(b.owner) - Number(a.owner) || b.rel.closeness - a.rel.closeness || (b.lastSeen || 0) - (a.lastSeen || 0))
   }
   function groups() {

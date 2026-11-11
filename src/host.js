@@ -1559,6 +1559,22 @@ export function apply(ctx) {
     if (!mind) return mindOff
     return { ok: true, list: mind.mind.relations.list(), groups: mind.mind.relations.groups().map((g) => ({ ...g, name: hub?.groupNames?.get?.(String(g.id)) || '' })), exclusive: mind.mind.identity().exclusive }
   })
+  // 忘掉一个人：delete = 连人带关于他的记忆移进恢复区；stop = 以后不记（clear 时以前的也移走）；resume = 撤销「以后不记」
+  route('/mind/people/forget', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    const qq = String(b.id || '').replace(/^qq:/, '')
+    if (!/^\d+$/.test(qq)) return { ok: false, message: '要忘掉谁？' }
+    if (b.confirm !== true && b.mode === 'delete') return { ok: false, message: '要再确认一次' }
+    const r = mind.forgetQQ(qq, String(b.mode || ''), { clear: b.clear === true })
+    if (r.ok) log.info(`关系：${qq} → ${b.mode}${b.clear ? '（清掉以前的）' : ''}`)
+    return r
+  })
+  route('/mind/people/forgotten', async () => (mind ? { ok: true, list: mind.mind.forgottenList() } : mindOff))
+  route('/mind/people/restore', async (req) => {
+    if (!mind) return mindOff
+    return mind.restoreQQ(String((await readBody(req)).id || '').replace(/^qq:/, ''))
+  })
   route('/mind/people/edit', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)
