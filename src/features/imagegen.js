@@ -56,6 +56,9 @@ function findImage (obj, depth = 0) {
 }
 
 /** 工具只接受聊天里的短期引用或图库文件名；绝不把模型给的路径 / URL 当图片读。 */
+/** 这个模型能不能一次收好几张参考图（OpenAI 的 gpt-image 系列可以）。 */
+export const multiReference = (model) => /gpt-image/i.test(String(model || ''))
+
 export async function resolveDrawImage(image, { hub, chat }) {
   if (image === undefined || image === null || image === '') return null
   if (typeof image !== 'string') throw new Error('参考图只接受 last、quote 或画作文件名')
@@ -136,7 +139,10 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
   const fetch = fetchImpl || ((...args) => globalThis.fetch(...args))
   const auth = codexAuth || createCodexAuth({ log, fetchImpl: fetch })
   const viaCodex = createCodexImage({ auth, fetchImpl: fetch, log })
-  async function generate(prompt, { shape, image, size } = {}) {
+  /**
+   * extra：除了 image 以外的参考图（比如她的形象图的其余几张）。能一次收好几张的服务（gpt-image 系列）都给，别的只用 image 那一张
+   */
+  async function generate(prompt, { shape, image, size, extra = [] } = {}) {
     const config = getConfig().imageGen
     const requestedSize = size == null || size === '' ? '' : normalizeRequestedSize(size)
     if (size != null && size !== '' && !requestedSize) throw new Error('图片尺寸格式不对，应为 1024x1024 或 2048x2048 这类格式')
@@ -154,7 +160,7 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     if (!c.enabled) throw new Error('生图还没开启')
     const full = [c.stylePrompt, prompt].filter(Boolean).join('，')
     const t = Date.now()
-    const buf = c.provider === 'codex' ? await viaCodex(c, full, { shape, image }) : c.provider === 'custom' ? await viaCustom(c, full, image) : await viaOpenAI(c, full, image)
+    const buf = c.provider === 'codex' ? await viaCodex(c, full, { shape, image }) : c.provider === 'custom' ? await viaCustom(c, full, image) : await viaOpenAI(c, full, image, extra)
     if (!buf || !buf.length) throw new Error('生图接口没有返回图片')
     if (!String(mimeOf(buf)).startsWith('image/')) throw new Error('生图接口返回的不是图片')
     log.info(`画好了一张图（${Math.round(buf.length / 1024)}KB，${Math.round((Date.now() - t) / 1000)}s）：${prompt.slice(0, 40)}`)
@@ -162,7 +168,7 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
   }
 
   /** OpenAI 兼容接口。 */
-  async function viaOpenAI (c, prompt, image) {
+  async function viaOpenAI (c, prompt, image, extra = []) {
     const base = String(c.baseUrl || '').replace(/\/+$/, '')
     if (!base || !c.model) throw new Error('还没填生图服务地址或模型')
     const headers = image ? {} : { 'content-type': 'application/json' }
@@ -172,7 +178,10 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     let requestBody
     if (image) {
       requestBody = new FormData()
-      requestBody.append('image', new Blob([image], { type: mimeOf(image) }), 'reference.' + mimeOf(image).split('/')[1])
+      const more = multiReference(c.model) ? (extra || []).filter((b) => Buffer.isBuffer(b)).slice(0, 7) : []
+      // 一次收好几张的（gpt-image 系列）用 image[]，别家只认一个 image
+      const field = more.length ? 'image[]' : 'image'
+      for (const [i, b] of [image, ...more].entries()) requestBody.append(field, new Blob([b], { type: mimeOf(b) }), `reference-${i + 1}.` + mimeOf(b).split('/')[1])
       for (const [key, value] of Object.entries({ prompt, model: c.model, size: c.size })) requestBody.append(key, value)
     }
     let r, j

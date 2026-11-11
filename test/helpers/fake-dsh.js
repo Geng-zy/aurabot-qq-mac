@@ -172,7 +172,7 @@ export function createFakeDsh({ brain }) {
       headers: { host: '127.0.0.1:5099', ...headers },
       // 默认带 body 的调用按 POST 处理；要测别的写方法（PUT/DELETE…）用第五个参数显式给
       method: method || (body != null ? 'POST' : 'GET'),
-      async *[Symbol.asyncIterator]() { if (body) yield JSON.stringify(body) },
+      async *[Symbol.asyncIterator]() { if (body) yield Buffer.isBuffer(body) ? body : JSON.stringify(body) },
     }
     // 模拟真实连接的来源地址：不传 = 进程内直调（无 socket，插件按本机处理）；
     // 传 '203.0.113.7' = 外网直连；传 '127.0.0.1' = 本机/反代接入。

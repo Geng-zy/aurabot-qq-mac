@@ -1,6 +1,11 @@
 // 内置模块：生图。她能画图发到聊天里（OpenAI 兼容的生图服务，或「本地接口」里接的 SD WebUI / ComfyUI）。
 
 import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { createAppearance, DESCRIBE_SYSTEM, MAX_APPEARANCE } from '../../features/appearance.js'
+import { findSharp, shrinkWithSharp } from '../../core/img.js'
+import { canSeeImages } from '../../core/llm.js'
 import { createImageGen, drawResultBlocks, drawToolMessage, imageToolBlock, resolveDrawImage } from '../../features/imagegen.js'
 import { listPaintings, openPaintFolder, paintingPath, rememberPainting, removePainting, savePainting } from '../../features/paintings.js'
 import { defineTool, str } from '../../tools/tools.js'
@@ -15,7 +20,7 @@ export default {
   version: '1.0.0',
   description: '画一张图发到聊天里（qq_draw_image）',
   tab: 'imagegen',
-  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js'],
+  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js'],
   setup(api) {
     const { hub, local } = api.core
     const gen = createImageGen({ getConfig: api.config, log: api.log, local })
@@ -35,6 +40,43 @@ export default {
     }))
     api.route('/image/codex/cancel', accountAction(async () => ({ ok: true, ...auth.cancelLogin('已取消') })))
     api.route('/image/codex/logout', accountAction(async () => ({ ok: true, ...auth.logout() })))
+
+    // ---------- 她的形象：主人导入的几张参考图，她画自己时照着画 ----------
+    const looks = createAppearance({
+      dir: dataDir('appearance'),
+      trashDir: join(homedir(), '.Trash'),
+      // 存之前缩到 1536 以内（有 sharp 用 sharp），省地方也省生图请求的大小
+      shrink: async (buf) => { const sharp = await findSharp().catch(() => null); return sharp ? shrinkWithSharp(sharp, buf, 1536) : buf },
+    })
+    api.route('/image/appearance', async () => ({ ok: true, list: looks.list(), description: looks.description(), max: MAX_APPEARANCE }))
+    api.route('/image/appearance/image', async (req, res) => {
+      const buf = looks.read(String(api.core.http.query(req).file || ''))
+      if (!buf) return api.core.http.send(res, 404, '')
+      api.core.http.send(res, 200, buf, String(mimeOf(buf) || 'image/png'))
+    })
+    api.route('/image/appearance/upload', async (req) => {
+      if (req?.method !== 'POST') return { ok: false, message: '要用 POST 上传' }
+      try { return await looks.add(await api.core.http.raw(req, 20 * 1024 * 1024)) } catch (error) { return { ok: false, message: error.message } }
+    })
+    api.route('/image/appearance/delete', async (req) => looks.remove(String((await api.core.http.body(req).catch(() => ({})))?.file || '')))
+    api.route('/image/appearance/primary', async (req) => looks.setPrimary(String((await api.core.http.body(req).catch(() => ({})))?.file || '')))
+    api.route('/image/appearance/description', async (req) => looks.setDescription(String((await api.core.http.body(req).catch(() => ({})))?.text || ''), 'owner'))
+    // 看图写一段外貌描述（要看得懂图的模型：表情起名单独挑了模型就用它，不然用聊天模型）
+    api.route('/image/appearance/describe', async () => {
+      const imgs = looks.buffers(4)
+      if (!imgs.length) return { ok: false, message: '先导入几张她的图' }
+      const pick = api.config().stickers?.captionModel
+      const target = pick && pick.provider && pick.model ? { provider: pick.provider, model: pick.model } : null
+      if ((await canSeeImages(api.dsh, api.config(), target).catch(() => null)) === false) return { ok: false, message: '现在用的模型看不了图：在「模型」页换一个能看图的，或者自己写描述' }
+      try {
+        const text = String(await api.ask({ system: DESCRIBE_SYSTEM, text: '这几张都是她。', images: imgs.map((b) => ({ data: b.toString('base64'), mediaType: String(mimeOf(b)) })), maxTokens: 600, ...(target ? { model: target } : {}) }) || '').trim()
+        if (!text) return { ok: false, message: '模型没写出描述' }
+        looks.setDescription(text, 'vision')
+        return { ok: true, description: looks.description() }
+      } catch (error) {
+        return { ok: false, message: '没写成：' + error.message }
+      }
+    })
 
     // 她的画作：面板底下的图库（直接读存图目录，可以单张删、开文件夹）
     api.route('/image/gallery', async (req) => {
@@ -60,6 +102,7 @@ export default {
       properties: {
         prompt: str('画面描述'),
         image: str('可选参考图：last = 当前聊天最近收到的一张图；quote = 当前聊天引用消息里的图；或图库中的画作文件名。禁止本地路径、网址'),
+        self: { type: 'boolean', description: '画的是你自己（自拍、你的样子、你穿什么、合照里有你）时填 true：会照着主人给你导入的形象图和形象描述画，画出来才像你' },
         shape: { type: 'string', enum: ['square', 'portrait', 'landscape', 'wide'], description: 'square 方图 1:1；portrait 竖图 2:3；landscape 横图 3:2；wide 宽幅 16:9。可不填' },
         size: { type: 'string', enum: SIZE_OPTIONS, description: '可选尺寸，例如 2048x2048（2K）、4096x4096（4K）；优先于 shape / 面板默认，不填沿用原逻辑' },
       },
@@ -67,12 +110,36 @@ export default {
       slow: '好，我这就去画，画好了发你。',
       // 能看图时把原图放进工具结果（image 块），她当轮就能看见自己画了什么
       render: drawResultBlocks,
-      execute: async ({ prompt, shape, image, size }) => {
+      execute: async ({ prompt, shape, image, size, self }) => {
         if (api.config().imageGen.ownerOnly && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '画图只给主人画哦' }
         if (image && api.config().imageGen.img2img === false) return { ok: false, message: '参考图功能已关闭' }
         const startedAt = Date.now()
-        const reference = await resolveDrawImage(image, { hub, chat })
-        const buf = await gen.generate(String(prompt || ''), { shape, image: reference, size })
+        let reference = await resolveDrawImage(image, { hub, chat })
+        // 画她自己：有形象图就照着画（没指定别的参考图时用主图，其余几张能收的服务也一起给）；
+        // 形象描述总是加进提示词，生图服务不收参考图、或者这次参考的是别的图时也画得像她
+        let drawPrompt = String(prompt || '')
+        let extra = []
+        let usedLooks = false
+        if (self) {
+          const desc = looks.description()
+          if (desc) drawPrompt = `画面里的「她」就是你自己，长这样：${desc}。${drawPrompt}`
+          const mine = api.config().imageGen.img2img === false ? [] : looks.buffers()
+          if (mine.length) {
+            if (!reference) { reference = mine[0]; extra = mine.slice(1) } else extra = mine
+            usedLooks = true
+          }
+        }
+        let buf
+        try {
+          buf = await gen.generate(drawPrompt, { shape, image: reference, size, extra })
+        } catch (error) {
+          // 生图服务不收参考图：形象图不用了，只靠形象描述再画一次（她自己要的参考图出错就照常报错）
+          if (!(usedLooks && !image && /参考图|reference|edit/i.test(String(error.message)))) throw error
+          api.log.info('生图服务不支持参考图，这次只按形象描述画她自己')
+          reference = null
+          usedLooks = false
+          buf = await gen.generate(drawPrompt, { shape, size })
+        }
         const sent = await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`)
         if (!sent) return { ok: false, message: '画好了，但没有发到 QQ（请检查试运行和网关）' }
         const saved = savePainting(buf, String(prompt || ''))

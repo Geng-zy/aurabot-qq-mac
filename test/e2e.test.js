@@ -54,6 +54,7 @@ async function brain({ preset, text, images, callTool }) {
   if (text.includes('慢慢想') && !text.includes('补充')) { await sleep(2500); return '想好了' }
   if (text.includes('引用测试') && text.includes('【群聊')) { const n = (text.match(/\[(\d+)\][^\n]*引用测试/) || [])[1]; return n ? `<reply:${n}>收到这条啦\n别的我就不挨个回了` : '没看到编号' }
   if (text.includes('第一句') && text.includes('第二句')) return '两句我都看到啦'
+  if (text.includes('发张自拍')) { const r = await callTool('qq_draw_image', { prompt: '在海边自拍', self: true }); return r && r.ok ? '拍好啦' : '拍不了：' + (r && r.message) }
   if (text.includes('画一只')) { const r = await callTool('qq_draw_image', { prompt: '一只蓝色小鲸鱼' }); return r && r.ok ? '画好啦' : '画不了' }
   if (text.includes('【写空间日记】')) return '今天主人夸我可爱，开心得尾巴甩来甩去。晚饭吃了一大碗白米饭，满足～明天也要元气满满地陪大家聊天呀'
   if (text.includes('禁言')) {
@@ -1048,6 +1049,46 @@ test('生图：主人让她画图，调生图服务并把图发出去', async ()
   const st = (await fake.call('/state')).json()
   assert.equal(st.config.imageGen.apiKey, '', '生图密钥不回传')
   assert.equal(st.config.imageGen.apiKeySet, true)
+})
+
+test('她的形象：画自己时照着形象图和形象描述画；生图服务不收参考图就只按描述再画', async () => {
+  const http = await import('node:http')
+  const png = fakePng(64, 64, 3)
+  const reqs = []
+  let rejectEdits = false
+  const srv = http.createServer(async (req, res) => {
+    const chunks = []
+    for await (const c of req) chunks.push(c)
+    const raw = Buffer.concat(chunks).toString('latin1')
+    reqs.push({ url: req.url, raw })
+    res.setHeader('content-type', 'application/json')
+    if (rejectEdits && req.url.endsWith('/edits')) { res.statusCode = 400; return res.end(JSON.stringify({ error: { message: 'model does not support image edit' } })) }
+    res.end(JSON.stringify({ data: [{ b64_json: png.toString('base64') }] }))
+  })
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r))
+  try {
+    await fake.call('/save', { imageGen: { enabled: true, provider: 'openai', baseUrl: `http://127.0.0.1:${srv.address().port}/v1`, model: 'test-model', img2img: true, stylePrompt: '' } })
+    const up = await (await fake.call('/image/appearance/upload', fakePng(80, 80, 9), {}, undefined, 'POST')).json()
+    assert.equal(up.ok, true, JSON.stringify(up))
+    await fake.call('/image/appearance/description', { text: '银白色长发、蓝眼睛' })
+    const n = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('发张自拍')))
+    await until(() => sentTo('private', OWNER).slice(n).some((c) => c.params.message[0].type === 'image'), 10000)
+    const edit = reqs.find((r) => r.url.endsWith('/images/edits'))
+    assert.ok(edit, '带参考图走 edits')
+    assert.match(Buffer.from(edit.raw, 'latin1').toString('utf8'), /银白色长发、蓝眼睛[\s\S]*在海边自拍/)
+    reqs.length = 0
+    rejectEdits = true
+    const m = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('再发张自拍')))
+    await until(() => sentTo('private', OWNER).slice(m).some((c) => c.params.message[0].type === 'image'), 10000)
+    assert.ok(reqs.some((r) => r.url.endsWith('/edits')), '先试了参考图')
+    const gen = reqs.find((r) => r.url.endsWith('/generations'))
+    assert.ok(gen, '被拒后只按描述画')
+    assert.match(JSON.parse(Buffer.from(gen.raw, 'latin1').toString('utf8')).prompt, /银白色长发、蓝眼睛/)
+  } finally {
+    srv.close()
+  }
 })
 
 test('生图工具结果：能看图时带 image 块，纯文本模型只给文字（#37）', async () => {
