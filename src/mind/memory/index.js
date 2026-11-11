@@ -58,6 +58,7 @@ export function createMemory(deps) {
   // 外面接进来的能力：想（模型）、算向量、此刻的心情和精力
   let think = null
   let embed = null
+  let rerank = null
   let state = () => ({ valence: 0, energy: 1 })
   // 记经历时顺带问的（人格的状态记录、对人的看法）和收到结果后交给谁：由心智入口接上，记忆本身不认识它们
   let encodeExtra = () => ''
@@ -65,6 +66,7 @@ export function createMemory(deps) {
   function connect(o = {}) {
     if (o.think !== undefined) think = o.think
     if (o.embed !== undefined) embed = o.embed
+    if (o.rerank !== undefined) rerank = o.rerank
     if (o.state !== undefined) state = o.state
     if (o.encodeExtra !== undefined) encodeExtra = o.encodeExtra
     if (o.onEncoded !== undefined) onEncoded = o.onEncoded
@@ -337,6 +339,22 @@ export function createMemory(deps) {
       scored.push({ e, r, sim, level, score: score * (0.5 + 0.5 * r) })
     }
     scored.sort((a, b) => b.score - a.score)
+    // 精排（可选）：候选多的时候，让精排模型逐条看「线索和这件事有多相关」，按它重新排；遗忘照样算进去。
+    // 超时、出错就按原来的顺序，不拖慢回复。
+    if (S('rerank') === true && rerank && String(cue || '').trim() && scored.length > 1) {
+      const n = Math.max(2, Math.min(50, Number(S('rerankTopN')) || 20))
+      const head = scored.slice(0, n)
+      try {
+        const rel = await rerank(String(cue), head.map((x) => x.e.gist + (x.e.detail ? '：' + String(x.e.detail).slice(0, 200) : '')), { timeoutMs: Number(S('rerankTimeoutMs')) || 1500 })
+        if (rel.length === head.length) {
+          head.forEach((x, i) => { x.score = rel[i] * (0.5 + 0.5 * x.r) })
+          head.sort((a, b) => b.score - a.score)
+          scored.splice(0, head.length, ...head)
+        }
+      } catch (error) {
+        log.debug('精排没成，按原来的顺序：', error.message)
+      }
+    }
     const top = scored.slice(0, limit)
     // 联想（扩散激活）：从最相关的两条出发，顺着联系往下想几步；离得越远越淡，太淡的想不起来。
     // 不限在哪个聊天（群里也能想到私聊里的事），说不说由工作记忆里的分寸提醒管。按日期查的时候不联想。

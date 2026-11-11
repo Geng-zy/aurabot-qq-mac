@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { createMind } from '../mind/index.js'
-import { createEmbedClient } from '../mind/memory/vectors.js'
+import { createEmbedClient, createRerankClient } from '../mind/memory/vectors.js'
 import { dayKey, inRange, minuteOfDay, parsePeriod, parseRange, shortTime } from '../mind/clock.js'
 import { createLocalModel } from '../mind/local/runner.js'
 import { defineTool, str, int } from '../tools/tools.js'
@@ -102,6 +102,13 @@ export function createMindAdapter(opts) {
     embed: createEmbedClient({
       url: () => mind.setting('memory.embedUrl'),
       model: () => mind.setting('memory.embedModel'),
+      key: () => opts.embedKey?.() || '',
+      fetch: opts.fetch,
+    }),
+    // 精排和向量共用地址、密钥（SiliconFlow 上 bge-reranker-v2-m3 免费）
+    rerank: createRerankClient({
+      url: () => mind.setting('memory.embedUrl'),
+      model: () => mind.setting('memory.rerankModel'),
       key: () => opts.embedKey?.() || '',
       fetch: opts.fetch,
     }),

@@ -104,3 +104,40 @@ export function createEmbedClient(o) {
     return out
   }
 }
+
+/**
+ * 精排（Reranker）客户端：OpenAI / Jina / SiliconFlow 通用的 /rerank 接口。
+ * 给一句线索和一批候选，返回每条的相关度（0～1，按原顺序）。和向量接口共用地址和密钥。
+ * @param {{ url: () => string, model: () => string, key?: () => string, fetch?: typeof fetch }} o
+ */
+export function createRerankClient(o) {
+  const doFetch = o.fetch || globalThis.fetch
+  return async function rerank(query, docs, { timeoutMs = 1500 } = {}) {
+    const list = (Array.isArray(docs) ? docs : []).map((t) => String(t || '').slice(0, 1000))
+    if (!list.length || !String(query || '').trim()) return []
+    const base = String(o.url() || '').trim().replace(/\/+$/, '')
+    const model = String(o.model() || '').trim()
+    if (!base || !model) throw new Error('没设精排模型')
+    const u = new URL(base)
+    if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw new Error('精排接口地址不对')
+    const key = String(o.key?.() || '')
+    if (!key && !['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) throw new Error('没填精排接口的密钥')
+    const headers = { 'Content-Type': 'application/json', ...(key ? { Authorization: `Bearer ${key}` } : {}) }
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(), timeoutMs)
+    try {
+      const r = await doFetch(`${base}/rerank`, { method: 'POST', headers, body: JSON.stringify({ model, query: String(query).slice(0, 1000), documents: list, top_n: list.length, return_documents: false }), signal: ctl.signal, redirect: 'error' })
+      if (!r.ok) throw new Error('精排接口返回 ' + r.status)
+      const j = await r.json()
+      const out = new Array(list.length).fill(0)
+      for (const x of Array.isArray(j?.results) ? j.results : []) {
+        const i = Number(x?.index)
+        const s = Number(x?.relevance_score ?? x?.score)
+        if (Number.isInteger(i) && i >= 0 && i < out.length && Number.isFinite(s)) out[i] = Math.max(0, Math.min(1, s))
+      }
+      return out
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+}
