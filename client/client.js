@@ -2040,6 +2040,39 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
     }
 
     /** 语音识别单独一页：和「语音」「表情包」同级（移植自原项目 2baf896）。 */
+    /**
+     * 「获取可用模型」：按这一页填的地址和 Key 问服务有哪些模型，点一下就填进去，不用自己抄模型名。
+     * Key 没填（已保存、面板不回显）时用已保存的那个（keyFrom 指明是哪一个）。
+     */
+    function ModelPicker({ kind, baseUrl, apiKey, keyFrom, value, onPick, toast }) {
+      const [res, setRes] = useState(null)
+      const [busy, setBusy] = useState(false)
+      const [all, setAll] = useState(false)
+      const [q, setQ] = useState('')
+      const load = async () => {
+        setBusy(true)
+        try {
+          const r = await post('/provider-models', { kind, baseUrl: baseUrl || '', apiKey: apiKey || '', keyFrom })
+          if (!r || r.ok === false) { toast((r && r.message) || '没拿到模型列表', 'err'); setRes(null); return }
+          setRes(r)
+          setAll(!r.models.length)
+          if (!r.models.length && !r.others.length) toast('服务没有列出任何模型，只能自己填', 'err')
+        } finally { setBusy(false) }
+      }
+      const list = res ? (all ? [...res.models, ...res.others] : res.models).filter((m) => !q || m.toLowerCase().includes(q.toLowerCase())) : []
+      return h('div', { style: { marginTop: 6 } },
+        h('div', { className: 'ab-flex', style: { gap: 6, alignItems: 'center', flexWrap: 'wrap' } },
+          h(Btn, { small: true, disabled: busy, onClick: load }, busy ? '获取中…' : res ? '重新获取' : '获取可用模型'),
+          res ? h('input', { className: 'ab-input', style: { flex: '1 1 160px', minWidth: 120 }, placeholder: '在 ' + (all ? res.models.length + res.others.length : res.models.length) + ' 个模型里找', value: q, onChange: (e) => setQ(e.target.value) }) : null,
+          res && res.others.length && res.models.length ? h(Btn, { small: true, kind: 'ghost', onClick: () => setAll(!all) }, all ? '只看像是能用的' : '显示全部（另外 ' + res.others.length + ' 个）') : null,
+          res ? h(Btn, { small: true, kind: 'ghost', onClick: () => setRes(null) }, '收起') : null),
+        res ? h('div', { style: { maxHeight: 220, overflowY: 'auto', marginTop: 6, border: '1px solid var(--ab-line)', borderRadius: 8 } },
+          list.length ? list.slice(0, 200).map((m) => h('div', {
+            key: m, onClick: () => { onPick(m); toast('选了 ' + m, 'ok') },
+            style: { padding: '6px 10px', cursor: 'pointer', fontSize: 12.5, wordBreak: 'break-all', background: m === value ? 'var(--ab-hover)' : 'transparent', fontWeight: m === value ? 600 : 400 },
+          }, m === value ? '✓ ' + m : m)) : h('div', { className: 'ab-muted ab-small', style: { padding: 8 } }, '没有对得上的')) : null)
+    }
+
     function Asr({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const a = draft.voice.asrApi || {}
@@ -2057,7 +2090,9 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h(Row, { key: 'u', label: '服务地址', hint: '只填到 /v1，不要带 /audio/transcriptions；留空用预置地址' },
               f.text('voice.asrApi.baseUrl', { size: 'wide', placeholder: ph('https://api.siliconflow.cn/v1', 'https://api.openai.com/v1', 'http://127.0.0.1:8000/v1') })),
             h(Row, { key: 'm', label: '模型', hint: '留空用预置：硅基 FunAudioLLM/SenseVoiceSmall（免费），OpenAI whisper-1' },
-              f.text('voice.asrApi.model', { size: 'wide', placeholder: ph('FunAudioLLM/SenseVoiceSmall', 'whisper-1', 'whisper-1') })),
+              h('div', { style: { flex: 1 } },
+                f.text('voice.asrApi.model', { size: 'wide', placeholder: ph('FunAudioLLM/SenseVoiceSmall', 'whisper-1', 'whisper-1') }),
+                h(ModelPicker, { kind: 'asr', keyFrom: 'asr', toast, baseUrl: a.baseUrl || ph('https://api.siliconflow.cn/v1', 'https://api.openai.com/v1', ''), apiKey: a.apiKey, value: a.model, onPick: (m) => setDraft(setPath(draft, 'voice.asrApi.model', m)) }))),
             h(Row, { key: 'k', label: 'API Key', hint: '只存在本机，面板不回显；本地服务可留空。硅基的 Key 可以和「记忆」页的向量 Key 是同一个' },
               f.text('voice.asrApi.apiKey', { type: 'password', placeholder: a.apiKeySet ? '已保存（不改就留空）' : '没有就留空' })),
             h(Row, { key: 'l', label: '语言', hint: '可留空；只对支持 language 的模型有效' },
@@ -3023,11 +3058,19 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       const f = useField(draft, setDraft)
       const mc = draft.mind || {}
       const [vp, setVp] = useState(null)
-      useEffect(() => { get('/mind/vectors').then((r) => setVp(r && r.ok ? r : null)).catch(() => {}) }, [])
+      const [ms, setMs] = useState(null)
+      const loadMs = () => get('/mind/settings').then((r) => setMs(r && r.ok ? r.values : null)).catch(() => {})
+      useEffect(() => { get('/mind/vectors').then((r) => setVp(r && r.ok ? r : null)).catch(() => {}); loadMs() }, [])
+      // 选了模型直接存进心智设置（和「心智设置」页是同一处）
+      const pickMind = async (key, m) => { const r = await post('/mind/settings/save', { patch: { [key]: m } }); if (r && r.ok === false) toast(r.message, 'err'); loadMs() }
       return h('div', { className: 'ab-grid' },
         h(MindMemory, { toast }),
         h(Card, { title: '想起意思相近的事', desc: '她想事情时，除了按字找，还会按意思找相近的记忆（「香菜」也能想起「芫荽」）。要用 SiliconFlow 的 bge-m3 向量模型（免费），在 siliconflow.cn 注册后建一个 API 密钥填在这里；记忆文字会发给它算向量，向量存在本机。不填也能用，只是只按字找。接口地址和模型在「心智设置 → 记忆」里改。' },
           h(Row, { label: 'SiliconFlow 密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「心智设置 → 记忆」里打开）都用它' }, f.text('mind.embedKey', { type: 'password', placeholder: mc.embedKeySet ? '已保存（不改就留空）' : '没有就留空' })),
+          ms ? h(Row, { label: '向量模型', hint: '现在用的：' + (ms['memory.embedModel'] || '—') + '。换了以后，旧记忆她每晚睡觉时分批重新算' },
+            h('div', { style: { flex: 1 } }, h(ModelPicker, { kind: 'embedding', keyFrom: 'mind', toast, baseUrl: ms['memory.embedUrl'], apiKey: mc.embedKey, value: ms['memory.embedModel'], onPick: (m) => pickMind('memory.embedModel', m) }))) : null,
+          ms ? h(Row, { label: '精排模型', hint: '现在用的：' + (ms['memory.rerankModel'] || '—') + (ms['memory.rerank'] ? '' : '（精排没开，在「心智设置 → 记忆」打开）') },
+            h('div', { style: { flex: 1 } }, h(ModelPicker, { kind: 'rerank', keyFrom: 'mind', toast, baseUrl: ms['memory.embedUrl'], apiKey: mc.embedKey, value: ms['memory.rerankModel'], onPick: (m) => pickMind('memory.rerankModel', m) }))) : null,
           vp && vp.total ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, vp.done >= vp.total ? '全部 ' + vp.total + ' 条记忆都算好了（' + vp.model + '）。' : '已经按意思算好 ' + vp.done + ' / ' + vp.total + ' 条（' + vp.model + '）。换过向量模型或刚填密钥时，剩下的她每晚睡觉时分批算，没算到的照常按字找。') : null),
         h(Card, { title: '聊天流水', desc: '聊天中枢自己的近几天流水（空间日记等功能会看今天的）。她的完整经历在心智核心里，和这个无关。' },
           h(Row, { label: '聊天流水留多久', hint: '超过的按天移到废纸篓（不直接删）；-1 = 一直留；0 = 只留今天' }, f.num('memory.keepChatlogDays', { min: -1, max: 3650 }))))
@@ -4966,7 +5009,9 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
           ) : h('div', null,
             h(Row, { label: '服务地址', hint: '一般以 /v1 结尾' }, f.text('imageGen.baseUrl', { size: 'wide', placeholder: 'https://api.siliconflow.cn/v1' })),
             h(Row, { label: 'API Key', hint: '只存在本机，不会显示出来' }, f.text('imageGen.apiKey', { type: 'password', placeholder: c.apiKeySet ? '已保存（不改就留空）' : '没有就留空' })),
-            h(Row, { label: '模型' }, f.text('imageGen.model', { size: 'wide', placeholder: '例如 Kwai-Kolors/Kolors' })),
+            h(Row, { label: '模型' }, h('div', { style: { flex: 1 } },
+              f.text('imageGen.model', { size: 'wide', placeholder: '例如 Kwai-Kolors/Kolors' }),
+              h(ModelPicker, { kind: 'image', keyFrom: 'imageGen', toast, baseUrl: (draft.imageGen || {}).baseUrl, apiKey: (draft.imageGen || {}).apiKey, value: (draft.imageGen || {}).model, onPick: (m) => setDraft(setPath(draft, 'imageGen.model', m)) }))),
           ),
           h(Row, { label: '默认构图', hint: isCodex ? '通过构图提示引导，实际尺寸由服务端选择，不保证严格比例' : '聊天工具可指定本次构图。服务不支持所选尺寸时会报告失败，请换一种构图；自定义接口需使用尺寸占位符' },
             f.select('imageGen.shape', [

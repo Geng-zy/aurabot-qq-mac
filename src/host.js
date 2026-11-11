@@ -27,6 +27,7 @@ import { createGroupRoles } from './chat/group-roles.js'
 import { defaultModel, askModel, modelReasoning, modelVision, clearReasoningCache, clearVisionCache } from './core/llm.js'
 import { mimeOf } from './chat/inbound.js'
 import { createMediaAccess } from './core/media.js'
+import { listModels as listProviderModels } from './core/models-list.js'
 import { buildFaceIndex } from './chat/faces.js'
 import { FACE_TABLE } from './chat/face-table.js'
 import { dataDir, ensureDir } from './core/store.js'
@@ -1457,6 +1458,19 @@ export function apply(ctx) {
     if (!mind) return mindOff
     const b = await readBody(req)
     return mind.mind.memory.boost(String(b.id || '')) ? { ok: true, message: '加强了，她会记得更牢' } : { ok: false, message: '没有这条' }
+  })
+  // 「获取可用模型」：面板填好地址和 Key 后问服务有哪些模型。Key 留空 = 用已经保存的那个（面板不回显已保存的 Key）
+  const SAVED_KEYS = { imageGen: () => cfg.imageGen?.apiKey, asr: () => cfg.voice?.asrApi?.apiKey, mind: () => cfg.mind?.embedKey }
+  route('/provider-models', async (req) => {
+    const b = await readBody(req)
+    const saved = SAVED_KEYS[String(b.keyFrom || '')]
+    let baseUrl = String(b.baseUrl || '').trim()
+    if (!baseUrl && b.keyFrom === 'mind' && mind) baseUrl = String(mind.mind.setting('memory.embedUrl') || '')
+    try {
+      return await listProviderModels({ baseUrl, apiKey: String(b.apiKey || '').trim() || (saved ? String(saved() || '') : ''), kind: String(b.kind || '') })
+    } catch (error) {
+      return { ok: false, message: error.message }
+    }
   })
   route('/mind/settings', async () => {
     if (!mind) return mindOff
