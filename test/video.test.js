@@ -17,7 +17,7 @@ function setup({ owner = true, result = 'D:/out/a.mp4', active = true, sendFails
   }
   const local = { active: () => active, call: async (slot, args) => { calls.push({ slot, args }); if (result instanceof Error) throw result; return result } }
   const rules = []
-  const api = { core: { hub, local }, log: { warn() {} }, rule: (f) => rules.push(f), tool: (f) => { tool = f }, onDispose() {} }
+  const api = { core: { hub, local }, config: () => ({ freedom: false }), log: { warn() {} }, rule: (f) => rules.push(f), tool: (f) => { tool = f }, onDispose() {} }
   video.setup(api)
   const chat = { chatId: 'private:1', kind: 'private' }
   return { get: (c = chat) => tool({ chat: c, sessionId: 's' }), rules, sent, calls, done }

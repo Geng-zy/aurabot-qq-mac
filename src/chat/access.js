@@ -64,6 +64,16 @@ export function isOwner(cfg, userId) {
   return String(userId || '') !== '' && String(userId) === String(cfg.ownerQQ || '')
 }
 
+/**
+ * 给她自由（默认开）：她自己的事（改资料、发评论、画画唱歌、管表情库、加好友、在群里当管理……）由她自己决定，
+ * 不用主人开口；别人让她做只是请求，做不做她自己判断。面板里关掉的功能（off）照样不做。
+ * 不受影响的是保护主人的几道闸：别人说话的那一轮不能用本机命令和文件、不能把主人电脑上的文件发出去、
+ * 不读别人发来的文件当指令、不能借她翻主人的私聊和别的群。
+ */
+export const freeWill = (cfg) => cfg?.freedom !== false
+/** 「只有主人开口才行」的地方：自由开着就由她决定，关着才要主人开口。 */
+export const ownerOrFree = (cfg, allOwner) => freeWill(cfg) || Boolean(allOwner)
+
 /** 改资料类操作（改昵称 / 签名 / 头像、改 B 站签名），以及处理好友申请、改白名单的三档权限。 */
 export const PROFILE_PERM_LEVELS = ['off', 'owner', 'all']
 export const DOUYIN_PERM_KEYS = ['douyinBrowse', 'douyinLike', 'douyinComment', 'douyinShareOwner', 'douyinDm']
@@ -80,6 +90,7 @@ export const permOf = (cfg, key) => {
 /** 这一档在这个会话里要不要挂工具。owner = 只在主人私聊里挂；all = 哪都挂；off = 不挂。 */
 export function profileToolVisible(cfg, key, chat) {
   const p = permOf(cfg, key)
+  if (p !== 'off' && freeWill(cfg)) return chat.kind === 'private' || chat.kind === 'group'
   if (p === 'all') return chat.kind === 'private' || chat.kind === 'group'
   if (p === 'owner') return chat.kind === 'private' && String(chat.userId) === String(cfg.ownerQQ || '')
   return false
@@ -90,6 +101,7 @@ export function profilePermits(cfg, key, chat, allOwner) {
   const p = permOf(cfg, key)
   if (p === 'off') return { ok: false, message: '这个操作在面板里关掉了' }
   if (!profileToolVisible(cfg, key, chat)) return { ok: false, message: '这里不能做这个操作' }
+  if (freeWill(cfg)) return { ok: true }
   if (p === 'owner' && !allOwner) return { ok: false, message: '只有主人私聊让我改才行' }
   return { ok: true }
 }

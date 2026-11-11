@@ -5,6 +5,7 @@ import { defineTool, str } from '../../tools/tools.js'
 import { QQ_API, paramsOf } from './actions.js'
 import { clipText } from '../../core/text.js'
 import { cleanOutboundText } from '../../chat/reply.js'
+import { ownerOrFree } from '../../chat/access.js'
 
 const RESULT_CHARS = 3000
 
@@ -117,7 +118,8 @@ export default {
     const { hub, onebot } = api.core
     api.tool(({ chat, level, sessionId }) => {
       if (chat.kind === 'system' || api.config().qqApi?.enabled === false) return []
-      const isOwner = () => level === 'full' || Boolean(hub.turnSendersAllOwner?.(sessionId))
+      // 自由开着：撤回、设精华、改群名片、群管这些由她自己判断（别人让她做只是请求）
+      const isOwner = () => level === 'full' || ownerOrFree(api.config(), hub.turnSendersAllOwner?.(sessionId))
       return [
         defineTool({
           name: 'qq_api_find',

@@ -20,7 +20,7 @@ const OWNER = '10000001', BOT = '20000002'
 const privateChat = { kind: 'private', chatId: `private:${OWNER}`, userId: OWNER }
 const groupChat = { kind: 'group', chatId: 'group:123', groupId: '123' }
 const unsupported = { message: '这个生图服务不支持参考图' }
-const config = (extra = {}) => normalize({ imageGen: { enabled: true, baseUrl: 'https://image.example/v1', apiKey: 'key', model: 'image-test', stylePrompt: '水彩', ...extra } })
+const config = (extra = {}) => normalize({ freedom: false, imageGen: { enabled: true, baseUrl: 'https://image.example/v1', apiKey: 'key', model: 'image-test', stylePrompt: '水彩', ...extra } })
 const result = () => new Response(JSON.stringify({ data: [{ b64_json: b64 }] }))
 function sandbox(t) {
   const previous = process.env.AURABOT_DATA_DIR
@@ -176,7 +176,7 @@ test('图库只接受文件名；任意路径、URL、base64 输入、伪图片�
 
 function mediaHub(t) {
   sandbox(t)
-  const cfg = normalize({ botQQ: BOT, ownerQQ: OWNER, enabled: false, dryRun: true, titleFilter: { enabled: false }, stickers: { collect: false }, allow: { private: ['10000002'], groups: ['123'] } })
+  const cfg = normalize({ freedom: false, botQQ: BOT, ownerQQ: OWNER, enabled: false, dryRun: true, titleFilter: { enabled: false }, stickers: { collect: false }, allow: { private: ['10000002'], groups: ['123'] } })
   const hub = createHub({ dsh: {}, getConfig: () => cfg, log, onebot: {}, stickers: {} })
   t.after(() => hub.dispose())
   return hub
@@ -221,7 +221,7 @@ test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保
   sandbox(t)
   let now = 1_800_000_000_000, gets = 0
   t.mock.method(Date, 'now', () => now)
-  const cfg = normalize({ enabled: true, botQQ: BOT, ownerQQ: OWNER, dryRun: true,
+  const cfg = normalize({ freedom: false, enabled: true, botQQ: BOT, ownerQQ: OWNER, dryRun: true,
     merge: { enabled: true, waitSec: 3600, maxSec: 3600 },
     titleFilter: { enabled: false }, stickers: { collect: false }, allow: { groups: ['123', '456'] },
   })

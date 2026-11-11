@@ -126,6 +126,7 @@ before(async () => {
   mkdirSync(join(dataDir, 'modules', 'group-admin'), { recursive: true })
   copyFileSync(new URL('./helpers/group-admin.mjs', import.meta.url), join(dataDir, 'modules', 'group-admin', 'index.mjs')) // 群管已搬到社区库，这里当成已安装
   writeFileSync(join(dataDir, 'config.json'), JSON.stringify({
+  freedom: false,
     enabled: true,
     dryRun: false,
     setupDone: true,

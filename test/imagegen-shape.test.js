@@ -11,7 +11,7 @@ import imagegenModule from '../src/modules/imagegen/index.js'
 process.env.AURABOT_DATA_DIR = mkdtempSync(join(tmpdir(), 'aurabot-shape-'))
 const log = { info() {}, debug() {}, warn() {} }
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)])
-const config = (extra = {}) => normalize({ imageGen: { enabled: true, baseUrl: 'https://image.example/v1', model: 'image-test', size: '768x1024', ...extra } })
+const config = (extra = {}) => normalize({ freedom: false, imageGen: { enabled: true, baseUrl: 'https://image.example/v1', model: 'image-test', size: '768x1024', ...extra } })
 
 test('构图默认兼容旧配置，非法默认值归一化；不改写原来的 size', () => {
   for (const shape of [undefined, 'unknown', 'toString']) {

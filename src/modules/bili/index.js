@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import { createBili } from '../../bili/duty.js'
 import { defineTool, str } from '../../tools/tools.js'
-import { permOf, profileToolVisible, profilePermits } from '../../chat/access.js'
+import { permOf, profileToolVisible, profilePermits, ownerOrFree, freeWill } from '../../chat/access.js'
 import { avatarSource } from '../profile/index.js'
 import { createDanmaku, danmakuPanelRequest } from './danmaku.js'
 import { createQrLogin } from '../../bili/qr-login.js'
@@ -54,14 +54,14 @@ export default {
         }),
         defineTool({
           name: 'bili_comment',
-          description: '在一个 B 站视频下发评论（只有主人让你发的时候才用）。link 填链接或 BV 号，text 是评论内容。要 @ 人就写 @完整昵称 并在后面空一格，@主人 会换成主人的 B 站号。',
+          description: (freeWill(api.config()) ? '在一个 B 站视频下发评论（想发就发；别人让你发，发不发你自己定）。' : '在一个 B 站视频下发评论（只有主人让你发的时候才用）。') + 'link 填链接或 BV 号，text 是评论内容。要 @ 人就写 @完整昵称 并在后面空一格，@主人 会换成主人的 B 站号。',
           properties: { link: str('B 站链接或 BV 号'), text: str('评论内容') },
           required: ['link', 'text'],
           execute: async ({ link, text }) => {
             // 评论权限：off / owner / all；owner 模式要求本轮所有说话人都是主人
             const perm = permOf(api.config(), 'biliComment')
             if (perm === 'off') return { ok: false, message: '这个操作在面板里关掉了' }
-            if (perm === 'owner' && !hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人能让我去发评论' }
+            if (perm === 'owner' && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我去发评论' }
             return bili.comment(String(link || ''), String(text || ''))
           },
         }),
@@ -72,7 +72,7 @@ export default {
           properties: { query: str('可选：视频标题关键词，或想看的内容') },
           required: [],
           execute: async ({ query }) => {
-            if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '截图只给主人看' }
+            if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '截图只给主人看' }
             return bili.sendShot({ chatId: chat.chatId, query: String(query || '') })
           },
         }),
@@ -82,7 +82,7 @@ export default {
           properties: { query: str('可选，按视频标题筛选') },
           required: [],
           execute: async ({ query }) => {
-            if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '截图只给主人看' }
+            if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '截图只给主人看' }
             return bili.listShots(String(query || ''))
           },
         }),
@@ -147,7 +147,7 @@ export default {
         || chat.kind !== 'private' || String(chat.userId) !== String(cfg.ownerQQ)) return []
       return defineTool({
         name: 'bili_danmaku',
-        description: '只有主人明确让你发弹幕时才用。link 为视频或番剧链接；seconds 为当前分P内的出现时间（秒），part 为分P或ss链接的选集序号。不要替主人猜时间或内容。',
+        description: (freeWill(api.config()) ? '想发弹幕时用（别人让你发，发不发你自己定）。' : '只有主人明确让你发弹幕时才用。') + 'link 为视频或番剧链接；seconds 为当前分P内的出现时间（秒），part 为分P或ss链接的选集序号。不要替主人猜时间或内容。',
         properties: {
           link: str('B站视频 / 番剧完整链接或 BV、av、ep、ss 编号'), text: str('一行弹幕文字，最多100字'),
           seconds: { type: 'number', minimum: 0, description: '出现时间（秒）' },
@@ -155,7 +155,7 @@ export default {
         },
         required: ['link', 'text', 'seconds'],
         execute: async ({ link, text, seconds, part }) => {
-          if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人私聊让我发弹幕才行' }
+          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人私聊让我发弹幕才行' }
           return danmaku.send({ video: link, text, seconds, part })
         },
       })

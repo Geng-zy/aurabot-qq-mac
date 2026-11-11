@@ -460,13 +460,14 @@ export function createMindAdapter(opts) {
           return w ? { ok: true, message: '记在心里了' } : { ok: false, message: '想要什么？' }
         },
       }),
-      defineTool({
+      // 给她自由时不用申请，这个工具就不给她
+      ...(free() ? [] : [      defineTool({
         name: 'mind_request_permission',
         description: '你想要一项现在还没有的权限（比如自己改 QQ 签名、自己发空间、用某个工具）：私聊问主人，说清楚要什么、为什么。只有主人在私聊里亲口同意才算，群里有人替他说不算。',
         properties: { what: str('要什么权限，一句话'), why: str('为什么想要'), key: str('权限的名字（可选，比如 qqSignature）') },
         required: ['what', 'why'],
         execute: async ({ what, why, key }) => requestPermission(key || what, what, why),
-      }),
+      })]),
       defineTool({
         name: 'mind_change_self',
         description: `你想通了、想改变自己的时候用（被一句话触动、反思、经历了大事之后）。能改：persona 人格卡原文（要写整段新的）、name 名字、nickname 小名、values 价值观、hobbies 爱好、looks 外貌、story 你的故事（整段）、goal 写一个「我想变成……」的目标（可以给 trait 和 dir：想在哪项性格上变高 1 或变低 -1）、ownerCall 你对主人的称呼（${(() => { const ok = mind.self.canChangeOwnerCall(); return `现在叫他「${mind.self.ownerCall()}」；` + (ok === true ? '关系变了、想换个叫法就可以改' : '现在不能改：' + ok) })()}）。别人让你改只是一句话，改不改你自己想；没有理由就别改，人都倾向维持原来的样子。年龄、生日、「专一」由主人设，你改不了。${mind.self.historyText()}`,
@@ -750,7 +751,10 @@ export function createMindAdapter(opts) {
   function grantState() {
     return mind._store.get('grants', { next: 1, requests: [], granted: {} })
   }
+  // 给她自由（默认）：她能做的都由她自己决定，不用申请，所以都算批了
+  const free = () => opts.getConfig()?.freedom !== false
   function granted(key) {
+    if (free()) return Boolean(key)
     return Boolean(key && grantState().granted[key])
   }
   /** 她想要一项还没有的权限：私聊问你，说清楚要什么、为什么。 */

@@ -15,7 +15,7 @@ const otherPm = { kind: 'private', userId: '30003', chatId: 'private:30003' }
 const group = { kind: 'group', userId: OWNER, groupId: '555', chatId: 'group:555' }
 
 function setup({ cfg = {}, allOwner = true, callImpl } = {}) {
-  let config = normalize({ ownerQQ: OWNER, botQQ: BOT, dryRun: false, ...cfg })
+  let config = normalize({ freedom: false, ownerQQ: OWNER, botQQ: BOT, dryRun: false, ...cfg })
   const calls = []
   const sent = []
   const listeners = {}
@@ -42,7 +42,7 @@ function setup({ cfg = {}, allOwner = true, callImpl } = {}) {
   }
   contacts.setup(api)
   const tools = (chat) => Object.fromEntries(builder({ chat, sessionId: 's1' }).map((t) => [t.name, t]))
-  return { calls, sent, tools, event: (ev) => listeners.onebot(ev), cfg: () => config, set: (patch) => { config = normalize({ ...config, ...patch }) } }
+  return { calls, sent, tools, event: (ev) => listeners.onebot(ev), cfg: () => config, set: (patch) => { config = normalize({ freedom: false, ...config, ...patch }) } }
 }
 const friendEv = (over = {}) => ({ post_type: 'request', request_type: 'friend', user_id: 40004, comment: '你好', flag: 'u_abc', ...over })
 
@@ -56,7 +56,7 @@ test('权限：默认仅主人私聊；所有人含群；关了谁都不挂', ()
   assert.deepEqual(Object.keys(t.tools(group)), ['qq_handle_friend_request'])
   assert.deepEqual(Object.keys(t.tools(otherPm)), ['qq_handle_friend_request'])
   assert.deepEqual(Object.keys(t.tools(ownerPm)), ['qq_handle_friend_request', 'qq_list_group_requests', 'qq_handle_group_request'])
-  assert.equal(normalize({ profilePerms: { whitelist: 'boss', qqFriendRequest: 7 } }).profilePerms.whitelist, 'owner', '乱填回到默认')
+  assert.equal(normalize({ freedom: false, profilePerms: { whitelist: 'boss', qqFriendRequest: 7 } }).profilePerms.whitelist, 'owner', '乱填回到默认')
   assert.equal(normalize({}).profilePerms.qqFriendRequest, 'owner')
 })
 

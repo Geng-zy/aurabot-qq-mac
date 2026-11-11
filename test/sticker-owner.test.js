@@ -18,7 +18,7 @@ const MEMBER = '10000002'
 const LIB = join(dataDir, 'stickers', 'index.json')
 
 writeFileSync(join(dataDir, 'config.json'), JSON.stringify({
-  enabled: true, dryRun: true, setupDone: true, botQQ: BOT, ownerQQ: OWNER,
+  enabled: true, dryRun: true, setupDone: true, botQQ: BOT, ownerQQ: OWNER, freedom: false,
   allow: { private: [], groups: [String(GROUP)] },
   snowluma: { autoStart: false, autoAttach: false, dir: join(dataDir, 'none') },
   voice: { enabled: false }, merge: { enabled: false },
@@ -109,10 +109,10 @@ test('切回「她挑」后又不拦了（owner 模式才有这道闸）', async
 
 test('配置归一化：owner 是合法值，乱写回落 auto（保持原行为）', async () => {
   const { normalize } = await import('../src/core/config.js')
-  assert.equal(normalize({ stickers: { collectMode: 'owner' } }).stickers.collectMode, 'owner')
-  assert.equal(normalize({ stickers: { collectMode: 'ask' } }).stickers.collectMode, 'ask')
-  assert.equal(normalize({ stickers: { collectMode: 'auto' } }).stickers.collectMode, 'auto')
-  assert.equal(normalize({ stickers: { collectMode: '乱写' } }).stickers.collectMode, 'auto')
+  assert.equal(normalize({ freedom: false, stickers: { collectMode: 'owner' } }).stickers.collectMode, 'owner')
+  assert.equal(normalize({ freedom: false, stickers: { collectMode: 'ask' } }).stickers.collectMode, 'ask')
+  assert.equal(normalize({ freedom: false, stickers: { collectMode: 'auto' } }).stickers.collectMode, 'auto')
+  assert.equal(normalize({ freedom: false, stickers: { collectMode: '乱写' } }).stickers.collectMode, 'auto')
 })
 
 after(() => fake.dispose())

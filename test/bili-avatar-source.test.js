@@ -6,7 +6,7 @@ import { normalize } from '../src/core/config.js'
 import { dataDir } from '../src/core/store.js'
 
 test('B站头像：last / 最近图片 / 网址、主人权限和开关在模块内正确解析', async () => {
-  const cfg = normalize({ enabled: true, dryRun: true, ownerQQ: '10000001', bili: { enabled: true } })
+  const cfg = normalize({ freedom: false, enabled: true, dryRun: true, ownerQQ: '10000001', bili: { enabled: true } })
   const builders = [], events = new Map()
   let owner = true
   const hub = { turnSendersAllOwner: () => owner, chatOfSession: () => '' }

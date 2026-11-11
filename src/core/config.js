@@ -18,6 +18,8 @@ export const DEFAULTS = {
   ownerName: '主人',
   ownerLevel: 'full', // full | social | chat
   approvalNotify: true, // DSH 要授权时把请求发到主人私聊
+  // 给她自由：她自己的事由她决定，不用主人开口、也不用申请（见 chat/access.js 的 freeWill）
+  freedom: true,
   // 什么情况往主人 QQ 上报（她用自己的话说）：enabled 是总开关，approval = 工具要授权，question = 要人选选项。
   // workspaces 按工作区单独覆盖：{ "<工作区路径>": { approval?: bool, question?: bool } }，没写的项跟随总开关（移植自原项目 354160e）
   notice: { enabled: true, approval: true, question: true, workspaces: {} },
@@ -402,6 +404,7 @@ export function normalize(raw) {
   c.botQQ = qq(c.botQQ)
   c.ownerQQ = qq(c.ownerQQ)
   c.approvalNotify = bool(c.approvalNotify, true)
+  c.freedom = bool(c.freedom, true)
   // 老配置只有 approvalNotify：没写过 notice 时用它当审批上报的默认值
   c.notice = normalizeNotice(isObj(raw?.notice) ? raw.notice : null, raw?.approvalNotify)
   c.approvalViaQQ = bool(c.approvalViaQQ, true)

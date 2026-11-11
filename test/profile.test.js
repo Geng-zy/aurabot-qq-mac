@@ -12,7 +12,7 @@ const ownerChat = { kind: 'private', chatId: `private:${OWNER}`, userId: OWNER }
 const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)])
 
 function setup(overrides = {}) {
-  let cfg = normalize({ botQQ: BOT, ownerQQ: OWNER, model: { vision: 'on' }, ...overrides.cfg })
+  let cfg = normalize({ freedom: false, botQQ: BOT, ownerQQ: OWNER, model: { vision: 'on' }, ...overrides.cfg })
   const calls = [], rules = [], disposers = [], sends = [], downloads = [], asks = [], attachments = []
   let allOwner = true, builder
   const state = { nickname: '大肥鱼', long_nick: '爱吃白米饭' }
@@ -49,14 +49,14 @@ function setup(overrides = {}) {
   })
   return { calls, state, rules, sends, downloads, asks, attachments,
     tools: (chat = ownerChat) => Object.fromEntries(builder({ chat, sessionId: 's1' }).map((tool) => [tool.name, tool])),
-    set: (patch) => { cfg = normalize({ ...cfg, ...patch }) },
+    set: (patch) => { cfg = normalize({ freedom: false, ...cfg, ...patch }) },
     mixed: () => { allOwner = false },
     dispose: () => disposers.forEach((fn) => fn()),
   }
 }
 
 function reader(overrides = {}) {
-  let cfg = normalize({ botQQ: BOT, ownerQQ: OWNER, model: { vision: 'on' }, ...overrides.cfg })
+  let cfg = normalize({ freedom: false, botQQ: BOT, ownerQQ: OWNER, model: { vision: 'on' }, ...overrides.cfg })
   const calls = [], images = [], asks = []
   const r = createQqProfile({
     getConfig: () => cfg,
@@ -69,7 +69,7 @@ function reader(overrides = {}) {
     fetchAvatar: async (url, options) => { images.push({ url, options }); return overrides.image ?? png },
     ask: async (dsh, options) => { asks.push(options); return overrides.ask ? overrides.ask(options) : '蓝色的小鲸鱼，白色背景。' },
   })
-  return { ...r, calls, images, asks, set: (patch) => { cfg = normalize({ ...cfg, ...patch }) } }
+  return { ...r, calls, images, asks, set: (patch) => { cfg = normalize({ freedom: false, ...cfg, ...patch }) } }
 }
 
 test('仅主人私聊挂查询工具，修改权限关闭也不影响只读查询', async () => {

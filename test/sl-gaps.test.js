@@ -22,7 +22,7 @@ const groupChat = { kind: 'group', userId: OTHER, groupId: '44444444', chatId: '
 const groupEvent = (patch = {}) => ({ post_type: 'request', request_type: 'group', sub_type: 'add', user_id: Number(OTHER), group_id: 44444444, flag: '原样:flag/1', comment: '你好', ...patch })
 
 function setupContacts({ cfg = {}, allOwner = true, callImpl } = {}) {
-  let config = normalize({ ownerQQ: OWNER, botQQ: BOT, enabled: true, dryRun: false, ...cfg })
+  let config = normalize({ freedom: false, ownerQQ: OWNER, botQQ: BOT, enabled: true, dryRun: false, ...cfg })
   let owner = allOwner
   const dir = mkdtempSync(join(tmpdir(), 'aurabot-sl-contacts-'))
   const sent = [], calls = []
@@ -39,7 +39,7 @@ function setupContacts({ cfg = {}, allOwner = true, callImpl } = {}) {
   return {
     event: (ev) => listener(ev), sent, calls,
     tools: (chat) => Object.fromEntries(builder({ chat, sessionId: 's' }).map((tool) => [tool.name, tool])),
-    set: (patch) => { config = normalize({ ...config, ...patch }) },
+    set: (patch) => { config = normalize({ freedom: false, ...config, ...patch }) },
     setOwner: (value) => { owner = value },
   }
 }
@@ -161,7 +161,7 @@ test('临时私聊保存来源群，普通好友不带来源群', async (t) => {
   process.env.AURABOT_WORKSPACE = join(root, 'workspace')
   const { createHub } = await import('../src/chat/hub.js')
   const fake = createFakeDsh({ brain: async () => '' })
-  const cfg = normalize({ enabled: true, dryRun: false, ownerQQ: OWNER, botQQ: BOT, allow: { private: [OTHER], groups: [] }, stickers: { collect: false } })
+  const cfg = normalize({ freedom: false, enabled: true, dryRun: false, ownerQQ: OWNER, botQQ: BOT, allow: { private: [OTHER], groups: [] }, stickers: { collect: false } })
   const calls = []
   const hub = createHub({ dsh: fake.ctx, getConfig: () => cfg, log: { debug() {}, info() {}, warn() {}, error() {} }, onebot: { call: async (action, params) => { calls.push({ action, params }); return { message_id: 1 } } }, hooks: { message: () => true } })
   t.after(() => { hub.dispose(); fake.dispose() })
@@ -312,7 +312,7 @@ test('新增 QQ 接口参数和主人权限，接受本机路径的群公告不�
 test('新增 QQ 接口经工具调用时仍检查主人和试运行', async () => {
   let owner = false
   let build
-  const cfg = { enabled: true, dryRun: false, qqApi: { enabled: true } }
+  const cfg = { enabled: true, dryRun: false, freedom: false, qqApi: { enabled: true } }
   const calls = []
   qqApi.setup({
     core: { hub: { turnSendersAllOwner: () => owner }, onebot: { call: async (action, params) => { calls.push({ action, params }); return null } } },
@@ -381,7 +381,7 @@ test('跨聊天发消息：群里只有主人那一轮能发，别人私聊没�
   let build
   mod.setup({
     core: { hub: { turnSendersAllOwner: () => owner, deliver: async (id, text) => { sent.push([id, text]); return {} } }, onebot: { call: async () => ({}) } },
-    config: () => ({ enabled: true, ownerQQ: '1', allow: { private: ['2'], groups: ['9', '8'] }, files: {} }),
+    config: () => ({ enabled: true, freedom: false, ownerQQ: '1', allow: { private: ['2'], groups: ['9', '8'] }, files: {} }),
     tool: (fn) => { build = fn },
   })
   const group = { kind: 'group', groupId: '9', chatId: 'group:9' }

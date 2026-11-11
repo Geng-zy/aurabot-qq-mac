@@ -6,6 +6,7 @@ import { createStickerStore, stickerPath } from '../../features/stickers.js'
 import { defineTool, int, str } from '../../tools/tools.js'
 import { fetchImage, segmentBytes } from '../../core/net.js'
 import { resolvePainting } from '../../features/paintings.js'
+import { ownerOrFree } from '../../chat/access.js'
 
 export default {
   id: 'stickers',
@@ -39,7 +40,7 @@ export default {
           properties: { query: str('可选，按名字/标签筛选') },
           execute: async ({ query }) => {
             const items = store.library().items
-            if (!hub.turnSendersAllOwner(sessionId)) return { ok: true, count: items.length, message: `表情库里有 ${items.length} 张表情；名字和标签只给主人看` }
+            if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: true, count: items.length, message: `表情库里有 ${items.length} 张表情；名字和标签只给主人看` }
             const q = String(query || '').trim()
             const hit = (q ? items.filter((i) => (i.name || '').includes(q) || (i.tags || []).some((t) => t.includes(q))) : items).slice(-60)
             return { ok: true, count: items.length, message: hit.length ? hit.map((i) => `${i.name || '未命名'}${i.tags?.length ? '（' + i.tags.join('/') + '）' : ''}`).join('、') : '没有符合的表情', items: hit.map((i) => ({ name: i.name, tags: i.tags })) }
@@ -61,7 +62,7 @@ export default {
             const label = item.name || item.md5.slice(0, 8)
             if (del) {
               // 删表情一律要主人单独发话：同轮混进别人就不能借主人的在场删库
-              if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '删表情要主人发话' }
+              if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '删表情要主人发话' }
               const r = await store.remove(item.md5)
               return r.ok ? { ok: true, message: `删掉了「${label}」` } : { ok: false, message: r.reason || '没删成' }
             }
@@ -105,7 +106,7 @@ export default {
           }
           if (!api.config().stickers.collect) return { ok: false, message: '偷表情关着' }
           const mode = (api.config().stickers.collectMode || 'auto')
-          if (mode === 'owner' && !hub.turnSendersAllOwner(sessionId)) {
+          if (mode === 'owner' && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) {
             return { ok: false, message: '现在是「只听主人的」模式：这一轮有别人在，得主人让我收才行' }
           }
           const seg = hub.stickerOf(current, index || 1)
@@ -137,7 +138,7 @@ export default {
           painting: str('画作编号（如 #1）：存你自己刚画的图时填'),
         },
         execute: async ({ name, tags, painting }) => {
-          if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人能让我存表情' }
+          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我存表情' }
           let buf
           if (painting) {
             const p = resolvePainting(current, painting)
@@ -164,7 +165,7 @@ export default {
         name: 'qq_import_qq_stickers',
         description: '把你 QQ「我喜欢的」收藏里已有的表情全部导进表情库（已经有的跳过），之后就能用 <sticker:名字> 发它们。主人让你「导入收藏的表情」「同步一下 QQ 表情」时用。',
         execute: async () => {
-          if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人能让我导入收藏的表情' }
+          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我导入收藏的表情' }
           return store.importFromQQ()
         },
       }))

@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { defineTool, str, bool } from '../../tools/tools.js'
-import { profileToolVisible, profilePermits } from '../../chat/access.js'
+import { profileToolVisible, profilePermits, ownerOrFree } from '../../chat/access.js'
 
 const PENDING_MAX = 50
 const ID_RE = /^\d{5,12}$/
@@ -141,7 +141,7 @@ export default {
 
     const groupOwner = (chat) => chat.kind === 'private' && Boolean(api.config().ownerQQ) && String(chat.userId) === String(api.config().ownerQQ)
     const guardedGroup = (chat, sessionId, run) => guarded('qqFriendRequest', chat, sessionId, async (args, cfg) => {
-      if (!groupOwner(chat) || !hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人私聊才能处理加群申请' }
+      if (!groupOwner(chat) || !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人私聊才能处理加群申请' }
       return run(args, cfg)
     })
 

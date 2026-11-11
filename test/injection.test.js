@@ -14,7 +14,7 @@ const owner = '10000001'
 const stranger = '30000003'
 
 function cfg () {
-  return normalize({
+  return normalize({ freedom: false,
     enabled: true,
     ownerQQ: owner,
     ownerName: '主人',

@@ -30,6 +30,7 @@ Aurabot's mind core works the other way round: **she has exactly one mind**. Mem
 | **Personality** | Fixed in the card — or swayed by one message, different every day | 19 traits move in small steps only after repeated experience; your own influence is capped; she can also decide to rewrite her persona, rename herself, write her own story, and start calling you something new as things change between you |
 | **Relationships** | Same with everyone | A record per QQ number: closeness, liking, trust, nicknames, inside jokes, no-go topics, grudges; remembers people's pending things (an interview, an exam) and asks how it went; fades without contact; "exclusive" is on by default — romantic feelings are only for you |
 | **Group chats** | Fixed interjection probability | She decides, from her sociability, mood, how relevant the topic is to her, and how close she is to who's talking; emoji reactions follow her mood too |
+| **Freedom** | Profile changes, drawing, singing, comments all need the owner to ask | Her own things are her call — no approvals needed; other people's requests are just requests. Your safeguards stay: other people's turns can't touch commands or files on your Mac |
 | **Telling you things** | Fixed-format notices | Approval prompts, questions waiting for you, a song that failed — she tells you in her own words |
 
 <img src="assets/mind-core.svg" alt="Mind core: incoming messages, seven parts, outgoing words and actions, nightly sleep" width="100%" />

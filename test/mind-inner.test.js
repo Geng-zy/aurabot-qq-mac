@@ -198,7 +198,7 @@ function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：
   let t = T0
   const sent = []
   const a = createMindAdapter({
-    memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => t, random,
+    memoryDb: true, getConfig: () => ({ ownerQQ: '1', freedom: false }), now: () => t, random,
     localModel: { chat: async () => reply, status: () => ({ configured: true }), idleCheck() {}, stop() {}, check: () => ({ ok: true }) },
     reachOut: async (o) => { sent.push(o) },
     ask: async () => '{}',

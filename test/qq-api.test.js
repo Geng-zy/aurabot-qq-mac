@@ -52,7 +52,7 @@ test('工具接到网关：查询走 onebot，别人写操作被拒', async () =
   let build
   mod.setup({
     core: { hub: { turnSendersAllOwner: () => false }, onebot: { call: async (a, p) => { calls.push([a, p]); return { ok: 1 } } } },
-    config: () => ({ enabled: true, dryRun: false, qqApi: { enabled: true } }),
+    config: () => ({ enabled: true, dryRun: false, freedom: false, qqApi: { enabled: true } }),
     tool: (fn) => { build = fn }, rule: () => {}, log: { info() {} },
   })
   const [find, call] = build({ chat: group, level: 'social', sessionId: 's' })

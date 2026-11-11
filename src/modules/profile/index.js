@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineTool, str } from '../../tools/tools.js'
-import { isOwner, profileToolVisible, profilePermits } from '../../chat/access.js'
+import { isOwner, profileToolVisible, profilePermits, freeWill } from '../../chat/access.js'
 import { createQqProfile } from '../../features/qq-profile.js'
 import { resolvePainting } from '../../features/paintings.js'
 import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../../core/img.js'
@@ -90,7 +90,8 @@ export default {
       if (chat.kind !== 'private' && chat.kind !== 'group') return []
       const cfg = api.config()
       const tools = []
-      const allowed = () => chat.kind === 'private' && isOwner(api.config(), chat.userId) && hub.turnSendersAllOwner(sessionId)
+      // 看自己的资料、发自己的头像：自由开着就由她决定；关着时只给主人私聊
+      const allowed = () => freeWill(api.config()) || (chat.kind === 'private' && isOwner(api.config(), chat.userId) && hub.turnSendersAllOwner(sessionId))
       // 查询权限独立于修改权限，始终只给主人私聊，读取对象固定为机器人自己。
       if (chat.kind === 'private' && isOwner(cfg, chat.userId)) tools.push(defineTool({
         name: 'qq_get_profile',
