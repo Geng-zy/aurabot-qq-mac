@@ -1,4 +1,4 @@
-// 内置模块：空间日记。每天挑几个时间，按当天的聊天和心情写一条 QQ 空间说说；主人私聊里也能让她发说说。
+// 内置模块：空间日记。根据可公开的经历和当前心情写 QQ 空间说说。
 // 导出 createQzone 的返回值：writeDiary / post / remove / history / nextTime / tick。
 
 import { createQzone } from '../../features/qzone.js'
@@ -31,8 +31,9 @@ export default {
       getConfig: api.config, onebot, hub, log: api.log,
       pickImage: () => pickDiaryImage(),
       composeDiary: media.compose,
+      publicExperiences: () => (api.mind?.recent?.({ hours: 24, limit: 8, publicOnly: true }) || []).map(({ text }) => text),
       // 写过的空间日记是她自己发过的东西：以后聊到相关的事，她会想起自己那天写过什么
-      onDiary: (text) => api.mind?.experience?.({ text: `我在 QQ 空间写过：${text}`, kind: 'own-post', importance: 0.55, tags: ['空间日记'] }),
+      onDiary: (text, { visibility }) => api.mind?.experience?.({ text: `我在 QQ 空间写过：${text}`, kind: 'own-post', importance: 0.55, tags: ['空间日记'], secret: visibility !== 'all' }),
     })
     // 写空间日记由她自己决定（想记下点什么、想被看见）；面板里的「每天写几次」是上限
     const postsToday = () => {
@@ -50,7 +51,8 @@ export default {
       },
       run: async () => {
         const r = await qzone.writeDiary()
-        return { ok: Boolean(r?.ok), summary: r?.ok ? '写了一篇空间日记' : r?.message || '', outcome: r?.ok ? 0.7 : 0 }
+        const posted = Boolean(r?.ok && !r.dryRun)
+        return { ok: posted, summary: posted ? '写了一篇空间日记' : r?.message || '未发布', outcome: posted ? 0.7 : 0 }
       },
     })
 

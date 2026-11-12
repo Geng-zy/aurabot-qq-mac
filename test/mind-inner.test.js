@@ -224,6 +224,28 @@ test('闲着时：按走神比例想一步，想找主人的念头够强就去�
   assert.equal(sent.length, 1, '上次的还没回，不追着发')
 })
 
+test('后台只生成一个念头，聊天开始后慢结果不能写入情绪、日记或行动', async (testContext) => {
+  let t = T0
+  let calls = 0
+  let finish
+  const a = createMindAdapter({ memoryDb: true, now: () => t, random: () => 0, getConfig: () => ({ ownerQQ: '1' }),
+    localModel: { status: () => ({ configured: true }), chat: () => { calls++; return new Promise((resolve) => { finish = resolve }) }, stop() {} },
+  })
+  testContext.after(() => a.close())
+  a.mind.updateSettings({ 'attention.thoughtGapMinutes': 0.5 })
+  const pending = a.innerTick()
+  await new Promise((resolve) => setImmediate(resolve))
+  t += 30000
+  assert.equal(await a.innerTick(), null)
+  assert.equal(calls, 1)
+  a.perceive({ kind: 'private', chatId: 'private:1', userId: '1', text: '在吗', messageId: 'm' })
+  finish('念头：我想找主人。\n感受：快乐 1\n打算：找主人\n深想：否')
+  assert.equal(await pending, null)
+  assert.deepEqual(a.mind.inner.diary(), [])
+  assert.deepEqual(a.mind.emotion.state().active, [])
+  assert.deepEqual(a.mind.motivation.state().wants, [])
+})
+
 test('你回了她开心、下次更愿意找你；一直不回她有点失落', async () => {
   const { a, set } = adapter()
   await a.reachOwner('想他了')

@@ -241,7 +241,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
         const feeling = cleanOutboundText(d.feeling, { warn: (message) => log.warn(`B 站感受：${message}`) }).trim()
         const remember = cleanOutboundText(d.remember, { warn: (message) => log.warn(`B 站见闻：${message}`) }).trim()
         if (feeling) felt.set(v.bvid, feeling)
-        mind?.experience?.({ kind: 'seen', meta: { title: v.title, author: v.author, url: link(v.bvid), platform: 'bili', id: v.bvid }, text: [feeling, !isSilence(remember) ? remember : ''].filter(Boolean).join('；') || v.title, tags: ['B站'], importance: 0.4 })
+        mind?.experience?.({ kind: 'seen', publicSummary: `看了 B 站公开作品《${v.title}》`, meta: { title: v.title, author: v.author, url: link(v.bvid), platform: 'bili', id: v.bvid }, text: [feeling, !isSilence(remember) ? remember : ''].filter(Boolean).join('；') || v.title, tags: ['B站'], importance: 0.4 })
         const comment = cleanOutboundText(atOwner(d.comment || ''), { warn: (message) => log.warn(`B 站评论：${message}`) }).trim().slice(0, 200)
         if (comment && !isSilence(comment) && commented < commentLeft && canPost(s)) {
           try {
@@ -345,7 +345,7 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
   }
 
   /** 她看一个视频（你发的链接 / BV 号），返回给她看的内容。 */
-  async function watch(text) {
+  async function watch(text, { chatId } = {}) {
     let id = findVideoId(text)
     if (!id) return { ok: false, message: '没认出视频链接或 BV 号' }
     if (id.short) {
@@ -354,15 +354,15 @@ export function createBili({ getConfig, hub, mind, log, dsh, api: injected, visi
       if (!id || id.short) return { ok: false, message: '短链打不开' }
     }
     const x = await lookAt(id)
-    mind?.experience?.({ kind: 'seen', meta: { title: x.info.title, author: x.info.author, url: link(x.info.bvid), platform: 'bili', id: x.info.bvid }, text: `看了别人发来的 B 站视频《${x.info.title}》`, tags: ['B站'], importance: 0.4 })
+    mind?.experience?.({ kind: 'seen', chatId, meta: { title: x.info.title, author: x.info.author, url: link(x.info.bvid), platform: 'bili', id: x.info.bvid }, text: `看了别人发来的 B 站视频《${x.info.title}》`, tags: ['B站'], importance: 0.4 })
     return { ok: true, message: x.digest, bvid: x.info.bvid, aid: x.info.aid, title: x.info.title }
   }
 
   /** 在某个视频下发评论（主人让她发的）。 */
-  async function comment(text, rawMessage) {
+  async function comment(text, rawMessage, scope) {
     const message = cleanOutboundText(atOwner(rawMessage || ''), { warn: (message) => log.warn(`B 站评论：${message}`) }).slice(0, 200)
     if (!message.trim()) return { ok: true, silent: true, message: '本轮保持沉默，未发送评论' }
-    const w = await watch(text)
+    const w = await watch(text, scope)
     if (!w.ok) return w
     if (getConfig().dryRun) return { ok: true, message: `试运行：本来要在《${w.title}》下评论：${message}` }
     const r = await api.postComment(w.aid, message)

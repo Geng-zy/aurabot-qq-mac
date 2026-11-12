@@ -19,6 +19,7 @@ const ttlForKind = (kind) => {
 export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now = Date.now, maxItems = DEFAULT_MAX_ITEMS, maxBytes = DEFAULT_MAX_BYTES } = {}) {
   let items = []
   let loaded = false
+  let flushing = null
 
   function load () {
     if (loaded) return
@@ -108,7 +109,12 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
    * 连接后按顺序补发。call(action, params, { retries: 0 }) 由调用方提供。
    * 仅 transport 失败保留；uncertain / 业务错误丢弃，避免重复发或永远堵住队列。
    */
-  async function flush (call) {
+  function flush (call, { onSent } = {}) {
+    if (!flushing) flushing = Promise.resolve().then(() => drain(call, onSent)).finally(() => { flushing = null })
+    return flushing
+  }
+
+  async function drain (call, onSent) {
     load()
     let sent = 0
     let dropped = 0
@@ -122,10 +128,11 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
       }
       if (Number(item.nextAt) > at) continue
       try {
-        await call(item.action, item.params, { retries: 0, timeoutMs: 30_000 })
+        const result = await call(item.action, item.params, { retries: 0, timeoutMs: 30_000 })
         remove(item.id)
         sent++
         log?.info?.(`补发成功：${item.note || item.chatId || item.action}`)
+        try { onSent?.(item, result) } catch (error) { log?.warn?.('记录补发结果失败：', error.message) }
       } catch (error) {
         if (error?.uncertain) {
           // 可能已经发出去了，宁可少发一次，不能重复。

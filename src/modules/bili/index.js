@@ -50,7 +50,7 @@ export default {
           description: '打开一个 B 站视频看看：读标题、简介、字幕和热评，看完再跟大家聊。别人发来 B 站链接、BV 号或分享卡片时用。link 填链接或 BV 号。',
           properties: { link: str('B 站链接、b23.tv 短链或 BV 号') },
           required: ['link'],
-          execute: async ({ link }) => bili.watch(String(link || '')),
+          execute: async ({ link }) => bili.watch(String(link || ''), { chatId: chat.chatId }),
         }),
         defineTool({
           name: 'bili_comment',
@@ -62,7 +62,7 @@ export default {
             const perm = permOf(api.config(), 'biliComment')
             if (perm === 'off') return { ok: false, message: '这个操作在面板里关掉了' }
             if (perm === 'owner' && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我去发评论' }
-            return bili.comment(String(link || ''), String(text || ''))
+            return bili.comment(String(link || ''), String(text || ''), { chatId: chat.chatId })
           },
         }),
         // 截图：刷 B 站看画面时截下来的那些帧，存在本机，随时能挑一张发出来

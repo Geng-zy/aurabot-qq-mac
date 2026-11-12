@@ -39,7 +39,7 @@ export * from './ids.js'
 /**
  * 连接发出来的事件。message 里的 msg 是通用形状（见 ./qq/inbound.js 的 parseMessageEvent）：
  *   { platform, kind, chatId, userId, groupId, nickname, text, mentioned, messageId, replyId, images, stickers, records, files, segments, raw … }
- * @typedef {{ type: 'message', msg: object } | { type: 'poke', poke: object } | { type: 'notice', notice: object } | { type: 'raw', event: object } | { type: 'state', state: string }} ChannelEvent
+ * @typedef {{ type: 'message', msg: object } | { type: 'poke', poke: object } | { type: 'notice', notice: object } | { type: 'raw', event: object } | { type: 'state', state: string } | { type: 'delivered', chatId: string, message: object[], note?: string, messageId?: string, system?: boolean }} ChannelEvent
  */
 
 /** 能力标记。连接里没写的一律当 false。 */

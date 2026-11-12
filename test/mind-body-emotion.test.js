@@ -95,6 +95,28 @@ test('心情：被情绪带着走，有惯性；没事了慢慢回到平时的�
   assert.ok(hungry.mood.v <= 0.15, '饿了不会更开心')
 })
 
+test('新情绪从发生时才改变心情，读取频率不改变结果', () => {
+  const run = (readBetweenEvents) => {
+    const { m, set } = mind()
+    m.emotion.feel([{ name: '难过', intensity: 0.7 }])
+    if (readBetweenEvents) {
+      set(T0 + H)
+      m.emotion.state()
+    }
+    set(T0 + 6 * H)
+    if (readBetweenEvents) m.emotion.state()
+    m.emotion.feel([{ name: '快乐', intensity: 1 }])
+    const immediately = m.emotion.state().mood
+    set(T0 + 7 * H)
+    const later = m.emotion.state().mood
+    m.close()
+    return { immediately, later }
+  }
+  const noReads = run(false)
+  assert.deepEqual(run(true), noReads)
+  assert.ok(noReads.later.v > noReads.immediately.v)
+})
+
 test('情绪有对象：对别人的气提醒她别撒在眼前的人身上；又气又累时才可能漏一点，越亲近越忍得住', () => {
   const { m } = mind({ random: () => 0 })
   m.emotion.feel([{ name: '生气', intensity: 0.9, target: 'qq:2', why: '群里吵架' }])

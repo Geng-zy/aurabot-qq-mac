@@ -40,6 +40,11 @@ export function createEmotion(deps) {
   }
   // 平时的心情水位：设置里的基线，再按性格里的「容易低落」挪一点（0.5 是一般人，不挪）
   const baseline = () => ({ v: Math.max(-1, Math.min(1, (Number(E('baselineValence')) || 0) - 0.3 * ((Number(deps.trait?.('depression')) || 0.5) - 0.5))), a: 0 })
+  const initial = load()
+  if (!initial.mood) {
+    initial.mood = { ...baseline(), at: now() }
+    save(initial)
+  }
 
   /** 某一刻的强度。 */
   function strength(e, at = now()) {
@@ -56,10 +61,18 @@ export function createEmotion(deps) {
    * @param {Array<{ name: string, intensity: number, target?: string, why?: string, importance?: number, reg?: string, src?: string }>} items
    * @returns 实际记下的
    */
-  function feel(items, { window = '', source = '' } = {}) {
+  function feel(items, { window = '', source = '', eventId = '', revision = null } = {}) {
     const id = deps.identity()
     const s = load()
     const at = now()
+    updateMood(s, at, deps.body?.())
+    if (revision && source === 'appraisal') {
+      const prior = s.active.find((e) => e.source === 'appraisal' && e.window === window && e.target === revision.target && e.eventId === revision.eventId)
+      if (prior) {
+        prior.i0 = strength(prior, at) * 0.25
+        prior.at = at
+      }
+    }
     const out = []
     for (const raw of Array.isArray(items) ? items : []) {
       let def = emotionOf(raw?.name)
@@ -83,19 +96,18 @@ export function createEmotion(deps) {
       if (intensity < 0.05) continue
       const e = {
         name: def.name, i0: intensity, at, halfH: Math.max(0.05, hours / LOG2_10), target, why: clip(raw.why, 80),
-        window, importance, hidden: reg === 'suppress', distract: reg === 'distract' ? at + HOUR : 0, source,
+        window, importance, hidden: reg === 'suppress', distract: reg === 'distract' ? at + HOUR : 0, source, ...(eventId ? { eventId } : {}),
       }
-      // 同一种情绪、同一个对象：取更强的那个，不叠成两份
-      const same = s.active.find((x) => x.name === e.name && x.target === e.target)
+      // 同一会话和事件里的同类情绪取更强的一份，保留不同事件各自的依据。
+      const same = s.active.find((x) => x.name === e.name && x.target === e.target && x.window === window && (x.eventId || '') === eventId)
       if (same && strength(same, at) >= e.i0) { same.why = e.why || same.why; continue }
       if (same) s.active.splice(s.active.indexOf(same), 1)
       s.active.push(e)
-      s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg })
+      s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg, ...(eventId ? { source } : {}) })
       out.push(e)
     }
     s.active = s.active.filter((x) => strength(x, at) >= 0.05).slice(-Number(E('maxActive') || 12))
     s.history = s.history.slice(0, 300)
-    updateMood(s, at)
     save(s)
     return out
   }
@@ -112,7 +124,7 @@ export function createEmotion(deps) {
   /**
    * 心情：朝「基线 + 当前情绪 + 身体」去，惯性越大走得越慢（惯性 = 每小时的自回归系数，Kuppens 等 2010）。
    */
-  function updateMood(s, at, body = lastBody) {
+  function updateMood(s, at, body) {
     const b = baseline()
     const m = s.mood || { v: b.v, a: b.a, at }
     const live = s.active.map((e) => ({ e, i: strength(e, at) * (e.distract && at < e.distract ? 0.5 : 1), def: emotionOf(e.name) })).filter((x) => x.def)
@@ -126,22 +138,18 @@ export function createEmotion(deps) {
     }
     tv = clamp(tv, -1, 1)
     ta = clamp(ta, -1, 1)
-    const hours = Math.max(0, at - (m.at || at)) / HOUR
+    const hours = Math.max(0, at - (m.at ?? at)) / HOUR
     const k = Math.pow(clamp(E('inertia'), 0, 0.99), hours)
     s.mood = { v: tv + (m.v - tv) * k, a: ta + (m.a - ta) * k, at }
     return s.mood
   }
-  let lastBody = null
-
   /** 此刻的情绪和心情。body 是身体状态（精力、困、饿），会影响心情。 */
   function state(body) {
-    if (body) lastBody = body
     const s = load()
     const at = now()
-    const mood = updateMood(s, at, lastBody)
-    s.active = s.active.filter((x) => strength(x, at) >= 0.05)
-    save(s)
-    const active = s.active.map((e) => ({ name: e.name, intensity: strength(e, at), target: e.target, why: e.why, hidden: e.hidden, window: e.window, at: e.at, def: emotionOf(e.name) }))
+    const mood = updateMood(s, at, body)
+    const active = s.active.map((e) => ({ name: e.name, intensity: strength(e, at), target: e.target, why: e.why, hidden: e.hidden, window: e.window, source: e.source, eventId: e.eventId, at: e.at, def: emotionOf(e.name) }))
+      .filter((e) => e.intensity >= 0.05)
       .sort((a, b) => b.intensity - a.intensity)
     return { mood: { ...mood, label: moodLabel(mood.v, mood.a) }, active }
   }
@@ -151,6 +159,7 @@ export function createEmotion(deps) {
     const k = Number(E('sleepSoften')) || 0
     const s = load()
     const at = now()
+    updateMood(s, at, deps.body?.())
     for (const e of s.active) {
       const i = strength(e, at) * (1 - k)
       e.i0 = i
@@ -180,10 +189,11 @@ export function createEmotion(deps) {
    * 对象不是眼前的人的气，提醒她别带到眼前的人身上；气很大又很累时，按「迁怒倾向」偶尔压不住（越亲近越忍得住）。
    * @param {{ people?: string[], body?: any, name?: (id: string) => string }} o
    */
-  function describe({ people = [], body, name = (x) => x } = {}) {
+  function describe({ people = [], body, window, name = (x) => x } = {}) {
     const { mood, active } = state(body)
     const lines = [`【心情】${mood.label}`]
-    const shown = active.filter((e) => e.intensity >= 0.12).slice(0, 5)
+    const shown = active.filter((e) => e.intensity >= 0.12).slice(0, 5).map((e) =>
+      window !== undefined && (e.source === 'deep' || (e.window && e.window !== window)) ? { ...e, target: '', why: '' } : e)
     if (shown.length) {
       lines.push('【此刻的感受】' + shown.map((e) => {
         const who = e.target && e.target !== 'self' ? `对${name(e.target)}` : ''
@@ -209,5 +219,15 @@ export function createEmotion(deps) {
     return load().history.slice(0, limit)
   }
 
-  return { feel, rekindle, state, effects, describe, afterSleep, history, strength, EMOTIONS }
+  function forgetAppraisals(person, windows) {
+    const s = load()
+    const keep = (e) => e.source !== 'appraisal' || (e.target !== person && !windows.includes(e.window))
+    const active = s.active.filter(keep)
+    const history = s.history.filter(keep)
+    if (active.length === s.active.length && history.length === s.history.length) return
+    updateMood(s, now(), deps.body?.())
+    save({ ...s, active, history })
+  }
+
+  return { feel, rekindle, state, effects, describe, afterSleep, history, forgetAppraisals, strength, EMOTIONS }
 }

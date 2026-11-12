@@ -43,8 +43,9 @@ test('每年的日子：聊天里说到的生日记成 date，到了那天、快
   assert.equal(mem.specialDays().length, 0)
   assert.match(mem.specialDays({ within: 3 })[0].text, /3 天后：主人的生日/)
   set(T0 + 3 * D)
-  const w = await mem.workingMemory({ cue: '在干嘛', window: 'qq:group:9', people: [] })
+  const w = await mem.workingMemory({ cue: '在干嘛', window: 'qq:private:1', people: ['qq:1'] })
   assert.match(w.text, /【日子】\n- 今天：主人的生日/)
+  assert.doesNotMatch((await mem.workingMemory({ cue: '在干嘛', window: 'qq:group:9' })).text, /主人的生日/)
   // 别人的生日只在他在场时提
   mem.insert({ at: T0, window: 'w', gist: '小明的生日是 11 月 13 日', kind: 'date', about: 'qq:2', extra: { yearly: '11-13' } })
   assert.doesNotMatch((await mem.workingMemory({ cue: 'x', window: 'qq:group:9', people: [] })).text, /小明/)
@@ -65,18 +66,44 @@ test('认识满一年：主人和挺熟的人', () => {
 test('到点的约定：对接层让她去那个私聊里自己说；睡着也会起来；只提醒一次', async () => {
   let t = T0
   const sent = []
-  const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => t, random: () => 0.99, ask: async () => '{"episodes":[]}', reachOut: async (o) => { sent.push(o) } })
-  a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '答应明早八点叫主人起床', kind: 'intention', about: 'qq:1', due: T0 + 20 * 3600e3 })
-  a.mind.memory.insert({ at: T0, window: 'qq:group:9', gist: '答应群里晚上发攻略', kind: 'intention', due: T0 + 20 * 3600e3 })
+  let generation = 0
+  const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => t, random: () => 0.99,
+    ask: async ({ scene }) => { if (scene !== 'reminder') return '{"episodes":[]}'; generation++; return '八点到了，该起床啦。' },
+    deliverReminder: async (o) => { sent.push(o); if (sent.length === 1) throw new Error('网关暂时离线'); return o.isCurrent() },
+  })
+  const due = T0 + 20 * 3600e3
+  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '答应明早八点叫主人起床', kind: 'intention', about: 'qq:1', due })
+  for (let i = 1; i <= 6; i++) a.mind.memory.insert({ at: T0, window: 'qq:group:9', gist: '答应群里发攻略 ' + i, kind: 'intention', due: due - i })
   assert.equal(await a.checkPromises(), 0)
-  t = T0 + 20 * 3600e3 - 5 * 60000
+  t = due - 5 * 60000
   a.mind.body.sleepNow()
+  assert.equal(await a.checkPromises(), 0, '没到点不发')
+  assert.equal(a.mind.body.state().asleep, true)
+  t = due
+  assert.equal(await a.checkPromises(), 0, '临时失败保留重试')
+  assert.equal(a.mind.memory.row(id).data.nudged, undefined)
   assert.equal(await a.checkPromises(), 1)
   assert.equal(sent[0].chatId, 'private:1')
-  assert.match(sent[0].note, /答应明早八点叫主人起床/)
+  assert.equal(sent[0].text, '八点到了，该起床啦。')
+  assert.equal(generation, 1)
   assert.equal(a.mind.body.state().asleep, false, '像闹钟一样起来了')
   assert.equal(await a.checkPromises(), 0, '只提醒一次')
   a.close?.()
+})
+
+test('提醒投递结果不明时，保留未确认状态并且避免补发', async (t) => {
+  let sends = 0
+  const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => T0,
+    deliverReminder: async () => { sends++; throw Object.assign(new Error('网关超时'), { uncertain: true }) },
+  })
+  t.after(() => a.close())
+  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '提醒喝水', kind: 'intention', due: T0 })
+  await a.checkPromises()
+  const { data } = a.mind.memory.row(id)
+  assert.equal(data.nudged, undefined)
+  assert.equal(data.reminderUncertain, T0)
+  await a.checkPromises()
+  assert.equal(sends, 1)
 })
 
 test('新旧说法打架：睡觉整理时把过时的标上「后来变了」，想起来知道那是以前', async () => {
@@ -120,4 +147,26 @@ test('回顾：睡觉时给前几天各写一段、上周一段、上个月一�
   const got = await mem.recall({ period: m.memory && (await import('../src/mind/clock.js')).parsePeriod('上周', T0, 'Asia/Shanghai') })
   assert.equal(got[0].kind, 'week-summary')
   set(T0 + 30 * D)
+})
+
+test('手动和自动同时请求睡眠整理只跑一次', async (t) => {
+  const { m, mem } = mk()
+  t.after(() => m.close())
+  for (const gist of ['昨天去散步', '昨天吃了面']) mem.insert({ at: T0 - D, gist, kind: 'event' })
+  let release
+  const blocked = new Promise((resolve) => { release = resolve })
+  let calls = 0
+  mem.connect({ think: async ({ scene }) => {
+    if (scene !== 'review') return '{}'
+    const call = ++calls
+    await blocked
+    return JSON.stringify({ summary: '回顾 ' + call })
+  } })
+  const automatic = m.sleep({ quality: 0 })
+  const manual = m.sleep()
+  release()
+  const [first, second] = await Promise.all([automatic, manual])
+  assert.equal(first, second)
+  assert.equal(calls, 1)
+  assert.equal(mem.list({ kind: 'day-summary' }).length, 1)
 })

@@ -34,7 +34,8 @@ test('遗忘曲线：幂函数，开始快后来慢；稳定性就是九成把�
   const a = retention(1, 1 * DAY) - retention(1, 2 * DAY)
   const b = retention(1, 10 * DAY) - retention(1, 11 * DAY)
   assert.ok(a > b * 3, '前面忘得快')
-  assert.ok(retention(1, 1 * DAY, 2) < retention(1, 1 * DAY, 1), '记性差的忘得快')
+  assert.ok(retention(1, 1 * DAY, 0.5) < retention(1, 1 * DAY, 1), '记性差的忘得快')
+  assert.ok(retention(1, 1 * DAY, 2) > retention(1, 1 * DAY, 1), '调高记性以后记得更久')
 })
 
 test('记得多牢：情绪越强、越重要、越专心、精力越好越牢', () => {

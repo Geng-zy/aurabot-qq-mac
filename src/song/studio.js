@@ -1004,10 +1004,12 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     try {
       const r = await process1(job)
       current.stage = '发送'
-      await sendVoiceFile(job.chatId, r.file, `[${job.acapella ? '清唱' : '翻唱'}] ${job.title || job.query}`)
-      history.unshift({ at: Date.now(), title: job.title || job.query, voice: r.voice, pitch: r.pitch, ok: true, message: `用时 ${Math.round((Date.now() - current.startedAt) / 1000)} 秒` })
+      const sent = await sendVoiceFile(job.chatId, r.file, `[${job.acapella ? '清唱' : '翻唱'}] ${job.title || job.query}`)
+      const delivered = Boolean(sent && !sent.queued && !sent.simulated)
+      const message = delivered ? `用时 ${Math.round((Date.now() - current.startedAt) / 1000)} 秒` : sent?.queued ? '已做好，正在等待发送' : '已做好，未确认送达'
+      history.unshift({ at: Date.now(), title: job.title || job.query, voice: r.voice, pitch: r.pitch, ok: delivered, message })
       log.info(`翻唱完成：「${job.title || job.query}」`)
-      onSung?.(job.title || job.query, job.chatId)
+      if (delivered) onSung?.(job.title || job.query, job.chatId)
       if (!cfg().keepWork) try { rmSync(r.dir, { recursive: true, force: true }) } catch (error) {}
     } catch (error) {
       const why = explainSongError(error.message)

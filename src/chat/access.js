@@ -1,4 +1,5 @@
 // 谁能跟她说话、她在每个会话里有多大权限。纯函数。
+import { normPerson, parseChat, parsePerson, refOfChat } from '../channels/ids.js'
 
 /** 权限档位：full = DSH 完整工具；social = 只有 QQ 社交工具；chat = 纯聊天，没有工具。 */
 export const LEVELS = ['full', 'social', 'chat']
@@ -9,16 +10,22 @@ export const LEVELS = ['full', 'social', 'chat']
  * @returns {{allowed: boolean, reason: string}}
  */
 export function checkAllowed(cfg, msg) {
-  const owner = String(cfg.ownerQQ || '')
+  const chat = parseChat(msg.chatId)
+  const destination = chat?.kind === msg.kind ? refOfChat(msg.chatId) : ''
+  if (chat && !destination) return { allowed: false, reason: '会话类型不符' }
+  const owner = normPerson(cfg.ownerQQ)
   if (msg.kind === 'private') {
-    if (msg.userId === owner) return { allowed: true, reason: '主人' }
-    const list = (cfg.allow?.private || []).map(String)
-    return list.includes(msg.userId)
+    const who = destination || normPerson(msg.userId, msg.platform)
+    if (destination && msg.userId != null && normPerson(msg.userId, chat.platform) !== destination) return { allowed: false, reason: '私聊账号不符' }
+    if (who && who === owner) return { allowed: true, reason: '主人' }
+    const list = (cfg.allow?.private || []).map((id) => normPerson(id))
+    return who && list.includes(who)
       ? { allowed: true, reason: '私聊白名单' }
       : { allowed: false, reason: '不在私聊白名单' }
   }
-  const groups = (cfg.allow?.groups || []).map(String)
-  return groups.includes(msg.groupId)
+  const group = destination || normPerson(msg.groupId, msg.platform)
+  const groups = (cfg.allow?.groups || []).map((id) => normPerson(id))
+  return group && groups.includes(group)
     ? { allowed: true, reason: '群白名单' }
     : { allowed: false, reason: '不在群白名单' }
 }
@@ -35,15 +42,14 @@ export function groupOwnerTools(cfg, chat) {
   if (!chat || chat.kind !== 'group') return 'off'
   const mode = cfg?.group?.ownerTools
   if (mode !== 'owner') return 'off'
-  const list = (cfg?.group?.ownerToolsGroups || []).map(String).filter(Boolean)
-  if (list.length && !list.includes(String(chat.groupId || ''))) return 'off'
+  const list = (cfg?.group?.ownerToolsGroups || []).map((id) => normPerson(id)).filter(Boolean)
+  if (list.length && !list.includes(refOfChat(chat.chatId) || normPerson(chat.groupId, chat.platform))) return 'off'
   return mode
 }
 
 /** 这个会话用哪一档权限。群聊默认不超过 social，除非主人给这个群开了本机工具。 */
 export function levelFor(cfg, chat) {
-  const owner = String(cfg.ownerQQ || '')
-  if (chat.kind === 'private' && chat.userId === owner) {
+  if (chat.kind === 'private' && isOwner(cfg, chat.userId, chat.chatId)) {
     return LEVELS.includes(cfg.ownerLevel) ? cfg.ownerLevel : 'full'
   }
   // group-full 不叫 full：插件自己的工具还要按 social 语义挂（模块里到处是 level === 'full' 判主人私聊），
@@ -60,8 +66,10 @@ export function presetFor(level, cfg) {
 }
 
 /** 只有主人能做的事（群管、点歌、写文件……）。 */
-export function isOwner(cfg, userId) {
-  return String(userId || '') !== '' && String(userId) === String(cfg.ownerQQ || '')
+export function isOwner(cfg, userId, chatId) {
+  const chat = parseChat(chatId)
+  const person = parsePerson(userId, chat?.platform)
+  return Boolean(person && (!chat || person.platform === chat.platform) && normPerson(userId, chat?.platform) === normPerson(cfg.ownerQQ))
 }
 
 /**
@@ -92,7 +100,7 @@ export function profileToolVisible(cfg, key, chat) {
   const p = permOf(cfg, key)
   if (p !== 'off' && freeWill(cfg)) return chat.kind === 'private' || chat.kind === 'group'
   if (p === 'all') return chat.kind === 'private' || chat.kind === 'group'
-  if (p === 'owner') return chat.kind === 'private' && String(chat.userId) === String(cfg.ownerQQ || '')
+  if (p === 'owner') return chat.kind === 'private' && isOwner(cfg, chat.userId, chat.chatId)
   return false
 }
 

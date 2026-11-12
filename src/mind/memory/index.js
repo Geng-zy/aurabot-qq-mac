@@ -87,6 +87,27 @@ export function createMemory(deps) {
     const r = store.prep('SELECT * FROM episodes WHERE id = ?').get(String(id))
     return r ? { ...r, data: JSON.parse(r.json) } : null
   }
+  /** 内心整理可以读取全部经历。对话和模块只拿得到当前会话有权看到的内容。 */
+  function visibleIn(e, window, path = new Set()) {
+    if (!e || e.data.needsRecompute) return false
+    if (window === undefined) return true
+    if (path.has(e.id)) return false
+    const { data } = e
+    if ((data.kind === 'dream' && !Array.isArray(data.from)) || (!e.window && data.kind === 'belief' && data.speaker === 'self')) return false
+    if ((data.secret || place(e.window).kind === 'private') && (!window || e.window !== window)) return false
+    const sources = [
+      ...(Array.isArray(data.derivedFrom) ? data.derivedFrom : []),
+      ...(Array.isArray(data.from) ? data.from : []),
+      ...(Array.isArray(data.promptSources) ? data.promptSources : []),
+      data.outdated?.by,
+      data.rewrittenWith,
+    ].filter(Boolean)
+    if (!sources.length) return true
+    path.add(e.id)
+    const visible = sources.every((id) => visibleIn(row(id), window, path))
+    path.delete(e.id)
+    return visible
+  }
   function save(e) {
     store.prep('UPDATE episodes SET gist = ?, detail = ?, strength = ?, stability = ?, last_recall = ?, status = ?, json = ? WHERE id = ?')
       .run(e.gist, e.detail ?? null, e.strength, e.stability, e.last_recall ?? null, e.status, JSON.stringify(e.data || {}), e.id)
@@ -114,18 +135,25 @@ export function createMemory(deps) {
 
   // ---------- 向量 ----------
   async function embedEpisodes(ids) {
-    const list = ids.map(row).filter(Boolean).filter((e) => !vectors.has(e.id, embedModel()))
+    const model = embedModel()
+    const list = ids.map(row).filter(Boolean).filter((e) => !vectors.has(e.id, model))
     if (!list.length || !embed) {
       for (const e of list) queueJob('embed', e.id)
       return 0
     }
     try {
       const vs = await embed(list.map((e) => e.gist))
-      list.forEach((e, i) => vectors.put(e.id, embedModel(), vs[i], hash(e.gist)))
-      return list.length
+      let written = 0
+      if (embedModel() !== model) return written
+      list.forEach((e, i) => {
+        if (row(e.id)?.gist !== e.gist || !vs[i]?.length) return
+        vectors.put(e.id, model, vs[i], hash(e.gist))
+        written++
+      })
+      return written
     } catch (error) {
       log.debug('算向量失败，稍后再算：', error.message)
-      for (const e of list) queueJob('embed', e.id)
+      for (const e of list) if (row(e.id)) queueJob('embed', e.id)
       return 0
     }
   }
@@ -204,11 +232,23 @@ export function createMemory(deps) {
    * 把一个窗口里还没记的消息记成经历。
    * force=false 时只在窗口停了 encodeIdleMinutes 以后才记（一段聊天结束了才记）。
    */
-  async function encodeWindow(window, { force = false } = {}) {
+  const encoding = new Map()
+  function encodeWindow(window, options) {
+    const previous = encoding.get(window)
+    const run = previous
+      ? previous.catch(() => {}).then(() => encodeBatch(window, options))
+      : encodeBatch(window, options)
+    const active = run.finally(() => { if (encoding.get(window) === active) encoding.delete(window) })
+    encoding.set(window, active)
+    return active
+  }
+
+  async function encodeBatch(window, { force = false } = {}) {
     const tz = deps.tz()
     const cursor = cursorOf(window)
     const batch = Number(S('encodeBatch')) || 60
-    const rows = store.prep('SELECT id, at, who, dir, text, json FROM perception WHERE window = ? AND id > ? ORDER BY id LIMIT ?').all(window, cursor, batch)
+    const select = store.prep('SELECT id, at, who, dir, text, json FROM perception WHERE window = ? AND id > ? ORDER BY id LIMIT ?')
+    const rows = select.all(window, cursor, batch)
     if (!rows.length) return { encoded: 0 }
     const last = rows[rows.length - 1]
     const idle = now() - last.at >= (Number(S('encodeIdleMinutes')) || 5) * 60000
@@ -233,8 +273,11 @@ export function createMemory(deps) {
       if (error.code === 'BUDGET') return { encoded: 0, budget: true }
       throw error
     }
+    // 等模型时原话可能被删除、合并身份或修改，提交前检查同一批原话仍然有效。
+    const unchanged = () => cursorOf(window) === cursor && JSON.stringify(select.all(window, cursor, rows.length)) === JSON.stringify(rows)
     // 模型没按格式回（不是 JSON、没有 episodes）：这段先不算记过，下次再记；连着三次都不行才跳过，免得卡死
-    if (!parsed || typeof parsed !== 'object' || (parsed.episodes !== undefined && !Array.isArray(parsed.episodes)) || (!Array.isArray(parsed.episodes) && !('self' in parsed) && !('rel' in parsed))) {
+    if (!parsed || typeof parsed !== 'object' || (parsed.episodes !== undefined && !Array.isArray(parsed.episodes)) || (!Array.isArray(parsed.episodes) && !('self' in parsed) && !('rel' in parsed))) return store.tx(() => {
+      if (!unchanged()) return { encoded: 0, changed: true }
       const failKey = 'encode.fail.' + window
       const n = Number(store.get(failKey, 0)) + 1
       if (n < 3) {
@@ -246,12 +289,13 @@ export function createMemory(deps) {
       log.warn(`记 ${window} 时模型连着 ${n} 次没按格式回，这 ${rows.length} 条先跳过（原话还在，翻聊天记录能看到）`)
       store.set('encode.cursor.' + window, last.id)
       return { encoded: 0, failed: true, skipped: rows.length }
-    }
-    store.del('encode.fail.' + window)
+    })
     // 她在这段里说过话就是专心在聊；只是在群里看着，记得浅一些
     const attention = rows.some((r) => r.dir === 'out') ? 1 : 0.6
     const ids = []
-    store.tx(() => {
+    const committed = store.tx(() => {
+      if (!unchanged()) return false
+      store.del('encode.fail.' + window)
       for (const ep of Array.isArray(parsed?.episodes) ? parsed.episodes : []) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue
@@ -285,7 +329,9 @@ export function createMemory(deps) {
         }))
       }
       store.set('encode.cursor.' + window, last.id)
+      return true
     })
+    if (!committed) return { encoded: 0, changed: true }
     if (onEncoded) {
       try { onEncoded({ window, rows, parsed }) } catch (error) { log.warn('记经历后的状态记录出错：', error.message) }
     }
@@ -314,7 +360,7 @@ export function createMemory(deps) {
   const ftsQ = () => store.prep("SELECT e.id FROM episodes_fts f JOIN episodes e ON e.rowid = f.rowid WHERE episodes_fts MATCH ? AND e.status = 'live' LIMIT 30")
   const likeQ = () => store.prep("SELECT id FROM episodes WHERE status = 'live' AND (gist LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\') ORDER BY at DESC LIMIT 30")
   /** 线索里的词各自命中哪些经历：id → 命中的分量占全部分量的比例（0～1）。 */
-  function keywordHits(text) {
+  function keywordHits(text, audienceWindow) {
     const got = new Map()
     const found = []
     for (const { w, weight } of keywords(text)) {
@@ -325,6 +371,7 @@ export function createMemory(deps) {
           ? ftsQ().all('"' + w.replace(/"/g, '""') + '"').map((r) => r.id)
           : likeQ().all(...Array(2).fill('%' + w.replace(/[%_\\]/g, (c) => '\\' + c) + '%')).map((r) => r.id)
       } catch {}
+      if (audienceWindow !== undefined) ids = ids.filter((id) => visibleIn(row(id), audienceWindow))
       // 到处都有的词（常见的人名、口头禅）分不出是哪件事：分量打折
       found.push({ ids: [...new Set(ids)], weight: ids.length >= 30 ? weight * 0.25 : weight })
     }
@@ -346,7 +393,7 @@ export function createMemory(deps) {
   /**
    * period：{ start, end } 只想这段时间里的事（end 不含）。线索空着就按重要程度列这段时间的事。
    */
-  async function recall({ cue, window = '', people = [], limit = Number(S('recallLimit')) || 6, deliberate = false, period = null } = {}) {
+  async function recall({ cue, window = '', audienceWindow, people = [], limit = Number(S('recallLimit')) || 6, deliberate = false, period = null } = {}) {
     if (!limit) return []
     const at = now()
     const inPeriod = (e) => !period || (e.at >= period.start && e.at < period.end)
@@ -386,7 +433,7 @@ export function createMemory(deps) {
     const scored = []
     for (const [id, sim] of cand) {
       const e = row(id)
-      if (!e || e.status !== 'live') continue
+      if (!e || e.status !== 'live' || !visibleIn(e, audienceWindow)) continue
       if (!inPeriod(e)) continue
       if (e.data.kind === 'intention' && e.data.done) continue
       const r = rOf(e, at)
@@ -418,9 +465,9 @@ export function createMemory(deps) {
         log.debug('精排没成，按原来的顺序：', error.message)
       }
     }
-    const top = scored.slice(0, limit)
+    const top = scored.filter(({ e }) => visibleIn(row(e.id), audienceWindow)).slice(0, limit)
     // 联想（扩散激活）：从最相关的两条出发，顺着联系往下想几步；离得越远越淡，太淡的想不起来。
-    // 不限在哪个聊天（群里也能想到私聊里的事），说不说由工作记忆里的分寸提醒管。按日期查的时候不联想。
+    // 对话的联想沿用会话可见范围，按日期查时不联想。
     if (top.length && S('assoc') !== false && !period) {
       const hops = Math.max(1, Math.min(3, Number(S('assocHops')) || 2))
       const cap = Math.max(0, Math.min(5, Number(S('assocLimit') ?? 2)))
@@ -437,7 +484,7 @@ export function createMemory(deps) {
             const act = f.act * Math.max(0, Math.min(1, Number(l.weight) || 0)) * decay
             if (act < 0.2) continue
             const e = row(l.id)
-            if (!e || e.status !== 'live' || (e.data.kind === 'intention' && e.data.done)) continue
+            if (!e || e.status !== 'live' || !visibleIn(e, audienceWindow) || (e.data.kind === 'intention' && e.data.done)) continue
             seen.add(l.id)
             const r = rOf(e, at)
             let level = levelOf(r, 1, levels())
@@ -497,13 +544,13 @@ export function createMemory(deps) {
     return store.prep(`SELECT * FROM episodes WHERE kind = 'pending' AND status = 'live'${open ? " AND json_extract(json, '$.followup.done') IS NULL" : ''} ORDER BY at DESC LIMIT 200`).all()
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
   }
-  function dueFollowups({ people = [], limit = 2 } = {}) {
+  function dueFollowups({ people = [], audienceWindow, limit = 2 } = {}) {
     if (S('followup') === false || !people.length) return []
     const at = now()
     const out = []
     for (const e of pendingRows({ open: true })) {
       const f = e.data.followup
-      if (!f || f.done || !people.includes(e.data.about)) continue
+      if (!f || f.done || !people.includes(e.data.about) || !visibleIn(e, audienceWindow)) continue
       const care = Math.max(0, Math.min(1, Number(deps.care?.(e.data.about) ?? 0.5)))
       if (care < 0.3) continue // 不熟、她又不特别心疼人的：不追问
       const max = Math.max(1, Math.round((Number(S('followupMaxAsks')) || 3) * (0.4 + 0.6 * care)))
@@ -528,21 +575,22 @@ export function createMemory(deps) {
     return true
   }
   /** 还惦记着的（面板用）：某个人的，或者全部。 */
-  function followups({ person: pid = '', all = false } = {}) {
+  function followups({ person: pid = '', all = false, audienceWindow } = {}) {
     return pendingRows({ open: !all })
-      .filter((e) => (all || !e.data.followup?.done) && (!pid || e.data.about === pid))
+      .filter((e) => (all || !e.data.followup?.done) && (!pid || e.data.about === pid) && visibleIn(e, audienceWindow))
       .map((e) => ({ id: e.id, at: e.at, gist: e.gist, about: e.data.about, due: e.data.due || null, asks: e.data.followup?.asks || 0, nextAt: e.data.followup?.nextAt || 0, done: e.data.followup?.done || 0 }))
   }
 
   // ---------- 工作记忆 ----------
   /** 到期或快到期的要做的事（前瞻记忆）。 */
-  function dueIntentions({ window = '', within = 2 * 3600000 } = {}) {
+  function dueIntentions({ window = '', audienceWindow, within = 2 * 3600000 } = {}) {
     const at = now()
     return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL ORDER BY at DESC LIMIT 50").all()
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
       // 到期或快到期的；过期三天还没做的慢慢就不惦记了（还在记忆里，只是不再每轮提醒）。
       // 没说时间的：答应后（或上次想起后）一周内每轮记着，之后就不再时时挂在心上，聊到了还想得起来
       .filter((e) => !e.data.done && (e.data.due ? e.data.due <= at + within && e.data.due >= at - 3 * DAY : at - Math.max(e.at || 0, e.last_recall || 0) < 7 * DAY) && (!window || !e.window || e.window === window || e.data.due))
+      .filter((e) => visibleIn(e, audienceWindow))
       .slice(0, 5)
   }
   function completeIntention(id) {
@@ -584,7 +632,7 @@ export function createMemory(deps) {
    * 今天（和接下来 within 天）有哪些日子：记下来的生日、纪念日，以及和亲近的人认识满一年、两年……
    * @returns {Array<{ text: string, about: string, inDays: number, owner: boolean, self: boolean, kind: string }>}
    */
-  function specialDays({ within = 0 } = {}) {
+  function specialDays({ within = 0, audienceWindow } = {}) {
     const tz = deps.tz()
     const at = now()
     const today = localParts(at, tz)
@@ -600,6 +648,7 @@ export function createMemory(deps) {
     const label = (i) => (i === 0 ? '今天' : i === 1 ? '明天' : i === 2 ? '后天' : `${i} 天后`)
     for (const r of store.prep("SELECT * FROM episodes WHERE kind = 'date' AND status IN ('live', 'archived') ORDER BY at DESC LIMIT 300").all()) {
       const e = { ...r, data: JSON.parse(r.json) }
+      if (!visibleIn(e, audienceWindow)) continue
       const day = ahead.find((a) => a.key === e.data.yearly)
       if (!day) continue
       const key = (e.data.about || '') + '|' + e.data.yearly
@@ -618,35 +667,44 @@ export function createMemory(deps) {
   }
 
   // ---------- 到点的约定 ----------
-  /** 到点（或快到点）还没做、也还没提醒过她的约定：对接层拿去让她主动做。 */
-  function dueNow({ within = 10 * 60000 } = {}) {
+  /** 已到点、还没处理过的约定。过期半小时后留给工作记忆。 */
+  function dueNow({ eligible = () => true } = {}) {
     const at = now()
-    return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL AND json_extract(json, '$.nudged') IS NULL AND json_extract(json, '$.due') BETWEEN ? AND ? ORDER BY json_extract(json, '$.due') LIMIT 5")
-      .all(at - 30 * 60000, at + within).map((r) => ({ ...r, data: JSON.parse(r.json) }))
+    return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL AND json_extract(json, '$.nudged') IS NULL AND json_extract(json, '$.reminderUncertain') IS NULL AND json_extract(json, '$.reminderSending') IS NULL AND json_extract(json, '$.due') BETWEEN ? AND ? ORDER BY json_extract(json, '$.due'), id")
+      .all(at - 30 * 60000, at).map((r) => ({ ...r, data: JSON.parse(r.json) })).filter(eligible).slice(0, 5)
   }
-  function markNudged(id) {
-    const e = row(id)
-    if (!e) return false
-    e.data.nudged = now()
-    save(e)
-    return true
+  function setReminderDelivery(id, status) {
+    return store.tx(() => {
+      const e = row(id)
+      if (!e || e.data.done) return false
+      if (status === 'sending') {
+        if (e.data.reminderSending != null || e.data.nudged != null || e.data.reminderUncertain != null) return false
+        e.data.reminderSending = now()
+      } else {
+        delete e.data.reminderSending
+        if (status === 'sent') e.data.nudged = now()
+        if (status === 'uncertain') e.data.reminderUncertain = now()
+      }
+      save(e)
+      return true
+    })
   }
 
   /**
    * 这一轮的工作记忆：想起来的事 + 惦记着的要做的事，按字数上限裁。
    * 想起来的会被加强（她真的想起来了）。
    */
-  async function workingMemory({ cue, window, people = [], readOnly = false } = {}) {
+  async function workingMemory({ cue, window, people = [], readOnly = false, isCurrent = () => true, limit } = {}) {
     const max = Number(S('workingChars')) || 1800
-    const got = await recall({ cue, window, people })
+    const got = await recall({ cue, window, people, audienceWindow: window || '', limit })
+    if (!isCurrent()) return { text: '', recalled: [] }
     const lines = []
     let total = 0
     const used = []
     for (const m of got) {
+      if (limit !== undefined && used.length >= limit) break
       const when = dayKey(m.at, deps.tz())
-      // 分寸：秘密、别处私聊里的事，提醒她是在哪听来的
-      const elsewhere = m.window && window && m.window !== window
-      const note = m.secret ? (elsewhere ? '（这是别人私下跟你说的秘密，别在这里说）' : '（秘密，别往外说）') : elsewhere && place(m.window).kind === 'private' && place(window).kind !== 'private' ? '（私聊里的事，在群里说之前想想合不合适）' : ''
+      const note = m.secret ? '（秘密，别往外说）' : ''
       // 跟眼前的人说过这件事了：别当新鲜事再讲一遍
       const told = people.filter((p) => m.toldTo?.[p]).map((p) => `${nameOf(p)}（${shortTime(m.toldTo[p], deps.tz()).slice(0, 5)}）`)
       const toldNote = told.length ? `（这事你已经跟${told.join('、')}说过了）` : ''
@@ -656,15 +714,15 @@ export function createMemory(deps) {
       lines.push(line)
       used.push(m.id)
     }
-    const todo = dueIntentions({ window }).map((e) => `- ${e.gist}${e.data.due ? `（${shortTime(e.data.due, deps.tz())} 前）` : ''}`)
+    const todo = dueIntentions({ window, audienceWindow: window || '' }).map((e) => `- ${e.gist}${e.data.due ? `（${shortTime(e.data.due, deps.tz())} 前）` : ''}`)
     // 在场的人有到了该问的事：提一句，问过就往后推（调试模式只看不推）
-    const follow = dueFollowups({ people })
+    const follow = dueFollowups({ people, audienceWindow: window || '' })
     if (!readOnly) for (const { e, care } of follow) markAsked(e, care)
     const asks = follow.map(({ e }) => `- ${dayKey(e.at, deps.tz())} ${nameOf(e.data.about)}：${e.gist}`)
     // 记下这一轮想起了什么：她接下来说出口的，算「跟这里的人说过了」
     if (!readOnly && window) lastRecalled.set(window, got.filter((m) => used.includes(m.id) && m.level !== 'tip').map((m) => ({ id: m.id, at: now() })))
     // 今天和快到的日子（生日、纪念日、认识几周年）：眼前的人的、主人的、她自己的
-    const days = specialDays({ within: 3 }).filter((d) => d.self || d.owner || people.includes(d.about))
+    const days = specialDays({ within: 3, audienceWindow: window || '' }).filter((d) => d.self || d.owner || people.includes(d.about))
     // readOnly（调试模式）：只想起来，不加强、不重新点燃情绪，不留下痕迹
     if (used.length && !readOnly) {
       strengthen(used)
@@ -685,7 +743,7 @@ export function createMemory(deps) {
     if (!gist) throw new Error('要记的内容是空的')
     const qv = await embedText(gist)
     if (qv) {
-      const hit = vectors.search(qv, { model: embedModel(), limit: 1, min: 0.9 })[0]
+      const hit = vectors.search(qv, { model: embedModel(), limit: 1, min: 0.9, filter: (id) => visibleIn(row(id), window) })[0]
       if (hit) {
         const e = row(hit.id)
         if (e && e.status !== 'deleted') {
@@ -756,9 +814,9 @@ export function createMemory(deps) {
    * 群里的话题和她的记忆有多相关（0～1，同步、只查本地全文索引，插话判断用）。
    * 只算她还记得的（没归档的）；三个字以上的词才能查。
    */
-  function topicScore(text) {
+  function topicScore(text, { audienceWindow } = {}) {
     let best = 0
-    for (const cov of keywordHits(text).values()) best = Math.max(best, cov)
+    for (const cov of keywordHits(text, audienceWindow).values()) best = Math.max(best, cov)
     return best
   }
 
@@ -800,8 +858,8 @@ export function createMemory(deps) {
   const canEmbed = () => Boolean(embed)
 
   return {
-    connect, encodeWindow, encodePending, pendingWindows, recall, strengthen, workingMemory,
-    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, markNudged, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
-    embedEpisodes, staleVectorIds, vectorProgress, canEmbed, queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
+    connect, encodeWindow, encodePending, pendingWindows, recall, strengthen, workingMemory, visibleIn,
+    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
+    embedEpisodes, staleVectorIds, vectorProgress, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }

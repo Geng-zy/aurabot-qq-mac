@@ -136,9 +136,15 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   // 网关未就绪时先攒着：只有「确定没发出去」的消息才入队，连接后按 TTL 补发。
   async function flushOutbox() {
-    if (!box || gwState !== 'connected' || !loginOk) return
+    const config = getConfig()
+    if (!box || gwState !== 'connected' || !loginOk || config.enabled === false || config.debug || config.dryRun) return
     try {
-      const r = await box.flush((action, params, opts) => gw.call(action, params, { ...opts, retries: 0 }))
+      const r = await box.flush((action, params, opts) => gw.call(action, params, { ...opts, retries: 0 }), {
+        onSent: (item, result) => emit({
+          type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
+          messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system',
+        }),
+      })
       if (r.sent || r.dropped || r.left) log.info(`补发队列：成功 ${r.sent}，丢弃 ${r.dropped}，剩余 ${r.left}`)
     } catch (error) {
       log.warn('补发队列出错：', error.message)
@@ -236,7 +242,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
      * 发一条消息。route.groupId：私聊是从群里临时会话来的，回的时候带上群号。
      * queue：确定没发出去（网关还没就绪）时放进补发队列，返回 { queued:true }；入不了队把原因写在 error.queueProblem 上再抛。
      */
-    async send(chatId, message, { timeoutMs, route, queue = false, note = '' } = {}) {
+    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false } = {}) {
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error(`不是 QQ 的聊天：${chatId}`)
       const action = tgt.kind === 'group' ? 'send_group_msg' : 'send_private_msg'
@@ -248,7 +254,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       } catch (error) {
         // 超时（uncertain）不入队，避免同一条消息发两次。
         if (queue && box && isDefiniteFailure(error)) {
-          const q = box.add({ action, params, chatId, note })
+          const q = box.add({ action, params, chatId, note, kind: system ? 'system' : 'reply' })
           if (q.ok) return { queued: true, queuedId: q.id, error }
           error.queueProblem = q.message
         }

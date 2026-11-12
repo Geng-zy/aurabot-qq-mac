@@ -46,3 +46,18 @@ test('设成 0 就不重算', async () => {
   await m.sleep()
   assert.equal(m.memory.vectorProgress().done, 0)
 })
+
+test('补向量临时失败会留待下次，即使关闭了换模型重算', async (t) => {
+  const { a, m } = setup()
+  t.after(() => a.close())
+  m.updateSettings({ 'memory.reembedPerNight': 0 })
+  const id = m.memory.insert({ at: T0, gist: '需要补向量的一件事', kind: 'event' })
+  m.memory.connect({ embed: async () => { throw new Error('向量服务暂时离线') } })
+  await m.sleep({ quality: 0 })
+  assert.equal(m.vectorOf(id), null)
+  assert.ok(m.memory.takeJobs('embed').some((j) => j.ref === id))
+  m.memory.connect({ embed: async () => [[1, 2]] })
+  await m.sleep({ quality: 0 })
+  assert.ok(m.vectorOf(id))
+  assert.ok(!m.memory.takeJobs('embed').some((j) => j.ref === id))
+})

@@ -24,6 +24,10 @@ export function createSleep(mem, deps) {
   const random = deps.random || Math.random
   const S = (k) => setting('memory.' + k)
   const name = () => deps.identity().name || '她'
+  function sourceUnchanged(e) {
+    const current = mem.row(e.id)
+    return current?.gist === e.gist && current.detail === e.detail && current.window === e.window && current.json === e.json
+  }
 
   /** 给相像的经历建联系（向量余弦 ≥ 0.8）。 */
   function linkSimilar(ids) {
@@ -91,6 +95,9 @@ export function createSleep(mem, deps) {
     const line = (e, n) => `${n}. ${dayKey(e.at, deps.tz())} [${e.data.kind}${e.data.about ? ' 关于 ' + e.data.about : ''}] ${e.gist}`
     const text = list.map((e, i) => line(e, i + 1)).join('\n') + (kList.length ? '\n\n已经知道的事（只用来判断是不是过时了，不能当依据）：\n' + kList.map((e, i) => line(e, 'K' + (i + 1))).join('\n') : '')
     const out = parseJson(await mem.ask('consolidate', CONSOLIDATE_SYSTEM(), text, 2000))
+    const inputs = [...list, ...kList]
+    if (!inputs.every(sourceUnchanged)) return { facts: 0, links: 0, merged: 0, outdated: 0 }
+    const promptSources = inputs.filter((e) => !mem.visibleIn(e, '')).map((e) => e.id)
     let facts = 0
     let links = 0
     let merged = 0
@@ -105,6 +112,8 @@ export function createSleep(mem, deps) {
         // 已经知道差不多的事：不再记一条，把新依据并进去、记得更牢
         const same = known.find((k) => k.data.about === String(f.about || '') && textSimilar(k.gist, t) >= 0.6)
         if (same) {
+          const restricted = promptSources.filter((id) => id !== same.id)
+          if (restricted.length) same.data.promptSources = [...new Set([...(same.data.promptSources || []), ...restricted])]
           same.data.derivedFrom = [...new Set([...(same.data.derivedFrom || []), ...src.map((e) => e.id)])]
           same.stability = same.stability * 1.5
           same.last_recall = now()
@@ -113,7 +122,7 @@ export function createSleep(mem, deps) {
           merged++
           continue
         }
-        const nid = mem.insert({ at: now(), window: '', gist: t, kind: 'semantic', importance: Math.max(...src.map((e) => e.data.importance || 0.5)), about: String(f.about || ''), speaker: 'self', attention: 1, extra: { derivedFrom: src.map((e) => e.id) } })
+        const nid = mem.insert({ at: now(), window: '', gist: t, kind: 'semantic', importance: Math.max(...src.map((e) => e.data.importance || 0.5)), about: String(f.about || ''), speaker: 'self', attention: 1, extra: { derivedFrom: src.map((e) => e.id), ...(promptSources.length ? { promptSources } : {}) } })
         known.push(mem.row(nid))
         facts++
       }
@@ -136,6 +145,8 @@ export function createSleep(mem, deps) {
         const cur = mem.row(old.id)
         if (!cur || cur.data.outdated) continue
         cur.data.outdated = { at: now(), by: by.id, now: nowText || by.gist }
+        const restricted = promptSources.filter((id) => id !== cur.id)
+        if (restricted.length) cur.data.promptSources = [...new Set([...(cur.data.promptSources || []), ...restricted])]
         mem.save(cur)
         outdated++
       }
@@ -160,7 +171,7 @@ export function createSleep(mem, deps) {
       if (level >= 0.2 && random() < level) {
         const v = vecOf(e.id)
         const h = v && mem.vectors.search(v, { model: String(S('embedModel')), limit: 3, min: 0.8, filter: (x) => x !== e.id })
-          .map((x) => mem.row(x.id)).find((x) => x && !NOT_EVIDENCE.has(x.data.kind))
+          .map((x) => mem.row(x.id)).find((x) => mem.visibleIn(x, e.window || '') && !NOT_EVIDENCE.has(x.data.kind))
         similar = h || null
       }
       const mood = Number(job.data.mood) || 0
@@ -175,11 +186,13 @@ export function createSleep(mem, deps) {
         continue
       }
       const gist = String(out?.gist || '').trim()
+      if (!sourceUnchanged(e) || (similar && !sourceUnchanged(similar))) continue
       // 大意不能丢：太短或太长都不要
       if (gist && gist.length >= e.gist.length * 0.5 && gist.length <= e.gist.length * 1.8 + 10) {
         if (!e.data.original) e.data.original = { gist: e.gist, detail: e.detail, at: now() }
         e.data.rewrites = (e.data.rewrites || 0) + 1
         e.gist = gist
+        if (similar && !mem.visibleIn(similar, '')) e.data.rewrittenWith = similar.id
         e.detail = String(out.detail || '').trim() || e.detail
         mem.save(e)
         n++
@@ -197,10 +210,23 @@ export function createSleep(mem, deps) {
       const src = (f?.data.derivedFrom || []).map((id) => mem.row(id)).filter(Boolean)
       if (!f || !src.length) { mem.doneJob(job.id); continue }
       try {
-        const out = parseJson(await mem.ask('consolidate', `只根据下面这些经历，重新概括这条“知道的事”。依据不够就输出 {"text":""}。不要编。只输出 JSON：{"text":""}`, `原来的：${f.gist}\n经历：\n${src.map((e) => '- ' + e.gist).join('\n')}`, 300))
+        const out = parseJson(await mem.ask('consolidate', `只根据下面这些经历，重新概括这条“知道的事”。依据不够就输出 {"text":""}。不要编。只输出 JSON：{"text":""}`, `经历：\n${src.map((e) => '- ' + e.gist).join('\n')}`, 300))
+        if (!sourceUnchanged(f) || !src.every(sourceUnchanged)) continue
         const t = String(out?.text || '').trim()
         if (!t) mem.deleteEpisode(f.id)
-        else { f.gist = t; f.data.needsRecompute = false; mem.save(f); n++ }
+        else {
+          f.gist = t
+          f.data.needsRecompute = false
+          delete f.data.promptSources
+          delete f.data.outdated
+          delete f.data.rewrittenWith
+          delete f.data.original
+          f.detail = null
+          mem.vectors.remove(f.id)
+          mem.queueJob('embed', f.id)
+          mem.save(f)
+          n++
+        }
       } catch (error) {
         if (error.code === 'BUDGET') break
       }
@@ -239,7 +265,10 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
     const summary = String(out?.summary || '').trim()
     if (!summary) return null
     const imp = Math.min(1, 0.6 + 0.1 * Math.log2(rows.length))
-    return mem.insert({ at: range.end - 1, window: '', gist: summary.slice(0, 600), kind: R.kind, importance: imp, speaker: 'self', attention: 1, extra: { day: key, period: { start: range.start, end: range.end }, from: rows.map((r) => r.id).slice(0, 100) } })
+    return store.tx(() => {
+      if (reviewed(R.kind, key) || !rows.every(sourceUnchanged)) return null
+      return mem.insert({ at: range.end - 1, window: '', gist: summary.slice(0, 600), kind: R.kind, importance: imp, speaker: 'self', attention: 1, extra: { day: key, period: { start: range.start, end: range.end }, from: rows.map((r) => r.id).slice(0, 100) } })
+    })
   }
   /** 睡觉时：没写过回顾的前几天、上一周、上个月补上（今天还没过完，不写）。 */
   async function review() {
@@ -297,11 +326,13 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
 
   /** 做梦。大部分醒来就忘；情绪强的、被叫醒的更容易记得。梦不会被当成真发生过的事。 */
   async function dream({ wokenUp = false } = {}) {
-    const recent = store.prep("SELECT gist FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') != 'dream' ORDER BY random() LIMIT 5").all(now() - 2 * DAY).map((r) => r.gist)
-    const old = store.prep("SELECT gist FROM episodes WHERE status IN ('live', 'archived') AND at < ? ORDER BY random() LIMIT 2").all(now() - 7 * DAY).map((r) => r.gist)
-    const worries = mem.dueIntentions({ within: 3 * DAY }).map((e) => e.gist)
+    const recent = store.prep("SELECT * FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') != 'dream' ORDER BY random() LIMIT 5").all(now() - 2 * DAY)
+    const old = store.prep("SELECT * FROM episodes WHERE status IN ('live', 'archived') AND at < ? ORDER BY random() LIMIT 2").all(now() - 7 * DAY)
+    const worries = mem.dueIntentions({ within: 3 * DAY })
     if (!recent.length && !old.length) return null
-    const out = await mem.ask('dream', DREAM_SYSTEM(), [...recent.map((x) => '最近：' + x), ...old.map((x) => '以前：' + x), ...worries.map((x) => '心事：' + x)].join('\n'), 600)
+    const out = await mem.ask('dream', DREAM_SYSTEM(), [...recent.map((x) => '最近：' + x.gist), ...old.map((x) => '以前：' + x.gist), ...worries.map((x) => '心事：' + x.gist)].join('\n'), 600)
+    const sources = [...recent, ...old, ...worries]
+    if (!sources.every(sourceUnchanged)) return null
     const m = out.match(/情绪强度\s*[=＝:：]\s*([01](?:\.\d+)?)/)
     const intensity = m ? clamp01(m[1]) : 0.3
     const text = out.replace(/\n?.*情绪强度.*$/m, '').trim()
@@ -312,7 +343,7 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
     log2.unshift({ at: now(), text, intensity, remembered })
     store.set('dreams.log', log2.slice(0, 30))
     let id = null
-    if (remembered) id = mem.insert({ at: now(), window: '', gist: text.slice(0, 300), kind: 'dream', importance: 0.3, emotion: { name: '梦里的感觉', intensity, valence: 0 }, speaker: 'self', attention: 0.7 })
+    if (remembered) id = mem.insert({ at: now(), window: '', gist: text.slice(0, 300), kind: 'dream', importance: 0.3, emotion: { name: '梦里的感觉', intensity, valence: 0 }, speaker: 'self', attention: 0.7, extra: { from: sources.map((e) => e.id) } })
     store.set('dreams.last', { at: now(), text, intensity, remembered })
     return { text, intensity, remembered, id }
   }
@@ -321,7 +352,13 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
    * 睡一觉的整理。quality 0～1：睡得少整理得也少（只做一部分）。
    * @returns 每一步做了多少
    */
-  async function sleep({ quality = 1, wokenUp = false } = {}) {
+  let currentSleep = null
+  function sleep(options) {
+    if (!currentSleep) currentSleep = consolidateSleep(options).finally(() => { currentSleep = null })
+    return currentSleep
+  }
+
+  async function consolidateSleep({ quality = 1, wokenUp = false } = {}) {
     const report = {}
     const since = Number(store.get('sleep.lastAt', 0)) || now() - DAY
     const step = async (name, fn) => {
@@ -335,7 +372,9 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
       const jobs = mem.takeJobs('embed', 1000)
       // 这里只补完全没有向量的；用旧模型算过的归下面的「重算」管（受每晚条数限制）
       const n = await mem.embedEpisodes(jobs.map((j) => j.ref).filter((id) => id && !mem.vectors.has(id)))
-      for (const j of jobs) mem.doneJob(j.id)
+      for (const j of jobs) {
+        if (!mem.row(j.ref) || mem.vectors.has(j.ref)) mem.doneJob(j.id)
+      }
       return n
     })
     // 换过向量模型：每晚分批把旧记忆用新模型重新算一遍（新的先算），算完的又能按意思想起来；

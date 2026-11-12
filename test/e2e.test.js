@@ -265,6 +265,31 @@ test('群聊插话：她可以选择不说话', async () => {
   assert.equal(sentTo('group', '557').length, 0, '回了 [沉默] 就不发')
 })
 
+test('心智先决定是否插话，被直接叫到时仍给会话回复', async () => {
+  const originalStream = fake.ctx.llm.stream
+  const marker = '只路过说一声测试'
+  let appraisals = 0
+  fake.ctx.llm.stream = async function* (options) {
+    const isAppraisal = options.system?.includes('评价当前事件对你意味着什么')
+    if (!isAppraisal || !options.messages?.[0]?.content?.[0]?.text.includes(marker)) return yield* originalStream(options)
+    appraisals++
+    yield { type: 'text-delta', text: JSON.stringify({ e: marker, s: 1, v: [0, 0, 4, 4, 0, 0] }) }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  try {
+    const previous = fake.turns.filter((turn) => turn.userText.includes(marker)).length
+    mock.push(grp('557', '777', text(marker)))
+    await until(() => appraisals > 0)
+    await sleep(120)
+    assert.equal(fake.turns.filter((turn) => turn.userText.includes(marker)).length, previous)
+    const sent = sentTo('group', '557').length
+    mock.push(grp('557', '777', [{ type: 'at', data: { qq: BOT } }, ...text(marker)]))
+    await until(() => sentTo('group', '557').length > sent)
+  } finally {
+    fake.ctx.llm.stream = originalStream
+  }
+})
+
 test('群管：群友要求禁言被拒绝，主人要求才执行', async () => {
   mock.push(grp('555', '777', [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 把999禁言' } }]))
   await until(() => fake.turns.at(-1)?.userText.includes('把999禁言') && fake.turns.at(-1).toolCalls.length)
@@ -1043,6 +1068,7 @@ test('生图：主人让她画图，调生图服务并把图发出去', async ()
   const n = sentTo('private', OWNER).length
   mock.push(priv(OWNER, text('画一只鲸鱼')))
   await until(() => sentTo('private', OWNER).slice(n).some((c) => c.params.message[0].type === 'image'), 10000)
+  await until(() => api.mind.mind.memory.list({ q: '一只蓝色小鲸鱼' }).some((e) => e.window === `qq:private:${OWNER}` && api.mind.mind.memory.row(e.id).data.by === 'imagegen'))
   srv.close()
   assert.equal(body.model, 'test-model')
   assert.match(body.prompt, /可爱风.*一只蓝色小鲸鱼/)
@@ -1191,7 +1217,7 @@ test('空间日记进了她的经历；超期的聊天流水移到废纸篓，�
   const { existsSync, readdirSync } = await import('node:fs')
   // 她写过的空间日记是她自己发过的东西（心智核心里，标明是空间日记模块添的）
   const posts = api.mind.mind.memory.list({ kind: 'own-post', limit: 50 })
-  assert.ok(posts.some((m) => m.gist.includes('白米饭') && api.mind.mind.memory.row(m.id).data.by === 'diary'), '空间日记进了她的经历')
+  assert.ok(posts.some((m) => m.gist.includes('白米饭') && api.mind.mind.memory.row(m.id).data.by === 'diary' && api.mind.mind.memory.row(m.id).data.secret), '仅自己可见的空间日记以私密经历保存')
   // 聊天流水只是近几天的工作文件：超过保留天数的按天移到废纸篓（这里是测试用的临时废纸篓）
   const dir = join(dataDir, 'chatlog')
   mkdirSync(dir, { recursive: true })
@@ -1803,6 +1829,43 @@ test('心智核心：睡着时群友叫不醒她；主人私聊叫醒她；醒�
   await until(() => sentTo('private', OWNER).length > p)
   assert.equal(api.mind.mind.body.state().asleep, false, '主人把她叫醒了')
   await until(() => sentTo('group', '555').length > g, 15000)
+})
+
+test('心智核心：约定到期后由 QQ 投递并确认，只发一次', async () => {
+  const originalStream = fake.ctx.llm.stream
+  fake.ctx.llm.stream = async function* (options) {
+    if (!options.system.includes('在答应过对方的时间发一条简短提醒')) return yield* originalStream(options)
+    yield { type: 'text-delta', text: '到点啦，记得喝水。' }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  const at = Date.now()
+  const mem = api.mind.mind.memory
+  const id = mem.insert({ at, window: 'qq:private:' + OWNER, gist: '提醒喝水', kind: 'intention', due: at })
+  try {
+    assert.equal(await api.mind.checkPromises(), 1)
+    assert.ok(mem.row(id).data.nudged >= at)
+    const sent = () => sentTo('private', OWNER).filter((c) => JSON.stringify(c.params.message).includes('到点啦，记得喝水。'))
+    assert.equal(sent().length, 1)
+    assert.equal(await api.mind.checkPromises(), 0)
+    assert.equal(sent().length, 1)
+  } finally {
+    fake.ctx.llm.stream = originalStream
+  }
+})
+
+test('心智核心：QQ 补发成功才记成她说过的话，系统通知不进记忆', async () => {
+  const channel = api.hub.channels.get('qq')
+  const chatId = `private:${OWNER}`
+  const window = `qq:${chatId}`
+  const saved = () => api.mind.mind.history(window).filter((row) => row.text.includes('补发回执测试'))
+  for (const [kind, content] of [['reply', '补发回执测试正文'], ['system', '补发回执测试系统通知']]) {
+    assert.ok(channel.outbox.add({ kind, action: 'send_private_msg', chatId, params: { user_id: Number(OWNER), message: text(content) } }).ok)
+  }
+  assert.deepEqual(saved(), [])
+  await Promise.all([channel.flushOutbox(), channel.flushOutbox()])
+  const sent = sentTo('private', OWNER).filter((row) => JSON.stringify(row.params.message).includes('补发回执测试'))
+  assert.equal(sent.length, 2)
+  assert.deepEqual(saved().map(({ text: content }) => content), ['补发回执测试正文'])
 })
 
 test('心智核心：单一注意力——她在一个群里回话时，另一个群先等着，回完再看；主人的私聊可以插队', async () => {

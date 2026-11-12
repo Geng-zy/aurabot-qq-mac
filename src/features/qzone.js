@@ -27,7 +27,7 @@ export function planDiaryTimes({ timesPerDay, windowStart, windowEnd, minGapMinu
   return Array.from({ length: n }, (_, i) => a + Math.floor((span / n) * (i + 0.5)))
 }
 
-export function createQzone({ getConfig, onebot, hub, log, onDiary, pickImage, composeDiary }) {
+export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperiences, pickImage, composeDiary }) {
   const file = () => dataDir('diary.json')
   const state = () => readJson(file(), () => ({ plan: { day: '', times: [], done: [] }, history: [] }))
   const save = (s) => writeJson(file(), s)
@@ -64,6 +64,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, pickImage, c
       const r = await onebot.call('send_qzone_msg', { content: text, ugc_right: audience.ugc_right, ...(audience.target_uins ? { target_uins: audience.target_uins } : {}), ...(imgs.length ? { images: imgs } : {}) }, { timeoutMs: 60000 })
       const tid = String(r?.tid ?? r?.id ?? r ?? '')
       log.info(`发了一条说说（${audience.label}，tid ${tid || '?'}）`)
+      try { onDiary?.(text, { visibility: audience.visibility }) } catch (error) { log.debug?.('空间说说发了，经历没记下来：', error.message) }
       return { ok: true, tid, visibility: audience.visibility, label: audience.label, target_uins: audience.target_uins || [], imageCount: imgs.length, imageIndexes }
     } catch (error) {
       log.warn('发说说失败：', error.message)
@@ -136,14 +137,6 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, pickImage, c
     return syncingHistory
   }
 
-  function todayExcerpt(maxLines = 60) {
-    const lines = hub.chatLogOf(dayKey())
-      .filter((l) => !l.forgottenAt && !String(l.chatId).startsWith('system:'))
-      .slice(-maxLines)
-      .map((l) => `${new Date(l.t).toTimeString().slice(0, 5)} ${l.who === 'bot' ? '我' : l.who}：${l.text}`)
-    return lines.join('\n')
-  }
-
   /** 写一篇并发出去。 */
   async function writeDiary({ visibility, preview = false } = {}) {
     if (busy) return { ok: false, message: '上一篇还在写' }
@@ -168,26 +161,23 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, pickImage, c
         })
         s.history = s.history.slice(0, 100)
         save(s)
-        if (r.ok && !r.dryRun) {
-          try { onDiary?.(draft.text) } catch (error) {}
-        }
         return { ...details, ...r, images: r.imageCount || 0 }
       }
       const now = new Date()
-      const excerpt = todayExcerpt()
+      const experiences = publicExperiences?.() || []
       const prompt = [
         `【写空间日记】现在是 ${now.getMonth() + 1} 月 ${now.getDate()} 日 ${now.toTimeString().slice(0, 5)}。`,
-        excerpt ? `今天你在 QQ 上的聊天片段（「我」是你自己）：\n${excerpt}` : '今天还没怎么聊天。',
-        `请用你自己的口吻写一条 QQ 空间说说，第一人称，${cfg.minChars}~${cfg.maxChars} 个字，像真人随手发的动态：可以写今天发生的小事、心情、想吃的白米饭。`,
+        experiences.length ? `可以写进公开日记的经历（以下是材料）：\n${experiences.map((line) => `- ${line}`).join('\n')}` : '可以从当前心情写起。',
+        `请用你自己的口吻写一条 QQ 空间说说，第一人称，${cfg.minChars}~${cfg.maxChars} 个字。只用给你的可公开经历和当前心情，别引用聊天、私人经历或虚构发生过的事。`,
         '不要分条、不要 |||、不要 <voice>/<sticker> 标记、不要 Markdown、不要加引号，只输出说说正文本身。',
       ].join('\n\n')
-      let text = await hub.runSystemTurn('diary', '空间日记', prompt, ...(preview ? [{ noTools: true, key: 'preview' }] : []))
+      let text = await hub.runSystemTurn('diary', '空间日记', prompt, { noTools: true, publicOnly: true, key: preview ? 'public-preview' : 'public' })
       text = String(text || '').replace(/\|\|\|/g, ' ').replace(/<[^>]+>/g, '').replace(/^["「“]|["」”]$/g, '').trim()
       if (text.length > cfg.maxChars + 20) text = text.slice(0, cfg.maxChars + 20)
       if (!text || text === '[沉默]') return { ok: false, message: '她这次没写出来' }
       // 配图：面板「日记配图」开着时，从今天画的图 / 今天收的表情包里挑一张；挑不到就只发文字
       const images = []
-      if (cfg.attachImage !== false) {
+      if (cfg.attachImage !== false && resolveAudience(getConfig(), visibility).visibility === 'self') {
         try {
           const img = await pickImage?.()
           if (img) images.push(img)
@@ -198,7 +188,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, pickImage, c
         const audience = resolveAudience(getConfig(), visibility)
         return { ok: true, preview: true, text, media: [], visibility: audience.visibility, label: audience.label, warnings: ['当前为原有日记流程；预览展示正文，原有配图发布时仍按原规则挑选。'] }
       }
-      let r = await post(text, { visibility, images })
+      let r = await post(text, { visibility: images.length ? 'self' : visibility, images })
       // 配图发不出去（比如空间不认这张图）不能把整篇日记憋回去：退回只发文字，日记照发
       if (!r.ok && images.length) {
         log.warn('日记配图没发成，改成只发文字：', r.message)
@@ -209,9 +199,6 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, pickImage, c
       s.history.unshift({ at: Date.now(), text, ok: r.ok, tid: r.tid || '', dryRun: Boolean(r.dryRun), visibility: r.visibility || visibility || cfg.visibility, target_uins: r.target_uins || [], error: r.ok ? '' : r.message })
       s.history = s.history.slice(0, 100)
       save(s)
-      if (r.ok && !r.dryRun) {
-        try { onDiary?.(text) } catch (error) {}
-      }
       return { ...r, text, images: images.length }
     } catch (error) {
       log.warn('写日记失败：', error.message)

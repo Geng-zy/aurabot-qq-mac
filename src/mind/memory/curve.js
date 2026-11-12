@@ -13,10 +13,10 @@ const W10 = 1.0461
 const D = 5
 const DAY = 86400000
 
-/** 过了 elapsedMs 后还记得多少（0～1）。forgetting > 1 忘得更快。 */
+/** 过了 elapsedMs 后还记得多少（0～1）。forgetting > 1 记得更久。 */
 export function retention(stabilityDays, elapsedMs, forgetting = 1) {
   const s = Math.max(0.01, Number(stabilityDays) || 0.01)
-  const t = Math.max(0, Number(elapsedMs) || 0) / DAY * Math.max(0.01, Number(forgetting) || 1)
+  const t = Math.max(0, Number(elapsedMs) || 0) / DAY / Math.max(0.01, Number(forgetting) || 1)
   return Math.pow(1 + F * t / s, C)
 }
 

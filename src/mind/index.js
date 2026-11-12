@@ -19,6 +19,7 @@ import { createPersonality } from './personality/index.js'
 import { createSelf } from './self/index.js'
 import { createRelations } from './relations/index.js'
 import { makePlace, shortId } from './place.js'
+import { createConversation } from './conversation.js'
 
 export { PARAMS, GROUPS } from './params.js'
 export { placeOf, shortId } from './place.js'
@@ -34,6 +35,7 @@ const noopLog = { debug() {}, info() {}, warn() {}, error() {} }
  *   log?: { debug: Function, info: Function, warn: Function, error: Function },
  *   memoryDb?: boolean,                  // 测试用：数据库放内存
  *   random?: () => number,               // 测试用：固定随机数
+ *   model?: (request: { scene: string, system: string, text: string, maxTokens: number, signal?: AbortSignal }) => Promise<string | { text: string, tokens?: number }>,
  * }} opts
  */
 export function createMind(opts) {
@@ -426,12 +428,14 @@ export function createMind(opts) {
     for (const r of eps) memory.deleteEpisode(r.id)
     store.tx(() => {
       for (const r of per) store.prep('DELETE FROM perception WHERE id = ?').run(r.id)
+      emotion.forgetAppraisals(pid, wins)
       if (!keepPerson) { store.prep('DELETE FROM people WHERE id = ?').run(pid); recordDeletion(pid, 'person') }
       else if (p) {
         const { rel, tom, ...rest } = p
         savePerson({ ...rest, noMemory: true })
       }
     })
+    conversation.invalidatePerson(pid, wins)
     log?.info?.(`忘掉 ${p?.name || pid}：${eps.length} 件事、${per.length} 句原话移进恢复区${keepPerson ? '，以后也不记他' : ''}`)
     return { ok: true, episodes: eps.length, perception: per.length, keptShared: Math.max(0, kept) }
   }
@@ -549,10 +553,10 @@ export function createMind(opts) {
   const relations = createRelations({ store, now, setting, log, place, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
   // ---------- 身体和情绪 ----------
   const body = createBody({ store, now, setting, tz, log })
-  const emotion = createEmotion({ store, now, setting, log, random: opts.random, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), closeness: (id) => relations.closeness(id), trait: (id) => personality.value(id) })
+  const emotion = createEmotion({ store, now, setting, log, random: opts.random, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), closeness: (id) => relations.closeness(id), trait: (id) => personality.value(id), body: () => body.state({ persist: false }) })
   /** 此刻的身体和心情（记忆、说话方式都看它）。 */
   function feeling() {
-    const b = body.state()
+    const b = body.state({ persist: false })
     const e = emotion.state(b)
     return { body: b, mood: e.mood, emotions: e.active }
   }
@@ -574,11 +578,13 @@ export function createMind(opts) {
   })
   // 记得多牢、心境一致都看此刻真实的心情和精力
   memory.connect({
+    think: opts.model,
     state: () => { const f = feeling(); return { valence: f.mood.v, energy: f.body.energy } },
     // 记经历时顺带：人格的状态记录（她这次比平时更……）、对人的看法、对群的了解
     encodeExtra: () => personality.encodeAsk() + '\n' + relations.encodeAsk(),
     onEncoded: ({ window, rows, parsed }) => {
-      personality.observe(parsed, { window, rows })
+      const shareableHabits = place(window).kind === 'group' && !(Array.isArray(parsed.episodes) && parsed.episodes.some((e) => e?.secret === true))
+      personality.observe(parsed, { window, rows, shareableHabits })
       relations.observe(parsed, { window, rows })
     },
   })
@@ -589,6 +595,7 @@ export function createMind(opts) {
       ['relations', () => relations.nightly()],
       ['story', () => self.updateStory({
         ask: (scene, system, text, maxTokens) => memory.ask(scene, system, text, maxTokens),
+        isVisible: (id) => memory.visibleIn(memory.row(id), ''),
         episodes: () => store.prep("SELECT id, at, gist, json FROM episodes WHERE status = 'live' AND at >= ? ORDER BY at DESC LIMIT 200").all(now() - 7 * 86400000)
           .map((r) => ({ id: r.id, at: r.at, gist: r.gist, ...JSON.parse(r.json) }))
           .filter((e) => (e.importance || 0) >= 0.7 || (e.emotion?.intensity || 0) >= 0.7)
@@ -599,7 +606,7 @@ export function createMind(opts) {
 
   /** 她是谁（放进系统提示词开头）：当前版本的人格卡、她自己写的价值观等、自我故事摘要、不知不觉的变化和小习惯。 */
   function selfPrompt() {
-    return [self.prompt(), personality.selfText()].filter((x) => String(x || '').trim()).join('\n\n')
+    return [self.prompt({ isVisible: (id) => memory.visibleIn(memory.row(id), '') }), personality.selfText({ shareableOnly: true })].filter((x) => String(x || '').trim()).join('\n\n')
   }
 
   // ---------- 动机和内心活动 ----------
@@ -609,6 +616,11 @@ export function createMind(opts) {
     store, now, setting, tz, log, random: opts.random, memory, emotion, body, motivation, budget, place,
     ownerCall: () => self.ownerCall(),
     identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id),
+  })
+  if (opts.model) inner.connect({ ask: ({ scene, system, text, maxTokens }) => memory.ask(scene, system, text, maxTokens) })
+  const conversation = createConversation({
+    memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, goals: self.goals, canon,
+    now, random: opts.random || Math.random, speak: opts.model, log,
   })
 
   // ---------- 给她看的「此刻」 ----------
@@ -650,7 +662,7 @@ export function createMind(opts) {
     person, notePerson, listPeople,
     forgetPerson, setNoMemory, forgottenList, restorePerson, peopleGraph,
     // 感知
-    perceive, said, history,
+    perceive, said, history, conversation,
     // 导入
     importBatch, imported, importDone, vectorOf, episode,
     // 删除、备份
@@ -665,7 +677,7 @@ export function createMind(opts) {
     personality, self, relations, selfPrompt, savePerson,
     // 其他
     nowText, today, status,
-    close: () => store.close(),
+    close: () => { conversation.close(); store.close() },
     _store: store,
   }
 }

@@ -340,9 +340,9 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 
 | | |
 |---|---|
-| `api.mind.experience({ text, kind, about, importance, tags, meta, chatId, emotion, effort })` | 她经历了一件事（看了视频、唱了歌、发了空间……）。`emotion` 是她做这件事时的感受 `{ name, intensity }`（名字用常见说法，比如 满足、开心、无聊）；`effort` 是花了她多少精力（0～0.3，唱一首歌大约 0.05）。`kind`：`'event'` 做过的事（默认）、`'seen'` 看过的内容、`'own-post'` 她自己发出去的东西。`about` 是 QQ 号；`meta` 放 `{ title, author, url, platform, id }` 这类出处；`importance` 0～1。记多牢、以后想不想得起来，由心智核心按她当时的状态决定 |
-| `await api.mind.recall(线索, { limit })` | 查她记得的事：`[{ at, text, level, kind }]`。`level` 是想起来的清楚程度：`clear` 清楚、`vague` 只记得大概、`tip` 话到嘴边只想起一半。她忘了的就是忘了，查不到 |
-| `api.mind.recent({ hours, tag, limit })` | 最近她做过、看过的事，可以按 `tags` 里的标签筛 |
+| `api.mind.experience({ text, kind, about, importance, tags, meta, chatId, emotion, effort, secret, publicSummary })` | 记下她实际经历的事。来自聊天时带上 `chatId`，可以用带渠道的账号或本会话的裸账号填写 `about`，私聊未指定时用会话对方。`secret` 标记受限内容。只有无聊天来源且可公开的经历才能提供 `publicSummary`。`kind` 支持 `event`、`seen` 和 `own-post`。`meta` 记录出处。`emotion` 提供 `{ name, intensity }`，`effort` 是 0～0.3 的精力消耗，`importance` 是 0～1 的重要度。调试中或涉及设置了「以后不记」的私聊时返回 `null`。 |
+| `await api.mind.recall(线索, { limit })` | 查可共享的经历：`[{ at, text, level, kind }]`。私聊、秘密及其受限的衍生记录只在来源会话使用。`level` 为 `clear`、`vague` 或 `tip`。 |
+| `api.mind.recent({ hours, tag, limit, publicOnly })` | 最近可共享的经历，可以按 `tags` 里的标签筛。`publicOnly: true` 只返回标明可对外发布的摘要，适合写公开日记。 |
 | `api.mind.now()` | 她现在的时间（按她的时区） |
 | `api.mind.awake()` | 她醒着没有。睡着时模块别替她做事、别替她看消息 |
 | `api.mind.offer({ id, label, needs, effort, delayHours, cooldownMinutes, payoff, keywords, available, run })` | 把一件她能做的事交给她，**由她自己决定什么时候做**（模块不再自己定时去做）。`needs` 是这件事满足哪些基本需要（`fun` 新鲜和乐趣、`curiosity` 好奇、`beauty` 美、`companion` 陪伴、`recognition` 被认可、`meaning` 意义……），0～1；`effort` 多费力（0～1）；`delayHours` 回报要等多久；`available()` 返回 `true` 或者做不了的原因（面板里的开关、每天上限照旧在这里判断）；`run()` 返回 `{ ok, summary, outcome }`，`outcome` 0～1 是她做完有多满意，她会按它学下次还想不想做。模块停了，交出去的事自动撤掉 |

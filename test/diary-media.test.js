@@ -88,23 +88,30 @@ test('素材备注按码点截断并清理孤立代理字符，不将半个 emoj
   assert.ok(text.includes('🌸\nhttps://'))
 })
 
-test('关闭图文功能时完全走原有写作与配图流程', async () => {
+test('普通日记使用公开摘要，只有仅自己可见时才自动挑本地聊天素材', async () => {
   writeJson(dataDir('diary.json'), { history: [], plan: { day: '', times: [], done: [] } })
   const cfg = normalize({ enabled: true, dryRun: false })
   let picked = 0
   const calls = []
+  const prompts = []
   const qzone = createQzone({
     getConfig: () => cfg, log,
-    hub: { chatLogOf: () => [], runSystemTurn: async () => '今天想好好吃一碗白米饭。' },
+    hub: { chatLogOf: () => { throw new Error('不能读聊天流水') }, runSystemTurn: async (...args) => { prompts.push(args); return '今天想好好吃一碗白米饭。' } },
+    publicExperiences: () => ['看了公开作品《云朵》'],
     composeDiary: () => { throw new Error('不应调用新流程') },
     pickImage: () => { picked++; return 'base64://' + PNG.toString('base64') },
     onebot: { call: async (action, params) => { calls.push({ action, params }); return 'old' } },
   })
   const result = await qzone.writeDiary()
   assert.equal(result.ok, true)
+  assert.equal(picked, 0)
+  assert.equal(calls[0].params.images, undefined)
+  assert.equal((await qzone.writeDiary({ visibility: 'self' })).ok, true)
   assert.equal(picked, 1)
   assert.equal(calls[0].params.content, '今天想好好吃一碗白米饭。')
-  assert.equal(calls[0].params.images.length, 1)
+  assert.equal(calls[1].params.images.length, 1)
+  assert.match(prompts[0][2], /公开作品《云朵》/)
+  assert.deepEqual(prompts[0][3], { noTools: true, publicOnly: true, key: 'public' })
 })
 
 test('指定本地图库后才读取；没有指定目录、不启用来源时均为空', () => {
@@ -245,7 +252,7 @@ test('预览不调用 OneBot、不改历史和计划、不写记忆，且不向�
   assert.equal(f.memories.length, 0)
   assert.deepEqual(readJson(dataDir('diary.json')), initial)
   assert.doesNotMatch(f.prompts[0][2], /私聊秘密|private:10001|C:\\Users/)
-  assert.deepEqual(f.prompts[0][3], { noTools: true, key: 'media' })
+  assert.deepEqual(f.prompts[0][3], { noTools: true, publicOnly: true, key: 'public-media' })
 })
 
 test('图文日记按保存的可见范围发布，记录与记忆只在实际成功后更新', async () => {

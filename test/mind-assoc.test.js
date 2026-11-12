@@ -1,4 +1,4 @@
-// 记忆联想（第 11 项）：顺着联系往下想几步，越远越淡；不限聊天，但私聊里的事、秘密带着分寸提醒；能关、能限条数。
+// 内部联想可以跨聊天。对话只使用当前会话可见的经历。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMindAdapter } from '../src/mind-adapter/index.js'
@@ -31,11 +31,29 @@ test('从一件事想到下一件、再下一件，越远越淡（两步外只�
   assert.equal(c.level, 'vague')
 })
 
-test('群里也能联想到私聊里的事，但带着分寸提醒；秘密明说别在这里说', async () => {
+test('对话的联想跳过私聊和秘密，内部联想保留', async () => {
   const { m } = setup()
   const w = await m.memory.workingMemory({ cue: '海边看了日出', window: 'qq:group:5', people: [] })
-  assert.match(w.text, /（由此想到）主人说海边那天他其实很累（私聊里的事，在群里说之前想想合不合适）/)
-  assert.match(w.text, /（由此想到）.*想去海边.*（这是别人私下跟你说的秘密，别在这里说）/)
+  assert.match(w.text, /看了日出/)
+  assert.doesNotMatch(w.text, /其实很累|想去海边/)
+})
+
+test('回顾和提炼结果继承私聊范围，普通对话的回忆工具只返回可见经历', async (t) => {
+  const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => T0 })
+  t.after(() => a.close())
+  const mem = a.mind.memory
+  const dm = 'qq:private:2'
+  const insert = (fields) => mem.insert({ at: T0, importance: 0.8, ...fields })
+  const source = insert({ window: dm, gist: '山路的约定', kind: 'event' })
+  const summary = insert({ gist: '回顾：山路的约定', kind: 'day-summary', extra: { from: [source] } })
+  insert({ gist: '提炼：山路的约定', kind: 'semantic', extra: { derivedFrom: [summary] } })
+  insert({ window: 'qq:group:5', gist: '群里在聊山路', kind: 'event' })
+  const recall = (chat) => a.tools({ chat }).find((tool) => tool.name === 'mind_recall').execute({ query: '山路' })
+  const group = await recall({ chatId: 'group:5', kind: 'group', groupId: '5' })
+  assert.match(group.message, /群里在聊山路/)
+  assert.doesNotMatch(group.message, /山路的约定/)
+  const same = await recall({ chatId: 'private:2', kind: 'private', userId: '2' })
+  assert.match(same.message, /回顾：山路的约定/)
 })
 
 test('能关、能限条数、能限步数；按日期查的时候不联想', async () => {

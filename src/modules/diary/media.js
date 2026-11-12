@@ -69,7 +69,7 @@ export function createDiaryMedia(api, { assets = createDiaryAssets(api.dataDir('
       `只输出 JSON：{"text":"正文","imageIds":["候选id"]}。最多 ${maxImages} 张，没有合适的就留空。不输出路径、网址、图片标签或 Markdown。`,
     ].join('\n\n')
     // 独立系统会话，不挂工具；预览时模型也不能通过工具发布说说。
-    const output = await api.core.hub.runSystemTurn('diary', '空间图文日记', prompt, { noTools: true, key: 'media' })
+    const output = await api.core.hub.runSystemTurn('diary', '空间图文日记', prompt, { noTools: true, publicOnly: true, key: 'public-media' })
     canPublish(snapshot)
     const draft = parseDraft(output, candidates, cfg.maxChars)
     const images = []

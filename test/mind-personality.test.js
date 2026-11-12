@@ -302,7 +302,8 @@ test('自我故事：有重要的新经历才写，一天最多一次；只用�
   const calls = []
   const ask = async (scene, system, text) => { calls.push({ scene, system, text }); return JSON.stringify({ story: '我是从一个只会潜水的小透明慢慢变成话痨的。', chapter: '第一次唱歌' }) }
   assert.equal(await env.m.self.updateStory({ ask, episodes: () => [] }), null, '没有新经历不写')
-  const r = await env.m.self.updateStory({ ask, episodes: () => [{ id: 'a', at: T0, gist: '第一次给主人唱歌', importance: 0.8 }] })
+  const id = env.m.memory.insert({ at: T0, gist: '第一次给主人唱歌', kind: 'event', importance: 0.8 })
+  const r = await env.m.self.updateStory({ ask, episodes: () => [{ id, at: T0, gist: '第一次给主人唱歌', importance: 0.8 }] })
   assert.equal(r.chapter, '第一次唱歌')
   assert.equal(calls[0].scene, 'selfstory')
   assert.match(calls[0].system, /不编没发生过的事/)
@@ -542,15 +543,15 @@ test('对接层：不想搭理的人、名字跟着她变', () => {
   assert.deepEqual(env.a.wakeWords(['别名']), ['小鱼', '鱼鱼', '别名'])
 })
 
-test('分寸：秘密和别处私聊里的事，在群里想起时标明', async () => {
+test('分寸：秘密和别处私聊里的事只在来源会话使用', async () => {
   const env = adapter()
   const m = env.a.mind
   const id1 = m.memory.insert({ at: T0, window: 'qq:private:2', gist: '甲说他喜欢乙，别告诉别人', kind: 'fact', importance: 0.8, extra: { secret: true } })
   const id2 = m.memory.insert({ at: T0, window: 'qq:private:1', gist: '主人说他最近在减肥', kind: 'fact', importance: 0.8 })
   await m.memory.embedEpisodes([id1, id2])
   const wm = await m.memory.workingMemory({ cue: '甲说他喜欢乙 主人说他最近在减肥', window: 'qq:group:9' })
-  assert.match(wm.text, /甲说他喜欢乙.*（这是别人私下跟你说的秘密，别在这里说）/)
-  assert.match(wm.text, /减肥.*（私聊里的事，在群里说之前想想合不合适）/)
+  assert.doesNotMatch(wm.text, /喜欢乙|减肥/)
+  assert.match((await m.memory.workingMemory({ cue: '甲说他喜欢乙', window: 'qq:private:2' })).text, /喜欢乙.*（秘密，别往外说）/)
 })
 
 test('调试模式：照常想起和回话，但不往心智里写——不记消息、不加强记忆、不记感受、工具不真写', async () => {

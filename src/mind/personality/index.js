@@ -145,7 +145,7 @@ ${usual}
    * @param {any} parsed 模型的整段输出
    * @param {{ window: string, rows: Array<{ id: number, at: number, who: string, dir: string }> }} o
    */
-  function observe(parsed, { window, rows }) {
+  function observe(parsed, { window, rows, shareableHabits = true }) {
     const self = Array.isArray(parsed?.self) ? parsed.self : []
     const habit = Array.isArray(parsed?.habit) ? parsed.habit : []
     if (!self.length && !habit.length) return { traits: 0, habits: 0 }
@@ -169,7 +169,7 @@ ${usual}
       const sit = String(o?.sit || '').trim().slice(0, 20)
       const act = String(o?.act || '').trim().slice(0, 20)
       if (!row || row.dir !== 'out' || !sit || !act) continue
-      s.habitObs.push({ at: row.at, day: dayKey(row.at, deps.tz()), sit, act, react: react(o.react), by: by(o.by), window })
+      s.habitObs.push({ at: row.at, day: dayKey(row.at, deps.tz()), sit, act, react: react(o.react), by: by(o.by), window, shareable: shareableHabits })
       nh++
     }
     const keepFrom = now() - 120 * DAY
@@ -287,7 +287,7 @@ ${usual}
       if (o.merged) continue
       let h = s.habits.find((x) => similar(x.sit, o.sit) >= 0.5 && similar(x.act, o.act) >= 0.5)
       if (!h) {
-        h = { id: 'h' + at.toString(36) + s.habits.length, sit: o.sit, act: o.act, seen: [], active: false, since: 0 }
+        h = { id: 'h' + at.toString(36) + s.habits.length, sit: o.sit, act: o.act, seen: [], active: false, since: 0, shareable: o.shareable === true }
         s.habits.push(h)
       }
       h.seen.push({ at: o.at, day: o.day, react: o.react })
@@ -324,11 +324,11 @@ ${usual}
   }
 
   /** 放在系统提示词里的那部分（很少变：只在睡觉时走了一步、或习惯变了时才变）。 */
-  function selfText() {
+  function selfText({ shareableOnly = false } = {}) {
     const parts = []
     const ch = changed()
     if (ch.length) parts.push('【你最近的变化（不知不觉的）】\n' + ch.map((x) => '- ' + x.text).join('\n'))
-    const hb = habits().slice(0, 5)
+    const hb = habits().filter((h) => !shareableOnly || h.shareable).slice(0, 5)
     if (hb.length) parts.push('【你的小习惯】\n' + hb.map((h) => `- ${h.sit}时，你会${h.act}`).join('\n'))
     return parts.join('\n')
   }

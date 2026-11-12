@@ -189,10 +189,14 @@ export interface Events {
  * 只能把她做过、看过的事告诉心智核心，和查她记得的事。
  */
 export interface MindApi {
-  /** 她经历了一件事。kind：event 做过的事（默认）、seen 看过的内容、own-post 她自己发出去的东西。about 是 QQ 号。返回经历 id。 */
+  /** 她经历了一件事。来自聊天的经历应提供 chatId。about 是带渠道的账号，也可给当前会话的裸账号。返回经历 id。 */
   experience(e: {
     text: string; kind?: 'event' | 'seen' | 'own-post'; about?: string; importance?: number; tags?: string[]; chatId?: ChatId
     meta?: { title?: string; author?: string; url?: string; platform?: string; id?: string | number }
+    /** 限制经历的可见范围，例如仅好友或自己可见的动态。 */
+    secret?: boolean
+    /** 可对外发布的独立摘要。只用于无聊天来源且可公开的经历。 */
+    publicSummary?: string
     /** 做这件事时的感受（名字用常见说法，比如 满足、开心、无聊） */
     emotion?: { name: string; intensity: number }
     /** 花了她多少精力，0～0.3（唱一首歌大约 0.05） */
@@ -200,8 +204,8 @@ export interface MindApi {
   }): string | null
   /** 查她记得的事。level：clear 清楚、vague 只记得大概、tip 话到嘴边只想起一半。忘了的查不到。 */
   recall(query: string, opts?: { limit?: number }): Promise<Array<{ at: number; text: string; level: 'clear' | 'vague' | 'tip'; kind: string }>>
-  /** 最近她做过、看过的事（可按标签筛）。 */
-  recent(opts?: { hours?: number; tag?: string; limit?: number }): Array<{ at: number; text: string; kind: string }>
+  /** 最近她做过、看过的事。publicOnly 只返回适合对外发布的摘要。 */
+  recent(opts?: { hours?: number; tag?: string; limit?: number; publicOnly?: boolean }): Array<{ at: number; text: string; kind: string }>
   /** 她现在的时间（按她的时区）。 */
   now(): string
   /** 她醒着没有。 */

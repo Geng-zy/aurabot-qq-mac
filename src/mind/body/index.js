@@ -214,11 +214,11 @@ export function createBody(deps) {
       shift: Math.round((s.shift || 0) * 10) / 10,
     }
   }
-  function state() {
+  function state({ persist = true } = {}) {
     const at = now()
     const s = load()
     advance(s, at)
-    save(s)
+    if (persist) save(s)
     return view(s, at)
   }
 

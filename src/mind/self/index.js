@@ -113,7 +113,7 @@ export function createSelf(deps) {
       saveProfile(p)
       try { deps.onOwnerCall?.(after) } catch {}
     } else if (what === 'story') {
-      p.story = { ...p.story, text: after, at: now() }
+      p.story = { ...p.story, text: after, at: now(), shareable: by === 'owner', from: [] }
       saveProfile(p)
     } else {
       p[what] = after
@@ -151,32 +151,35 @@ export function createSelf(deps) {
    * 睡觉时：有重要的新经历就更新一次自我故事（一天最多一次）。
    * @param {{ ask: Function, episodes: () => Array<{ id: string, at: number, gist: string, importance: number }> }} o
    */
-  async function updateStory({ ask, episodes }) {
+  async function updateStory({ ask, episodes, isVisible = () => true }) {
     if (typeof ask !== 'function') return null
     const p = profile()
     if (p.story.at && now() - p.story.at < DAY * 0.8) return null
-    const fresh = (episodes() || []).filter((e) => e.at > (p.story.at || 0)).slice(0, 20)
+    const fresh = (episodes() || []).filter((e) => e.at > (p.story.at || 0) && isVisible(e.id)).slice(0, 20)
     const day = (at) => (deps.dayKey ? deps.dayKey(at) : new Date(at).toISOString().slice(0, 10))
     if (!fresh.length) return null
     const id = deps.identity()
+    const previous = p.story.shareable && (p.story.from || []).every(isVisible) ? p.story.text : ''
     const text = [
-      `现在的故事：\n${p.story.text || '（还没写过）'}`,
+      `现在的故事：\n${previous || '（还没写过）'}`,
       `人格卡（你对自己的描述）：\n${deps.personaCard().slice(0, 1500)}`,
       `最近重要的经历：\n${fresh.map((e) => `- ${day(e.at)} ${e.gist}`).join('\n')}`,
     ].join('\n\n')
     const j = parseJson(await ask('selfstory', STORY_SYSTEM(id.name), text, 1500))
     const story = String(j?.story || '').trim()
-    if (!story) return null
+    const current = profile()
+    const from = [...new Set([...(previous ? p.story.from || [] : []), ...fresh.map((e) => e.id)])]
+    if (!story || !from.every(isVisible) || current.story.at !== p.story.at || current.story.text !== p.story.text) return null
     const before = p.story.text
     const chapter = String(j?.chapter || '').trim().slice(0, 20)
-    p.story = { text: story.slice(0, 3000), at: now(), chapters: chapter ? [...p.story.chapters, { at: now(), title: chapter }].slice(-40) : p.story.chapters }
-    saveProfile(p)
-    deps.addVersion('self', { what: 'story', before, after: p.story.text }, { by: 'sleep', reason: chapter ? `自我故事新的一章：${chapter}` : '睡觉时更新了自我故事' })
+    current.story = { text: story.slice(0, 3000), at: now(), chapters: chapter ? [...p.story.chapters, { at: now(), title: chapter }].slice(-40) : p.story.chapters, shareable: true, from }
+    saveProfile(current)
+    deps.addVersion('self', { what: 'story', before, after: current.story.text }, { by: 'sleep', reason: chapter ? `自我故事新的一章：${chapter}` : '睡觉时更新了自我故事' })
     return { chapter, length: story.length }
   }
 
   /** 放进系统提示词的「她是谁」：人格卡 + 她自己写的价值观、爱好、外貌、目标 + 自我故事摘要。 */
-  function prompt() {
+  function prompt({ isVisible = () => true } = {}) {
     const id = deps.identity()
     const p = profile()
     const parts = [deps.personaCard()]
@@ -193,15 +196,19 @@ export function createSelf(deps) {
     if (own.length) parts.push('【你自己写下的】\n' + own.join('\n'))
     const words = store.get('self.habitWords', [])
     if (Array.isArray(words) && words.length) parts.push(`【你平时不知不觉会用的说法】${words.join('、')}（自然带一点就好，别刻意）`)
-    if (p.story.text) parts.push('【你的故事（你自己写的）】\n' + [...p.story.text].slice(0, 400).join('') + (p.story.text.length > 400 ? '……' : ''))
+    if (p.story.text && p.story.shareable && (p.story.from || []).every(isVisible)) parts.push('【你的故事（你自己写的）】\n' + [...p.story.text].slice(0, 400).join('') + (p.story.text.length > 400 ? '……' : ''))
     return parts.filter((x) => String(x || '').trim()).join('\n\n')
   }
 
   /** 给工具说明用：她以前改过什么。 */
-  function historyText(limit = 4) {
+  function historyText(limit = 4, { includeReason = true } = {}) {
     const h = history(limit)
     if (!h.length) return '你还没改过自己。'
-    return '你以前改过：' + h.map((x) => `${deps.dayKey ? deps.dayKey(x.at) : new Date(x.at).toISOString().slice(0, 10)} ${WHAT[x.what] || x.what}（${String(x.reason || '').slice(0, 40)}）`).join('；')
+    return '你以前改过：' + h.map((x) => {
+      const day = deps.dayKey ? deps.dayKey(x.at) : new Date(x.at).toISOString().slice(0, 10)
+      const reason = includeReason ? `（${String(x.reason || '').slice(0, 40)}）` : ''
+      return `${day} ${WHAT[x.what] || x.what}${reason}`
+    }).join('；')
   }
 
   return { profile, ownerCall, canChangeOwnerCall, change, dropGoal, restore, history, historyText, updateStory, prompt, goals: () => profile().goals, WHAT, TRAITS }

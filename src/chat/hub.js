@@ -29,7 +29,7 @@ import { expandMentions, hasMention } from './mentions.js'
 import { cleanContent, cleanText } from '../core/text.js'
 import { createRecentMedia } from './recent-media.js'
 import { createTitleFilter } from './title-filter.js'
-import { createChannels } from '../channels/index.js'
+import { createChannels, LEGACY_PLATFORM, normChat, parseChat } from '../channels/index.js'
 import { createQqChannel } from '../channels/qq/index.js'
 import { takeInterim, reasoningOf, rescueFromThinking } from './steps.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
@@ -169,7 +169,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const groupEngagedRun = new Map() // groupId → 没人叫她、连着接了几次话
   const ENGAGE_MS = 3 * 60_000
   const groupNames = new Map()
-  const privateSources = new Map() // 私聊 QQ 号 → 最近一次临时会话的来源群
+  const privateSources = new Map() // 带渠道的私聊 ID → 最近一次临时会话的来源群
   const recentMedia = createRecentMedia({ log }) // 最近发来的图片和表情，短期落盘恢复
   const recentFiles = new Map() // chatId → 最近发来的文件
   // 「她挑 / 只听主人的」：这一轮收到的表情先按会话记着，她想收时凭编号来取。
@@ -271,7 +271,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (!(chance > 0) || !msg.messageId || msg.messageId === '0') return
       // 心智核心在：想不想贴、贴哪种由她（睡着、讨厌、正生 ta 气就不贴；按心情和这条在说什么挑）
       let wish = null
-      try { wish = mind?.reactWish?.({ userId: msg.userId, text: msg.text }) || null } catch (error) {}
+      try { wish = mind?.reactWish?.({ chatId: msg.chatId, userId: msg.userId, text: msg.text }) || null } catch (error) {}
       if (Math.random() >= chance * (wish ? wish.scale : mood().sticker)) return
       const cap = cfg.stickers?.reactMaxPerHour ?? 10
       const ts = Date.now()
@@ -456,7 +456,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       } catch (error) { names.set(id, `QQ 用户(${id})`) }
     }
     if (disposed) return
-    const note = channel.noticeText(notice, { name: (id) => names.get(String(id)) || String(id), ownMessage: (id) => sentIds.has(String(id)) })
+    const note = channel.noticeText(notice, { name: (id) => names.get(String(id)) || String(id), ownMessage: (id) => sentIds.has(`${notice.platform}:${id}`) })
     if (!note) return
     logChat(note.chatId, '系统', `【系统】${note.text}`)
     noticesFor.set(note.chatId, [...(noticesFor.get(note.chatId) || []), note.text].slice(-8))
@@ -890,15 +890,15 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         order: 905,
         text: () => {
           const parts = []
+          const active = currentPromptSources()
+          const sources = active?.chatId === chat.chatId ? active : sourcesFor(chat.chatId)
           for (const p of contextProviders || []) {
             try {
-              const t = p({ chat, sessionId: sid })
+              const t = p({ chat, sessionId: sid, publicOnly: sources.publicOnly === true })
               if (t) parts.push(t)
             } catch (error) {}
           }
           const text = cleanText(parts.join('\n\n'))
-          const active = currentPromptSources()
-          const sources = active?.chatId === chat.chatId ? active : sourcesFor(chat.chatId)
           sources.context = text
           outputSources.set(chat.chatId, sources)
           return text
@@ -918,13 +918,25 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   // ---------- 发到 QQ ----------
   function targetOf(chatId) {
-    const [kind, id] = String(chatId).split(':')
-    return kind === 'group' ? { kind: 'group', id } : kind === 'private' ? { kind: 'private', id } : null
+    return parseChat(chatId)
+  }
+
+  function onDelivered({ chatId, message, note, messageId, system }) {
+    const target = parseChat(chatId)
+    if (disposed || !target) return
+    if (messageId !== undefined && messageId !== null) {
+      sentIds.add(`${target.platform}:${messageId}`)
+      if (sentIds.size > 500) sentIds.delete(sentIds.values().next().value)
+    }
+    if (!system) {
+      try { mind?.said?.({ chatId, message, note, messageId }) } catch (error) { log.debug('心智记录发言失败：', error.message) }
+    }
+    bump('sent')
   }
 
   // system：系统通知，不算她说的话。
   // quiet：这一条是额外的（比如语音后面补发的表情），失败了不算到这一轮头上（deliver 按 failStore 里的条数判断整条有没有发出去）。
-  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false, sensitive = false } = {}) {
+  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false, sensitive = false, allowQueue = true } = {}) {
     if (disposed) return null
     const cfg = getConfig()
     const tgt = targetOf(chatId)
@@ -950,7 +962,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (cap) {
       cap.push({ chatId, note, message })
       if (outputScope.getStore()?.chatId === chatId) outputScope.getStore().sent++
-      return { message_id: 'sim-' + cap.length }
+      return { message_id: 'sim-' + cap.length, simulated: true }
     }
     // 调试模式什么都不发（连 force 的命令回复也不发），只在日志里能看到
     if (cfg.debug) {
@@ -968,21 +980,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     const channel = channelOf(chatId)
     if (!channel) { log.warn(`发不出去：${chatId} 所在的平台没有连接`); return null }
-    const sourceGroupId = tgt.kind === 'private' ? privateSources.get(tgt.id) : ''
+    const sourceGroupId = tgt.kind === 'private' ? privateSources.get(normChat(chatId)) : ''
     try {
-      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: !sensitive, note })
+      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive, note, system })
       if (r?.queued) {
         log.warn(`发到 ${chatId} 时网关还没就绪，已排队补发：${note || r.error?.message || ''}`)
         return { queued: true, queuedId: r.queuedId }
       }
-      if (r && r.message_id !== undefined) {
-        sentIds.add(String(r.message_id))
-        if (sentIds.size > 500) sentIds.delete(sentIds.values().next().value)
-      }
-      // 心智核心：所有出口最后都经过这里，真发出去了才算她说过
-      // system：插件发的系统通知（比如「她改了自己」），不是她说的话
-      if (!system) { try { mind?.said?.({ chatId, message, note, messageId: r?.message_id }) } catch (error) { log.debug('心智记录发言失败：', error.message) } }
-      bump('sent')
+      onDelivered({ chatId, message, note, messageId: r?.message_id ?? r?.messageId, system: system || sensitive })
       if (outputScope.getStore()?.chatId === chatId) outputScope.getStore().sent++
       return r
     } catch (error) {
@@ -1683,7 +1688,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   async function repliedToBot(replyId, msg) {
     if (!replyId) return false
-    if (sentIds.has(replyId)) return true
+    if (sentIds.has(`${parseChat(msg.chatId)?.platform}:${replyId}`)) return true
     const q = await quotedInfo(replyId, msg)
     return Boolean(q && q.ok && q.isBot)
   }
@@ -1810,10 +1815,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     selfId = String(msg.selfId || selfId || getConfig().botQQ)
     const cfg = getConfig()
     if (msg.userId === selfId) return
-    const fromOwner = onCommand && isOwner(cfg, msg.userId)
+    const fromOwner = onCommand && isOwner(cfg, msg.userId, msg.chatId)
     const ownerRevision = fromOwner ? ownerAuthorizationRevision(cfg) : ''
     // 按群头衔过滤：这条当没看见（不进群聊上下文、不触发回复，@ 她、主人命令也一样）
-    if (msg.kind === 'group' && await titleFilter.shouldIgnore(msg.raw || { group_id: msg.groupId, user_id: msg.userId })) return
+    if (msg.kind === 'group' && parseChat(msg.chatId)?.platform === LEGACY_PLATFORM && await titleFilter.shouldIgnore(msg.raw || { group_id: msg.groupId, user_id: msg.userId })) return
     if (disposed) return
     bump('received')
     const now = Date.now()
@@ -1823,7 +1828,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (msg.kind === 'group') {
       const buf = groupBuf.get(msg.groupId) || []
       const entryText = msg.text || (!cfg.voice.asr && msg.records.length ? '[发来一条语音]' : '')
-      groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: entryText, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers, voicePromise: null, voiceText: '' }
+      groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: entryText, observedText: entryText, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers, voicePromise: null, voiceText: '' }
       buf.push(groupEntry)
       while (buf.length > 40) buf.shift()
       groupBuf.set(msg.groupId, buf)
@@ -1831,8 +1836,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
     const allowed = checkAllowed(cfg, msg)
     if (msg.kind === 'private' && (allowed.allowed || msg.subType === 'friend')) {
-      privateSources.delete(msg.userId)
-      if (allowed.allowed && msg.sourceGroupId) privateSources.set(msg.userId, msg.sourceGroupId)
+      const ref = normChat(msg.chatId)
+      privateSources.delete(ref)
+      if (allowed.allowed && msg.sourceGroupId) privateSources.set(ref, msg.sourceGroupId)
       if (privateSources.size > 500) privateSources.delete(privateSources.keys().next().value)
     }
     // 偷表情：只从白名单里的会话偷；按 collectMode 分三种
@@ -1850,7 +1856,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         } else {
           stickerPick = rememberStickers(msg.chatId, msg.stickers)
           // 只听主人的：别人发的先悄悄记着（主人之后说「收下那张」还能用），但不提示她
-          if (collectMode === 'owner' && !isOwner(cfg, msg.userId)) stickerPick = 0
+          if (collectMode === 'owner' && !isOwner(cfg, msg.userId, msg.chatId)) stickerPick = 0
         }
       }
     }
@@ -1866,6 +1872,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         .then((t) => {
           if (t && groupEntry) {
             groupEntry.text = groupEntry.text ? `${groupEntry.text} ${t}` : t
+            groupEntry.observedText = [groupEntry.observedText, t].filter(Boolean).join(' ')
             groupEntry.voiceText = t
           }
           return t
@@ -1896,7 +1903,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       let sensitiveCommand = ''
       const ownerStillCurrent = () => {
         const current = getConfig()
-        return isOwner(current, msg.userId) && ownerAuthorizationRevision(current) === ownerRevision
+        return isOwner(current, msg.userId, msg.chatId) && ownerAuthorizationRevision(current) === ownerRevision
       }
       try {
         const reply = await onCommand(msg, (name) => {
@@ -1936,7 +1943,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 不想搭理的人（她很不喜欢、或有心结）：多半安静看着。心智核心在时按她的关系和设置，主人永远不算
     const dislikeChance = Math.max(0, Math.min(1, Number(mind?.ignoreChance ? mind.ignoreChance() : cfg.memory?.dislikeSilence ?? 0.85) || 0))
     const dislikedBy = mind?.dislikes || dislikes
-    if (dislikeChance > 0 && !isOwner(cfg, msg.userId) && dislikedBy?.(msg.userId) && random() < dislikeChance) {
+    if (dislikeChance > 0 && !isOwner(cfg, msg.userId, msg.chatId) && dislikedBy?.(msg.userId, msg.chatId) && random() < dislikeChance) {
       logChat(msg.chatId, msg.nickname, msg.text, msg.userId)
       onActivity?.({ kind: 'silent', chatId: msg.chatId, text: msg.text, nickname: msg.nickname })
       log.debug(`${msg.chatId}：不想搭理，安静看着`)
@@ -1974,7 +1981,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (mind?.groupInterest) {
         // 心智核心在：插不插话由她自己（性格、心情、话题、在场的人），面板里只留可选的上限；
         // 叫她的名字跟着她的名字和小名走；夜里睡没睡由她的身体管，不用静默时段
-        interest = mind.groupInterest({ texts: recentTexts, speakers: recentWin.map((x) => x.uid) })
+        interest = mind.groupInterest({ chatId: msg.chatId, texts: recentTexts, speakers: recentWin.map((x) => x.uid) })
         const cap = mind.interjectCap?.() || 0
         // 按群单独设：0 = 这个群里她不主动插话（被叫到照样回）；100% = 每条都给她看一眼（说不说还是她定）；/chatty 设的倍数让她更想接话
         const o = cfg.group.overrides?.[String(msg.groupId)] || {}
@@ -2011,7 +2018,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         atOthersAny: msg.atOthers,
         repliedToBot: quotedBot,
         lastIsBot: Boolean(lastBotAt && (!priorMsg || lastBotAt > priorMsg.t)),
-        fromOwner: isOwner(cfg, msg.userId),
+        fromOwner: isOwner(cfg, msg.userId, msg.chatId),
         text: msg.wakeText,
         now,
         hour: new Date().getHours(),
@@ -2089,9 +2096,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     lastChatAt = now
     if (msg.kind === 'private' && msg.userId === cfg.ownerQQ) lastOwnerChatAt = now
     if (msg.kind === 'private') lastPrivateAt.set(msg.userId, now)
-    onActivity?.({ kind: 'in', chatId: msg.chatId, userId: msg.userId, nickname: msg.nickname, text, direct: msg.kind === 'private' || msg.mentioned || mode === 'must', owner: isOwner(cfg, msg.userId) })
+    onActivity?.({ kind: 'in', chatId: msg.chatId, userId: msg.userId, nickname: msg.nickname, text, direct: msg.kind === 'private' || msg.mentioned || mode === 'must', owner: isOwner(cfg, msg.userId, msg.chatId) })
 
-    enqueue({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, groupId: msg.groupId, nickname: msg.nickname }, content, msg.userId, wantsVoice(msg.text), mode, { stickerPick })
+    const observedText = [msg.text, voiceText].filter(Boolean).join(' ')
+    enqueue({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, groupId: msg.groupId, nickname: msg.nickname }, content, msg.userId, wantsVoice(msg.text), mode, { stickerPick, observedText })
   }
 
   /** 把消息里的「[合并转发]」换成里面的聊天记录，里面的图片并进这条消息一起给她看。 */
@@ -2204,6 +2212,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       return `[${i + 1 + refOffset}] ${line(x)}`
     })
     groupRefs.set(chat.groupId, refs)
+    const observations = fresh.filter((x) => x.uid && x.observedText).map((x) => ({ speaker: x.uid, text: x.observedText }))
     const query = fresh.map((x) => x.text).filter(Boolean).join('\n')
     // 按每个人最后一次发言的先后排列，供记忆挑选最近的说话人。
     const speakers = [...new Set(fresh.map((x) => String(x.uid || '')).filter(Boolean).reverse())].reverse()
@@ -2239,7 +2248,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         extraImages = await freshGroupImages(fresh, Math.max(0, imageRoom - quotedImages.length))
       }
     }
-    return { text: text + mediaNote, query, speakers, autoReply: pickAutoReply(fresh), images: [...quotedImages, ...extraImages] }
+    return { text: text + mediaNote, query, observations, speakers, autoReply: pickAutoReply(fresh), images: [...quotedImages, ...extraImages] }
   }
 
   // ---------- 连发合并：人常常一口气发好几句，等对方说完再一起交给她，别一句一回 ----------
@@ -2285,7 +2294,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   function enqueue(chat, content, senderId, wantVoice, mode = 'must', extra = {}) {
     const m = getConfig().merge
-    const p = pending.get(chat.chatId) || { chat, texts: [], images: [], senders: new Set(), wantVoice: false, timer: null, firstAt: Date.now(), mode, count: 0 }
+    const p = pending.get(chat.chatId) || { chat, texts: [], images: [], observations: [], senders: new Set(), wantVoice: false, timer: null, firstAt: Date.now(), mode, count: 0 }
     p.chat = chat
     p.count++
     if ((RANK[mode] || 3) > (RANK[p.mode] || 3)) p.mode = mode
@@ -2294,6 +2303,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       else if (c.type === 'image' && p.images.length < MAX_MESSAGE_IMAGES) p.images.push(c)
     }
     if (extra.stickerPick) p.stickerPick = (p.stickerPick || 0) + extra.stickerPick
+    if (chat.kind === 'private' && senderId && extra.observedText) p.observations.push({ speaker: senderId, text: extra.observedText })
     if (senderId) p.senders.add(String(senderId))
     p.wantVoice = p.wantVoice || wantVoice
     pending.set(chat.chatId, p)
@@ -2356,7 +2366,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         groupInterjects.set(gid, arr)
       }
       // 必回也按小时记账：这段里只要有群友（非主人）@/叫到她就记一次；主人触发的不计入（主人除外）
-      if (p.mode === 'must' && ![...p.senders].some((id) => isOwner(getConfig(), id))) {
+      if (p.mode === 'must' && ![...p.senders].some((id) => isOwner(getConfig(), id, p.chat.chatId))) {
         const arr = (groupMusts.get(gid) || []).filter((t) => Date.now() - t < 3600_000)
         arr.push(Date.now())
         groupMusts.set(gid, arr)
@@ -2370,6 +2380,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const fresh = [{ type: 'text', text: gp.text + hint }, ...p.images, ...(gp.images || [])]
       content = p.retryContent ? [...p.retryContent, ...fresh] : fresh
       p.query = [p.retryQuery, gp.query].filter(Boolean).join('\n')
+      p.observations = [...(p.retryObservations || []), ...gp.observations]
       p.speakers = [...new Set([...(p.retrySpeakers || []), ...gp.speakers])]
       p.autoReply = gp.autoReply
     } else {
@@ -2380,11 +2391,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const [first, ...rest] = [...p.senders]
       // 私聊：检索记忆时去掉「【私聊】某某(QQ)：」这个头
       const query = p.query ?? p.texts.map((t) => t.replace(/^【私聊】[^：]*：/, '')).join('\n')
-      await pushToSession(p.chat, content, first, { wantVoice: p.wantVoice, extraSenders: rest, queryText: query, speakers: p.speakers, autoReply: p.autoReply })
+      await pushToSession(p.chat, content, first, { wantVoice: p.wantVoice, extraSenders: rest, queryText: query, observations: p.observations, speakers: p.speakers, autoReply: p.autoReply, mindDirect: p.chat.kind === 'private' || p.mode === 'must' })
     } catch (error) {
       if (isSessionBackoff(error)) {
         // 会话建不起来、在冷却：这段原文和图片都留着，下一条消息来时一起重试（不设定时器）
         busy.delete(chatId)
+        mind?.endTurn?.(chatId)
         retainSessionMessages(chatId, p, content)
         log.info(`${chatId}：${error.message}`)
         return
@@ -2400,6 +2412,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (p.chat.kind === 'group') {
       p.retryContent = content
       p.retryQuery = p.query
+      p.retryObservations = p.observations
       p.retrySpeakers = p.speakers
       p.retryRefs = groupRefs.get(p.chat.groupId) || {}
       p.images = []
@@ -2408,6 +2421,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (next) {
       clearTimeout(next.timer)
       p.texts.push(...next.texts)
+      if (p.chat.kind === 'private') p.observations.push(...next.observations)
       p.images = [...p.images, ...next.images]
       for (const sender of next.senders) p.senders.add(sender)
       p.count += next.count
@@ -2423,6 +2437,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   function release(chatId) {
     busy.delete(chatId)
     clearRunning(chatId)
+    mind?.endTurn?.(chatId)
     const p = pending.get(chatId)
     if (p && p.waiting) {
       p.waiting = false
@@ -2434,7 +2449,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   // ---------- 单一注意力（心智核心的设置）----------
   const attentionQueue = new Set() // 在等她回完别处的聊天
-  const ownerIn = (p) => [...(p?.senders || [])].some((u) => isOwner(getConfig(), u)) || (p?.chat?.kind === 'private' && isOwner(getConfig(), p.chat.userId))
+  const ownerIn = (p) => [...(p?.senders || [])].some((u) => isOwner(getConfig(), u, p.chat.chatId)) || (p?.chat?.kind === 'private' && isOwner(getConfig(), p.chat.userId, p.chat.chatId))
   function attentionBlocked(chatId, p) {
     let a = null
     try { a = mind?.attention?.() } catch (error) {}
@@ -2591,7 +2606,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     assertActive()
     // 心智核心：这一轮要看的话当线索，想起相关的事放进工作记忆（插话进行中的一轮不重新想）
     if (mind?.beforeTurn && !opts.steer) {
-      try { await mind.beforeTurn(chat, userText, [senderId, ...(opts.extraSenders || [])]) } catch (error) { log.debug('心智想起失败：', error.message) }
+      try {
+        const speakers = opts.speakers?.length ? opts.speakers : [senderId, ...(opts.extraSenders || [])]
+        const plan = await mind.beforeTurn(chat, userText, speakers, { direct: opts.mindDirect !== false, observations: opts.observations })
+        if (plan?.speak === false) return release(chat.chatId)
+      } catch (error) { log.debug('心智准备回复失败：', error.message) }
       assertActive()
     }
     const happened = noticesFor.get(chat.chatId)
@@ -2638,7 +2657,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 告诉同一会话里的其他插件是谁在说（#145）：说话的全是主人才标 owner，混着别人或不知道是谁都是 guest。
     // chat 标私聊还是群聊：群里主人说话也是 owner，但回复全群都看得到，要不要放私事由插件自己判断
     const speakers = [senderId, ...(opts.extraSenders || [])].filter(Boolean).map(String)
-    const speakerRole = speakers.length && speakers.every((u) => isOwner(getConfig(), u)) ? 'owner' : 'guest'
+    const speakerRole = opts.internal ? 'none' : speakers.length && speakers.every((u) => isOwner(getConfig(), u, chat.chatId)) ? 'owner' : 'guest'
     const message = { id: randomUUID(), role: 'user', content: admitted, source: { kind: SOURCE_KIND, speaker: { role: speakerRole, chat: chat.kind } } }
     // 正在跑的这一轮：steer = 下一步就看到这句（DSH 界面插话走的也是它）；空闲时照旧 followup 开新一轮
     outputSources.set(chat.chatId, sources)
@@ -2733,7 +2752,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
    *  key：同一个模块有**多种**后台用途时用来分会话（如桌宠的「碎碎念」和「行为大脑」）——
    *  不带 key 走 `<name>` 那条（向后兼容，老会话继续复用），带 key 走 `<name>:<key>`，
    *  于是工作区里各自一条会话、进度互不阻塞，也不会把两种提示词混进同一段上下文。 */
-  async function runSystemTurn(name, title, prompt, { timeoutMs = 180000, noTools = false, key: scope = '' } = {}) {
+  async function runSystemTurn(name, title, prompt, { timeoutMs = 180000, noTools = false, publicOnly = false, key: scope = '' } = {}) {
     const suffix = String(scope || '').trim().replace(/[^\w:-]/g, '').slice(0, 32)
     const chat = { chatId: suffix ? `system:${name}:${suffix}` : `system:${name}`, kind: 'system', title, noTools: !!noTools }
     assertActive()
@@ -2785,7 +2804,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // followup 可能等整轮结束才返回；超时后保留标记，直到收到 turn/end 或取消并归档。
       Promise.resolve().then(() => {
         assertActive()
-        const sources = sourcesFor(chat.chatId)
+        const previous = sourcesFor(chat.chatId)
+        const sources = { ...previous, system: new Map(previous.system), publicOnly }
         return withPromptCapture(sources, () => agent.followup({ id: randomUUID(), role: 'user', content: [{ type: 'text', text: cleanText(prompt) }], source: { kind: SOURCE_KIND, speaker: { role: 'none' } } }))
       }).catch((error) => {
         if (st.system === system && system.timedOutAt == null) { st.system = null; system.reject(error) }
@@ -2801,13 +2821,18 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // 主人私聊里只可能是主人说话：就算这一轮的记录丢了（工具是旧闭包、排队轮次被上一轮 turn/end 清掉等，见 #90），
   // 「仅主人」也应当放行；群聊 / 别人私聊不放宽。
   function ownerPrivateChat(sessionId) {
-    try { return chatOfSession(sessionId) === `private:${getConfig().ownerQQ}` } catch (error) { return false }
+    try {
+      const id = chatOfSession(sessionId)
+      const target = parseChat(id)
+      return target?.kind === 'private' && isOwner(getConfig(), target.id, id)
+    } catch (error) { return false }
   }
 
   function turnHasOwner(sessionId) {
     const st = turnState.get(sessionKey(sessionId))
     if (st && st.directOwner) return true // 主人在 DSH 面板里直接打字
-    if (st && [...st.senders].some((u) => isOwner(getConfig(), u))) return true
+    const chatId = chatOfSession(sessionId)
+    if (st && [...st.senders].some((u) => isOwner(getConfig(), u, chatId))) return true
     return ownerPrivateChat(sessionId)
   }
 
@@ -2820,7 +2845,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const st = turnState.get(sessionKey(sessionId))
     if (st && st.directOwner) return true // 主人在 DSH 面板里直接打字
     if (!st || !st.senders.size) return ownerPrivateChat(sessionId)
-    return [...st.senders].every((u) => isOwner(getConfig(), u))
+    const chatId = chatOfSession(sessionId)
+    return [...st.senders].every((u) => isOwner(getConfig(), u, chatId))
   }
 
   function chatOfSession(sessionId) {
@@ -3136,12 +3162,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     receiveOwnerMessage,
     /** 这个聊天这一轮还在跑（她在想 / 在等工具、等授权）。 */
     turnRunning: (chatId) => running.has(String(chatId)),
+    foregroundBusy: () => [...busy.keys(), ...running.keys()].some((chatId) => !chatId.startsWith('system:') && (isBusy(chatId) || running.has(chatId))),
     titleFilter,
     runSystemTurn,
     runSubagentTurn,
     subagentFor,
     turnSendersAllOwner,
     onNotice,
+    onDelivered,
     turnHasOwner,
     turnSenders,
     resetChat,

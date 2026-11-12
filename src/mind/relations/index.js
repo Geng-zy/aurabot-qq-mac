@@ -228,7 +228,7 @@ export function createRelations(deps) {
    * 眼前这些人的关系（每轮放进工作记忆）。
    * @param {string[]} ids
    */
-  function describe(ids, { nameOf = (id) => id, window = '' } = {}) {
+  function describe(ids, { nameOf = (id) => id, window = '', privateDetails = true } = {}) {
     const lines = []
     for (const id of [...new Set(ids)].slice(0, 3)) {
       const g = get(id)
@@ -247,17 +247,19 @@ export function createRelations(deps) {
       if (r.debt >= 1) bits.push('你欠他人情，想着还')
       if (r.debt <= -2) bits.push('你帮过他好几次')
       if (r.rivalry >= 0.3) bits.push('你们有点暗暗较劲')
-      if (r.call) bits.push(`你叫他「${r.call}」`)
-      if (r.callMe) bits.push(`他叫你「${r.callMe}」`)
+      if (privateDetails && r.call) bits.push(`你叫他「${r.call}」`)
+      if (privateDetails && r.callMe) bits.push(`他叫你「${r.callMe}」`)
       const more = []
-      if (t.likes.length) more.push('他喜欢/在意：' + t.likes.slice(-3).map((x) => x.text).join('、'))
-      if (t.habits.length) more.push('他的习惯：' + t.habits.slice(-2).map((x) => x.text).join('、'))
-      if (t.mood && now() - t.mood.at < 12 * 3600000) more.push('他最近：' + t.mood.text)
-      if (r.topics.length) more.push('老梗：' + r.topics.slice(-3).map((x) => x.text).join('、'))
-      if (r.limits.length) more.push('别碰：' + r.limits.slice(-3).map((x) => x.text).join('、'))
-      if (r.knots.length) more.push('没解开的：' + r.knots.map((x) => x.text).join('、'))
+      if (privateDetails) {
+        if (t.likes.length) more.push('他喜欢/在意：' + t.likes.slice(-3).map((x) => x.text).join('、'))
+        if (t.habits.length) more.push('他的习惯：' + t.habits.slice(-2).map((x) => x.text).join('、'))
+        if (t.mood && now() - t.mood.at < 12 * 3600000) more.push('他最近：' + t.mood.text)
+        if (r.topics.length) more.push('老梗：' + r.topics.slice(-3).map((x) => x.text).join('、'))
+        if (r.limits.length) more.push('别碰：' + r.limits.slice(-3).map((x) => x.text).join('、'))
+        if (r.knots.length) more.push('没解开的：' + r.knots.map((x) => x.text).join('、'))
+        if (t.note) more.push(t.note)
+      }
       if ((r.flirts || []).length >= 3) more.push('他最近老撩你、纠缠你')
-      if (t.note) more.push(t.note)
       lines.push(`- ${name}：${bits.filter(Boolean).join('，')}${more.length ? '。' + more.join('；') : ''}`)
     }
     if (window && place(String(window)).kind === 'group') {

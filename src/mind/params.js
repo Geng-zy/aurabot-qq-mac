@@ -57,8 +57,8 @@ export const PARAMS = [
   { key: 'attention.inner', group: 'attention', label: '闲着时的内心活动', def: true, source: '设计决定', hint: '醒着、没人找时她一步一步地想；关掉就只在有人找她时才「醒」。' },
   { key: 'attention.thinkWithoutLocal', group: 'attention', label: '没装本地小模型时用聊天模型想', def: true, source: '设计决定', hint: '会花钱，所以间隔拉长到四倍；也受每天后台预算限制。关掉就只在装了本地小模型时才有内心活动。' },
   { key: 'attention.afterChatMinutes', group: 'attention', label: '聊完多久才开始走神', def: 2, min: 0, max: 30, step: 1, unit: '分钟', source: EXP, hint: '刚聊完注意力还在那段对话上。', advanced: true },
-  { key: 'attention.elsewhereMinutes', group: 'attention', label: '知道别的聊天刚发生了什么（多久以内）', def: 15, min: 0, max: 120, step: 5, unit: '分钟', source: '设计决定（一个心智：工作记忆里有「别的聊天里刚发生了什么」）；时长是经验值', hint: '在一个聊天里，也给她看其他聊天最近这么久的几句原话（还没整理成经历的那几分钟）。0 = 不给。说不说由她自己拿分寸。' },
-  { key: 'attention.elsewhereLines', group: 'attention', label: '每个别的聊天给几句', def: 4, min: 0, max: 20, step: 1, unit: '句', source: EXP, hint: '最多看 3 个别的聊天，每个最近这么多句。越多越清楚，也越占上下文。', advanced: true },
+  { key: 'attention.elsewhereMinutes', group: 'attention', label: '知道其他群的近况（多久以内）', def: 15, min: 0, max: 120, step: 5, unit: '分钟', source: '设计决定（一个心智：工作记忆里有「别的聊天里刚发生了什么」）；时长是经验值', hint: '可想起其他群最近整理好的可共享经历。0 = 不加入。' },
+  { key: 'attention.elsewhereLines', group: 'attention', label: '每个其他群最多几段近况', def: 4, min: 0, max: 20, step: 1, unit: '句', source: EXP, hint: '最多看 3 个别的聊天，每个最近这么多句。越多越清楚，也越占上下文。', advanced: true },
 
   // ---------- 记忆 ----------
   { key: 'memory.forgetting', group: 'memory', label: '记性', def: 1, min: 0.25, max: 4, step: 0.05, source: 'Rubin & Wenzel 1996；Wixted & Ebbesen 1997；Murre & Dros 2015', hint: '整体忘得快慢的倍数：1 是按研究的默认速度，大于 1 记得更久。遗忘按幂函数，先快后慢。' },
@@ -70,7 +70,7 @@ export const PARAMS = [
   { key: 'memory.followup', group: 'memory', label: '惦记别人的事', def: true, source: 'Huang 等 2017（JPSP，「问一问不吃亏」）：聊天里追问对方的事会让对方更喜欢你，追问（follow-up question）的效果最明显', hint: '别人说过还没结果的事（面试、考试、体检、等通知……），到时候她会在聊天里自然地问一句。会不会问、问几次看她有多心疼人、和对方多亲近。' },
   { key: 'memory.followupMaxAsks', group: 'memory', label: '同一件事最多问几次', def: 3, min: 1, max: 5, step: 1, source: EXP, hint: '问过没下文就往后推，问到这么多次就放下；有了结果或对方说别问了也放下。越不在乎的人问得越少。', advanced: true },
   { key: 'memory.followupGapDays', group: 'memory', label: '问过之后隔几天再问', def: 2, min: 0.5, max: 14, step: 0.5, unit: '天', source: EXP, hint: '越在乎的人隔得越短。', advanced: true },
-  { key: 'memory.assoc', group: 'memory', label: '联想', def: true, source: 'Collins & Loftus 1975 扩散激活理论：想起一件事会顺着联系激活相关的事，离得越远激活越弱', hint: '想起一件事时顺着「相像的、因果的、接着发生的」联系再往下想一两步。不限在哪个聊天：群里也能联想到私聊里的事，只是会提醒她私聊里的事说之前想想、秘密不往外说。' },
+  { key: 'memory.assoc', group: 'memory', label: '联想', def: true, source: 'Collins & Loftus 1975 扩散激活理论：想起一件事会顺着联系激活相关的事，离得越远激活越弱', hint: '想起一件事时顺着「相像的、因果的、接着发生的」联系再往下想一两步。内部思考可以联想，聊天只使用当前会话能看到的经历。' },
   { key: 'memory.assocHops', group: 'memory', label: '联想最多想几步', def: 2, min: 1, max: 3, step: 1, source: EXP, hint: 'A 想到 B 是一步，B 再想到 C 是两步。步数越多越容易想偏。', advanced: true },
   { key: 'memory.assocLimit', group: 'memory', label: '每轮最多联想出几条', def: 2, min: 0, max: 5, step: 1, source: EXP, hint: '联想出来的放在直接想起的后面，也受工作记忆字数上限约束。', advanced: true },
   { key: 'memory.assocDecay', group: 'memory', label: '每多想一步淡多少', def: 0.6, min: 0.3, max: 0.9, step: 0.05, source: 'Collins & Loftus 1975（激活随距离衰减；具体比例是经验值）', hint: '每多一步，联想的强度乘上这个数；太弱的就想不起来了。', advanced: true },
@@ -97,6 +97,7 @@ export const PARAMS = [
 
   // ---------- 情绪 ----------
   { key: 'emotion.durationScale', group: 'emotion', label: '情绪持续时间倍数', def: 1, min: 0.25, max: 4, step: 0.05, source: 'Verduyn & Lavrijsen 2015 图 1（27 种情绪完全恢复的中位数：悲伤 120 小时、仇恨 60、快乐 35、羞愧 0.5……；233 名高中生的回忆报告）', hint: '各情绪的基础持续时间按研究；这里整体放大或缩小。事件越重要持续越久。' },
+  { key: 'emotion.appraise', group: 'emotion', label: '回复前评价感受', def: true, source: '设计决定（参考情绪评价理论）', hint: '她在回复前结合事件、关系与身体状态评价感受。使用后台模型预算，超时或出错时照常回复。' },
   { key: 'emotion.baselineValence', group: 'emotion', label: '平时的心情水位', def: 0.15, min: -0.5, max: 0.6, step: 0.05, source: 'Diener & Diener 1996（大多数人平时是轻度愉快的）', hint: '没什么事时心情回到哪里（-1 到 1）。属于性格，以后会随性格慢慢变。' },
   { key: 'emotion.rekindle', group: 'emotion', label: '想起旧事重新点燃的程度', def: 0.5, min: 0, max: 1, step: 0.05, source: 'Verduyn & Lavrijsen 2015（反复去想让情绪持续更久）；比例是经验值', hint: '想起一件带着情绪的事，当时的情绪按这个比例重新冒出来。' },
   { key: 'emotion.hungerMood', group: 'emotion', label: '饿了心情变差多少', def: 0.15, min: 0, max: 0.5, step: 0.05, source: EXP, hint: '很饿时心情往下拉的幅度。' },

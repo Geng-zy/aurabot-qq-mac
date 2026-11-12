@@ -143,7 +143,7 @@ export function createInner(deps) {
 先把误会想清楚：别人到底说了什么、可能是什么意思；不确定的就承认不确定。只根据材料，不编事。
 只输出 JSON：{"thought":"想明白后的一两句（第一人称）","feel":{"n":"情绪名","i":0到1,"reg":"reappraise 或 空"},"belief":"如果对自己或对某人有了新的看法，用「我觉得……」写一句；没有就空","want":"如果想去做什么就写；没有就空"}`
 
-  async function deepThink(s, step, reason) {
+  async function deepThink(s, step, reason, canCommit) {
     const day = dayKey(now(), deps.tz())
     if (s.deepToday.day !== day) s.deepToday = { day, n: 0 }
     if (!ask || !deps.budget.allow('deep', 3000)) return null
@@ -157,7 +157,7 @@ export function createInner(deps) {
       log.debug('深想失败：', error.message)
       return null
     }
-    if (!out) return null
+    if (!out || !canCommit()) return null
     s.deepToday.n++
     if (out.feel?.n) deps.emotion.feel([{ name: out.feel.n, intensity: out.feel.i, reg: out.feel.reg, why: clip(out.thought, 30), importance: 0.6 }], { source: 'deep' })
     // 深想是聊天模型认真想的：「我觉得……」可以记成她的看法（仍然只是看法，不是事实）
@@ -170,11 +170,18 @@ export function createInner(deps) {
    * 想一步。返回这一步（或 null：发呆、没模型、预算用完）。
    * 有本地小模型就用它；没有时用聊天模型（低思考深度），由外面拉长间隔。
    */
-  async function step() {
+  let thinking = false
+  async function step({ canCommit = () => true } = {}) {
+    if (thinking || !canCommit()) return null
+    thinking = true
+    try { return await thinkStep(canCommit) } finally { thinking = false }
+  }
+
+  async function thinkStep(canCommit) {
     const s = load()
     const cue = s.log[0]?.thought || recentHappenings(0).lines.slice(-1)[0] || ''
     const recalled = cue ? await deps.memory.recall({ cue, limit: 2 }).catch(() => []) : []
-    if (recalled.length) deps.memory.strengthen(recalled.map((m) => m.id)) // 想起来的旧事被加强
+    if (!canCommit()) return null
     const { text } = material(s, recalled)
     let out = null
     const messages = [{ role: 'system', content: SYSTEM() }, { role: 'user', content: text }]
@@ -184,25 +191,27 @@ export function createInner(deps) {
       by = 'model'
       try { out = await ask({ scene: 'think', system: SYSTEM(), text, maxTokens: 300 }) } catch { out = null }
     }
-    if (!out) return null
+    if (!out || !canCommit()) return null
     const p = parseThought(out)
     if (!p.thought) return null
     const st = { at: now(), thought: p.thought, feel: p.feel, plan: p.plan, by }
     // 重复：和前几步很像 → 停下来放空，无聊感上升
     const repeated = s.log.slice(0, 3).some((x) => overlap(x.thought, p.thought) >= 0.7)
-    s.boredom = clamp(s.boredom + (repeated ? 0.25 : -0.05))
     if (repeated) st.repeated = true
+    const reason = repeated ? '' : needsDeep(s, st)
+    if (reason) {
+      const d = await deepThink(s, st, reason, canCommit)
+      if (d) st.deep = d
+    }
+    if (!canCommit()) return null
+    if (recalled.length) deps.memory.strengthen(recalled.map((m) => m.id))
+    s.boredom = clamp(load().boredom + (repeated ? 0.25 : -0.05))
     // 只留感受和打算；念头本身只进内心日记，不进记忆
     if (p.feel && !repeated) deps.emotion.feel([{ name: p.feel.name, intensity: p.feel.intensity * 0.7, why: '想着想着', importance: 0.3 }], { source: 'thought' })
     if (p.plan && !repeated) {
       const call = ownerName()
       const target = /主人|找他|找你|跟他说|和他说/.test(p.plan) || (call && p.plan.includes(call)) ? 'reach_owner' : ''
       deps.motivation.want(p.plan, { strength: 0.4, action: target })
-    }
-    const reason = repeated ? '' : needsDeep(s, st)
-    if (reason) {
-      const d = await deepThink(s, st, reason)
-      if (d) st.deep = d
     }
     s.log.unshift(st)
     s.log = s.log.slice(0, 300)

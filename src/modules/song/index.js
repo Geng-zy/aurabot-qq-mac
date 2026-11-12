@@ -4,6 +4,7 @@
 import { createSongStudio, checkRoot } from '../../song/studio.js'
 import { defineTool, str, int, bool } from '../../tools/tools.js'
 import { ownerOrFree } from '../../chat/access.js'
+import { normPerson, parseChat, refOfChat } from '../../channels/ids.js'
 
 export default {
   id: 'song',
@@ -31,9 +32,9 @@ export default {
       onSung: (title, chatId) => {
         const cfg = api.config()
         // 唱过的歌记成她的经历：私聊记到对方头上
-        const uid = String(chatId).startsWith('private:') ? String(chatId).slice(8) : ''
-        const who = uid === String(cfg.ownerQQ) ? cfg.ownerName || '主人' : uid ? '对方' : '群里'
-        api.mind?.experience?.({ text: `给${who}唱了《${title}》`, about: uid, chatId, tags: ['唱歌'], importance: 0.5, effort: 0.05, emotion: { name: '满足', intensity: 0.4 } })
+        const target = parseChat(chatId)
+        const who = target?.kind === 'private' ? (refOfChat(chatId) === normPerson(cfg.ownerQQ) ? cfg.ownerName || '主人' : '对方') : '群里'
+        api.mind?.experience?.({ text: `给${who}唱了《${title}》`, chatId, tags: ['唱歌'], importance: 0.5, effort: 0.05, emotion: { name: '满足', intensity: 0.4 } })
         api.emit('song/sung', { title, chatId })
       },
     })

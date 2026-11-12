@@ -17,7 +17,7 @@ import { homedir } from 'node:os'
 import { loadConfig, saveConfig, publicConfig, mergeFromPanel, ownerAuthorizationRevision } from './core/config.js'
 import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
-import { createChannels } from './channels/index.js'
+import { createChannels, LEGACY_PLATFORM, parseChat, parsePerson, shortRef } from './channels/index.js'
 import { createQqChannel } from './channels/qq/index.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
@@ -227,6 +227,8 @@ export function apply(ctx) {
       hub.onPoke(e.poke).catch((error) => log.error('处理戳一戳出错：', error.message))
     } else if (e.type === 'notice') {
       hub.onNotice(e.notice).catch((error) => log.debug('处理通知出错：', error.message))
+    } else if (e.type === 'delivered') {
+      hub.onDelivered(e)
     }
   })
   const outbox = qq.outbox
@@ -298,13 +300,17 @@ export function apply(ctx) {
       // 她想主动找人：把心里的由头交给那个私聊，话由她自己说
       reachOut: async ({ chatId, userId, note }) => {
         if (!hub) return
-        await hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '')
+        await hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '', { internal: true })
+      },
+      deliverReminder: async ({ chatId, text, isCurrent }) => {
+        const result = await hub?.sendText(chatId, text, undefined, undefined, undefined, { isCurrent, allowQueue: false, throwOnError: true })
+        return Boolean(result && !result.queued)
       },
       // 她改了自己之后通知你（系统通知，不是她说的话）
       notifyOwner: async (text) => {
-        const qq = String(getConfig().ownerQQ || '')
-        if (!hub || !qq) return
-        await hub.sendSegments('private:' + qq, [{ type: 'text', data: { text } }], '心智通知', { force: true, quiet: true, system: true }).catch(() => {})
+        const chatId = mind?.ownerChat()
+        if (!hub || !chatId) return
+        await hub.sendSegments(chatId, [{ type: 'text', data: { text } }], '心智通知', { force: true, quiet: true, system: true }).catch(() => {})
       },
       // 她改了人格卡、名字：面板里正在用的那份人格卡文件跟着改，两边一致
       onSelfChange: ({ what, after }) => {
@@ -315,9 +321,10 @@ export function apply(ctx) {
         if (what === 'name') savePersona(id, { name: after, tags: cur.tags, body: cur.body })
       },
       // 群名（聊天中枢查到过的；没查到就显示群号）
-      groupName: (gid) => hub?.groupNames?.get?.(String(gid)) || '',
+      groupName: (gid, platform) => platform === LEGACY_PLATFORM ? hub?.groupNames?.get?.(String(gid)) || '' : '',
       // 正在翻唱（很吃内存）：本地小模型先让路
       heavyBusy: () => { try { return Boolean(use('song')?.status?.()?.current) } catch (error) { return false } },
+      foregroundBusy: () => hub?.foregroundBusy(),
       // 醒来后把睡着时找她的消息重新交给聊天中枢（一条一条来，主人的先）
       onWakeReplay: async (list) => {
         for (const item of list) {
@@ -347,7 +354,7 @@ export function apply(ctx) {
     buildTools: (where) => [...mods.buildTools(where), ...(mind ? mind.tools({ ...where, ownerTurn: () => Boolean(hub?.turnSendersAllOwner?.(where.sessionId)) }) : [])],
     // 模块声明的能力（module.json capabilities）：子智能体委派这类要本机权限的能力靠它把关（一审 #177）
     capabilitiesOf: (id) => (typeof mods.capabilitiesOf === 'function' ? mods.capabilitiesOf(id) : []),
-    contextProviders: [(args) => mind?.contextFor(args) || '', (args) => mods.contextFor(args)],
+    contextProviders: [(args) => mind?.contextFor(args) || '', (args) => args.publicOnly ? '' : mods.contextFor(args)],
     onActivity: (a) => mods.emit('activity', a),
     // 群聊话题和她的记忆有多相关（插话判断用）
     memoryScore: (text) => mind?.mind.memory.topicScore(text) ?? 0,
@@ -617,18 +624,19 @@ export function apply(ctx) {
   })
   core.dangerGuard = dangerGuard
   // 要告诉主人的事（授权、提问、QQ 里批没批）由她用自己的话说，不发固定模板（见 features/her-voice.js）
-  const ownerChatOf = () => { const qq = String(getConfig().ownerQQ || ''); return qq ? { chatId: 'private:' + qq, kind: 'private', userId: qq, nickname: ownerCall() } : null }
-  /** chatId（private:QQ / group:群号）→ 聊天中枢要的聊天对象 */
+  const ownerChatId = () => mind?.ownerChat() || (getConfig().ownerQQ ? `private:${getConfig().ownerQQ}` : '')
+  /** 从渠道会话 ID 得到聊天中枢的会话对象。 */
   const chatOfId = (chatId) => {
-    const [kind, id] = String(chatId || '').split(':')
-    if (kind === 'group') return { chatId, kind: 'group', groupId: id, userId: '', nickname: '' }
-    const owner = String(getConfig().ownerQQ || '')
-    return { chatId, kind: 'private', userId: id, nickname: id === owner ? ownerCall() : '' }
+    const target = parseChat(chatId)
+    if (!target) return null
+    const { platform, kind, id } = target
+    if (kind === 'group') return { chatId, platform, kind, groupId: id, userId: '', nickname: '' }
+    return { chatId, platform, kind, userId: id, nickname: chatId === ownerChatId() ? ownerCall() : '' }
   }
   const herVoice = createHerVoice({
-    ownerChatId: () => ownerChatOf()?.chatId || '',
+    ownerChatId,
     busy: (chatId) => Boolean(hub?.turnRunning?.(chatId)),
-    pushNote: (note, chatId) => hub.pushToSession(chatOfId(chatId), [{ type: 'text', text: note }], ''),
+    pushNote: (note, chatId) => hub.pushToSession(chatOfId(chatId), [{ type: 'text', text: note }], '', { internal: true }),
     ask: ({ system, text }) => askModel(ctx, { system, text, maxTokens: 400, reasoningEffort: 'low', temperature: 0.8, cfg: getConfig(), module: 'notice' }),
     persona: () => (mind && (() => { try { return mind.selfPrompt() } catch (error) { return '' } })()) || currentPersonaText(getConfig().persona.current),
     context: (chatId) => { try { return mind?.contextFor?.({ chat: chatOfId(chatId) }) || '' } catch (error) { return '' } },
@@ -1399,7 +1407,7 @@ export function apply(ctx) {
     if (!mind) return mindOff
     const f = mind.mind.feeling()
     const cfgNow = mind.mind.settings()
-    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '主人' : mind.mind.person(e.target)?.name || e.target.replace(/^qq:/, '')) : '', why: e.why, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
+    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '主人' : mind.mind.person(e.target)?.name || shortRef(e.target)) : '', why: e.why, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
   })
   route('/mind/feed', async (req) => {
     if (!mind) return mindOff
@@ -1480,11 +1488,12 @@ export function apply(ctx) {
   route('/mind/people/forget', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)
-    const qq = String(b.id || '').replace(/^qq:/, '')
-    if (!/^\d+$/.test(qq)) return { ok: false, message: '要忘掉谁？' }
+    const person = parsePerson(b.id)
+    if (!person || (person.platform === LEGACY_PLATFORM && !/^\d+$/.test(person.id))) return { ok: false, message: '要忘掉谁？' }
     if (b.confirm !== true && b.mode === 'delete') return { ok: false, message: '要再确认一次' }
-    const r = mind.forgetQQ(qq, String(b.mode || ''), { clear: b.clear === true })
-    if (r.ok) log.info(`关系：${qq} → ${b.mode}${b.clear ? '（清掉以前的）' : ''}`)
+    const id = `${person.platform}:${person.id}`
+    const r = mind.forgetPerson(id, String(b.mode || ''), { clear: b.clear === true })
+    if (r.ok) log.info(`关系：${id} → ${b.mode}${b.clear ? '（清掉以前的）' : ''}`)
     return r
   })
   // 她惦记着的别人的事（还没结果的）；主人可以让她别问了
@@ -1497,7 +1506,7 @@ export function apply(ctx) {
   route('/mind/people/forgotten', async () => (mind ? { ok: true, list: mind.mind.forgottenList() } : mindOff))
   route('/mind/people/restore', async (req) => {
     if (!mind) return mindOff
-    return mind.restoreQQ(String((await readBody(req)).id || '').replace(/^qq:/, ''))
+    return mind.restorePerson((await readBody(req)).id)
   })
   route('/mind/people/edit', async (req) => {
     if (!mind) return mindOff
