@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { qqIn } from './helpers/qq-in.js'
 
 const REPO = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const dataDir = mkdtempSync(join(tmpdir(), 'aurabot-pick-'))
@@ -50,7 +51,7 @@ await new Promise((r) => setTimeout(r, 400))
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 const library = () => (existsSync(LIB) ? JSON.parse(readFileSync(LIB, 'utf8')).items || [] : [])
 const send = async (text, buf) => {
-  await api.hub.onMessage({
+  await qqIn(api.hub, {
     post_type: 'message', message_type: 'private', sub_type: 'friend',
     self_id: Number(BOT), user_id: Number(OWNER), time: Math.floor(Date.now() / 1000),
     message_id: Math.floor(Math.random() * 1e6),
@@ -105,7 +106,7 @@ test('群里也收得到「她挑」的提示（以前群聊那条路会把它�
   const cur = api.getConfig()
   api.setConfig({ ...cur, allow: { ...cur.allow, groups: ['999999'] }, stickers: { ...cur.stickers, collectMode: 'ask' } })
   const before = fake.turns.length
-  await api.hub.onMessage({
+  await qqIn(api.hub, {
     post_type: 'message', message_type: 'group', sub_type: 'normal',
     self_id: Number(BOT), group_id: 999999, user_id: 10000002, time: Math.floor(Date.now() / 1000),
     message_id: Math.floor(Math.random() * 1e6),

@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { mimeOf } from '../chat/inbound.js'
+import { mimeOf } from './image-info.js'
 
 /** ffmpeg 在哪：配置里填的 > PATH 里的 > Homebrew 等常见安装位置（从程序坞打开的 DSH，PATH 里通常没有 Homebrew）。找不到返回 ''。 */
 export function findFfmpeg(configured = '', { pathEnv = process.env.PATH || '', exists = existsSync } = {}) {

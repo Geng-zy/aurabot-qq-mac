@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { qqIn } from './helpers/qq-in.js'
 
 const REPO = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const dataDir = mkdtempSync(join(tmpdir(), 'aurabot-owner-sticker-'))
@@ -53,7 +54,7 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 const library = () => (existsSync(LIB) ? JSON.parse(readFileSync(LIB, 'utf8')).items || [] : [])
 
 const send = async ({ from, member = false, salt, text = '看看这张' }) => {
-  await api.hub.onMessage({
+  await qqIn(api.hub, {
     post_type: 'message', message_type: 'group', sub_type: 'normal',
     self_id: Number(BOT), group_id: GROUP, user_id: Number(from),
     time: Math.floor(Date.now() / 1000), message_id: Math.floor(Math.random() * 1e6),

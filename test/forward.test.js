@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { forwardBody, MAX_FORWARD_DEPTH, MAX_FORWARD_IMAGES, MAX_FORWARD_LINES, readForward } from '../src/chat/forward.js'
+import { forwardBody, MAX_FORWARD_DEPTH, MAX_FORWARD_IMAGES, MAX_FORWARD_LINES, readForward } from '../src/channels/qq/forward.js'
 
 const node = (name, message) => ({ sender: { nickname: name, user_id: 2 }, message })
 const text = (t) => ({ type: 'text', data: { text: t } })

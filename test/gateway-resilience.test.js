@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import net from 'node:net'
 
-const { createOneBotClient, OneBotError } = await import('../src/onebot/client.js')
+const { createOneBotClient, OneBotError } = await import('../src/channels/qq/client.js')
 
 const silent = { info () {}, warn () {}, debug () {}, error () {} }
 

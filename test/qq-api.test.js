@@ -64,6 +64,8 @@ test('工具接到网关：查询走 onebot，别人写操作被拒', async () =
   assert.equal((await call.execute({ action: 'get_essence_msg_list', param: 'x' })).ok, false)
   assert.equal(calls.length, 1)
   assert.deepEqual(build({ chat: { kind: 'system' }, level: 'social' }), [])
+  assert.deepEqual(build({ chat: { ...group, chatId: 'test:group:9' }, level: 'full' }), [])
+  assert.equal(build({ chat: { ...group, chatId: 'qq:group:9' }, level: 'social' }).length, 2)
 })
 
 test('主人也不能把转发/点赞/拍一拍/资料操作发到白名单外的人或群', () => {

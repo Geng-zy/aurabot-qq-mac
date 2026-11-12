@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseReply, stripMarkdown, bubbleDelay } from '../src/chat/reply.js'
 import { decideGroupReply, engagedHint, policyFor, inQuietHours, DEFAULT_GROUP_POLICY } from '../src/chat/group-policy.js'
-import { parseMessageEvent, isStickerSegment, stickerSizeOk, imageSize } from '../src/chat/inbound.js'
+import { parseMessageEvent, isStickerSegment } from '../src/channels/qq/inbound.js'
+import { stickerSizeOk, imageSize } from '../src/core/image-info.js'
 import { checkAllowed, levelFor, presetFor, isOwner, profileToolVisible, profilePermits } from '../src/chat/access.js'
 import { avatarSource } from '../src/modules/profile/index.js'
 import { redact, registerSecret } from '../src/core/redact.js'
@@ -348,7 +349,7 @@ test('空间互动：说说下的评论整理成上下文', async () => {
 })
 
 test('解析：合并转发记下 id，回复里的 <poke> 变成戳一戳', async () => {
-  const { parseMessageEvent } = await import('../src/chat/inbound.js')
+  const { parseMessageEvent } = await import('../src/channels/qq/inbound.js')
   const { parseReply } = await import('../src/chat/reply.js')
   const m = parseMessageEvent({ message_type: 'group', group_id: 1, user_id: 2, message: [{ type: 'forward', data: { id: 'abc' } }] }, '9')
   assert.deepEqual(m.forwards, ['abc'])

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { noticeText } from '../src/chat/notices.js'
+import { noticeText } from '../src/channels/qq/notices.js'
 
 const n = (e) => noticeText({ post_type: 'notice', group_id: 9, ...e }, { botQQ: '1', name: (q) => `U${q}`, ownMessage: (id) => id === 7 })
 

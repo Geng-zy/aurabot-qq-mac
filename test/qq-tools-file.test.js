@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import qqTools from '../src/modules/qq-tools/index.js'
 
-function setup({ level = 'full', kind = 'private', ownerAll = true, files = { enabled: true }, hubOver = {} } = {}) {
+function setup({ level = 'full', kind = 'private', chatId = kind === 'group' ? 'group:9' : 'private:1', ownerAll = true, files = { enabled: true }, hubOver = {} } = {}) {
   const sent = [], images = []
   const hub = {
     turnSendersAllOwner: () => ownerAll,
@@ -16,7 +16,7 @@ function setup({ level = 'full', kind = 'private', ownerAll = true, files = { en
   const cfg = { enabled: true, dryRun: false, ownerQQ: '1', allow: { private: [], groups: ['9'] }, files }
   let build = null
   qqTools.setup({ core: { hub, onebot: { call: async () => ({}) } }, config: () => cfg, tool: (fn) => { build = fn } })
-  const tools = build({ chat: { kind, chatId: kind === 'group' ? 'group:9' : 'private:1' }, level, sessionId: 's1' })
+  const tools = build({ chat: { kind, chatId }, level, sessionId: 's1' })
   return { tool: tools.find((t) => t.name === 'qq_send_file'), sent, images, cfg }
 }
 
@@ -26,6 +26,11 @@ test('主人私聊：能发，走 sendFile', async () => {
   assert.equal(r.ok, true)
   assert.equal(r.message, '文件发出去了：a.zip')
   assert.deepEqual(s.sent, ['private:1'])
+})
+
+test('发 QQ 文件的工具只挂在 QQ 会话', () => {
+  assert.equal(setup({ chatId: 'test:private:1' }).tool, undefined)
+  assert.ok(setup({ chatId: 'qq:private:1' }).tool)
 })
 
 test('群聊里这一轮说话的全是主人：能发到群里', async () => {

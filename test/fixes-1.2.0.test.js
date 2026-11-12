@@ -219,7 +219,7 @@ test('聊天流水保留和新开关的配置规范化（#140 #141 #142 #143）'
 
 test('@ 了别人时不算叫她，但只在开关打开时生效（#143）', async () => {
   const { decideGroupReply } = await import('../src/chat/group-policy.js')
-  const { parseMessageEvent } = await import('../src/chat/inbound.js')
+  const { parseMessageEvent } = await import('../src/channels/qq/inbound.js')
   const m = parseMessageEvent({ message_type: 'group', group_id: 1, user_id: 2, message: [{ type: 'at', data: { qq: '3' } }, { type: 'text', data: { text: ' 问问大肥鱼' } }] }, '9')
   assert.equal(m.atOthers, true)
   const base = { policy: { wakeWords: ['大肥鱼'] }, text: m.text, relevance: 0, now: 0 }

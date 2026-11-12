@@ -326,12 +326,12 @@ return function Panel({ settings, save, toast }) {
 |---|---|---|
 | `stickers` | 表情包 | `library()` `match(名字)` `pickForReply(文字)` `collect(消息段, chatId)` `addFromBuffer(buf, { name, tags })` `rename(md5, 名字, 标签)` `remove(md5)` `segmentFor(item)` |
 | `voice` | 语音 | `speak(文字) → { file, engine }` |
-| `qq-tools` | 基础 QQ 工具 | （只有工具：`qq_chat_history`、`qq_send_message`、`qq_send_file`） |
 | `imagegen` | 生图 | `enabled()` `generate(描述) → Buffer` |
 | `diary` | 空间日记 | `writeDiary()` `post(正文, { images, visibility })` `remove(tid)` `history()` `nextTime()` |
-| `qzone-social` | 空间互动 | `run({ force })` `state()` |
 | `bili` | B 站 | `watch(链接)` `comment(链接, 文字)` `run()` `checkReplies()` `account()` `state()` |
 | `song` | 翻唱 | `request({ song, pitch, chatId })` `search(关键词)` `status()` `install()` |
+
+QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`）和空间互动（`qzone-social`）。实现位于 `src/channels/qq/features/`，沿用原有设置和模块 id。空间互动仍可用 `api.use('qzone-social')` 调用 `run({ force })`、`state()`。
 
 ## 心智核心
 

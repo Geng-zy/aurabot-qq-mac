@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createFakeDsh } from './helpers/fake-dsh.js'
 import { normalize, ownerAuthorizationRevision, saveConfig } from '../src/core/config.js'
-import { OneBotError } from '../src/onebot/client.js'
+import { OneBotError } from '../src/channels/qq/client.js'
+import { qqIn } from './helpers/qq-in.js'
 
 const root = mkdtempSync(join(tmpdir(), 'aurabot-lifecycle-'))
 process.env.AURABOT_WORKSPACE = join(root, 'workspace')
@@ -59,7 +60,7 @@ for (const stop of ['dispose', 'turn/end']) test(`慢工具在 ${stop} 后不再
     hooks: { send: async (segments, info) => { sent.push(info.note); return segments } },
     buildTools: () => [{ name: 'slow-probe', slow: '进度探针', execute: async () => { started = true; return work.promise } }],
   })
-  await s.hub.onMessage(event())
+  await qqIn(s.hub, event())
   await settle()
   assert.equal(started, true)
   if (stop === 'dispose') s.hub.dispose()
@@ -86,7 +87,7 @@ test('慢工具提示等待发送挂钩时轮次结束，不再投递到 QQ', as
     } },
     buildTools: () => [{ name: 'slow-probe', slow: '进度探针', execute: () => work.promise }],
   })
-  await s.hub.onMessage(event())
+  await qqIn(s.hub, event())
   await settle()
   t.mock.timers.tick(1501)
   await settle()
@@ -233,10 +234,10 @@ test('图片准入等待中卸载，随后完成的准入不能提交旧消息',
 
 test('消息合并等待中卸载，计时结束和新消息均不能再启动旧轮次', { timeout: 5000 }, async (t) => {
   const { hub, fake } = setup(t, { cfg: config({ merge: { enabled: true, waitSec: 0.05, maxSec: 0.05 } }) })
-  await hub.onMessage(event('先攒着'))
+  await qqIn(hub, event('先攒着'))
   hub.dispose()
   await new Promise((r) => setTimeout(r, 90))
-  await hub.onMessage(event('卸载后才到达'))
+  await qqIn(hub, event('卸载后才到达'))
   await settle()
   assert.equal(fake.agents.size, 0)
   assert.equal(fake.turns.length, 0)
@@ -248,8 +249,8 @@ test('卸载后消息不再调用命令、记录流水或登记合并计时器',
   const s = setup(t, { cfg: config({ merge: { enabled: true, waitSec: 5, maxSec: 5 } }),
     onCommand: async () => { commands++; return '已执行' }, onActivity: () => { activity++ } })
   s.hub.dispose()
-  await s.hub.onMessage(event('/test'))
-  await s.hub.onMessage(event('卸载后才到达'))
+  await qqIn(s.hub, event('/test'))
+  await qqIn(s.hub, event('卸载后才到达'))
   assert.equal(commands, 0)
   assert.equal(activity, 0)
   assert.equal(s.hub.stats().received, 0)
@@ -263,7 +264,7 @@ test('消息挂钩等待中卸载，挂钩结束后不记录或安排轮次', as
   let activity = 0
   const s = setup(t, { hooks: { message: async () => { entered.resolve(); await gate.promise; return false } },
     onActivity: () => { activity++ } })
-  const work = s.hub.onMessage(event())
+  const work = qqIn(s.hub, event())
   await entered.promise
   s.hub.dispose()
   gate.resolve()
@@ -370,7 +371,7 @@ test('卸载会结束后台回复等待，而不用等模型或超时', { timeou
 })
 
 test('网关明确没连上时，发送失败的消息进补发队列', { timeout: 5000 }, async (t) => {
-  const { createOutbox } = await import('../src/onebot/outbox.js')
+  const { createOutbox } = await import('../src/channels/qq/outbox.js')
   const dir = mkdtempSync(join(root, 'outbox-'))
   const outbox = createOutbox({ log: { info() {}, warn() {}, debug() {} }, file: join(dir, 'queue.json') })
   let calls = 0
@@ -389,7 +390,7 @@ test('网关明确没连上时，发送失败的消息进补发队列', { timeou
 })
 
 test('LA-27 敏感命令发送失败时不记录参数、回执和网关错误，也不补发', async (t) => {
-  const { createOutbox } = await import('../src/onebot/outbox.js')
+  const { createOutbox } = await import('../src/channels/qq/outbox.js')
   const dir = mkdtempSync(join(root, 'outbox-'))
   const outbox = createOutbox({ log: { info() {}, warn() {}, debug() {} }, file: join(dir, 'queue.json') })
   const onebot = {
@@ -406,7 +407,7 @@ test('LA-27 敏感命令发送失败时不记录参数、回执和网关错误�
       return '合成回执'
     },
   })
-  await hub.onMessage(event('/news 合成查询地区'))
+  await qqIn(hub, event('/news 合成查询地区'))
   const logs = fake.logs.join('\n')
   assert.match(logs, /主人命令 \/news/)
   assert.match(logs, /敏感命令回执发送失败/)
@@ -434,7 +435,7 @@ for (const [label, owners, shouldSend] of [
     })
     Object.assign(cfg, saveConfig(cfg, cfg))
     assert.ok(ownerAuthorizationRevision(cfg))
-    const work = hub.onMessage(event('/events'))
+    const work = qqIn(hub, event('/events'))
     await entered.promise
     for (const ownerQQ of owners) {
       const previousRevision = ownerAuthorizationRevision(cfg)
@@ -467,7 +468,7 @@ test('敏感命令执行前发现授权代次已变化', async (t) => {
     },
   })
   Object.assign(cfg, saveConfig(cfg, cfg))
-  const work = hub.onMessage(event('/events'))
+  const work = qqIn(hub, event('/events'))
   await entered.promise
   for (const ownerQQ of [OTHER, OWNER]) Object.assign(cfg, saveConfig({ ...cfg, ownerQQ }, cfg))
   resume.resolve()

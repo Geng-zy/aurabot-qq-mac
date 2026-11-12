@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
-import { OneBotError } from '../src/onebot/client.js'
+import { OneBotError } from '../src/channels/qq/client.js'
 
 function setup(t, failure, { ttsFailure = false, files = { enabled: true, imageByPath: true } } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'aurabot-send-fallback-'))

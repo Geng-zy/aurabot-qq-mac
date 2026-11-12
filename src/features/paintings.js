@@ -7,7 +7,7 @@ import { readdirSync, statSync, unlinkSync, existsSync, mkdirSync, writeFileSync
 import { spawn } from 'node:child_process'
 import { basename, extname, isAbsolute, join, normalize, relative } from 'node:path'
 import { dataDir, ensureDir } from '../core/store.js'
-import { mimeOf } from '../chat/inbound.js'
+import { mimeOf } from '../core/image-info.js'
 
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 const dir = () => dataDir('imagegen')

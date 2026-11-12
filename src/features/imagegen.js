@@ -8,7 +8,7 @@ import { fetchImage } from '../core/net.js'
 import { paintingPath } from './paintings.js'
 import { createCodexAuth } from './codex-auth.js'
 import { createCodexImage } from './codex-image.js'
-import { mimeOf } from '../chat/inbound.js'
+import { mimeOf } from '../core/image-info.js'
 import { imageToolBlock } from '../core/img.js'
 import { imageSizeFor, normalizeRequestedSize } from './image-shape.js'
 export { imageToolBlock }

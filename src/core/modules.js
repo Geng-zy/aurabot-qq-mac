@@ -1,4 +1,4 @@
-// 模块内核：插件的功能都是模块，内置的在 src/modules/，自己写的放数据目录 modules/（升级不会动）。
+// 模块内核：管理内置和用户功能的生命周期。用户模块放数据目录 modules/（升级不会动）。
 //
 // - 每个模块能单独开关；自己写的模块和内置的同名，就替换掉内置的
 // - 模块之间用 api.use('模块id') 拿对方导出的东西，用的时候再拿（对方被关了、换了也不会拿到旧的）
@@ -820,7 +820,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     const dir = join(userDir(), id)
     if (existsSync(dir)) return { ok: false, message: `modules/${id} 已经有了，先挪走它` }
     const own = new Map() // 源码 key → 复制后的文件名
-    own.set(`modules/${id}/index.js`, 'index.mjs')
+    own.set(b.sourcePath || `modules/${id}/index.js`, 'index.mjs')
     for (const f of b.files || []) own.set(f, f.split('/').pop())
     mkdirSync(dir, { recursive: true })
     for (const [key, name] of own) {

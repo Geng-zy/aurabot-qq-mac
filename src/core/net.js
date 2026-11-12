@@ -156,7 +156,7 @@ export async function segmentBytes(seg, onebot, o = {}) {
       lastErr = error
     }
   }
-  if (onebot && d.file) {
+  if (typeof onebot?.call === 'function' && d.file) {
     try {
       const info = await onebot.call('get_image', { file: d.file }, { timeoutMs: 15000 })
       for (const src of [info?.file, info?.url].filter(Boolean)) {

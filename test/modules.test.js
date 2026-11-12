@@ -189,7 +189,7 @@ test('安全模式：自己写的一个都不加载，内置的回来', async ()
 })
 
 test('复制内置模块来改：复制出来的能直接跑（连翻唱这种带数据文件的）', async () => {
-  for (const id of ['qzone-social', 'song']) {
+  for (const id of ['qq-api', 'qzone-social', 'song']) {
     const r = (await fake.call('/modules/fork', { id })).json()
     assert.equal(r.ok, true, r.message)
     const code = readdirSync(modDir(id), { withFileTypes: true }).filter((e) => e.isFile()).map((e) => readFileSync(join(modDir(id), e.name), 'utf8')).join('\n')
@@ -197,6 +197,8 @@ test('复制内置模块来改：复制出来的能直接跑（连翻唱这种�
     assert.doesNotMatch(code, /from '\.\.\//, '没有指回插件目录的相对路径')
     assert.equal((await mod(id)).running, 'user', (await mod(id)).error)
   }
+  assert.ok(existsSync(join(modDir('qq-api'), 'actions.js')))
+  assert.equal((await fake.call('/qzone/social/state')).json().ok, true)
   assert.ok(existsSync(join(modDir('song'), 'studio.js')))
   assert.match(readFileSync(join(modDir('song'), 'studio.js'), 'utf8'), /new URL\('song\/fetch_file\.py', globalThis\.aurabot\.src\)/)
   assert.equal((await fake.call('/song/status')).json().ok, true)

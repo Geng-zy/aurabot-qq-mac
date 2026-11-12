@@ -4,7 +4,7 @@
 import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
-import { dataDir, ensureDir } from '../core/store.js'
+import { dataDir, ensureDir } from '../../core/store.js'
 
 const DEFAULT_TTL = 5 * 60_000
 const DEFAULT_MAX_ITEMS = 100

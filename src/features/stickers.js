@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { dataDir, readJson, writeJson } from '../core/store.js'
-import { imageSize, mimeOf, stickerSizeOk } from '../chat/inbound.js'
+import { imageSize, mimeOf, stickerSizeOk } from '../core/image-info.js'
 import { segmentBytes, fetchImage } from '../core/net.js'
 import { askModel, canSeeImages } from '../core/llm.js'
 

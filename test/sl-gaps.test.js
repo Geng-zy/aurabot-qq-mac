@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { parseMessageEvent, cardText } from '../src/chat/inbound.js'
+import { parseMessageEvent, cardText } from '../src/channels/qq/inbound.js'
 import { decideGroupReply } from '../src/chat/group-policy.js'
 import { normalize } from '../src/core/config.js'
 import contacts from '../src/modules/contacts/index.js'
@@ -12,6 +12,7 @@ import { QQ_API, paramsOf } from '../src/modules/qq-api/actions.js'
 import qqApi, { refusal, pickParams } from '../src/modules/qq-api/index.js'
 import { createFakeDsh } from './helpers/fake-dsh.js'
 import { startMockOneBot } from './helpers/mock-onebot.js'
+import { qqIn } from './helpers/qq-in.js'
 
 const OWNER = '10000001'
 const BOT = '20000002'
@@ -172,17 +173,17 @@ test('临时私聊保存来源群，普通好友不带来源群', async (t) => {
   assert.equal(parsed.chatId, `private:${OTHER}`)
   assert.equal(parsed.groupId, '')
   assert.equal(parsed.sourceGroupId, '44444444')
-  await hub.onMessage(ev)
+  await qqIn(hub, ev)
   await hub.sendSegments(`private:${OTHER}`, [{ type: 'text', data: { text: '好' } }], '好')
   assert.deepEqual(calls.at(-1), { action: 'send_private_msg', params: { user_id: Number(OTHER), group_id: 44444444, message: [{ type: 'text', data: { text: '好' } }] } })
-  await hub.onMessage({ ...ev, sender: { ...ev.sender, group_id: 55555555 } })
+  await qqIn(hub, { ...ev, sender: { ...ev.sender, group_id: 55555555 } })
   await hub.sendSegments(`private:${OTHER}`, [{ type: 'dice', data: {} }], '骰子')
   assert.equal(calls.at(-1).params.group_id, 55555555)
   const card = setupTools({ chat: otherChat, hub }).tools.qq_send_card
   assert.equal((await card.execute({ type: 'dice' })).ok, true)
   assert.equal(calls.at(-1).params.group_id, 55555555)
   assert.deepEqual(calls.at(-1).params.message, [{ type: 'dice', data: {} }])
-  await hub.onMessage({ ...ev, sub_type: 'friend' })
+  await qqIn(hub, { ...ev, sub_type: 'friend' })
   await hub.sendSegments(`private:${OTHER}`, [{ type: 'text', data: { text: '好友' } }], '好友')
   assert.equal('group_id' in calls.at(-1).params, false)
   await hub.sendSegments(groupChat.chatId, [{ type: 'text', data: { text: '群' } }], '群')

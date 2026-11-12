@@ -10,6 +10,7 @@ import { normalize } from '../src/core/config.js'
 import { createLocal } from '../src/local/local.js'
 import { savePainting } from '../src/features/paintings.js'
 import imagegenModule from '../src/modules/imagegen/index.js'
+import { qqIn } from './helpers/qq-in.js'
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)])
 const OTHER = Buffer.from(PNG)
@@ -181,7 +182,7 @@ function mediaHub(t) {
   t.after(() => hub.dispose())
   return hub
 }
-const send = (hub, buf, user = OWNER, group = '') => hub.onMessage({
+const send = (hub, buf, user = OWNER, group = '') => qqIn(hub, {
   message_type: group ? 'group' : 'private', self_id: BOT, user_id: user, sender: { nickname: '测试' },
   ...(group ? { group_id: group } : {}), message_id: 1,
   message: [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }],
@@ -199,7 +200,7 @@ test('last 复用 hub 最近图片：群 / 私聊隔离，取当前聊天最新�
 
 test('last 保留同一条消息中照片 / 表情的先后顺序，不把更早的照片当最后一张', async (t) => {
   const hub = mediaHub(t)
-  await hub.onMessage({ message_type: 'private', self_id: BOT, user_id: OWNER, sender: { nickname: '测试' }, message_id: 2,
+  await qqIn(hub, { message_type: 'private', self_id: BOT, user_id: OWNER, sender: { nickname: '测试' }, message_id: 2,
     message: [
       { type: 'image', data: { file: 'base64://' + b64 } },
       { type: 'image', data: { file: 'base64://' + OTHER.toString('base64'), sub_type: 1 } },
@@ -234,7 +235,7 @@ test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保
     } },
   })
   t.after(() => hub.dispose())
-  const quote = (group = '', id = '42') => hub.onMessage({
+  const quote = (group = '', id = '42') => qqIn(hub, {
     message_type: group ? 'group' : 'private', self_id: BOT, user_id: OWNER, sender: { nickname: '测试' },
     ...(group ? { group_id: group } : {}), message_id: '99',
     message: [{ type: 'reply', data: { id } }, { type: 'text', data: { text: '参考引用的图' } }],

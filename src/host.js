@@ -17,19 +17,19 @@ import { homedir } from 'node:os'
 import { loadConfig, saveConfig, publicConfig, mergeFromPanel, ownerAuthorizationRevision } from './core/config.js'
 import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
-import { createOneBotClient } from './onebot/client.js'
-import { createOutbox } from './onebot/outbox.js'
-import { diagnose as diagnoseOneBot } from './onebot/diagnose.js'
+import { createChannels } from './channels/index.js'
+import { createQqChannel } from './channels/qq/index.js'
+import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
 import { createLocal, fileOf, toImageBuffer } from './local/local.js'
 import { createGroupRoles } from './chat/group-roles.js'
 import { defaultModel, askModel, modelReasoning, modelVision, clearReasoningCache, clearVisionCache } from './core/llm.js'
-import { mimeOf } from './chat/inbound.js'
+import { mimeOf } from './core/image-info.js'
 import { createMediaAccess } from './core/media.js'
 import { listModels as listProviderModels } from './core/models-list.js'
-import { buildFaceIndex } from './chat/faces.js'
-import { FACE_TABLE } from './chat/face-table.js'
+import { buildFaceIndex } from './channels/qq/faces.js'
+import { FACE_TABLE } from './channels/qq/face-table.js'
 import { dataDir, ensureDir } from './core/store.js'
 import { initUsage, usageReport } from './core/usage.js'
 import { createUpdateChecker, changelogSection, hostEnv, updatePlan, repoOf } from './core/update.js'
@@ -151,8 +151,8 @@ export function apply(ctx) {
     cfg = saveConfig(next, before)
     // 改机器人号后旧连接的核对结果立刻失效，必须重新核对才能处理消息或完成向导。
     if (before.botQQ !== cfg.botQQ) {
-      wrongAccount = ''
-      if (onebotState === 'connected') onebot.restart()
+      qq.resetAccount()
+      if (qq.state() === 'connected') qq.restart()
     }
     secrets()
     if (bridge && before.bridge.dshTools !== cfg.bridge.dshTools) bridge.refresh()
@@ -196,118 +196,40 @@ export function apply(ctx) {
       : '')
   })
 
-  // ---------- QQ 网关 ----------
-  // macOS 上 QQ 网关是你自己跑的 OneBot v11（比如 OrbStack / Docker 里的 SnowLuma），插件只按面板填的地址去连
-  const endpoint = () => {
-    const s = cfg.snowluma
-    return { httpUrl: s.httpUrl || '', wsUrl: s.wsUrl || '', httpToken: s.httpToken || '', wsToken: s.wsToken || '' }
-  }
-  let onebotState = 'stopped'
-  // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
-  let loginOk = false
-  let wrongAccount = ''
-  // 核对期间收到的事件先攒着：核对通过就补处理，核对失败就丢掉。
-  // 直接丢弃的话，刚连上那几百毫秒里主人发的消息就没了（登录核对要等一次 get_login_info 往返）。
-  let verifying = false
-  let pendingEvents = []
+  // ---------- 聊天平台的连接 ----------
+  // QQ 是第一个：macOS 上 QQ 网关是你自己跑的 OneBot v11（比如 OrbStack / Docker 里的 SnowLuma），插件只按面板填的地址去连
   let hub = null
   let dangerGuard = null // 危险命令确认（security.dangerConfirm 开着才生效）
   let approvalRelay = null // DSH 要授权时在 QQ 私聊问主人（approvalViaQQ 开着才生效）
-  async function checkLogin() {
-    verifying = true
-    pendingEvents = []
-    try {
-      let uin = ''
-      try {
-        const info = await onebot.call('get_login_info', {}, { timeoutMs: 10000 })
-        uin = String(info?.user_id ?? '')
-      } catch (error) {
-        logger.child('onebot').warn('核对登录的 QQ 号失败：', error.message)
-      }
-      if (onebotState !== 'connected') return
-      if (!uin) {
-        // 核对不了就别用，断开后由看门狗重试
-        onebot.stop()
-        return
-      }
-      if (uin === String(cfg.botQQ)) {
-        loginOk = true
-        wrongAccount = ''
-        // 把核对期间攒下的补上（按到达顺序）
-        const queued = pendingEvents
-        pendingEvents = []
-        for (const ev of queued) handleEvent(ev)
-      } else {
-        wrongAccount = uin
-        pendingEvents = []
-        onebot.stop()
-      }
-    } finally {
-      verifying = false
-    }
-  }
-  /** 核对通过后的事件都在这里处理（onEvent 直接调，核对期间攒下的也会补到这里）。 */
-  function handleEvent(ev) {
+  const channels = createChannels()
+  const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot') }))
+  // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
+  const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
+  // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
+  channels.on((e) => {
+    if (e.type === 'state') { if (e.platform === 'qq') mods?.emit('onebot/state', e.state); return }
     if (!hub) return
     // 模块能看到所有原始事件（加群、撤回、好友申请……），只看不拦
-    mods?.emit('onebot', ev)
-    if (ev.post_type === 'message' || ev.post_type === 'message_sent') {
-      if (ev.post_type === 'message') {
-        // 危险命令确认：主人的「确认 / 取消」回复先在这里截住，不交给聊天中枢
-        if (dangerGuard && ev.message_type === 'private') {
-          const text = Array.isArray(ev.message)
-            ? ev.message.filter((seg) => seg && seg.type === 'text').map((seg) => String(seg.data?.text || '')).join('')
-            : ''
-          if (dangerGuard.handleReply(`private:${ev.user_id}`, ev.user_id, text)) return
-          if (approvalRelay?.handleReply(`private:${ev.user_id}`, ev.user_id, text)) return
-        }
-        hub.onMessage(ev).catch((error) => log.error('处理消息出错：', error.message))
+    if (e.type === 'raw') { if (e.platform === 'qq') mods?.emit('onebot', e.event); return }
+    if (e.type === 'message') {
+      const msg = e.msg
+      // 危险命令确认：主人的「确认 / 取消」回复先在这里截住，不交给聊天中枢
+      if (dangerGuard && msg.kind === 'private') {
+        const raw = msg.raw
+        const text = Array.isArray(raw?.message)
+          ? raw.message.filter((seg) => seg && seg.type === 'text').map((seg) => String(seg.data?.text || '')).join('')
+          : ''
+        if (dangerGuard.handleReply(msg.chatId, msg.userId, text)) return
+        if (approvalRelay?.handleReply(msg.chatId, msg.userId, text)) return
       }
-    } else if (ev.post_type === 'notice' && ev.notice_type === 'bot_offline') {
-      log.warn(`QQ 账号离线${ev.tag ? '（' + String(ev.tag).slice(0, 100) + '）' : ''}${ev.message ? '：' + String(ev.message).slice(0, 300) : ''}`)
-    } else if (ev.post_type === 'notice' && ev.notice_type === 'notify' && ev.sub_type === 'poke') {
-      hub.onPoke(ev).catch((error) => log.error('处理戳一戳出错：', error.message))
-    } else if (ev.post_type === 'notice' && ev.notice_type === 'group_upload') {
-      hub.onGroupFile(ev).catch((error) => log.error('处理群文件出错：', error.message))
-    } else if (ev.post_type === 'notice') {
-      hub.onNotice(ev).catch((error) => log.debug('处理通知出错：', error.message))
+      hub.onMessage(msg).catch((error) => log.error('处理消息出错：', error.message))
+    } else if (e.type === 'poke') {
+      hub.onPoke(e.poke).catch((error) => log.error('处理戳一戳出错：', error.message))
+    } else if (e.type === 'notice') {
+      hub.onNotice(e.notice).catch((error) => log.debug('处理通知出错：', error.message))
     }
-  }
-  // 网关未就绪时先攒着：只有「确定没发出去」的消息才入队，连接后按 TTL 补发。
-  const outbox = createOutbox({ log: logger.child('outbox') })
-  const onebot = createOneBotClient({
-    endpoint,
-    log: logger.child('onebot'),
-    onState: (s, d) => {
-      onebotState = s
-      if (s !== 'connected') { loginOk = false; pendingEvents = [] }
-      else checkLogin().then(() => { if (loginOk) flushOutbox() }).catch((error) => log.warn('核对登录号出错：', error.message))
-      logger.child('onebot').info(`QQ 网关：${s}${d ? '（' + d + '）' : ''}`)
-      mods?.emit('onebot/state', s)
-    },
-    onEvent: (ev) => {
-      // 还没核对是机器人号：核对期间先攒着，核对通过后补处理
-      if (!loginOk) {
-        if (verifying) {
-          pendingEvents.push(ev)
-          if (pendingEvents.length > 200) pendingEvents.shift()
-        }
-        return
-      }
-      handleEvent(ev)
-    },
   })
-  async function flushOutbox () {
-    if (onebotState !== 'connected' || !loginOk) return
-    try {
-      const r = await outbox.flush((action, params, opts) => onebot.call(action, params, { ...opts, retries: 0 }))
-      if (r.sent || r.dropped || r.left) log.info(`补发队列：成功 ${r.sent}，丢弃 ${r.dropped}，剩余 ${r.left}`)
-    } catch (error) {
-      logger.child('onebot').warn('补发队列出错：', error.message)
-    }
-  }
-  // 连接后漏掉的、或补发中途又断网的，定时再试；没连接时直接返回。
-  ctx.effect(() => ctx.interval(() => { flushOutbox().catch(() => {}) }, 10_000), 'aurabot: 补发队列')
+  const outbox = qq.outbox
   const groupRoles = createGroupRoles({ onebot, getConfig, log: logger.child('chat') })
   const local = createLocal({ getConfig, log: logger })
   const mutes = createMutes()
@@ -418,8 +340,8 @@ export function apply(ctx) {
     dsh: ctx,
     getConfig,
     log: logger.child('chat'),
+    channels,
     onebot,
-    outbox,
     stickers,
     tts,
     buildTools: (where) => [...mods.buildTools(where), ...(mind ? mind.tools({ ...where, ownerTurn: () => Boolean(hub?.turnSendersAllOwner?.(where.sessionId)) }) : [])],
@@ -676,7 +598,7 @@ export function apply(ctx) {
     // 给模块的心智接口（按模块身份）；心智核心没起来时是 null
     mindFor: (moduleId) => (mind ? mind.moduleApi(moduleId) : null),
   }
-  mods = createModules({ ctx, core, getConfig, setConfig, logger, version: VERSION, builtins: BUILTINS })
+  mods = createModules({ ctx, core, getConfig, setConfig, logger, version: VERSION, builtins: [...BUILTINS, ...QQ_FEATURES] })
   bridge = createBridge({ ctx, getConfig, setConfig, hub, mods, log: logger.child('bridge'), version: VERSION, apiVersion: API_VERSION, overview: () => overview() })
   core.bridge = bridge
   core.modules = mods
@@ -885,13 +807,7 @@ export function apply(ctx) {
 
   // ---------- 启动 / 看门狗 ----------
   async function watchdog() {
-    if (!cfg.enabled) {
-      if (onebot.state !== 'stopped') onebot.stop()
-      return
-    }
-    // 上次连上的不是机器人号：等主人点「重新连接」或改设置再连
-    if (wrongAccount) return
-    if (onebot.state === 'stopped') onebot.start()
+    for (const ch of channels.list()) ch.watch?.()
   }
   const safe = (fn, label) => () => { Promise.resolve().then(fn).catch((error) => log.warn(`${label}出错：`, error.message)) }
   ctx.effect(() => ctx.interval(safe(watchdog, '看门狗'), 30_000), 'aurabot: 看门狗')
@@ -907,18 +823,11 @@ export function apply(ctx) {
     try { mind?.close() } catch (error) {}
     bridge.dispose()
     mods.dispose()
-    onebot.stop()
+    for (const ch of channels.list()) { try { ch.dispose ? ch.dispose() : ch.stop() } catch (error) {} }
   }, 'aurabot: 收尾')
 
   // ---------- 面板接口 ----------
   async function overview() {
-    let login = null
-    if (onebotState === 'connected') {
-      try {
-        const info = await onebot.call('get_login_info', {}, { timeoutMs: 5000 })
-        login = { uin: String(info?.user_id ?? ''), nickname: info?.nickname || '' }
-      } catch (error) {}
-    }
     const diary = use('diary')
     return {
       ok: true,
@@ -926,7 +835,7 @@ export function apply(ctx) {
       apiVersion: API_VERSION,
       home: homedir(),
       config: publicConfig(cfg),
-      onebot: { state: onebotState, login, endpoint: { httpUrl: endpoint().httpUrl, wsUrl: endpoint().wsUrl }, problem: onebotState === 'connected' && loginOk ? '' : await connectionProblem() },
+      onebot: await qq.status(),
       outbox: outbox.status(),
       stats: hub.stats(),
       // 模块关着时给个空壳，面板照常显示
@@ -976,10 +885,10 @@ export function apply(ctx) {
     // 换了模型：思考强度和「能不能看图」的探测结果都得重来，不然要等 10 分钟缓存过期
     const changedModel = before.model.provider !== cfg.model.provider || before.model.model !== cfg.model.model
     if (changedModel) { clearReasoningCache(); clearVisionCache() }
-    if (changedConn || before.botQQ !== cfg.botQQ) wrongAccount = ''
-    if (changedConn && onebot.state !== 'stopped') onebot.restart()
+    if (changedConn || before.botQQ !== cfg.botQQ) qq.resetAccount()
+    if (changedConn && qq.state() !== 'stopped') qq.restart()
     if (!before.enabled && cfg.enabled) setTimeout(safe(watchdog, '看门狗'), 100)
-    if (before.enabled && !cfg.enabled) onebot.stop()
+    if (before.enabled && !cfg.enabled) qq.stop()
     log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun && !cfg.debug ? '开' : '关'}｜调试 ${cfg.debug ? '开' : '关'}`)
     await mods.sync().catch(() => {})
     // 一开调试就把主人私聊的调试会话建出来，省得你还得先发条 QQ 消息才有会话说
@@ -1393,31 +1302,14 @@ export function apply(ctx) {
   route('/setup/done', async (req) => {
     const body = await readBody(req)
     if (!cfg.botQQ || !cfg.ownerQQ || cfg.botQQ === cfg.ownerQQ) return { ok: false, message: '先填好不同的机器人 QQ 和你的 QQ' }
-    if (body.existingConnection && !(cfg.enabled && onebotState === 'connected' && loginOk)) return { ok: false, message: 'QQ 网关还没通过机器人号核对，请先连接并核对后再进入面板' }
+    if (body.existingConnection && !(cfg.enabled && qq.ready())) return { ok: false, message: 'QQ 网关还没通过机器人号核对，请先连接并核对后再进入面板' }
     setConfig({ ...cfg, setupDone: true })
     log.info('首次使用向导完成')
     return { ...(await overview()), message: '设置完成，大肥鱼可以上线啦' }
   })
-  /** 连不上 QQ 网关时，按顺序找卡在哪一步，给一句人话。 */
-  async function connectionProblem() {
-    if (!cfg.enabled) return '总开关关着（右上角），打开后才会连'
-    if (!cfg.botQQ) return '还没填机器人 QQ 号'
-    const ep = endpoint()
-    if (!ep.wsUrl) return '还没填 OneBot 的 WebSocket 地址：在「连接」页填你的 OneBot v11 正向 WebSocket 地址（收消息要靠它；HTTP 可以不填）'
-    if (wrongAccount) return `连上的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
-    return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认 OneBot 服务（比如 OrbStack 里的 SnowLuma）开着、地址和 token 填对了`
-  }
   // 一键诊断：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 一项项看
-  route('/onebot/diagnose', async () => diagnoseOneBot({ cfg, state: onebotState, wrongAccount, call: (a, p, o) => onebot.call(a, p, o) }))
-  route('/onebot/reconnect', async () => {
-    if (!cfg.enabled) return { ok: false, message: await connectionProblem() }
-    wrongAccount = ''
-    onebot.restart()
-    // 等几秒看结果，别只回一句「正在重连」
-    for (let i = 0; i < 16 && !(onebotState === 'connected' && loginOk); i++) await new Promise((r) => setTimeout(r, 500))
-    if (onebotState === 'connected' && loginOk) return { ok: true, message: '连上了' }
-    return { ok: false, message: '没连上：' + (await connectionProblem()) }
-  })
+  route('/onebot/diagnose', async () => qq.diagnose())
+  route('/onebot/reconnect', async () => qq.reconnect())
   route('/onebot/test', async () => {
     try {
       const info = await onebot.call('get_login_info', {}, { timeoutMs: 8000 })

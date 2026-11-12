@@ -1,7 +1,7 @@
 // 只读查询机器人自身的 QQ 资料；头像按需交给视觉模型描述。
 import { fetchImage } from '../core/net.js'
 import { askModel, canSeeImages } from '../core/llm.js'
-import { mimeOf } from '../chat/inbound.js'
+import { mimeOf } from '../core/image-info.js'
 import { imageToolBlock } from '../core/img.js'
 
 const textField = (data, keys) => {

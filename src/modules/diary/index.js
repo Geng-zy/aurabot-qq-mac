@@ -5,7 +5,7 @@ import { createQzone } from '../../features/qzone.js'
 import { resolveAudience } from '../../features/qzone-audience.js'
 import { pickDiaryImage } from '../../features/diary-image.js'
 import { defineTool, str } from '../../tools/tools.js'
-import { mimeOf } from '../../chat/inbound.js'
+import { mimeOf } from '../../core/image-info.js'
 import { createDiaryMedia } from './media.js'
 import { createDiaryArchive } from './archive.js'
 

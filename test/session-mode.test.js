@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { qqIn } from './helpers/qq-in.js'
 
 const REPO = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')
 const dataDir = mkdtempSync(join(tmpdir(), 'aurabot-sessmode-'))
@@ -32,7 +33,7 @@ await new Promise((r) => setTimeout(r, 400))
 const CHAT = `private:${OWNER}`
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
 const entry = () => JSON.parse(readFileSync(MAP, 'utf8')).chats[CHAT] || {}
-const say = (text) => api.hub.onMessage({
+const say = (text) => qqIn(api.hub, {
   post_type: 'message', message_type: 'private', sub_type: 'friend',
   self_id: Number(BOT), user_id: Number(OWNER), time: Math.floor(Date.now() / 1000),
   message_id: Math.floor(Math.random() * 1e6),

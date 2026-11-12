@@ -1,7 +1,7 @@
 // 接 QQ 一键诊断（Mac）：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 看，指出卡在哪一项。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { diagnose, hostPort } from '../src/onebot/diagnose.js'
+import { diagnose, hostPort } from '../src/channels/qq/diagnose.js'
 
 const cfg = (snowluma = { wsUrl: 'ws://127.0.0.1:3001' }) => ({ enabled: true, botQQ: '9', snowluma })
 const probe = ({ engines = ['OrbStack'], ps = 'snowluma\tsnowluma:latest\tUp 3 days', ports = [3001, 6081] } = {}) => ({

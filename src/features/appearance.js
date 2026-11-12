@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-import { mimeOf } from '../chat/inbound.js'
+import { mimeOf } from '../core/image-info.js'
 
 export const MAX_APPEARANCE = 8
 const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif' }

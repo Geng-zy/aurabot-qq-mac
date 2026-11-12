@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
 import stickersModule from '../src/modules/stickers/index.js'
+import { qqIn } from './helpers/qq-in.js'
 
 const OWNER = '10000001'
 const BOT = '20000002'
@@ -20,7 +21,7 @@ function setup() {
   const hub = (logger = log) => createHub({ dsh: {}, getConfig: () => cfg, log: logger, onebot: {}, stickers: {} })
   return { hub, cfg, dir, file: join(dir, 'recent-media.json') }
 }
-const send = (hub, seg, user = OWNER, group = '') => hub.onMessage({
+const send = (hub, seg, user = OWNER, group = '') => qqIn(hub, {
   message_type: group ? 'group' : 'private', self_id: Number(BOT), user_id: Number(user),
   ...(group ? { group_id: Number(group) } : {}), message_id: 1, message: [seg], sender: { nickname: '测试' },
 })

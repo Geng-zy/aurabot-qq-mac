@@ -9,6 +9,7 @@ import { createHub } from '../src/chat/hub.js'
 import { isSessionBackoff } from '../src/chat/session-backoff.js'
 import { createBili } from '../src/bili/duty.js'
 import { createFakeDsh } from './helpers/fake-dsh.js'
+import { qqIn } from './helpers/qq-in.js'
 
 const MINUTE = 60_000
 const OWNER = '10000001'
@@ -199,18 +200,18 @@ test('主人私聊和群聊被 @ 的建会话退避最多五分钟', async (t) =
 
 test('QQ 新建失败后保留消息，冷却中不刷错误；下次消息触发重试并带上先前内容', async (t) => {
   const s = setup(t)
-  await s.hub.onMessage(event('第一条不能丢', 1))
+  await qqIn(s.hub, event('第一条不能丢', 1))
   await settle()
   assert.equal(s.calls.length, 1)
   assert.match(s.logs.warn[0], /QQ 消息已保留/)
-  await s.hub.onMessage(event('冷却时来的第二条', 2))
+  await qqIn(s.hub, event('冷却时来的第二条', 2))
   await settle()
   assert.equal(s.calls.length, 1)
   assert.equal(s.logs.warn.length, 1)
   assert.deepEqual(s.logs.error, [])
   t.mock.timers.tick(MINUTE)
   s.mode('success')
-  await s.hub.onMessage(event('第三条触发重试', 3))
+  await qqIn(s.hub, event('第三条触发重试', 3))
   await settle()
   assert.equal(s.calls.length, 2)
   assert.equal(s.fake.turns.length, 1)
@@ -226,16 +227,16 @@ test('群聊被 @ 后挂载失败，后续重试仍保留已被 groupPrompt 标�
   const groupEvent = (text, id) => ({ ...event(text, id), message_type: 'group', group_id: 777,
     message: [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text } }],
   })
-  await s.hub.onMessage(groupEvent('群里第一条不能丢', 11))
+  await qqIn(s.hub, groupEvent('群里第一条不能丢', 11))
   await settle()
   assert.equal(s.calls.length, 1)
   t.mock.timers.tick(MINUTE)
-  await s.hub.onMessage(groupEvent('第二条仍然失败', 12))
+  await qqIn(s.hub, groupEvent('第二条仍然失败', 12))
   await settle()
   assert.equal(s.calls.length, 2)
   t.mock.timers.tick(6 * MINUTE)
   s.mode('success')
-  await s.hub.onMessage(groupEvent('第三条重试成功', 13))
+  await qqIn(s.hub, groupEvent('第三条重试成功', 13))
   await settle()
   assert.equal(s.fake.turns.length, 1)
   assert.match(s.fake.turns[0].userText, /群里第一条不能丢/)

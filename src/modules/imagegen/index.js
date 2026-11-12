@@ -11,7 +11,7 @@ import { listPaintings, openPaintFolder, paintingPath, rememberPainting, removeP
 import { defineTool, str } from '../../tools/tools.js'
 import { SIZE_OPTIONS } from '../../features/image-shape.js'
 import { dataDir } from '../../core/store.js'
-import { mimeOf } from '../../chat/inbound.js'
+import { mimeOf } from '../../core/image-info.js'
 import { ownerOrFree } from '../../chat/access.js'
 
 export default {

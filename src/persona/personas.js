@@ -6,7 +6,7 @@ import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync, copyFi
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dataDir } from '../core/store.js'
-import { FACE_EXAMPLES } from '../chat/faces.js'
+import { FACE_EXAMPLES } from '../channels/qq/faces.js'
 
 const BUNDLED = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'personas')
 const dir = () => dataDir('personas')
