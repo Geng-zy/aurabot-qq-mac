@@ -5,7 +5,7 @@
 
 import { lstatSync, readFileSync } from 'node:fs'
 import { fetchImage } from '../core/net.js'
-import { paintingPath } from './paintings.js'
+import { resolvePainting } from './paintings.js'
 import { createCodexAuth } from './codex-auth.js'
 import { createCodexImage } from './codex-image.js'
 import { mimeOf } from '../core/image-info.js'
@@ -59,7 +59,7 @@ function findImage (obj, depth = 0) {
 /** 这个模型能不能一次收好几张参考图（OpenAI 的 gpt-image 系列可以）。 */
 export const multiReference = (model) => /gpt-image/i.test(String(model || ''))
 
-export async function resolveDrawImage(image, { hub, chat }) {
+export async function resolveDrawImage(image, { hub, chat, allowGlobalPaintings = false }) {
   if (image === undefined || image === null || image === '') return null
   if (typeof image !== 'string') throw new Error('参考图只接受 last、quote 或画作文件名')
   const ref = image.trim()
@@ -70,7 +70,7 @@ export async function resolveDrawImage(image, { hub, chat }) {
     buf = await hub.referenceImage(chat, 'quote')
   } else {
     if (!ref || /[\\/:\0]/.test(ref)) throw new Error('参考图只接受 last、quote 或画作文件名，不接受路径或网址')
-    const path = paintingPath(ref)
+    const path = resolvePainting(chat.chatId, ref, { allowGlobal: allowGlobalPaintings })?.path
     if (!path || !lstatSync(path).isFile()) throw new Error('找不到这张画作，请使用图库里的文件名')
     buf = readFileSync(path)
   }

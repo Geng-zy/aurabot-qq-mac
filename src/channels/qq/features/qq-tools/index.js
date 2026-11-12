@@ -3,7 +3,6 @@
 import { defineTool, str, int } from '../../../../tools/tools.js'
 import { readQqFile } from '../../../../features/qq-file.js'
 import { parseMessageEvent } from '../../inbound.js'
-import { ownerOrFree } from '../../../../chat/access.js'
 import { platformOf } from '../../../ids.js'
 
 /** 真实网关对不在群里的人也回成功、角色写 member，只有 join_time 是空的：没有它就不算成员。 */
@@ -256,7 +255,7 @@ export default {
         properties: { target: str('private:QQ号 或 group:群号'), text: str('要发的话，可以用 ||| 分多条、<voice>…</voice> 发语音、<sticker:名字> 发表情') },
         required: ['target', 'text'],
         execute: async ({ target, text }) => {
-          if (chat.kind === 'group' && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人开口时才能往别的聊天发，这一轮不是。' }
+          if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有主人开口时才能往别的聊天发，这一轮不是。' }
           const cfg = api.config()
           const [kind, id] = String(target || '').split(':')
           const okList = kind === 'group' ? cfg.allow.groups : kind === 'private' ? [cfg.ownerQQ, ...cfg.allow.private] : []

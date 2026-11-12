@@ -49,8 +49,9 @@ export default {
         if (!c.enabled || !c.diary.enabled) return '空间日记没打开'
         return postsToday() < (c.diary.timesPerDay ?? 2) ? true : '今天写够了'
       },
-      run: async () => {
-        const r = await qzone.writeDiary()
+      run: async ({ checkpoint }) => {
+        await checkpoint()
+        const r = await qzone.writeDiary({ checkpoint })
         const posted = Boolean(r?.ok && !r.dryRun)
         return { ok: posted, summary: posted ? '写了一篇空间日记' : r?.message || '未发布', outcome: posted ? 0.7 : 0 }
       },

@@ -128,10 +128,10 @@ export function recentPaintings (chatId, limit = 10) {
 
 /**
  * 把「画作 #1 / 1 / 最新 / 刚才那张 / 完整文件名」解析成本机路径。
- * 只认这个聊天记过的编号；别名在没记过时退回目录里最新的一张（重启后也能用）。
+ * 默认只查当前会话已登记的画作。主人私聊可以查整个图库。
  * 不合法 / 不存在返回 null，不抛。
  */
-export function resolvePainting (chatId, ref) {
+export function resolvePainting (chatId, ref, { allowGlobal = false } = {}) {
   const s = String(ref == null ? '' : ref).trim()
   if (!s) return null
   const list = recent.get(String(chatId || '')) || []
@@ -140,8 +140,7 @@ export function resolvePainting (chatId, ref) {
   const num = /^#?(\d{1,2})$/.exec(s)
   if (alias) {
     name = list.at(-1) || ''
-    if (!name) {
-      // 内存里没有（比如刚重启）：退回目录里最新的一张
+    if (!name && allowGlobal) {
       const latest = listPaintings({ limit: 1 }).items[0]
       name = latest ? latest.file : ''
     }
@@ -149,7 +148,8 @@ export function resolvePainting (chatId, ref) {
     const i = Number(num[1])
     if (i >= 1 && i <= list.length) name = list[list.length - i]
   } else {
-    name = safeName(s)
+    const file = safeName(s)
+    if (allowGlobal || list.includes(file)) name = file
   }
   if (!name) return null
   const full = paintingPath(name)

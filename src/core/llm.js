@@ -210,6 +210,7 @@ export async function askModel (dsh, o) {
     messages,
     maxTokens: o.maxTokens || 600,
     temperature: o.temperature ?? 0.3,
+    ...(o.signal ? { signal: o.signal } : {}),
   }
   let effort = await pickReasoningEffort(dsh, t.provider, t.model, o.reasoningEffort === undefined ? 'low' : o.reasoningEffort)
   let widened = false
@@ -221,9 +222,10 @@ export async function askModel (dsh, o) {
   }
   for (let attempt = 0; ; attempt++) {
     try {
+      o.signal?.throwIfAborted()
       const out = await runStream(llm, effort ? { ...base, reasoningEffort: effort } : base, onUsage)
       // 推理模型可能把输出预算全花在思考上，一个字没写：放宽预算再试一次
-      if (out || widened) return out
+      if (out || widened || o.retryEmpty === false) return out
       widened = true
       base.maxTokens = Math.max(base.maxTokens, Math.min(4000, base.maxTokens * 3))
     } catch (error) {

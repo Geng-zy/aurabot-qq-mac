@@ -91,7 +91,19 @@ export function describeSpeechPlan(plan) {
   return `【这轮的表达意图】${intent[plan.intent]} ${plan.tone}，长度${plan.length}。`
 }
 
-export function createConversation({ memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, goals, canon, now, random, speak, log }) {
+export function effortForScene(scene, setting, body, fallback = 'low') {
+  const wanted = setting('models.effort.' + scene) || fallback
+  if (!setting('models.tiredDepth') || (body.energy >= 0.3 && !body.groggy)) return wanted
+  return wanted === 'max' ? 'high' : 'low'
+}
+
+export function speechScene(text, appraisal) {
+  if (/逐步|多步骤|复杂任务|重构|完整实现|排查.{0,15}(原因|问题)|debug|refactor/i.test(text)) return 'task'
+  if (appraisal?.relevance >= 0.75 && (Math.abs(appraisal.impact) >= 0.5 || appraisal.unfairness >= 0.5)) return 'important'
+  return 'casual'
+}
+
+export function createConversation({ memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, personaCard, goals, canon, now, random, speak, log }) {
   const assessing = new Set()
   const preparing = new Map()
   const responding = new Map()
@@ -118,9 +130,10 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     assessing.add(window)
     try {
       const earlier = state.emotions.filter((e) => e.window === window && e.eventId && people.includes(e.target)).slice(0, 3)
+      const recent = history(window, { limit: 12 })
       const input = {
         event,
-        recent: recentLines(history(window, { limit: 4 })),
+        recent: recentLines(recent.slice(-4)),
         mood: state.mood.label,
         body: body.describe(state.body),
         goals: goals().slice(0, 3).map((goal) => goal.text),
@@ -133,8 +146,11 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       const result = normalizeAppraisal(parseJson(raw), event, people, earlier, observations)
       if (!result) return null
       const item = emotionFrom(result)
+      const source = recent.findLast((row) => row.dir === 'in' && row.who === result.target && row.text.includes(result.evidence) &&
+        (observations ? observations.some((line) => line.speaker === row.who && line.text === row.text.trim()) : event === row.text.trim()))
       if (item || result.corrects) emotion.feel(item ? [item] : [], {
-        window, source: 'appraisal', eventId: randomUUID(), revision: result.corrects ? { eventId: result.corrects, target: result.target } : null,
+        window, source: 'appraisal', eventId: source ? 'perception:' + source.id : randomUUID(),
+        revision: result.corrects ? { eventId: result.corrects, target: result.target } : null,
       })
       return result
     } finally {
@@ -142,7 +158,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     }
   }
 
-  async function prepare({ window, text, people = [], direct = true, readOnly = false, timeoutMs = 3000, isCurrent = () => true, observations }) {
+  async function prepare({ window, text, people = [], direct = true, readOnly = false, timeoutMs = 3000, isCurrent = () => true, observations, compactRecall = false }) {
     if (closed || !window || !isCurrent()) return null
     const event = String(text || '').trim().slice(-600)
     const speakers = [...new Set(people.map(canon).filter(Boolean))]
@@ -160,7 +176,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     let timer
     try {
       const context = contextCue(event, (options) => history(window, options), speakers, now(), (id) => person(id)?.noMemory)
-      const recall = memory.workingMemory({ cue: event, contextCue: context, window, people: speakers, readOnly, isCurrent: current, limit, embeddingTimeoutMs: Math.min(1800, Math.max(1, timeoutMs * 0.6)) })
+      const recall = memory.workingMemory({ cue: event, contextCue: context, window, people: speakers, readOnly, isCurrent: current, limit, compact: compactRecall, embeddingTimeoutMs: Math.min(1800, Math.max(1, timeoutMs * 0.6)) })
         .then((value) => { if (current()) working = value })
         .catch((error) => log.debug('回复前回忆未完成：', error.message))
       const evaluate = readOnly ? null : appraise(window, observedEvent, speakers, state, current, utterances?.filter((line) => observedEvent.includes(line.text)))
@@ -176,7 +192,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
   }
 
   /** 独立运行时记录观察、形成回复草稿。实际送达由调用者确认并记入 said()。 */
-  async function respond({ window, text, speaker, msgId, name, direct = true, timeoutMs = 5000, signal }) {
+  async function respond({ window, text, speaker, msgId, name, direct = true, timeoutMs = 5000, responseTimeoutMs = 30000, signal }) {
     if (closed || signal?.aborted || !window || !speaker || !String(text || '').trim()) return { status: 'skipped' }
     const who = canon(speaker)
     const remember = !person(who)?.noMemory
@@ -205,10 +221,41 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
         recent.length ? '【本会话之前的话】\n' + recent.map((line) => `${line.direction === 'in' ? '对方' : '你'}：${line.text}`).join('\n') : '',
         `【对方刚说】\n${String(text).slice(-4000)}`,
       ].filter(Boolean).join('\n\n')
-      const draft = await speak({ scene: 'speak', system, text: input, maxTokens: 600, signal })
+      const effort = setting('models.adaptiveDepth') ? effortForScene(speechScene(text, turn.appraisal), setting, current.body) : undefined
+      const request = async (prompt, input, maxTokens, reasoningEffort, ms) => {
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(new Error('等回复超时')), ms)
+        const deadline = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+        let onAbort
+        try {
+          const cancellation = new Promise((_, reject) => {
+            onAbort = () => reject(deadline.reason)
+            deadline.addEventListener('abort', onAbort, { once: true })
+          })
+          const raw = await Promise.race([speak({ scene: 'speak', system: prompt, text: input, maxTokens, signal: deadline, reasoningEffort }), cancellation])
+          const out = parseJson(typeof raw === 'string' ? raw : raw?.text)
+          if (typeof out?.text !== 'string') return null
+          const body = out.text.trim()
+          return /^\[沉默\]$/.test(body) ? '' : body
+        } catch (error) {
+          if (isCurrent()) log.debug('生成回复失败：', error.name)
+          return null
+        } finally {
+          clearTimeout(timer)
+          deadline.removeEventListener('abort', onAbort)
+        }
+      }
+      const wait = Math.max(1, Number(responseTimeoutMs) || 30000)
+      let response = await request(system, input, 600, effort, wait)
+      if (direct && response === null && isCurrent()) {
+        const currentInput = `【对方刚说】\n${String(text).slice(-1800)}`
+        const instructions = '接着对方的话简短回复。不要声称执行了任何操作。只输出 JSON：{"text":"正文"}。'
+        const minimal = String(personaCard()).slice(0, 4500) + '\n' + instructions
+        response = await request(minimal + '\n' + feelings.slice(0, 400) + '\n' + describeSpeechPlan(turn.plan), currentInput, 400, 'low', Math.min(9000, wait))
+        if (response === null && isCurrent()) response = await request(minimal, currentInput, 400, 'low', Math.min(9000, wait))
+      }
       if (!isCurrent()) return { status: 'superseded' }
-      const response = parseJson(typeof draft === 'string' ? draft : draft?.text)?.text
-      if (typeof response !== 'string' || !response.trim()) return { status: 'quiet', plan: turn.plan }
+      if (!response) return { status: response === '' ? 'quiet' : 'unavailable', plan: turn.plan }
       return { status: 'draft', text: response.trim(), plan: turn.plan, at: now() }
     } finally {
       if (responding.get(window) === ticket) responding.delete(window)

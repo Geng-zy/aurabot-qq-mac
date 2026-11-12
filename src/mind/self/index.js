@@ -79,6 +79,7 @@ export function createSelf(deps) {
     if (by === 'self' && !why) return { ok: false, message: '改自己要有理由：为什么想改？' }
     const id = deps.identity()
     const p = profile()
+    const beforeSources = what === 'story' ? p.story.from || [] : []
     const before = what === 'persona' ? deps.personaCard() : what === 'name' ? id.name : what === 'nickname' ? id.nickname : what === 'story' ? p.story.text : what === 'goal' ? '' : what === 'ownerCall' ? ownerCall() : p[what] || ''
     if (what !== 'goal' && content === before) return { ok: false, message: '和现在一样，不用改' }
     if (what === 'ownerCall') {
@@ -119,7 +120,7 @@ export function createSelf(deps) {
       p[what] = after
       saveProfile(p)
     }
-    deps.addVersion('self', { what, before: String(before).slice(0, 20000), after }, { by, reason })
+    deps.addVersion('self', { what, before: String(before).slice(0, 20000), after, ...(what === 'story' ? { beforeSources } : {}) }, { by, reason })
     log.info(`${by === 'self' ? '她' : '主人'}改了${WHAT[what]}：${why.slice(0, 60)}`)
     return { ok: true, message: `改好了（${WHAT[what]}）`, change: { what, label: WHAT[what], why, before: String(before), after } }
   }
@@ -135,9 +136,10 @@ export function createSelf(deps) {
 
   /** 退回某个「自我」版本（只退那一项）。 */
   function restore(versionId) {
-    const v = deps.listVersions('self', 500).find((x) => x.id === Number(versionId))
-    if (!v) throw new Error('没有这个版本')
+    const v = deps.getVersion(versionId)
+    if (v?.kind !== 'self') throw new Error('没有这个版本')
     const { what, before } = v.data
+    if (v.data.beforeInvalid || (what === 'story' && v.data.beforeSources?.length)) return { ok: false, message: '经历生成的旧故事由睡眠整理更新，不能手动恢复' }
     if (what === 'goal') return { ok: false, message: '目标不用退回，直接删掉就行' }
     return change({ what, content: before, why: `退回到版本 ${versionId} 之前` }, { by: 'owner' })
   }
@@ -154,10 +156,14 @@ export function createSelf(deps) {
   async function updateStory({ ask, episodes, isVisible = () => true }) {
     if (typeof ask !== 'function') return null
     const p = profile()
-    if (p.story.at && now() - p.story.at < DAY * 0.8) return null
-    const fresh = (episodes() || []).filter((e) => e.at > (p.story.at || 0) && isVisible(e.id)).slice(0, 20)
+    const rebuild = p.story.rebuild === true
+    if (!rebuild && p.story.at && now() - p.story.at < DAY * 0.8) return null
+    const fresh = (episodes({ rebuild }) || []).filter((e) => (rebuild || e.at > (p.story.at || 0)) && isVisible(e.id)).slice(-20)
     const day = (at) => (deps.dayKey ? deps.dayKey(at) : new Date(at).toISOString().slice(0, 10))
-    if (!fresh.length) return null
+    if (!fresh.length) {
+      if (rebuild) saveProfile({ ...p, story: { ...p.story, rebuild: false } })
+      return null
+    }
     const id = deps.identity()
     const previous = p.story.shareable && (p.story.from || []).every(isVisible) ? p.story.text : ''
     const text = [
@@ -169,19 +175,42 @@ export function createSelf(deps) {
     const story = String(j?.story || '').trim()
     const current = profile()
     const from = [...new Set([...(previous ? p.story.from || [] : []), ...fresh.map((e) => e.id)])]
-    if (!story || !from.every(isVisible) || current.story.at !== p.story.at || current.story.text !== p.story.text) return null
+    if (!story || !from.every(isVisible) || JSON.stringify(current.story) !== JSON.stringify(p.story)) return null
     const before = p.story.text
     const chapter = String(j?.chapter || '').trim().slice(0, 20)
     current.story = { text: story.slice(0, 3000), at: now(), chapters: chapter ? [...p.story.chapters, { at: now(), title: chapter }].slice(-40) : p.story.chapters, shareable: true, from }
     saveProfile(current)
-    deps.addVersion('self', { what: 'story', before, after: current.story.text }, { by: 'sleep', reason: chapter ? `自我故事新的一章：${chapter}` : '睡觉时更新了自我故事' })
+    deps.addVersion('self', { what: 'story', before, after: current.story.text, beforeSources: p.story.from || [], sources: from }, { by: 'sleep', reason: chapter ? `自我故事新的一章：${chapter}` : '睡觉时更新了自我故事' })
     return { chapter, length: story.length }
   }
 
+  function invalidateStory(id) {
+    const p = profile()
+    if (p.story.from?.includes(id)) {
+      p.story = { text: '', chapters: [], from: [], at: now(), shareable: false, rebuild: true }
+      saveProfile(p)
+    }
+    for (const v of store.prep("SELECT id, json FROM versions WHERE kind = 'self' AND instr(json, ?) > 0").all(JSON.stringify(id))) {
+      const data = JSON.parse(v.json)
+      if (data.what !== 'story') continue
+      let changed = false
+      if (data.beforeSources?.includes(id)) {
+        Object.assign(data, { before: '', beforeSources: [], beforeInvalid: true })
+        changed = true
+      }
+      if (data.sources?.includes(id)) {
+        Object.assign(data, { after: '', sources: [] })
+        changed = true
+      }
+      if (changed) store.prep("UPDATE versions SET json = ?, reason = ? WHERE id = ?").run(JSON.stringify(data), '删除经历后清除故事内容', v.id)
+    }
+  }
+
   /** 放进系统提示词的「她是谁」：人格卡 + 她自己写的价值观、爱好、外貌、目标 + 自我故事摘要。 */
-  function prompt({ isVisible = () => true } = {}) {
+  function prompt({ isVisible = () => true, publicPersona = null } = {}) {
     const id = deps.identity()
     const p = profile()
+    if (publicPersona) return [publicPersona.card, publicPersona.name ? `你的名字是「${publicPersona.name}」。` : ''].filter(Boolean).join('\n')
     const parts = [deps.personaCard()]
     const nameLine = [id.name ? `你现在的名字是「${id.name}」` : '', id.nickname ? `小名「${id.nickname}」` : ''].filter(Boolean).join('，')
     if (nameLine) parts.push(`【你的名字】${nameLine}（以这里为准）。`)
@@ -211,5 +240,5 @@ export function createSelf(deps) {
     }).join('；')
   }
 
-  return { profile, ownerCall, canChangeOwnerCall, change, dropGoal, restore, history, historyText, updateStory, prompt, goals: () => profile().goals, WHAT, TRAITS }
+  return { profile, ownerCall, canChangeOwnerCall, change, dropGoal, restore, history, historyText, updateStory, invalidateStory, prompt, goals: () => profile().goals, WHAT, TRAITS }
 }

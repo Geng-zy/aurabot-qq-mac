@@ -4,6 +4,7 @@
  * @param {{ store: any, today: () => string, setting: (key: string) => any }} deps
  */
 export function createBudget({ store, today, setting }) {
+  const reservations = new Set()
   const add = store.prep(`INSERT INTO usage (day, kind, calls, tokens) VALUES (?, ?, 1, ?)
     ON CONFLICT(day, kind) DO UPDATE SET calls = calls + 1, tokens = tokens + excluded.tokens`)
 
@@ -20,14 +21,25 @@ export function createBudget({ store, today, setting }) {
   function allow(kind, estimate = 0) {
     const cap = Number(setting('models.backgroundTokensDaily'))
     const s = spent()
-    if (Number.isFinite(cap) && s.tokens + estimate > cap) return false
+    const pending = [...reservations].filter((r) => r.day === s.day)
+    if (Number.isFinite(cap) && s.tokens + pending.reduce((sum, r) => sum + r.estimate, 0) + estimate > cap) return false
     if (kind === 'deep') {
-      const n = s.byKind.deep?.calls || 0
+      const n = (s.byKind.deep?.calls || 0) + pending.filter((r) => r.kind === 'deep').length
       if (n >= Number(setting('models.deepThinkDaily'))) return false
     }
     return true
   }
-  return { charge, spent, allow }
+  function reserve(kind, estimate) {
+    if (!allow(kind, estimate)) return null
+    const ticket = { kind, estimate, day: today() }
+    reservations.add(ticket)
+    return (used) => {
+      if (reservations.delete(ticket) && used !== undefined) {
+        add.run(ticket.day, kind, Math.max(0, Math.round(Number(used) || 0)))
+      }
+    }
+  }
+  return { charge, spent, allow, reserve }
 }
 
 /** 估算 token：中文大约 1 字 1 token，英文大约 4 字符 1 token。 */

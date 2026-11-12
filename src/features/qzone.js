@@ -40,6 +40,8 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
     // 面板定的范围说了算；单次请求只能收窄成「仅自己」，不能扩大。
     let audience
     try { audience = resolveAudience(cfg, visibility) } catch (error) { return { ok: false, message: error.message } }
+    const sharesPrivateText = () => audience.visibility !== 'self' && hub?.containsProtectedText?.('system:qzone', text)
+    if (sharesPrivateText()) return { ok: false, message: '说说包含私密内容，已拦下' }
     if (!cfg.enabled) return { ok: false, message: '总开关关着' }
     if (cfg.dryRun) {
       log.info(`试运行：本来要发说说（${audience.label}）：${text.slice(0, 60)}`)
@@ -60,6 +62,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
       const latest = getConfig()
       audience = resolveAudience(latest, visibility)
       if (!latest.enabled || latest.dryRun) return { ok: false, message: '发布前开关已变化，本次未发布。' }
+      if (sharesPrivateText()) return { ok: false, message: '说说包含私密内容，已拦下' }
       beforeSend?.()
       const r = await onebot.call('send_qzone_msg', { content: text, ugc_right: audience.ugc_right, ...(audience.target_uins ? { target_uins: audience.target_uins } : {}), ...(imgs.length ? { images: imgs } : {}) }, { timeoutMs: 60000 })
       const tid = String(r?.tid ?? r?.id ?? r ?? '')
@@ -138,7 +141,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
   }
 
   /** 写一篇并发出去。 */
-  async function writeDiary({ visibility, preview = false } = {}) {
+  async function writeDiary({ visibility, preview = false, checkpoint } = {}) {
     if (busy) return { ok: false, message: '上一篇还在写' }
     busy = true
     try {
@@ -150,6 +153,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
         const audience = resolveAudience(getConfig(), visibility)
         const details = { text: draft.text, media: draft.media, warnings: draft.warnings, visibility: audience.visibility, label: audience.label }
         if (preview) return { ok: true, preview: true, ...details }
+        await checkpoint?.()
         draft.beforeSend?.()
         const r = await post(draft.text, { images: draft.images, visibility, beforeSend: draft.beforeSend })
         const s = state()
@@ -188,11 +192,13 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
         const audience = resolveAudience(getConfig(), visibility)
         return { ok: true, preview: true, text, media: [], visibility: audience.visibility, label: audience.label, warnings: ['当前为原有日记流程；预览展示正文，原有配图发布时仍按原规则挑选。'] }
       }
+      await checkpoint?.()
       let r = await post(text, { visibility: images.length ? 'self' : visibility, images })
       // 配图发不出去（比如空间不认这张图）不能把整篇日记憋回去：退回只发文字，日记照发
       if (!r.ok && images.length) {
         log.warn('日记配图没发成，改成只发文字：', r.message)
         images.length = 0
+        await checkpoint?.()
         r = await post(text, { visibility })
       }
       const s = state()

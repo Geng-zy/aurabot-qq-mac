@@ -31,6 +31,7 @@ import { listModels as listProviderModels } from './core/models-list.js'
 import { buildFaceIndex } from './channels/qq/faces.js'
 import { FACE_TABLE } from './channels/qq/face-table.js'
 import { dataDir, ensureDir } from './core/store.js'
+import { createTasks } from './core/tasks.js'
 import { initUsage, usageReport } from './core/usage.js'
 import { createUpdateChecker, changelogSection, hostEnv, updatePlan, repoOf } from './core/update.js'
 import { parseCommand, runCommand, createMutes, commandList } from './chat/commands.js'
@@ -176,11 +177,14 @@ export function apply(ctx) {
   // ---------- 人格与规则：通过提示词变量注入到 Aurabot 的两个 preset ----------
   const variable = (n, fn) => ctx.effect(() => ctx.systemPrompt.variable(n, (...args) => captureSystemPrompt(n, cleanText(fn(...args)))), `aurabot: 变量 ${n}`)
   const ownerCall = () => { try { return (mind && mind.ownerCall()) || cfg.ownerName || '主人' } catch (error) { return cfg.ownerName || '主人' } }
-  const rulesOpts = (kind) => ({ ...(mods ? { off: mods.builtinOff(), extra: [...mods.rules(kind), ...(mind ? mind.rules(kind) : [])] } : {}), ownerCall: ownerCall() })
+  const rulesOpts = (kind) => ({ ...(mods ? { off: mods.builtinOff(), extra: [...mods.rules(kind), ...(mind ? mind.rules(kind) : [])] } : {}), ownerCall: kind === 'private' ? ownerCall() : '主人' })
   // 扩展模块能整段改写人格和规则（同步：提示词变量不能等）
   const rewrite = (event, text, ...args) => { const r = mods ? mods.filterSync(event, text, ...args) : text; return typeof r === 'string' ? r : r === null ? '' : text }
   // 她是谁：心智核心里当前版本的人格卡 + 她自己写的价值观等 + 自我故事摘要 + 不知不觉的变化（心智核心没起来时用面板里的人格卡）
   variable('aurabot_persona', () => rewrite('persona', (mind && (() => { try { return mind.selfPrompt() } catch (error) { return '' } })()) || currentPersonaText(cfg.persona.current)))
+  variable('aurabot_persona_public', () => {
+    try { return mind?.selfPrompt({ publicOnly: true }) || '你是大肥鱼。' } catch { return '你是大肥鱼。' }
+  })
   variable('aurabot_rules_private', () => {
     const base = rewrite('rules', rulesText('private', cfg, rulesOpts('private')), 'private')
     // 危险命令确认开着时补一句：被拦下要如实告诉主人，别绕着写
@@ -190,15 +194,17 @@ export function apply(ctx) {
   })
   variable('aurabot_rules_social', () => rewrite('rules', rulesText('social', cfg, rulesOpts('social')), 'social'))
   variable('aurabot_rules_group_owner', () => {
-    const base = rewrite('rules', rulesText('group-owner', cfg, rulesOpts('group-owner')), 'group-owner')
-    return base + (cfg.security && cfg.security.dangerConfirm
-      ? '\n【危险命令】终端命令如果被安全策略拦下（删根目录/格式化/关机/下载后直接执行等），把命令原文和原因如实告诉主人，等主人回复「确认」后再重试；群里不做绕过。'
-      : '')
+    return rewrite('rules', rulesText('group-owner', cfg, rulesOpts('group-owner')), 'group-owner') + '\n【危险命令】只能在主人私聊里处理，群里不执行。'
   })
 
   // ---------- 聊天平台的连接 ----------
   // QQ 是第一个：macOS 上 QQ 网关是你自己跑的 OneBot v11（比如 OrbStack / Docker 里的 SnowLuma），插件只按面板填的地址去连
   let hub = null
+  const tasks = createTasks({ log: logger.child('后台任务') })
+  function taskRequesters({ chat, sessionId }) {
+    const senders = hub?.turnSenders(sessionId) || []
+    return senders.length ? senders : chat?.kind === 'private' && chat.userId ? [String(chat.userId)] : []
+  }
   let dangerGuard = null // 危险命令确认（security.dangerConfirm 开着才生效）
   let approvalRelay = null // DSH 要授权时在 QQ 私聊问主人（approvalViaQQ 开着才生效）
   const channels = createChannels()
@@ -351,7 +357,10 @@ export function apply(ctx) {
     onebot,
     stickers,
     tts,
-    buildTools: (where) => [...mods.buildTools(where), ...(mind ? mind.tools({ ...where, ownerTurn: () => Boolean(hub?.turnSendersAllOwner?.(where.sessionId)) }) : [])],
+    buildTools: (where) => [
+      ...mods.buildTools(where), ...tasks.tools(where, () => taskRequesters(where)),
+      ...(mind ? mind.tools({ ...where, ownerTurn: () => Boolean(hub?.turnSendersAllOwner?.(where.sessionId)) }) : []),
+    ],
     // 模块声明的能力（module.json capabilities）：子智能体委派这类要本机权限的能力靠它把关（一审 #177）
     capabilitiesOf: (id) => (typeof mods.capabilitiesOf === 'function' ? mods.capabilitiesOf(id) : []),
     contextProviders: [(args) => mind?.contextFor(args) || '', (args) => args.publicOnly ? '' : mods.contextFor(args)],
@@ -591,7 +600,7 @@ export function apply(ctx) {
 
   // ---------- 模块 ----------
   const core = {
-    hub, onebot, local, groupRoles, mutes, logger, bridge: null,
+    hub, onebot, local, groupRoles, mutes, logger, bridge: null, tasks, taskRequesters,
     root: ROOT,
     ask: (opts) => askModel(ctx, { cfg: getConfig(), ...opts }),
     listModels,
@@ -603,7 +612,7 @@ export function apply(ctx) {
     personas: { list: listPersonas, read: readPersona, current: () => currentPersonaText(cfg.persona.current) },
     getConfig, setConfig,
     // 给模块的心智接口（按模块身份）；心智核心没起来时是 null
-    mindFor: (moduleId) => (mind ? mind.moduleApi(moduleId) : null),
+    mindFor: (moduleId, source) => (mind ? mind.moduleApi(moduleId, source) : null),
   }
   mods = createModules({ ctx, core, getConfig, setConfig, logger, version: VERSION, builtins: [...BUILTINS, ...QQ_FEATURES] })
   bridge = createBridge({ ctx, getConfig, setConfig, hub, mods, log: logger.child('bridge'), version: VERSION, apiVersion: API_VERSION, overview: () => overview() })
@@ -828,6 +837,7 @@ export function apply(ctx) {
     if (pushTimer) { clearTimeout(pushTimer); pushTimer = null } // 云备份的每日定时也要收尾，别留悬空回调
     dangerGuard?.dispose()
     approvalRelay?.dispose()
+    tasks.dispose()
     hub.dispose()
     try { mind?.close() } catch (error) {}
     bridge.dispose()
@@ -1351,7 +1361,7 @@ export function apply(ctx) {
   route('/mind/state', async () => {
     if (!mind) return mindOff
     const m = mind.mind
-    return { ok: true, status: m.status(), usage: m.budget.spent(), sleep: m._store.get('sleep.lastReport', null), dreams: m._store.get('dreams.log', []).slice(0, 10), pending: m.memory.pendingWindows().length }
+    return { ok: true, status: m.status(), usage: m.budget.spent(), sleep: m._store.get('sleep.lastReport', null), dreams: m._store.get('dreams.log', []).slice(0, 10), pending: m.memory.pendingWindows().length, deferredThoughts: m.inner.deferredCount() }
   })
   route('/mind/vectors', async () => (mind ? { ok: true, ...mind.mind.memory.vectorProgress(), ...mind.embeddingStatus() } : mindOff))
   route('/mind/memories', async (req) => {
@@ -1370,12 +1380,21 @@ export function apply(ctx) {
   route('/mind/memory/delete', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)
-    return mind.mind.memory.deleteEpisode(String(b.id || '')) ? { ok: true, message: '删掉了；由它整理出来的「知道的事」会跟着删或重算' } : { ok: false, message: '没有这条' }
+    const deleted = mind.mind.memory.deleteEpisode(String(b.id || ''))
+    if (deleted) mind.invalidateMemory()
+    return deleted ? { ok: true, message: '已删除。有关的记忆、人格证据和故事会随之删除或重算。' } : { ok: false, message: '没有这条' }
   })
   route('/mind/memory/boost', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)
     return mind.mind.memory.boost(String(b.id || '')) ? { ok: true, message: '加强了，她会记得更牢' } : { ok: false, message: '没有这条' }
+  })
+  route('/mind/memory/private', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    const ok = mind.mind.memory.setPrivateOnly(String(b.id || ''), b.enabled === true)
+    if (ok) mind.invalidateMemory()
+    return { ok, message: ok ? (b.enabled ? '仅在与你的私聊中使用' : '已取消手动限制') : '没有这条记忆' }
   })
   // 「获取可用模型」：面板填好地址和 Key 后问服务有哪些模型。Key 留空 = 用已经保存的那个（面板不回显已保存的 Key）
   const SAVED_KEYS = { imageGen: () => cfg.imageGen?.apiKey, asr: () => cfg.voice?.asrApi?.apiKey, mind: () => cfg.mind?.embedKey }
@@ -1542,7 +1561,7 @@ export function apply(ctx) {
       ownerCall: m.self.ownerCall(),
       ownerCallOk: m.self.canChangeOwnerCall(),
       personality: m.personality.state(),
-      versions: { persona: ver('persona', 30), self: ver('self', 50), traits: ver('traits', 50) },
+      versions: { persona: ver('persona', 30), self: ver('self', 50), traits: ver('traits', 50), habits: ver('habits', 50) },
       prompt: m.selfPrompt(),
     }
   })
@@ -1569,6 +1588,7 @@ export function apply(ctx) {
         return { ok: true, message: '人格卡退回了' }
       }
       if (b.kind === 'traits') { mind.mind.personality.restore(Number(b.id)); return { ok: true, message: '性格退回了' } }
+      if (b.kind === 'habits') { mind.mind.personality.restoreHabits(Number(b.id)); return { ok: true, message: '习惯退回了' } }
       if (b.kind === 'self') return mind.mind.self.restore(Number(b.id))
       return { ok: false, message: '不认识的版本' }
     } catch (error) {
@@ -1580,6 +1600,31 @@ export function apply(ctx) {
     const b = await readBody(req)
     mind.mind.pinVersion(Number(b.id), b.pinned !== false)
     return { ok: true }
+  })
+  route('/mind/version/list', async (req) => {
+    if (!mind) return mindOff
+    const { kind, before } = query(req)
+    if (!['persona', 'self', 'traits', 'habits'].includes(kind)) return { ok: false, message: '不认识的版本类别' }
+    const cursor = Number(before)
+    const versions = mind.mind.listVersions(kind, 51, Number.isSafeInteger(cursor) && cursor > 0 ? cursor : undefined)
+    return { ok: true, items: versions.slice(0, 50).map(({ data, ...meta }) => meta), hasMore: versions.length > 50 }
+  })
+  route('/mind/version/compare', async (req) => {
+    if (!mind) return mindOff
+    const { first, second } = query(req)
+    const a = mind.mind.getVersion(first)
+    const b = mind.mind.getVersion(second)
+    return a && b && a.kind === b.kind ? { ok: true, versions: [a, b] } : { ok: false, message: '请选择同一类别的两个版本' }
+  })
+  route('/mind/version/delete', async (req) => {
+    if (!mind) return mindOff
+    const b = await readBody(req)
+    try {
+      const n = b.id ? mind.mind.deleteVersion(b.id) : mind.mind.deleteVersions(String(b.kind), {
+        from: Number(b.from), through: Number(b.through),
+      })
+      return { ok: true, message: `清理了 ${n} 个版本` }
+    } catch (error) { return { ok: false, message: error.message } }
   })
   route('/mind/traits/confirm', async (req) => {
     if (!mind) return mindOff

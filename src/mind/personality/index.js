@@ -115,13 +115,14 @@ ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[
 
   /** 退回到某个特质版本。 */
   function restore(id) {
-    const v = deps.listVersions('traits', 500).find((x) => x.id === Number(id))
-    if (!v) throw new Error('没有这个版本')
+    const v = deps.getVersion(id)
+    if (v?.kind !== 'traits') throw new Error('没有这个版本')
     const s = load()
     s.base = { ...s.base, ...(v.data.base || {}) }
     s.cur = { ...s.cur, ...(v.data.cur || {}) }
     s.shadow = null
     s.run = {}
+    s.traitSteps = (s.traitSteps || []).filter((step) => step.at <= v.at)
     deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'owner', reason: `退回到版本 ${id}` })
     save(s)
     return s
@@ -145,7 +146,7 @@ ${usual}
    * @param {any} parsed 模型的整段输出
    * @param {{ window: string, rows: Array<{ id: number, at: number, who: string, dir: string }> }} o
    */
-  function observe(parsed, { window, rows, shareableHabits = true }) {
+  function observe(parsed, { window, rows, shareableHabits = true, evidence = [] }) {
     const self = Array.isArray(parsed?.self) ? parsed.self : []
     const habit = Array.isArray(parsed?.habit) ? parsed.habit : []
     if (!self.length && !habit.length) return { traits: 0, habits: 0 }
@@ -154,6 +155,10 @@ ${usual}
     const lineOf = (n) => rows[Number(n) - 1]
     const react = (x) => (['good', 'bad', 'none'].includes(x) ? x : 'none')
     const by = (x) => (people.has(String(x || '')) ? String(x) : '')
+    const sourceOf = (row) => ({
+      perception: row.id,
+      episodes: evidence.filter((e) => e.sources.includes(row.id)).map((e) => e.id),
+    })
     let nt = 0
     let nh = 0
     for (const o of self) {
@@ -161,7 +166,7 @@ ${usual}
       if (!row || row.dir !== 'out' || !TRAIT.has(o?.t)) continue
       const d = Number(o.d) > 0 ? 1 : Number(o.d) < 0 ? -1 : 0
       if (!d) continue
-      s.obs.push({ at: row.at, day: dayKey(row.at, deps.tz()), t: o.t, d, react: react(o.react), by: by(o.by), window })
+      s.obs.push({ at: row.at, day: dayKey(row.at, deps.tz()), t: o.t, d, react: react(o.react), by: by(o.by), window, ...sourceOf(row) })
       nt++
     }
     for (const o of habit) {
@@ -169,7 +174,7 @@ ${usual}
       const sit = String(o?.sit || '').trim().slice(0, 20)
       const act = String(o?.act || '').trim().slice(0, 20)
       if (!row || row.dir !== 'out' || !sit || !act) continue
-      s.habitObs.push({ at: row.at, day: dayKey(row.at, deps.tz()), sit, act, react: react(o.react), by: by(o.by), window, shareable: shareableHabits })
+      s.habitObs.push({ at: row.at, day: dayKey(row.at, deps.tz()), sit, act, react: react(o.react), by: by(o.by), window, shareable: shareableHabits, ...sourceOf(row) })
       nh++
     }
     const keepFrom = now() - 120 * DAY
@@ -184,10 +189,9 @@ ${usual}
    * 一项特质今晚的证据。反应好的算 1，没反应算 0.5，被冷落或责怪的反过来算 0.5（这么做不讨喜，往反方向推）。
    * 只算上次走过一步之后的新证据（「和现在的她比」：走过一步，「平时」就变了）。
    */
-  function evidence(s, id, since) {
+  function tally(observations) {
     const ev = { 1: { days: new Set(), w: 0, owner: 0 }, [-1]: { days: new Set(), w: 0, owner: 0 } }
-    for (const o of s.obs) {
-      if (o.t !== id || o.at < since) continue
+    for (const o of observations) {
       const dir = o.react === 'bad' ? -o.d : o.d
       const w = o.react === 'good' ? 1 : 0.5
       const e = ev[dir]
@@ -196,6 +200,21 @@ ${usual}
       if (o.by && deps.isOwner(o.by)) e.owner += w
     }
     return ev
+  }
+
+  function movement(cur, base, observations, { need, cap, pull, stepSize, goal }) {
+    const ev = tally(observations)
+    const dir = [1, -1].find((d) => ev[d].days.size >= need && ev[d].w > ev[-d].w * 1.5)
+    if (!dir) return null
+    const share = ev[dir].owner / ev[dir].w
+    const dev = cur - base
+    const outward = dev === 0 || Math.sign(dev) === dir
+    const pl = goal === dir ? pull * 0.5 : pull
+    const pf = outward ? Math.max(0.15, 1 - pl * Math.min(1, Math.abs(dev) / 0.3)) : 1 + pl * Math.min(1, Math.abs(dev) / 0.3)
+    const room = dir > 0 ? 1 - cur : cur
+    const ef = outward ? Math.max(0.2, Math.min(1, room / 0.15)) : 1
+    const next = r2(clamp(cur + dir * stepSize * (share > cap ? cap / share : 1) * pf * ef, 0.02, 0.98))
+    return { next, dir, share, days: ev[dir].days.size, outward }
   }
 
   /**
@@ -218,37 +237,23 @@ ${usual}
     const steps = []
     for (const id of TRAIT_IDS) {
       const since = Math.max(at - win, s.consumed[id] || 0)
-      const ev = evidence(s, id, since)
+      const observations = s.obs.filter((o) => o.t === id && o.at >= since)
       const cur = target[id] ?? 0.5
       const base = s.base[id] ?? 0.5
       const dev = cur - base
-      let dir = 0
-      for (const d of [1, -1]) {
-        const e = ev[d]
-        if (e.days.size >= need && e.w > ev[-d].w * 1.5) dir = d
-      }
-      if (dir && at - (s.lastStep[id] || 0) >= gap) {
-        const e = ev[dir]
-        // 主人一个人推动的部分超过上限，就按比例走得慢一些（只有主人在聊时也会变，只是慢）
-        const share = e.w ? e.owner / e.w : 0
-        const influence = share > cap ? cap / share : 1
-        const outward = dev === 0 || Math.sign(dev) === dir
-        const goal = goals.some((g) => g.trait === id && Math.sign(g.dir) === dir)
-        const pl = goal ? pull * 0.5 : pull // 她自己想往这边变：这个方向的拉力变小（Hudson & Fraley 2015）
-        const pf = outward ? Math.max(0.15, 1 - pl * Math.min(1, Math.abs(dev) / 0.3)) : 1 + pl * Math.min(1, Math.abs(dev) / 0.3)
-        // 越往边上越难走
-        const room = dir > 0 ? 1 - cur : cur
-        const ef = outward ? Math.max(0.2, Math.min(1, room / 0.15)) : 1
-        const step = stepSize * influence * pf * ef
-        const next = r2(clamp(cur + dir * step, 0.02, 0.98))
+      const rules = { need, cap, pull, stepSize, goal: Math.sign(goals.find((g) => g.trait === id)?.dir || 0) }
+      const move = movement(cur, base, observations, rules)
+      if (move && at - (s.lastStep[id] || 0) >= gap) {
+        const { next, dir, share, days, outward } = move
         if (next !== cur) {
+          ;(s.traitSteps ??= []).push({ id, at, cur, base, next, shadow, observations, rules })
           target[id] = next
           s.lastStep[id] = at
           s.consumed[id] = at
           if (outward) s.peak[id] = Math.max(s.peak[id] || 0, Math.abs(next - base))
           const run = s.run[id] && s.run[id].dir === dir ? s.run[id].n + 1 : 1
           s.run[id] = { dir, n: run }
-          const why = `${e.days.size} 天里有这样的表现${share > 0 ? `（主人占 ${Math.round(share * 100)}%）` : ''}`
+          const why = `${days} 天里有这样的表现${share > 0 ? `（主人占 ${Math.round(share * 100)}%）` : ''}`
           steps.push({ id, from: cur, to: next, dir, why, band: bandOf(next), crossed: bandOf(next) !== bandOf(cur) })
           if (run >= 3) alert(s, id, `「${TRAIT.get(id).label}」连着 ${run} 步往${dir > 0 ? '高' : '低'}走`)
           if (bandOf(next) === 1 || bandOf(next) === 7) alert(s, id, `「${TRAIT.get(id).label}」走到了${bandOf(next) === 7 ? '最高' : '最低'}一档`)
@@ -264,6 +269,7 @@ ${usual}
       }
     }
     const habits = habitsNightly(s, at, win, need)
+    if (habits.length) saveHabitsVersion(s, '睡觉时更新了习惯')
     if (steps.length) {
       deps.addVersion('traits', { base: s.base, cur: s.cur, shadow: s.shadow }, {
         by: 'sleep',
@@ -273,6 +279,103 @@ ${usual}
     }
     save(s)
     return { steps, shadow, habits }
+  }
+
+  function saveHabitsVersion(s, reason, by = 'sleep') {
+    deps.addVersion('habits', { habits: s.habits }, { by, reason })
+  }
+
+  function forgetEvidence(episode) {
+    const s = load()
+    const sources = new Set(episode.data.sources || [])
+    const legacyTimes = new Set([...sources].map((id) => store.prep('SELECT at FROM perception WHERE id = ?').get(id)?.at).filter(Number.isFinite))
+    const kept = (o) => !(o.episodes?.includes(episode.id) || (o.window === episode.window &&
+      (sources.has(o.perception) || (!o.perception && legacyTimes.has(o.at)))))
+    const prior = s.obs.length + s.habitObs.length
+    s.obs = s.obs.filter(kept)
+    s.habitObs = s.habitObs.filter(kept)
+    const corrections = new Map()
+    const timeline = []
+    for (const step of s.traitSteps || []) {
+      const key = step.id + ':' + step.shadow
+      const offset = corrections.get(key) || 0
+      const remaining = step.observations.filter(kept)
+      if (!offset && remaining.length === step.observations.length) continue
+      const before = step.cur + offset
+      const next = movement(before, step.base, remaining, step.rules)?.next ?? before
+      const change = r2(next - step.next)
+      corrections.set(key, change)
+      timeline.push({ id: step.id, at: step.at, field: step.shadow ? 'shadow' : 'cur', change })
+      Object.assign(step, { cur: before, next, observations: remaining })
+    }
+    for (const [key, correction] of corrections) {
+      if (!correction) continue
+      const [id, shadow] = key.split(':')
+      const target = shadow === 'true' ? s.shadow : s.cur
+      if (target) target[id] = r2(clamp(target[id] + correction, 0.02, 0.98))
+      const active = (s.traitSteps || []).filter((step) => step.id === id && step.next !== step.cur)
+      if (active.length) s.lastStep[id] = s.consumed[id] = active.at(-1).at
+      else { delete s.lastStep[id]; delete s.consumed[id] }
+      delete s.run[id]
+      s.alerts = s.alerts.filter((a) => a.trait !== id)
+      s.peak[id] = Math.max(Math.abs((s.cur[id] ?? 0.5) - (s.base[id] ?? 0.5)), ...active.map((step) => Math.abs(step.next - step.base)))
+    }
+    if (timeline.length) {
+      const versions = store.prep("SELECT id, at, json FROM versions WHERE kind = 'traits' AND at >= ?").all(timeline[0].at)
+      for (const v of versions) {
+        const data = JSON.parse(v.json)
+        const latest = new Map(timeline.filter((entry) => entry.at <= v.at).map((entry) => [entry.id + ':' + entry.field, entry]))
+        let changed = false
+        for (const { id, field, change } of latest.values()) {
+          if (!change || !Number.isFinite(data[field]?.[id])) continue
+          data[field][id] = r2(clamp(data[field][id] + change, 0.02, 0.98))
+          changed = true
+        }
+        if (changed) store.prep("UPDATE versions SET json = ?, reason = ? WHERE id = ?")
+          .run(JSON.stringify(data), '删除经历后重算了此版本', v.id)
+      }
+    }
+    const pruneHabits = (habits, at) => {
+      let changed = false
+      const win = (Number(P('windowDays')) || 14) * DAY
+      const need = Number(P('thresholdDays')) || 3
+      const remaining = habits.map((habit) => {
+        const seen = habit.seen.filter(kept)
+        if (seen.length === habit.seen.length) return habit
+        changed = true
+        const recent = seen.filter((o) => o.at >= at - win)
+        const days = new Set(recent.filter((o) => o.react !== 'bad').map((o) => o.day))
+        const good = recent.filter((o) => o.react === 'good').length
+        const bad = recent.filter((o) => o.react === 'bad').length
+        return { ...habit, seen, active: habit.active && days.size >= need && good > bad }
+      }).filter((habit) => habit.seen.length)
+      return { changed, remaining }
+    }
+    const { changed: habitsChanged, remaining } = pruneHabits(s.habits, now())
+    for (const v of store.prep("SELECT id, at, json FROM versions WHERE kind = 'habits'").all()) {
+      const data = JSON.parse(v.json)
+      const pruned = pruneHabits(data.habits, v.at)
+      if (pruned.changed) store.prep("UPDATE versions SET json = ? WHERE id = ?").run(JSON.stringify({ habits: pruned.remaining }), v.id)
+    }
+    if (habitsChanged) {
+      s.habits = remaining
+      saveHabitsVersion(s, '删除经历后重算习惯', 'owner')
+    }
+    if ([...corrections.values()].some(Boolean)) {
+      deps.addVersion('traits', { base: s.base, cur: s.cur, shadow: s.shadow }, { by: 'owner', reason: '删除经历后重算性格' })
+    }
+    if (habitsChanged || corrections.size || prior !== s.obs.length + s.habitObs.length) save(s)
+  }
+
+  function restoreHabits(id) {
+    const version = deps.getVersion(id)
+    if (version?.kind !== 'habits') throw new Error('没有这个习惯版本')
+    const s = load()
+    s.habits = version.data.habits.map((habit) => ({
+      ...habit, seen: habit.seen.filter((o) => !o.episodes?.some((source) => store.prep('SELECT 1 FROM deletions WHERE id = ? AND kind = ?').get(source, 'episode'))),
+    })).filter((habit) => habit.seen.length)
+    save(s)
+    saveHabitsVersion(s, `退回到版本 ${id}`, 'owner')
   }
 
   function alert(s, id, text) {
@@ -290,7 +393,7 @@ ${usual}
         h = { id: 'h' + at.toString(36) + s.habits.length, sit: o.sit, act: o.act, seen: [], active: false, since: 0, shareable: o.shareable === true }
         s.habits.push(h)
       }
-      h.seen.push({ at: o.at, day: o.day, react: o.react })
+      h.seen.push({ at: o.at, day: o.day, react: o.react, window: o.window, perception: o.perception, episodes: o.episodes })
       h.seen = h.seen.slice(-60)
       o.merged = true
     }
@@ -324,11 +427,11 @@ ${usual}
   }
 
   /** 放在系统提示词里的那部分（很少变：只在睡觉时走了一步、或习惯变了时才变）。 */
-  function selfText({ shareableOnly = false } = {}) {
+  function selfText({ shareableOnly = false, isVisible = () => true } = {}) {
     const parts = []
     const ch = changed()
     if (ch.length) parts.push('【你最近的变化（不知不觉的）】\n' + ch.map((x) => '- ' + x.text).join('\n'))
-    const hb = habits().filter((h) => !shareableOnly || h.shareable).slice(0, 5)
+    const hb = habits().filter((h) => (!shareableOnly || h.shareable) && h.seen.every((o) => (o.episodes || []).every(isVisible))).slice(0, 5)
     if (hb.length) parts.push('【你的小习惯】\n' + hb.map((h) => `- ${h.sit}时，你会${h.act}`).join('\n'))
     return parts.join('\n')
   }
@@ -363,5 +466,5 @@ ${usual}
     save(s)
   }
 
-  return { values, value, infer, confirm, restore, encodeAsk, observe, nightly, changed, habits, selfText, sceneText, state, readAlerts, bandMid }
+  return { values, value, infer, confirm, restore, restoreHabits, encodeAsk, observe, forgetEvidence, nightly, changed, habits, selfText, sceneText, state, readAlerts, bandMid }
 }

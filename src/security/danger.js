@@ -467,7 +467,6 @@ export function createDangerGuard ({ getConfig, deliver, chatOfSession, isOwnedS
       }
     }
     const cfg = getConfig() || {}
-    if (!cfg.security || cfg.security.dangerConfirm !== true) return next()
     const tool = String(exec && exec.name || '')
     if (tool !== 'bash' && tool !== 'pwsh') return next()
     const command = String(exec.arguments && exec.arguments.command || '')
@@ -492,6 +491,7 @@ export function createDangerGuard ({ getConfig, deliver, chatOfSession, isOwnedS
       log?.warn?.(`危险命令已拦下（非主人私聊 ${chatId || '未知'}）：${clip(command, 120)}`)
       return { kind: 'deny', reason: `这条命令被安全策略拦下了（${danger.label}）：只有主人私聊里、并且经过主人确认才能执行。` }
     }
+    if (cfg.security?.dangerConfirm !== true) return next()
     // 同一个人已经在等确认：别再发第二条，直接拦
     if (pending.has(chatId)) {
       return { kind: 'deny', reason: `上一条危险命令还在等主人确认（${danger.label}），这条先不执行。` }

@@ -4,8 +4,8 @@
 // 感知记录（收到和发出的每条消息）、认识的人、版本管理、删除记录、快照备份。
 
 import { join } from 'node:path'
-import { readdirSync, statSync, renameSync, existsSync, mkdirSync } from 'node:fs'
-import { openStore, GENERATED_COLUMNS } from './store.js'
+import { appendFileSync, readFileSync, readdirSync, statSync, renameSync, existsSync, mkdirSync } from 'node:fs'
+import { openRecoverableStore, GENERATED_COLUMNS } from './store.js'
 import { resolveSettings, paramOf, clampParam, PARAMS, GROUPS } from './params.js'
 import { currentAge, dayKey, describeNow, isBirthday, validTimeZone } from './clock.js'
 import { createBudget } from './budget.js'
@@ -42,7 +42,9 @@ export function createMind(opts) {
   const log = opts.log || noopLog
   const now = opts.now || (() => Date.now())
   const file = opts.memoryDb ? ':memory:' : join(opts.dir, 'mind.sqlite')
-  const store = openStore(file)
+  const { store, recovered } = openRecoverableStore(file)
+  if (recovered) log.warn('心智数据库已从快照恢复：', recovered.snapshot)
+  const deletionLog = opts.memoryDb ? '' : join(opts.dir, 'deletions.jsonl')
   const place = makePlace(opts.place)
 
   // ---------- 同一个人在不同平台的 id ----------
@@ -128,19 +130,27 @@ export function createMind(opts) {
   function personaCard() {
     return store.get('self.persona', '')
   }
+  function publicPersona() {
+    const saved = store.get('self.publicPersona', null)
+    if (saved) return saved
+    const last = store.prep("SELECT json FROM versions WHERE kind = 'persona' AND by IN ('owner', 'migration') AND coalesce(json_extract(json, '$.published'), 1) = 1 ORDER BY id DESC LIMIT 1").get()
+    return last ? JSON.parse(last.json) : { card: '', name: '', nickname: '' }
+  }
   /**
    * 写人格卡。by：'owner' 主人在面板里改；'self' 她自己改；'migration' 迁移。
    * 每次都存一个版本，带理由。
    */
-  function setPersonaCard(text, { by = 'owner', reason = '', name, nickname } = {}) {
+  function setPersonaCard(text, { by = 'owner', reason = '', name, nickname, publish = by === 'owner' || by === 'migration' } = {}) {
     const card = String(text || '')
     return store.tx(() => {
       const self = store.get('self', { name: '', nickname: '' })
       if (name !== undefined) self.name = String(name || '').trim()
       if (nickname !== undefined) self.nickname = String(nickname || '').trim()
+      const version = { card, name: self.name, nickname: self.nickname }
+      store.set('self.publicPersona', publish ? version : publicPersona())
       store.set('self', self)
       store.set('self.persona', card)
-      return addVersion('persona', { card, name: self.name, nickname: self.nickname }, { by, reason })
+      return addVersion('persona', { ...version, published: publish }, { by, reason })
     })
   }
 
@@ -151,12 +161,23 @@ export function createMind(opts) {
     pruneVersions(kind)
     return Number(r.lastInsertRowid)
   }
-  function listVersions(kind, limit = 100) {
-    return store.prep('SELECT id, kind, at, by, reason, pinned, json FROM versions WHERE kind = ? ORDER BY id DESC LIMIT ?')
-      .all(kind, limit).map((r) => ({ id: r.id, kind: r.kind, at: r.at, by: r.by, reason: r.reason, pinned: Boolean(r.pinned), data: JSON.parse(r.json) }))
+  function listVersions(kind, limit = 100, before = Number.MAX_SAFE_INTEGER) {
+    return store.prep('SELECT id, kind, at, by, reason, pinned, json FROM versions WHERE kind = ? AND id < ? ORDER BY id DESC LIMIT ?')
+      .all(kind, before, limit).map((r) => ({ id: r.id, kind: r.kind, at: r.at, by: r.by, reason: r.reason, pinned: Boolean(r.pinned), data: JSON.parse(r.json) }))
   }
   function deleteVersion(id) {
-    store.prep('DELETE FROM versions WHERE id = ?').run(Number(id))
+    return Number(store.prep('DELETE FROM versions WHERE id = ?').run(Number(id)).changes)
+  }
+  function deleteVersions(kind, { from, through }) {
+    if (!['persona', 'self', 'traits', 'habits'].includes(kind) || !Number.isFinite(from) || !Number.isFinite(through) || from >= through) {
+      throw new Error('请填写有效的版本类别和日期范围')
+    }
+    return Number(store.prep(`DELETE FROM versions WHERE kind = ? AND at >= ? AND at < ? AND pinned = 0
+      AND id <> (SELECT max(id) FROM versions WHERE kind = ?)`).run(kind, from, through, kind).changes)
+  }
+  function getVersion(id) {
+    const row = store.prep('SELECT id, kind, at, by, reason, pinned, json FROM versions WHERE id = ?').get(Number(id))
+    return row ? { id: row.id, kind: row.kind, at: row.at, by: row.by, reason: row.reason, pinned: Boolean(row.pinned), data: JSON.parse(row.json) } : null
   }
   function pinVersion(id, pinned = true) {
     store.prep('UPDATE versions SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, Number(id))
@@ -169,10 +190,11 @@ export function createMind(opts) {
   }
   /** 退回到某个人格卡版本（会新存一个版本，写明是退回）。 */
   function restorePersona(id) {
-    const row = store.prep("SELECT json FROM versions WHERE id = ? AND kind = 'persona'").get(Number(id))
+    const row = store.prep("SELECT by, json FROM versions WHERE id = ? AND kind = 'persona'").get(Number(id))
     if (!row) throw new Error('没有这个版本')
     const v = JSON.parse(row.json)
-    return setPersonaCard(v.card, { by: 'owner', reason: `退回到版本 ${id}`, name: v.name, nickname: v.nickname })
+    const publish = ['owner', 'migration'].includes(row.by) && v.published !== false
+    return setPersonaCard(v.card, { by: 'owner', reason: `退回到版本 ${id}`, name: v.name, nickname: v.nickname, publish })
   }
 
   // ---------- 认识的人 ----------
@@ -372,7 +394,33 @@ export function createMind(opts) {
 
   // ---------- 删除 ----------
   function recordDeletion(id, kind) {
+    writeDeletion(id, kind, true)
     store.prep('INSERT OR REPLACE INTO deletions (id, kind, at) VALUES (?, ?, ?)').run(String(id), String(kind), now())
+  }
+  function writeDeletion(id, kind, deleted) {
+    if (deletionLog) appendFileSync(deletionLog, JSON.stringify({ id, kind, at: now(), deleted }) + '\n', { mode: 0o600, flush: true })
+  }
+  function applyDeletionLog() {
+    if (!deletionLog || !existsSync(deletionLog)) return
+    const last = new Map()
+    for (const line of readFileSync(deletionLog, 'utf8').split('\n')) {
+      if (!line) continue
+      try {
+        const row = JSON.parse(line)
+        if (row.id && row.kind) last.set(JSON.stringify([row.kind, row.id]), row)
+      } catch { log.warn('跳过一条损坏的删除日志') }
+    }
+    const recorded = new Set(deletions().map((row) => JSON.stringify([row.kind, row.id])))
+    const pending = [...last].filter(([key, row]) => row.deleted && !recorded.has(key)).map(([, row]) => row)
+    memory.applyDeletions(pending.filter((row) => row.kind === 'episode'))
+    for (const row of last.values()) if (row.kind === 'private') memory.setPrivateOnly(row.id, row.deleted, { record: false })
+    for (const row of pending.filter((item) => item.kind === 'person')) {
+      const windows = [...new Set(historyOfPerson(row.id).filter((window) => place(window).kind === 'private'))]
+      forgetPerson(row.id, { windows })
+    }
+  }
+  function historyOfPerson(id) {
+    return store.prep('SELECT DISTINCT window FROM perception WHERE who = ?').all(id).map((row) => row.window)
   }
   function deletions() {
     return store.prep('SELECT id, kind, at FROM deletions').all()
@@ -436,6 +484,7 @@ export function createMind(opts) {
       }
     })
     conversation.invalidatePerson(pid, wins)
+    inner.clearDeferred()
     log?.info?.(`忘掉 ${p?.name || pid}：${eps.length} 件事、${per.length} 句原话移进恢复区${keepPerson ? '，以后也不记他' : ''}`)
     return { ok: true, episodes: eps.length, perception: per.length, keptShared: Math.max(0, kept) }
   }
@@ -468,12 +517,14 @@ export function createMind(opts) {
       for (const r of b.episodes) {
         putRow('episodes', r)
         store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'episode'").run(r.id)
+        writeDeletion(r.id, 'episode', false)
       }
       for (const r of b.perception) putRow('perception', r)
       // 联想连线：两头的事都还在才连
       const has = store.prep('SELECT 1 FROM episodes WHERE id = ?')
       for (const l of b.links || []) if (has.get(l.a) && has.get(l.b)) putRow('links', l)
       store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'person'").run(pid)
+      writeDeletion(pid, 'person', false)
       const cur = person(pid)
       if (b.person) {
         const merged = cur ? { ...b.person, ...cur, rel: cur.rel || b.person.rel, tom: cur.tom || b.person.tom, lastSeen: Math.max(cur.lastSeen || 0, b.person.lastSeen || 0) } : { ...b.person }
@@ -543,13 +594,13 @@ export function createMind(opts) {
   const budget = createBudget({ store, today: () => dayKey(now(), tz()), setting })
   // ---------- 人格、自我、关系 ----------
   const self = createSelf({
-    store, now, setting, log, identity: () => identity(), personaCard: () => personaCard(), setPersonaCard: (...a) => setPersonaCard(...a), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a),
+    store, now, setting, log, identity: () => identity(), personaCard: () => personaCard(), setPersonaCard: (...a) => setPersonaCard(...a), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), getVersion,
     // 对主人的称呼：主人一开始设的叫法；她改了以后关系里「你叫他」也跟着改
     ownerName: () => String(opts.ownerName?.() || ''),
     dayKey: (at) => dayKey(at, tz()),
     onOwnerCall: (call) => { const o = identity().ownerId; if (o) relations.edit(o, { call }) },
   })
-  const personality = createPersonality({ store, now, setting, tz, log, isOwner: (id) => isOwner(id), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), goals: () => self.goals() })
+  const personality = createPersonality({ store, now, setting, tz, log, isOwner: (id) => isOwner(id), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), getVersion, goals: () => self.goals() })
   const relations = createRelations({ store, now, setting, log, place, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
   // ---------- 身体和情绪 ----------
   const body = createBody({ store, now, setting, tz, log })
@@ -567,6 +618,14 @@ export function createMind(opts) {
     identity: () => identity(),
     person: (id) => person(id),
     recordDeletion: (id, kind) => recordDeletion(id, kind),
+    recordPrivacy: (id, enabled) => writeDeletion(id, 'private', enabled),
+    onDeleted: (episode) => {
+      personality.forgetEvidence(episode)
+      self.invalidateStory(episode.id)
+      relations.forgetKnowledge(episode.window, episode.data.sources)
+      emotion.forgetEvent(episode.id)
+      for (const id of episode.data.sources || []) emotion.forgetEvent('perception:' + id)
+    },
     // 惦记别人的事问不问、问几次：她有多心疼人（同情心）和她跟这个人多亲近
     place,
     isOwner: (id) => isOwner(id),
@@ -582,10 +641,21 @@ export function createMind(opts) {
     state: () => { const f = feeling(); return { valence: f.mood.v, energy: f.body.energy } },
     // 记经历时顺带：人格的状态记录（她这次比平时更……）、对人的看法、对群的了解
     encodeExtra: () => personality.encodeAsk() + '\n' + relations.encodeAsk(),
-    onEncoded: ({ window, rows, parsed }) => {
+    onEncoded: ({ window, rows, parsed, evidence }) => {
       const shareableHabits = place(window).kind === 'group' && !(Array.isArray(parsed.episodes) && parsed.episodes.some((e) => e?.secret === true))
-      personality.observe(parsed, { window, rows, shareableHabits })
+      personality.observe(parsed, { window, rows, shareableHabits, evidence })
       relations.observe(parsed, { window, rows })
+      if (setting('emotion.appraise') !== false) {
+        const lastReply = rows.findLast((r) => r.dir === 'out')?.id || 0
+        for (const item of evidence) {
+          if (!item.emotion || !item.sources.length || item.sources.some((id) => id <= lastReply)) continue
+          const source = rows.find((r) => r.id === item.sources[0] && r.dir === 'in')
+          if (source && !item.sources.some((id) => emotion.hasEvent('perception:' + id))) emotion.feel([{
+            name: item.emotion.name, intensity: item.emotion.intensity, target: source.who,
+            importance: item.importance, why: item.secret ? '' : '刚才看到的消息',
+          }], { window, source: 'observation', eventId: item.id })
+        }
+      }
     },
   })
   const sleeper = createSleep(memory, {
@@ -596,7 +666,7 @@ export function createMind(opts) {
       ['story', () => self.updateStory({
         ask: (scene, system, text, maxTokens) => memory.ask(scene, system, text, maxTokens),
         isVisible: (id) => memory.visibleIn(memory.row(id), ''),
-        episodes: () => store.prep("SELECT id, at, gist, json FROM episodes WHERE status = 'live' AND at >= ? ORDER BY at DESC LIMIT 200").all(now() - 7 * 86400000)
+        episodes: ({ rebuild = false } = {}) => store.prep("SELECT id, at, gist, json FROM episodes WHERE status IN ('live', 'archived') AND at >= ? ORDER BY at DESC LIMIT 200").all(rebuild ? 0 : now() - 7 * 86400000)
           .map((r) => ({ id: r.id, at: r.at, gist: r.gist, ...JSON.parse(r.json) }))
           .filter((e) => (e.importance || 0) >= 0.7 || (e.emotion?.intensity || 0) >= 0.7)
           .sort((a, b) => a.at - b.at),
@@ -605,8 +675,8 @@ export function createMind(opts) {
   })
 
   /** 她是谁（放进系统提示词开头）：当前版本的人格卡、她自己写的价值观等、自我故事摘要、不知不觉的变化和小习惯。 */
-  function selfPrompt() {
-    return [self.prompt({ isVisible: (id) => memory.visibleIn(memory.row(id), '') }), personality.selfText({ shareableOnly: true })].filter((x) => String(x || '').trim()).join('\n\n')
+  function selfPrompt({ publicOnly = false } = {}) {
+    return [self.prompt({ publicPersona: publicOnly ? publicPersona() : null, isVisible: (id) => memory.visibleIn(memory.row(id), '') }), personality.selfText({ shareableOnly: true, isVisible: (id) => memory.visibleIn(memory.row(id), '') })].filter((x) => String(x || '').trim()).join('\n\n')
   }
 
   // ---------- 动机和内心活动 ----------
@@ -619,9 +689,10 @@ export function createMind(opts) {
   })
   if (opts.model) inner.connect({ ask: ({ scene, system, text, maxTokens }) => memory.ask(scene, system, text, maxTokens) })
   const conversation = createConversation({
-    memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, goals: self.goals, canon,
+    memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, personaCard, goals: self.goals, canon,
     now, random: opts.random || Math.random, speak: opts.model, log,
   })
+  applyDeletionLog()
 
   // ---------- 给她看的「此刻」 ----------
   function nowText() {
@@ -646,6 +717,7 @@ export function createMind(opts) {
         memory: memory.counts(),
       },
       integrity: store.check(),
+      recovered,
     }
   }
 
@@ -657,7 +729,7 @@ export function createMind(opts) {
     // 同一个人在不同平台的 id；窗口是私聊还是群
     canon, linkPerson, idsOf, place,
     // 人格卡与版本
-    personaCard, setPersonaCard, restorePersona, addVersion, listVersions, deleteVersion, pinVersion,
+    personaCard, publicPersona, setPersonaCard, restorePersona, addVersion, listVersions, getVersion, deleteVersion, deleteVersions, pinVersion,
     // 人
     person, notePerson, listPeople,
     forgetPerson, setNoMemory, forgottenList, restorePerson, peopleGraph,

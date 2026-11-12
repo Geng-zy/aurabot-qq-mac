@@ -460,7 +460,7 @@ test('对接层：记经历时顺带问状态和看法；回来的状态记录�
 test('对接层：她改自己 → 通知你、人格卡文件跟着改；「她改自己后通知你」关了就不发', async () => {
   const env = adapter()
   env.a.mind.setPersonaCard('你是小鱼。'.padEnd(30, '。'), { by: 'migration', name: '小鱼' })
-  const tools = Object.fromEntries(env.a.tools({ chat: { chatId: 'private:1', kind: 'private', userId: '1' } }).map((x) => [x.name, x]))
+  const tools = Object.fromEntries(env.a.tools({ chat: { chatId: 'private:1', kind: 'private', userId: '1' }, ownerTurn: true }).map((x) => [x.name, x]))
   assert.match(tools.mind_change_self.description, /你还没改过自己/)
   const r = await tools.mind_change_self.execute({ what: 'name', content: '阿鱼', why: '更顺口' })
   assert.equal(r.ok, true)

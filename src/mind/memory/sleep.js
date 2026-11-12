@@ -10,7 +10,7 @@ import { similar as textSimilar } from '../personality/index.js'
 const DAY = 86400000
 const clamp01 = (x) => Math.min(1, Math.max(0, Number(x) || 0))
 // 梦和整理出来的「知道的事」不能当新经历的依据（梦不当真；也不从结论里再推结论）
-const NOT_EVIDENCE = new Set(['dream', 'semantic', 'day-summary', 'week-summary', 'month-summary'])
+const NOT_EVIDENCE = new Set(['public-note', 'dream', 'semantic', 'day-summary', 'week-summary', 'month-summary'])
 // 会过时的「知道的事」：情况变了（搬家、换工作、分手、口味变了）要更新
 const KNOWLEDGE = new Set(['semantic', 'fact', 'hearsay', 'belief', 'noted'])
 
@@ -62,7 +62,7 @@ export function createSleep(mem, deps) {
 
   /** 回放：近期经历 + 相关旧经历 → 提炼知道的事、建因果联系。 */
   async function replay(since) {
-    const recent = store.prep("SELECT * FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') NOT IN ('semantic', 'dream')").all(since)
+    const recent = store.prep("SELECT * FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') NOT IN ('semantic', 'dream', 'public-note')").all(since)
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
       .sort((a, b) => (b.data.importance + (b.data.emotion?.intensity || 0)) - (a.data.importance + (a.data.emotion?.intensity || 0)))
       .slice(0, 60)
@@ -165,7 +165,7 @@ export function createSleep(mem, deps) {
     let n = 0
     for (const job of mem.takeJobs('reconsolidate', limit)) {
       const e = mem.row(job.ref)
-      if (!e || level <= 0) { mem.doneJob(job.id); continue }
+      if (!e || e.data.kind === 'public-note' || level <= 0) { mem.doneJob(job.id); continue }
       // 干扰：程度够高时，偶尔带上一件很像的事
       let similar = null
       if (level >= 0.2 && random() < level) {
@@ -192,7 +192,7 @@ export function createSleep(mem, deps) {
         if (!e.data.original) e.data.original = { gist: e.gist, detail: e.detail, at: now() }
         e.data.rewrites = (e.data.rewrites || 0) + 1
         e.gist = gist
-        if (similar && !mem.visibleIn(similar, '')) e.data.rewrittenWith = similar.id
+        if (similar) e.data.rewrittenWith = similar.id
         e.detail = String(out.detail || '').trim() || e.detail
         mem.save(e)
         n++
@@ -229,6 +229,7 @@ export function createSleep(mem, deps) {
         }
       } catch (error) {
         if (error.code === 'BUDGET') break
+        continue
       }
       mem.doneJob(job.id)
     }
@@ -254,7 +255,7 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
     if (R.from) rows = store.prep('SELECT * FROM episodes WHERE kind = ? AND at >= ? AND at < ? ORDER BY at').all(R.from === 'week-summary' ? 'week-summary' : 'day-summary', range.start, range.end)
     if (R.from === 'week-summary' && rows.length < 2) rows = store.prep("SELECT * FROM episodes WHERE kind = 'day-summary' AND at >= ? AND at < ? ORDER BY at").all(range.start, range.end)
     if (rows.length < 2) {
-      rows = store.prep("SELECT * FROM episodes WHERE status IN ('live', 'archived') AND at >= ? AND at < ? AND coalesce(kind, '') NOT IN ('dream', 'day-summary', 'week-summary', 'month-summary') ORDER BY at LIMIT 400").all(range.start, range.end)
+      rows = store.prep("SELECT * FROM episodes WHERE status IN ('live', 'archived') AND at >= ? AND at < ? AND coalesce(kind, '') NOT IN ('dream', 'public-note', 'day-summary', 'week-summary', 'month-summary') ORDER BY at LIMIT 400").all(range.start, range.end)
         .map((r) => ({ ...r, data: JSON.parse(r.json) }))
         .sort((a, b) => (b.data.importance || 0) + (b.data.emotion?.intensity || 0) - (a.data.importance || 0) - (a.data.emotion?.intensity || 0))
         .slice(0, 80).sort((a, b) => a.at - b.at)
@@ -275,6 +276,13 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
     const tz = deps.tz()
     const at = now()
     const made = []
+    for (const job of mem.takeJobs('review', 12)) {
+      const { type, key, range } = job.data
+      if (!REVIEWS[type] || !range || !key) { mem.doneJob(job.id); continue }
+      const id = await reviewPeriod(type, key, range)
+      if (id) made.push(id)
+      if (id || reviewed(REVIEWS[type].kind, key)) mem.doneJob(job.id)
+    }
     for (let i = 3; i >= 1; i--) {
       const day = dayKey(at - i * DAY, tz)
       const range = parsePeriod(day, at, tz)

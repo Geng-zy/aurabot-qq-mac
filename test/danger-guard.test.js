@@ -172,6 +172,13 @@ test('是 aurabot 的会话但认不出 chatId：仍然 fail-closed 拦下', asy
   assert.equal(d.kind, 'deny')
 })
 
+test('关闭主人确认也不能在其他私聊执行危险命令', async () => {
+  const { guard, delivered } = makeScopedGuard({ enabled: false })
+  const decision = await guard.preExecute(execOf('rm -rf /', { sid: 'sid-other' }), () => 'NEXT')
+  assert.equal(decision.kind, 'deny')
+  assert.equal(delivered.length, 0)
+})
+
 test('isOwnedSession 抛错：按老逻辑走（仍然拦），不静默放行', async () => {
   const { guard } = makeScopedGuard({ owned: () => { throw new Error('boom') } })
   // 抛错 → owned=null → 继续往下判断；sid-owner 能映射到主人私聊，所以会走确认流程而不是放行

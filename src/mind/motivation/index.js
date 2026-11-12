@@ -192,7 +192,7 @@ export function createMotivation(deps) {
   }
 
   /** 去做；做完按结果学。 */
-  async function act(id) {
+  async function act(id, context = {}) {
     const a = actions.get(id)
     if (!a) return { ok: false, summary: '没有这件事' }
     const s0 = load()
@@ -201,7 +201,9 @@ export function createMotivation(deps) {
     s0.learned[id] = L
     save(s0)
     let r
-    try { r = (await a.run()) || { ok: false } } catch (error) { r = { ok: false, summary: error.message } }
+    const wants = s0.wants.filter((w) => w.action === id || (a.keywords || []).some((k) => w.text.includes(k))).map((w) => w.text)
+    try { r = (await a.run({ ...context, wants })) || { ok: false } } catch (error) { r = { ok: false, summary: error.message } }
+    if (context.signal?.aborted) return { ok: false, summary: '这件事已停止' }
     const lr = Number(M('rewardLearning')) || 0
     const s = load()
     const l = s.learned[id] || L

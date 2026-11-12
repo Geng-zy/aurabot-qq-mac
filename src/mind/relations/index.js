@@ -23,7 +23,7 @@ function fresh(trustBase = 0.5) {
   }
 }
 function freshMind() {
-  return { likes: [], habits: [], mood: null, note: '' }
+  return { likes: [], habits: [], mood: null, note: '', knowledge: [] }
 }
 
 /**
@@ -90,6 +90,7 @@ export function createRelations(deps) {
    "mood":"他现在大概的心情、在忙什么（可选）","joke":"你们之间的老梗（可选）","limit":"他不喜欢被开的玩笑、不能提的事（可选）","moment":"这段关系的转折点，比如第一次见面、吵得最凶、和好（可选）",
    "knot":"新结下的心结（可选）","untie":心结解开了 true（可选）,"flirt":他在撩你或表白 true（可选）,"rival":和他有比较、争宠 true（可选）}
   d 里只写变了的；数值是这段里变化的方向和大小（0.3 就是明显变好一点），不是总分。
+- "knowledge"：此人明确表明自己知道或还不知道的事。写 {"who":"id","line":他说的行号,"quote":"他的连续原话","state":"known 或 unknown","topic":"十几个字的主题"}。不要凭沉默、转述或猜测填写。
 - "group"（群聊才写，可选）：{"style":"这个群的风格（十五字以内）","rule":"这个群的规矩（十五字以内）"}`
   }
 
@@ -184,7 +185,28 @@ export function createRelations(deps) {
       store.set('rel.group.' + String(window), gs)
     }
     if (pester.length) store.set('relations.pester', [...new Set([...(store.get('relations.pester', []) || []), ...pester])].slice(-20))
+    for (const item of (Array.isArray(parsed?.knowledge) ? parsed.knowledge : []).slice(0, 12)) {
+      const row = rows[Number(item?.line) - 1]
+      const quote = clip(item?.quote, 70)
+      const topic = clip(item?.topic, 40)
+      if (!row || row.dir !== 'in' || row.who !== item.who || !['known', 'unknown'].includes(item.state) ||
+          !topic || quote.length < 3 || !row.text?.includes(quote) || deps.person(row.who)?.noMemory) continue
+      const { tom } = get(row.who)
+      tom.knowledge = [...tom.knowledge.filter((entry) => entry.window !== window || entry.topic !== topic), {
+        window, topic, state: item.state, at: row.at, source: row.id,
+      }].slice(-40)
+      put(row.who, null, tom)
+    }
     return { updated, pester }
+  }
+
+  function forgetKnowledge(window, sources = []) {
+    if (!sources.length) return
+    for (const p of deps.listPeople()) {
+      if (!p.tom?.knowledge?.length) continue
+      const knowledge = p.tom.knowledge.filter((item) => item.window !== window || !sources.includes(item.source))
+      if (knowledge.length !== p.tom.knowledge.length) put(p.id, null, { ...p.tom, knowledge })
+    }
   }
 
   /** 只是在场、一起聊了一段（没说什么看法）：也算联系过。 */
@@ -228,7 +250,7 @@ export function createRelations(deps) {
    * 眼前这些人的关系（每轮放进工作记忆）。
    * @param {string[]} ids
    */
-  function describe(ids, { nameOf = (id) => id, window = '', privateDetails = true } = {}) {
+  function describe(ids, { nameOf = (id) => id, window = '', privateDetails = true, canSee = () => true } = {}) {
     const lines = []
     for (const id of [...new Set(ids)].slice(0, 3)) {
       const g = get(id)
@@ -250,6 +272,9 @@ export function createRelations(deps) {
       if (privateDetails && r.call) bits.push(`你叫他「${r.call}」`)
       if (privateDetails && r.callMe) bits.push(`他叫你「${r.callMe}」`)
       const more = []
+      for (const item of t.knowledge.filter((entry) => entry.window === window && canSee(entry.source)).slice(-3)) {
+        more.push(`你觉得他${item.state === 'known' ? '知道' : '还不知道'}：${item.topic}`)
+      }
       if (privateDetails) {
         if (t.likes.length) more.push('他喜欢/在意：' + t.likes.slice(-3).map((x) => x.text).join('、'))
         if (t.habits.length) more.push('他的习惯：' + t.habits.slice(-2).map((x) => x.text).join('、'))
@@ -294,5 +319,5 @@ export function createRelations(deps) {
     return get(id)
   }
 
-  return { get, closeness, dislikes, encodeAsk, observe, touch, nightly, describe, list, groups, groupOf, edit, setGroupNote, typeOf: (id) => get(id).type, REL_TYPES }
+  return { get, closeness, dislikes, encodeAsk, observe, forgetKnowledge, touch, nightly, describe, list, groups, groupOf, edit, setGroupNote, typeOf: (id) => get(id).type, REL_TYPES }
 }

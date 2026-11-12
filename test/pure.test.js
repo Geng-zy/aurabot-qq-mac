@@ -371,7 +371,7 @@ test('解析：合并转发记下 id，回复里的 <poke> 变成戳一戳', asy
   assert.equal(parseReply('<poke><poke>').items.filter((i) => i.kind === 'poke').length, 1, '一轮最多戳一次')
 })
 
-test('#6 改资料权限：默认仅主人私聊；所有人含群；关了都不行；执行时再查', async () => {
+test('#6 改资料权限：默认仅主人私聊；可开启主人群聊；关闭后都不行', async () => {
   const { normalize } = await import('../src/core/config.js')
   const d = normalize({ ownerQQ: '1', freedom: false })
   assert.deepEqual(d.profilePerms, { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner', heyboxBrowse: 'owner', heyboxLike: 'owner', heyboxComment: 'owner', heyboxPost: 'owner' })
@@ -386,7 +386,9 @@ test('#6 改资料权限：默认仅主人私聊；所有人含群；关了都�
   assert.equal(profilePermits(d, 'qqNickname', ownerPm, false).ok, false, '主人私聊里混进了别人的话也不行')
   const all = normalize({ ownerQQ: '1', freedom: false, profilePerms: { qqNickname: 'all' } })
   assert.equal(profileToolVisible(all, 'qqNickname', group), true)
-  assert.equal(profilePermits(all, 'qqNickname', otherPm, false).ok, true)
+  assert.equal(profilePermits(all, 'qqNickname', group, true).ok, true)
+  assert.equal(profilePermits(all, 'qqNickname', group, false).ok, false)
+  assert.equal(profilePermits(all, 'qqNickname', otherPm, false).ok, false)
   assert.equal(profileToolVisible(all, 'qqNickname', { kind: 'system' }), false)
   const off = normalize({ ownerQQ: '1', profilePerms: { qqNickname: 'off' } })
   assert.equal(profileToolVisible(off, 'qqNickname', ownerPm), false)

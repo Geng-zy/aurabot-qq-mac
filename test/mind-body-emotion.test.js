@@ -286,7 +286,7 @@ test('醒着但累坏了：不插话；不熟的人找她可能懒得理；主�
 
 test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
   const { a } = adapter()
-  a.mind.emotion.feel([{ name: '生气', intensity: 0.8, target: 'qq:2', why: '被抢话' }])
+  a.mind.emotion.feel([{ name: '生气', intensity: 0.8, target: 'qq:2', why: '被抢话' }], { window: 'qq:private:1' })
   const chat = { chatId: 'private:1', kind: 'private', userId: '1' }
   await a.beforeTurn(chat, '在吗', ['1'])
   const ctx = a.contextFor({ chat })
@@ -294,6 +294,7 @@ test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
   assert.match(ctx, /【心情】/)
   assert.match(ctx, /对2很生气（被抢话）/)
   assert.match(ctx, /不是眼前的人/)
+  assert.doesNotMatch(a.contextFor({ chat: { chatId: 'group:9', kind: 'group' } }), /被抢话/)
   assert.ok(a.rules().some((r) => r.includes('<feel>')))
   assert.ok(a.rules().every((r) => !/大肥鱼|鲸/.test(r)), '规矩是通用的')
 })

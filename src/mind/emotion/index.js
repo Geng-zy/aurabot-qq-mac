@@ -103,7 +103,7 @@ export function createEmotion(deps) {
       if (same && strength(same, at) >= e.i0) { same.why = e.why || same.why; continue }
       if (same) s.active.splice(s.active.indexOf(same), 1)
       s.active.push(e)
-      s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg, ...(eventId ? { source } : {}) })
+      s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg, ...(eventId ? { source, eventId } : {}) })
       out.push(e)
     }
     s.active = s.active.filter((x) => strength(x, at) >= 0.05).slice(-Number(E('maxActive') || 12))
@@ -193,7 +193,7 @@ export function createEmotion(deps) {
     const { mood, active } = state(body)
     const lines = [`【心情】${mood.label}`]
     const shown = active.filter((e) => e.intensity >= 0.12).slice(0, 5).map((e) =>
-      window !== undefined && (e.source === 'deep' || (e.window && e.window !== window)) ? { ...e, target: '', why: '' } : e)
+      window !== undefined && (e.source === 'deep' || e.window !== window) ? { ...e, target: '', why: '' } : e)
     if (shown.length) {
       lines.push('【此刻的感受】' + shown.map((e) => {
         const who = e.target && e.target !== 'self' ? `对${name(e.target)}` : ''
@@ -219,9 +219,21 @@ export function createEmotion(deps) {
     return load().history.slice(0, limit)
   }
 
+  function hasEvent(id) {
+    return load().history.some((e) => e.eventId === id)
+  }
+
+  function forgetEvent(id) {
+    const s = load()
+    const active = s.active.filter((e) => e.eventId !== id)
+    const history = s.history.filter((e) => e.eventId !== id)
+    if (active.length === s.active.length && history.length === s.history.length) return
+    save({ ...s, active, history })
+  }
+
   function forgetAppraisals(person, windows) {
     const s = load()
-    const keep = (e) => e.source !== 'appraisal' || (e.target !== person && !windows.includes(e.window))
+    const keep = (e) => !['appraisal', 'observation'].includes(e.source) || (e.target !== person && !windows.includes(e.window))
     const active = s.active.filter(keep)
     const history = s.history.filter(keep)
     if (active.length === s.active.length && history.length === s.history.length) return
@@ -229,5 +241,5 @@ export function createEmotion(deps) {
     save({ ...s, active, history })
   }
 
-  return { feel, rekindle, state, effects, describe, afterSleep, history, forgetAppraisals, strength, EMOTIONS }
+  return { feel, rekindle, state, effects, describe, afterSleep, history, forgetAppraisals, forgetEvent, hasEvent, strength, EMOTIONS }
 }

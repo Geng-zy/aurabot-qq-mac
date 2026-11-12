@@ -179,7 +179,8 @@ export async function runCommand(cmd, msg, deps) {
       const m = cmd.arg.match(/^(.*?)\s+([+-]\d{1,2})$/)
       const name = (m ? m[1] : cmd.arg).trim()
       if (!name) return '唱哪首？比如 /sing 小幸运 田馥甄'
-      return deps.song.request({ song: name, pitch: m ? Number(m[2]) : undefined, chatId: msg.chatId }).message
+      const options = { song: name, pitch: m ? Number(m[2]) : undefined, chatId: msg.chatId }
+      return (deps.song.requestTask?.(options, [String(msg.userId)]) ?? deps.song.request(options)).message
     }
     case 'mood': {
       if (!mind) return '心智核心没起来'

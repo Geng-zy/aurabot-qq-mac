@@ -9,14 +9,14 @@ import { createMindAdapter } from '../src/mind-adapter/index.js'
 const group = { kind: 'group', userId: '2', groupId: '9' }
 const otherPm = { kind: 'private', userId: '2' }
 
-test('默认开；开着时改资料这类在哪都能做、不用主人开口；面板里关掉的照样不做', () => {
+test('自由默认开启，内置资料操作仍受主人和会话权限约束', () => {
   const cfg = normalize({ ownerQQ: '1' })
   assert.equal(cfg.freedom, true)
   assert.equal(freeWill(cfg), true)
   assert.equal(ownerOrFree(cfg, false), true)
-  assert.equal(profileToolVisible(cfg, 'qqSignature', group), true)
-  assert.equal(profileToolVisible(cfg, 'qqSignature', otherPm), true)
-  assert.equal(profilePermits(cfg, 'qqSignature', group, false).ok, true)
+  assert.equal(profileToolVisible(cfg, 'qqSignature', group), false)
+  assert.equal(profileToolVisible(cfg, 'qqSignature', otherPm), false)
+  assert.equal(profilePermits(cfg, 'qqSignature', group, false).ok, false)
   const off = normalize({ ownerQQ: '1', profilePerms: { qqSignature: 'off' } })
   assert.equal(profileToolVisible(off, 'qqSignature', group), false)
   assert.equal(profilePermits(off, 'qqSignature', group, false).ok, false)

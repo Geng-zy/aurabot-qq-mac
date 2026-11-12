@@ -194,7 +194,7 @@ export default {
           const looksLikePath = /^[a-zA-Z]:[\\/]|^\/(?!\/)|^file:|^base64:/i.test(raw)
           const isPainting = !looksLikePath && (/^#?\d{1,2}$/.test(paintingRef) || /^画作$/i.test(paintingRef) || /\.(png|jpe?g|webp|gif)$/i.test(paintingRef))
           if (isPainting) {
-            const painting = resolvePainting(chatId, paintingRef)
+            const painting = resolvePainting(chatId, paintingRef, { allowGlobal: chat.kind === 'private' && isOwner(c, chat.userId, chatId) })
             if (!painting) return { ok: false, message: `找不到画作 ${raw}（编号可能过期了，先让我画一张？）` }
             let buf
             try {

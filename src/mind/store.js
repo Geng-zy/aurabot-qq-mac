@@ -1,8 +1,8 @@
 // 心智核心的数据库：一个 SQLite 文件，放她的全部数据。
 // 只依赖 Node 自带的 node:sqlite，不引用 Aurabot 的任何代码。
 
-import { mkdirSync, existsSync, readFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { copyFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync, readdirSync, renameSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 
 let DatabaseSync
 let loadError
@@ -105,12 +105,21 @@ export function openStore(file) {
   if (!DatabaseSync) throw new Error('这个 Node 没有 node:sqlite：' + (loadError?.message || '未知原因'))
   if (file !== ':memory:') mkdirSync(dirname(file), { recursive: true })
   const db = new DatabaseSync(file)
+  try {
+    return initialize(db, file)
+  } catch (error) {
+    db.close()
+    throw error
+  }
+}
+
+function initialize(db, file) {
   db.exec('PRAGMA busy_timeout = 2000')
   const version = db.prepare('PRAGMA user_version').get().user_version
   if (version > SCHEMA_VERSION) {
-    db.close()
     throw new Error(`心智数据库版本 ${version} 比插件新，保留原库不动`)
   }
+  if (file !== ':memory:') verify(db)
   if (file !== ':memory:') db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = FULL')
   if (version < SCHEMA_VERSION) {
     db.exec('BEGIN IMMEDIATE')
@@ -125,6 +134,46 @@ export function openStore(file) {
     }
   }
   return wrap(db, file)
+}
+
+function verify(db) {
+  const rows = db.prepare('PRAGMA quick_check').all()
+  if (rows.length !== 1 || Object.values(rows[0])[0] !== 'ok') {
+    throw Object.assign(new Error('SQLite 完整性检查失败'), { errcode: 11 })
+  }
+}
+
+/** 只在 SQLite 明确报告损坏时恢复，保留原库和 WAL 以便检查。 */
+export function openRecoverableStore(file) {
+  try { return { store: openStore(file), recovered: null } }
+  catch (error) {
+    if (file === ':memory:' || ![11, 26].includes(Number(error.errcode) & 255)) throw error
+    const dir = dirname(file)
+    const snapshots = join(dir, 'snapshots')
+    const candidates = existsSync(snapshots) ? readdirSync(snapshots).filter((name) => /^mind-.*\.sqlite$/.test(name)).sort().reverse() : []
+    for (const name of candidates) {
+      const candidate = join(snapshots, name)
+      let db
+      try {
+        db = new DatabaseSync(candidate, { readOnly: true })
+        const version = db.prepare('PRAGMA user_version').get().user_version
+        if (version < 1 || version > SCHEMA_VERSION) continue
+        verify(db)
+        db.prepare('SELECT key FROM kv LIMIT 1').get()
+      } catch { continue }
+      finally { db?.close() }
+      const saved = mkdtempSync(join(dir, 'recovery-'))
+      const staging = join(saved, 'validated.sqlite')
+      copyFileSync(candidate, staging)
+      copyFileSync(file, join(saved, basename(file)))
+      for (const suffix of ['-wal', '-shm']) {
+        if (existsSync(file + suffix)) renameSync(file + suffix, join(saved, basename(file) + suffix))
+      }
+      renameSync(staging, file)
+      return { store: openStore(file), recovered: { snapshot: name, original: saved } }
+    }
+    throw error
+  }
 }
 
 function wrap(db, file) {

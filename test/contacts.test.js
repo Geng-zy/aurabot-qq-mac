@@ -46,7 +46,7 @@ function setup({ cfg = {}, allOwner = true, callImpl } = {}) {
 }
 const friendEv = (over = {}) => ({ post_type: 'request', request_type: 'friend', user_id: 40004, comment: '你好', flag: 'u_abc', ...over })
 
-test('权限：默认仅主人私聊；所有人含群；关了谁都不挂', () => {
+test('权限：默认仅主人私聊，可开放主人群聊，其他私聊没有工具', () => {
   const t = setup()
   assert.deepEqual(Object.keys(t.tools(ownerPm)).sort(), ['qq_handle_friend_request', 'qq_handle_group_request', 'qq_list_group_requests', 'qq_whitelist'])
   assert.deepEqual(Object.keys(t.tools(otherPm)), [])
@@ -54,7 +54,7 @@ test('权限：默认仅主人私聊；所有人含群；关了谁都不挂', ()
   assert.deepEqual(Object.keys(t.tools({ kind: 'system' })), [])
   t.set({ profilePerms: { qqFriendRequest: 'all', whitelist: 'off' } })
   assert.deepEqual(Object.keys(t.tools(group)), ['qq_handle_friend_request'])
-  assert.deepEqual(Object.keys(t.tools(otherPm)), ['qq_handle_friend_request'])
+  assert.deepEqual(Object.keys(t.tools(otherPm)), [])
   assert.deepEqual(Object.keys(t.tools(ownerPm)), ['qq_handle_friend_request', 'qq_list_group_requests', 'qq_handle_group_request'])
   assert.equal(normalize({ freedom: false, profilePerms: { whitelist: 'boss', qqFriendRequest: 7 } }).profilePerms.whitelist, 'owner', '乱填回到默认')
   assert.equal(normalize({}).profilePerms.qqFriendRequest, 'owner')
@@ -228,11 +228,14 @@ test('白名单：保存时用最新配置，不盖掉别处刚改的', async ()
   assert.deepEqual(t.cfg().allow.private, ['222222', '40004'])
 })
 
-test('白名单：所有人档，群友也能改（权限由面板决定）', async () => {
+test('白名单：即使开启群聊，也要主人亲口发起', async () => {
   const t = setup({ cfg: { profilePerms: { whitelist: 'all' } }, allOwner: false })
-  const r = await t.tools(group).qq_whitelist.execute({ action: 'add', kind: 'group', id: '777888' })
-  assert.equal(r.ok, true)
-  assert.deepEqual(t.cfg().allow.groups, ['777888'])
+  const args = { action: 'add', kind: 'group', id: '777888' }
+  assert.equal((await t.tools(group).qq_whitelist.execute(args)).ok, false)
+  assert.deepEqual(t.cfg().allow.groups, [])
+  const owner = setup({ cfg: { profilePerms: { whitelist: 'all' } } })
+  assert.equal((await owner.tools(group).qq_whitelist.execute(args)).ok, true)
+  assert.deepEqual(owner.cfg().allow.groups, ['777888'])
 })
 
 test('纯函数：cleanId / planWhitelist', () => {

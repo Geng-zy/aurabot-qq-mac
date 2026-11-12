@@ -44,3 +44,35 @@ export async function replyToMessage({ dir, model, deliver, incomingId, text }) 
 - 澄清可以降低同一会话、同一说话人所对应事件的情绪强度。其他事件保留各自的强度和消退时间。随证据重新评价的设计参考 [Marsella 与 Gratch 的 EMA 模型](https://people.ict.usc.edu/~gratch/CSCI534/Readings/COGSYS-RS-EMOTION-2008-6.pdf)。
 - 当前注意的回忆受工作记忆上限和精力约束。普通状态最多取四条，低精力时最多两条，已有配置可以设得更少。这些是项目参数，有限容量的思路参考 [Cowan 的短时记忆研究](https://doi.org/10.1017/S0140525X01003922)。
 - 表达计划先决定是否开口，再指定回应、求证或接住对方的意图，以及语气和篇幅。措辞生成另外读取人格、当前情绪和会话上下文。阶段划分参考 [Levelt 的语言生成研究](https://www.mpi.nl/publications/item61340/ability-speak-intentions-spoken-words)。
+
+## 记忆维护和后台工作
+
+- 删除经历会撤回带有该经历来源的特质变化、习惯、认知线索和自我故事，清理或重建衍生记忆。较早版本里没有保留原始依据的变化，无法精确归因。删除一条经历与删除聊天原话是两个入口；忘掉一个人可以把该人的原话一起移入恢复区。
+- 心智库启动时检查 SQLite 完整性。只在 SQLite 明确报告损坏时尝试较新的有效快照，保留坏库副本并补应用快照后记录的删除。没有有效快照时会报告错误。AuraBot 自动拍快照，默认保留 14 份。
+- AuraBot 按对话、任务、精力和宿主模型支持的档位调整思考深度；手动设置的较高档位优先。预算用尽的深想优先保留反复低落和重要关系的问题，次日再处理。独立 `respond()` 的模型请求也会附上建议档位；响应超时 `responseTimeoutMs` 默认 30 秒，短提示词兜底分别最多 9 秒。明确沉默会返回 `quiet`。
+- AuraBot 的主动画画和翻唱默认关闭，由主人在「心智设置 → 动机与行动」开启，沿用内置生图和翻唱服务。前台聊天打断时等到安全阶段再继续；重启会结束正在进行的创作。画作存入画作库，翻唱在允许时送到主人的私聊。
+
+## 离线回放
+
+```sh
+node scripts/replay-mind.js --cost-per-million 2 --html replay.html > replay.json
+node scripts/replay-mind.js --input events.jsonl --owner demo:owner --html replay.html > replay.json
+```
+
+不提供 `--input` 就使用内置的 35 天模拟场景。报告包含逐日特质、心情、最强情绪、指定经历的记忆强度、后台 token、估算费用和删除检查点。统一单价仅用于估算；不传价格就不估算。CLI 使用替身模型和内存库，不读取正式聊天、配置或密钥，也不发消息。
+
+JSONL 每行一个事件，按 `at` 升序（ISO 时间或毫秒时间戳）。支持 `message`、`said`、`appraise`、`encode`、`night`、`think`、`recall` 和 `forget`。例如，消息与随后的编码可以写成：
+
+```jsonl
+{"at":"2026-11-10T02:00:00Z","kind":"message","window":"demo:group:friends","speaker":"demo:friend","text":"今天把旧钢琴修好了"}
+{"at":"2026-11-10T02:05:00Z","kind":"encode","window":"demo:group:friends","ref":"piano","replies":{"record":{"episodes":[{"type":"event","gist":"旧钢琴修好了","sources":[1]}],"tokens":120}}}
+{"at":"2026-11-20T02:00:00Z","kind":"recall","window":"demo:group:friends","ref":"piano","text":"旧钢琴"}
+```
+
+`replies` 可按调用场景提供替身模型的文本或 JSON。程序化使用可从 `dsh-aurabot-qq/mind/replay` 导入 `replayMind(events, options)`，也可注入自己的模型。
+
+## 链式回忆和隐私回放
+
+需要让模型按需展开时，调用 `conversation.prepare({ window, text, compactRecall: true })`。工作记忆给出带编号的摘要。模型请求展开后，用 `memory.recallMore(id, { audienceWindow: window })` 读取一跳。每次读取都按当前会话核对原记忆和关联记忆。AuraBot 将这个入口提供为 `mind_recall_more`。
+
+`npm run mind:privacy` 用合成主人私聊验证公开片段，分别统计私密内容通过和普通内容被拦的次数。测试把每条样例都标成拟分享，以便测量代码的可见性判断。`--input` 可传入包含 `name`、`messages`、`share` 和可选 `line` 的 JSON 数组。默认样例也包含字面毫无线索的暗语，报告会记录这一类漏判。

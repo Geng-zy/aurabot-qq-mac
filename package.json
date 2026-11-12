@@ -1,6 +1,6 @@
 {
   "name": "dsh-aurabot-qq",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Aurabot for macOS：aureth-labs/dsh-aurabot-qq 的 macOS（Apple 芯片）分叉 —— DeepSeek Harness 的 QQ 机器人插件「大肥鱼」（经 OneBot v11 接 QQ）",
   "license": "MIT",
   "private": true,
@@ -9,12 +9,15 @@
   "exports": {
     ".": "./src/host.js",
     "./mind": "./src/mind/index.js",
+    "./mind/replay": "./src/mind/replay.js",
     "./client": "./client/client.js",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\""
+    "test": "node --test \"test/**/*.test.js\"",
+    "mind:replay": "node scripts/replay-mind.js",
+    "mind:privacy": "node scripts/replay-privacy.js"
   },
   "dsh": {
     "bundle": {
@@ -38,6 +41,9 @@
   ],
   "files": [
     "src",
+    "scripts/replay-mind.js",
+    "scripts/replay-privacy.js",
+    "scripts/mind-replay-report.js",
     "models",
     "THIRD-PARTY-NOTICES.md",
     "client",

@@ -5,7 +5,7 @@ import { defineTool, str } from '../../../../tools/tools.js'
 import { QQ_API, paramsOf } from './actions.js'
 import { clipText } from '../../../../core/text.js'
 import { cleanOutboundText } from '../../../../chat/reply.js'
-import { ownerOrFree } from '../../../../chat/access.js'
+import { isOwner as ownerMatches } from '../../../../chat/access.js'
 import { platformOf } from '../../../ids.js'
 
 const RESULT_CHARS = 3000
@@ -13,7 +13,25 @@ const RESULT_CHARS = 3000
 // 会把内容/动作发到「目标」的接口：主人开口也不许发给白名单外的人/群，
 // 否则模型被诱导就能把消息/转发/拍一拍/点赞发到任意 QQ（qq_send_message 的白名单在这里也得有）。
 const OUT_USER_TARGET = new Set(['forward_friend_single_msg', 'send_private_forward_msg', 'send_forward_msg', 'send_custom_face', 'friend_poke', 'send_like', 'send_tuwen_ark', 'set_friend_remark', 'set_qzone_ban'])
-const OUT_GROUP_TARGET = new Set(['forward_group_single_msg', 'send_group_forward_msg', 'send_forward_msg', 'send_custom_face', 'group_poke', 'send_tuwen_ark', 'set_group_remark', 'set_group_card', 'set_group_admin', 'set_group_kick_members', 'set_group_name', 'set_group_whole_ban'])
+const OUT_GROUP_TARGET = new Set(['forward_group_single_msg', 'send_group_forward_msg', 'send_forward_msg', 'send_group_ai_record', 'send_custom_face', 'group_poke', 'send_tuwen_ark', 'set_group_remark', 'set_group_card', 'set_group_admin', 'set_group_kick_members', 'set_group_name', 'set_group_whole_ban'])
+const FORWARD_ACTIONS = new Set(['forward_friend_single_msg', 'forward_group_single_msg', 'send_forward_msg', 'send_group_forward_msg', 'send_private_forward_msg'])
+
+function outboundChatId(action, params, chatId) {
+  if (OUT_GROUP_TARGET.has(action) && params.group_id) return `group:${params.group_id}`
+  if (OUT_USER_TARGET.has(action) && params.user_id) return `private:${params.user_id}`
+  return OUT_GROUP_TARGET.has(action) || OUT_USER_TARGET.has(action) ? 'system:qq-outbound' : chatId
+}
+
+function hasStoredForward(value) {
+  if (typeof value === 'string') {
+    if (/\[CQ:(?:node|forward),/i.test(value)) return true
+    try { return hasStoredForward(JSON.parse(value)) } catch { return false }
+  }
+  if (Array.isArray(value)) return value.some(hasStoredForward)
+  if (!value || typeof value !== 'object') return false
+  if (value.type === 'forward' || value.message_id !== undefined || (value.type === 'node' && value.data?.id !== undefined)) return true
+  return Object.values(value).some(hasStoredForward)
+}
 
 /** 目标是白名单外的人/群就返回原因。 */
 export function outboundRefusal({ action, params, cfg }) {
@@ -35,6 +53,7 @@ export function refusal({ action, params, cfg, owner, chat }) {
     if (entry[0] === 'owner' && (cfg.dryRun || !cfg.enabled)) return '现在是试运行，不真的执行'
     const out = outboundRefusal({ action, params, cfg })
     if (out) return out
+    if (FORWARD_ACTIONS.has(action) && (params.message_id !== undefined || hasStoredForward(params.messages ?? params.message))) return '不能按消息编号跨会话转发。请使用确认可公开的文字'
     return ''
   }
   if (entry[0] !== 'open') return '这个只有主人开口才能用'
@@ -120,8 +139,7 @@ export default {
     const { hub, onebot } = api.core
     api.tool(({ chat, level, sessionId }) => {
       if (platformOf(chat.chatId) !== 'qq' || api.config().qqApi?.enabled === false) return []
-      // 自由开着：撤回、设精华、改群名片、群管这些由她自己判断（别人让她做只是请求）
-      const isOwner = () => level === 'full' || ownerOrFree(api.config(), hub.turnSendersAllOwner?.(sessionId))
+      const isOwner = () => chat.kind === 'private' && level === 'full' && ownerMatches(api.config(), chat.userId, chat.chatId)
       return [
         defineTool({
           name: 'qq_api_find',
@@ -149,10 +167,12 @@ export default {
             const no = refusal({ action: name, params, cfg: api.config(), owner: isOwner(), chat })
             if (no) return { ok: false, message: no }
             // 原始动作里的文本/转发/卡片参数也过出站清洗（和 QQ 投递同一套），别让工具文字走旁路露出。
+            const picked = pickParams(name, params)
+            const target = outboundChatId(name, picked, chat.chatId)
             const clean = typeof hub.cleanOutbound === 'function'
-              ? (text) => hub.cleanOutbound(chat.chatId, text)
-              : (text) => cleanOutboundText(text, { ownerPrivate: chat.chatId === `private:${api.config().ownerQQ}` })
-            const cleaned = cleanOutboundParams(name, pickParams(name, params), clean)
+              ? (text) => hub.cleanOutbound(target, text)
+              : (text) => cleanOutboundText(text, { ownerPrivate: target === `private:${api.config().ownerQQ}` })
+            const cleaned = cleanOutboundParams(name, picked, clean)
             if (!cleaned.ok) return { ok: false, message: cleaned.message }
             if (cleaned.changed) api.log.info(`qq_api：${chat.chatId} 调用 ${name} 前清洗了外显文本`)
             api.log.info(`qq_api：${chat.chatId} 调用 ${name}`)

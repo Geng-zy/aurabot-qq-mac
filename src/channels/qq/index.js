@@ -371,7 +371,20 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
      */
     async quote(chatId, id) {
       const tgt = qqTarget(chatId)
-      const m = await gw.call('get_msg', { message_id: Number(id) || id }, { timeoutMs: 5000, retries: 0 })
+      if (!tgt) throw new Error('引用没有对应的聊天')
+      let m = await gw.call('get_msg', { message_id: Number(id) || id }, { timeoutMs: 5000, retries: 0 })
+      const group = m?.group_id && String(m.group_id) !== '0' ? String(m.group_id) : ''
+      const author = String(m?.sender?.user_id ?? m?.user_id ?? '')
+      const peer = String(m?.target_id ?? m?.peer_id ?? '')
+      if ((m?.message_type && m.message_type !== tgt.kind) || (group && (tgt.kind !== 'group' || group !== tgt.id))) {
+        throw new Error('引用来自其他聊天')
+      }
+      const inChat = tgt.kind === 'group' ? group === tgt.id
+        : m?.message_type === 'private' && (author === tgt.id || peer === tgt.id)
+      if (!inChat) {
+        m = await quoteFromHistory(chatId, String(id))
+        if (!m) throw new Error('无法确认引用属于这个聊天')
+      }
       // 被引用那条消息的发生时间（QQ 给的是秒）
       let time = Number(m?.time) || 0
       const sender = m?.sender || {}

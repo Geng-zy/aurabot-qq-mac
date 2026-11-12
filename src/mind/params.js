@@ -80,6 +80,7 @@ export const PARAMS = [
   { key: 'memory.rerankTopN', group: 'memory', label: '精排看前几条', def: 20, min: 2, max: 50, step: 1, source: EXP, hint: '越多越准、越慢。', advanced: true },
   { key: 'memory.rerankTimeoutMs', group: 'memory', label: '精排最多等多久', def: 1500, min: 300, max: 8000, step: 100, unit: '毫秒', source: EXP, hint: '超过就这一轮按原来的顺序。', advanced: true },
   { key: 'memory.versionKeep', group: 'memory', label: '自动保留的版本数', def: 50, min: 5, max: 1000, step: 5, source: EXP, hint: '人格、特质等的旧版本超过这个数自动清理（她标为重要的转折点不清）。', advanced: true },
+  { key: 'memory.snapshotKeep', group: 'memory', label: '保留几份每日快照', def: 14, min: 2, max: 90, step: 1, source: '经验值', hint: '完整快照用于恢复心智数据库。', advanced: true },
   { key: 'memory.baseStability', group: 'memory', label: '一件普通小事记多牢', def: 0.6, min: 0.1, max: 5, step: 0.1, unit: '天', source: 'FSRS-4.5 默认参数（开源间隔重复算法，用数亿次复习记录拟合的幂函数遗忘模型；初次记住的稳定性按回答难易为 0.49 / 1.40 / 3.71 / 13.82 天，这里取最弱两档之间，因为聊天里的事不是刻意背的；取值是经验值）', hint: '稳定性 = 记得还有九成把握的天数。情绪、重要程度、专心程度会在这个基础上加成。', advanced: true },
   { key: 'memory.levelClear', group: 'memory', label: '记得清楚的线', def: 0.5, min: 0.2, max: 0.9, step: 0.05, source: EXP, hint: '记忆强度高于这条线，大意和细节都记得。', advanced: true },
   { key: 'memory.levelVague', group: 'memory', label: '只记得大概的线', def: 0.2, min: 0.05, max: 0.6, step: 0.05, source: EXP, hint: '在这条线和「记得清楚」之间，只记得「好像有这么回事」。', advanced: true },
@@ -114,6 +115,8 @@ export const PARAMS = [
   { key: 'motivation.rewardLearning', group: 'motivation', label: '从结果里学的快慢', def: 0.2, min: 0, max: 1, step: 0.05, source: 'Lefebvre 等 2017；2021 Scientific Reports（具体学习率待查，暂取中等）', hint: '一次结果比预想好/坏，对以后想不想做的影响有多大。' },
   { key: 'motivation.distractibility', group: 'motivation', label: '容易分心', def: 1, min: 0.2, max: 3, step: 0.1, source: 'Steel 2007（时间动机理论：容易分心 × 回报要等多久，越大越拖延）；以后由性格里的尽责性决定', hint: '越大，回报要等越久的事越容易拖着不做。' },
   { key: 'motivation.outreachWaitHours', group: 'motivation', label: '主动找你后等多久算没回', def: 2, min: 0.5, max: 12, step: 0.5, unit: '小时', source: EXP, hint: '这么久你还没回，她会有点失落；没回之前她不会再追着发。' },
+  { key: 'motivation.autonomousArt', group: 'motivation', ownerOnly: true, label: '允许她主动画画', def: false, source: '设计决定', hint: '会使用已配置的生图服务，成品保存到画作库。' },
+  { key: 'motivation.autonomousSong', group: 'motivation', ownerOnly: true, label: '允许她主动唱歌', def: false, source: '设计决定', hint: '需要已配置翻唱环境。唱好会在合适时发到你的私聊。' },
 
   // ---------- 人格与自我 ----------
   { key: 'personality.thresholdDays', group: 'personality', label: '性格变化门槛（天数）', def: 3, min: 1, max: 30, step: 1, unit: '天', source: '设计决定（TESSERA：多次、不同场合）', hint: '同一种表现要在两周内至少这么多个不同的日子出现，才算数。' },
@@ -144,6 +147,23 @@ export const PARAMS = [
   { key: 'models.localPython', group: 'models', label: '本地小模型用的 Python', def: '', source: '设计决定', hint: '装了 mlx-lm 的 Python。留空 = 用对接层装好的默认位置。' },
   { key: 'models.localIdleMinutes', group: 'models', label: '本地小模型闲置多久自动停', def: 30, min: 5, max: 240, step: 5, unit: '分钟', source: EXP, hint: '停了省内存（约 6 GB），下次要用时再启动（要等一会儿）。', advanced: true },
 ]
+
+const effortOptions = [{ value: 'low', label: '低' }, { value: 'high', label: '高' }, { value: 'max', label: '最高' }]
+for (const [scene, label, def] of [
+  ['casual', '日常聊天', 'low'], ['important', '重要对话或冲突', 'high'], ['task', '多步骤任务', 'max'],
+  ['record', '整理对话和记录状态', 'low'], ['appraisal', '评价刚发生的事', 'low'],
+  ['reconsolidate', '回忆后重新整理', 'low'], ['think', '日常念头的远程备用', 'low'],
+  ['consolidate', '睡眠整理', 'high'], ['review', '日、周和月回顾', 'high'], ['dream', '正式做梦', 'high'],
+  ['deep', '深想', 'high'], ['outreach', '主动找人', 'high'], ['reminder', '约定提醒', 'low'],
+  ['creative', '主动创作的灵感', 'low'], ['permission', '申请权限', 'high'], ['traits', '从人格卡推算性格', 'high'], ['selfstory', '写自我故事', 'max'],
+]) PARAMS.push({
+  key: 'models.effort.' + scene, group: 'models', label, def, options: effortOptions, source: '设计决定',
+  hint: '用时和成本随思考档位增加。宿主模型支持的档位以模型配置为准。', advanced: true,
+})
+PARAMS.push(
+  { key: 'models.adaptiveDepth', group: 'models', label: '按对话内容调整思考深度', def: true, source: '设计决定', hint: '重要对话或多步骤任务会用各自的思考档位。' },
+  { key: 'models.tiredDepth', group: 'models', label: '累了时降低思考深度', def: true, source: '设计决定', hint: '精力不足或刚醒时降一档。' },
+)
 
 const byKey = new Map(PARAMS.map((p) => [p.key, p]))
 

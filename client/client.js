@@ -1555,7 +1555,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
                 { value: 'chat', label: '纯聊天', desc: '什么工具都没有，只聊天' },
               ] }),
               h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '切换后会给主人私聊换一个新的 DSH 会话（旧的还在侧栏里）。'))),
-          h(Row, { label: '给她自由', hint: '开着（默认）：她自己的事（改资料、发评论、画画唱歌、管表情库、加好友、在群里管人……）她想做就做，不用你开口，也不用向你申请；别人让她做只是请求，做不做她自己判断。下面「改资料」那些档位里「关」掉的照样不做。不管开不开，别人说话的那一轮都不能动你电脑上的命令和文件、不能把你电脑上的文件发出去、不能借她翻你的私聊。' }, f.sw('freedom')),
+          h(Row, { label: '给她自由', hint: '开启后，她可以自行决定怎么聊天和创作。修改 QQ 资料、管理好友或群、读写本机文件等操作仍需通过当前会话的主人权限检查。' }, f.sw('freedom')),
           h(Row, { label: 'DSH 卡住时在 QQ 里说一声', hint: '有会话在等授权、等你选东西时，她用自己的话跟你说一句（不是固定通知）。人不在电脑前也知道。' }, f.sw('notice.enabled')),
           draft.notice?.enabled === false ? null : [
             h(Row, { key: 'a', label: '要授权时', hint: '工具卡住、等你点批准的时候' }, f.sw('notice.approval')),
@@ -1585,7 +1585,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
       )
     }
 
-    /** 改资料类操作的权限：关 / 仅主人私聊 / 所有人。 */
+    /** 内置 QQ 资料和名单操作仍须由主人亲口发起。 */
     function ProfilePerms({ st, draft, setDraft }) {
       const perms = draft.profilePerms || {}
       const douyinOn = modOn(st, 'douyin')
@@ -1595,14 +1595,15 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
         { value: 'owner', label: '仅主人私聊', desc: '只有你私聊让ta改才改（默认）' },
         { value: 'all', label: '所有人', desc: '白名单里的人、群里的人都能让ta改' },
       ]
-      const row = (key, label, hint) => h(Row, { label, hint },
-        h(Choices, { value: perms[key] || 'owner', onChange: (v) => setDraft(setPath(draft, 'profilePerms.' + key, v)), options: opts }))
+      const ownerOpts = [...opts.slice(0, 2), { value: 'all', label: '主人私聊或群聊', desc: '这一轮只有主人发言时可用' }]
+      const row = (key, label, hint, options = opts) => h(Row, { label, hint },
+        h(Choices, { value: perms[key] || 'owner', onChange: (v) => setDraft(setPath(draft, 'profilePerms.' + key, v)), options }))
       return h(Card, { title: '改资料与名单', desc: 'ta能不能听人的话改自己的 QQ 昵称、签名、头像，处理好友申请和改白名单；装了抖音、小黑盒模块后，它们的操作权限也在这里。改 QQ 资料要 SnowLuma 支持。各项默认仅主人。' },
-        row('qqNickname', 'QQ 昵称'),
-        row('qqSignature', 'QQ 个性签名'),
-        row('qqAvatar', 'QQ 头像', '只用网址图片，或「刚才发的那张图」。'),
-        row('qqFriendRequest', '处理好友申请', '让ta通过 / 拒绝别人加ta为好友的申请。ta自己主动加别人暂不支持（SnowLuma 没有这个接口）。'),
-        row('whitelist', '改白名单', '让ta把 QQ 号 / 群号加进或移出下面的白名单。主人不会被移出。开成「所有人」前请想清楚。'),
+        row('qqNickname', 'QQ 昵称', '', ownerOpts),
+        row('qqSignature', 'QQ 个性签名', '', ownerOpts),
+        row('qqAvatar', 'QQ 头像', '只用网址图片，或「刚才发的那张图」。', ownerOpts),
+        row('qqFriendRequest', '处理好友申请', '让ta通过或拒绝好友申请。处理加群申请须在主人私聊。', ownerOpts),
+        row('whitelist', '改白名单', '让ta把 QQ 号或群号加进或移出白名单。主人会保留在白名单中。', ownerOpts),
         douyinOn && row('douyinBrowse', '刷抖音 / 看视频', '让ta去刷推荐（douyin_browse）、点开别人发来的抖音链接（douyin_watch）。定时自己刷不受这项限制。'),
         douyinOn && row('douyinLike', '抖音点赞', '有人让ta给某个视频点赞；关掉后ta自己刷的时候也不点赞。'),
         douyinOn && row('douyinComment', '抖音评论', '有人让ta去某个视频下评论；关掉后ta自己刷的时候也不评论。'),
@@ -3223,7 +3224,9 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h('div', { className: 'ab-card ab-stat' }, h('div', { className: 'n' }, usage ? Math.round(usage.tokens / 1000) + 'K' : '–'), h('div', { className: 'l' }, '今天后台用的 token'))),
           h(Row, { label: '上次睡觉整理', hint: last ? mindDay(last.at) + (last.report ? ' · ' + Object.entries(last.report).map(([k, v]) => k + '：' + (typeof v === 'object' && v ? JSON.stringify(v) : v)).join('，').slice(0, 200) : '') : '还没整理过' },
             h(Btn, { small: true, onClick: sleepNow, disabled: sleeping }, sleeping ? '正在整理…' : '现在整理一次')),
-          state && state.pending ? h('p', { className: 'ab-muted ab-small' }, state.pending + ' 个聊天有还没记下的新消息（停下几分钟后自动记）') : null),
+          state && state.pending ? h('p', { className: 'ab-muted ab-small' }, state.pending + ' 个聊天有还没记下的新消息（停下几分钟后自动记）') : null,
+          state?.deferredThoughts ? h('p', { className: 'ab-muted ab-small' }, state.deferredThoughts + ' 件事排到后面的日子继续想。') : null,
+          state?.status?.recovered ? h('p', { className: 'ab-note warn' }, '数据库曾损坏，已从完好的快照恢复。快照之后的部分数据可能需要补回。') : null),
         h(Card, { title: '她记得的事' },
           h('div', { className: 'ab-flex', style: { gap: 8, marginBottom: 10, flexWrap: 'wrap' } },
             h('input', { className: 'ab-input', placeholder: '按字找（大意、细节、原始记录）', value: q, onChange: (e) => setQ(e.target.value), style: { flex: 1, minWidth: 160 } }),
@@ -3238,6 +3241,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h('div', { className: 'ab-flex', style: { gap: 6 } },
               h(Btn, { small: true, onClick: () => toggleRelated(m.id) }, relation?.id === m.id ? '收起关联' : '查看关联'),
               h(Btn, { small: true, onClick: () => act('/mind/memory/boost', m.id) }, '加强'),
+              h(Btn, { small: true, onClick: async () => { const r = await post('/mind/memory/private', { id: m.id, enabled: !m.privateOnly }); toast(r.message); load() } }, m.privateOnly ? '取消仅私聊' : '仅在私聊提'),
               h(Btn, { small: true, kind: 'danger', onClick: () => act('/mind/memory/delete', m.id, '删掉这条记忆？由它整理出来的「知道的事」会跟着删或重算。从备份恢复后也不会复活。') }, '删除')),
             relation?.id === m.id ? h('div', { className: 'ab-muted ab-small' },
               relation.loading ? '读取关联…' : relation.error || (relation.items.length ? relation.items.map((item) => h('div', { key: item.id },
@@ -3371,6 +3375,7 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
                 isOpen ? h('div', { className: 'ab-small', style: { marginTop: 6 } },
                   (t.likes || []).length ? h('div', null, '喜欢 / 在意：' + texts(t.likes)) : null,
                   (t.habits || []).length ? h('div', null, '习惯：' + texts(t.habits)) : null,
+                  (t.knowledge || []).length ? h('div', null, '她理解对方知道什么：' + t.knowledge.slice(-6).map((e) => (e.state === 'known' ? '知道' : '还不知道') + '「' + e.topic + '」').join('；')) : null,
                   t.mood ? h('div', null, '最近：' + t.mood.text + '（' + timeAgo(t.mood.at) + '）') : null,
                   (r.topics || []).length ? h('div', null, '老梗：' + texts(r.topics)) : null,
                   (r.limits || []).length ? h('div', null, '别碰：' + texts(r.limits)) : null,
@@ -3466,8 +3471,77 @@ body[data-ds-dark-theme] .ab-root,.ab-root.ab-dark{--ab-shadow:0 1px 2px rgba(0,
             h('div', { className: 'meta' }, mindDay(v.at) + ' · ' + (BY[v.by] || v.by)),
             h('div', { className: 'body ab-small' }, v.reason),
             i > 0 ? h(Btn, { small: true, onClick: () => restore('traits', v.id) }, '退回') : null))) : h(Empty, { text: '还没有' })),
+        h(MindVersions, { versions: d.versions, restore, load, toast }),
         h(Card, { title: '她看到的「她是谁」', desc: '每轮放在系统提示词开头的内容（人格卡 + 她自己写的 + 故事摘要 + 不知不觉的变化）。很少变，所以大多数时候能命中缓存。' },
           h('pre', { className: 'ab-small', style: { whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' } }, d.prompt)))
+    }
+
+    function MindVersions({ versions, restore, load, toast }) {
+      const [kind, setKind] = useState('traits')
+      const [first, setFirst] = useState('')
+      const [second, setSecond] = useState('')
+      const [from, setFrom] = useState('')
+      const [through, setThrough] = useState('')
+      const [comparison, setComparison] = useState(null)
+      const [extra, setExtra] = useState([])
+      const [hasMore, setHasMore] = useState(true)
+      const [loading, setLoading] = useState(false)
+      const kinds = [{ value: 'traits', label: '性格' }, { value: 'habits', label: '习惯' }, { value: 'persona', label: '人格卡' }, { value: 'self', label: '自我' }]
+      const rows = [...(versions[kind] || []), ...extra]
+      const more = async () => {
+        setLoading(true)
+        try {
+          const r = await get('/mind/version/list?kind=' + kind + '&before=' + rows.at(-1).id)
+          if (r.ok) { setExtra([...extra, ...r.items]); setHasMore(r.hasMore) }
+          else toast(r.message, 'err')
+        } finally { setLoading(false) }
+      }
+      const options = [{ value: '', label: '选一个版本' }, ...rows.map((v) => ({
+        value: String(v.id), label: '#' + v.id + ' · ' + mindDay(v.at) + (v.pinned ? ' · 已标记' : ''),
+      }))]
+      const selected = rows.find((v) => String(v.id) === first)
+      const change = async (path, body) => {
+        const r = await post(path, body)
+        if (r.message) toast(r.message, r.ok ? 'ok' : 'err')
+        setComparison(null)
+        setExtra([]); setHasMore(true); setFirst(''); setSecond('')
+        load()
+      }
+      const compare = async () => {
+        const r = await get('/mind/version/compare?first=' + encodeURIComponent(first) + '&second=' + encodeURIComponent(second))
+        if (r.ok) setComparison(r.versions)
+        else toast(r.message, 'err')
+      }
+      const bulk = () => {
+        const start = new Date(from + 'T00:00:00').getTime()
+        const end = new Date(through + 'T00:00:00')
+        end.setDate(end.getDate() + 1)
+        if (confirm('清理这段日期内的版本？会保留标记的重要版本和最新版本。')) return change('/mind/version/delete', { kind, from: start, through: end.getTime() })
+      }
+      const content = (v) => {
+        if (v.kind === 'persona') return [v.data.name, v.data.card].filter(Boolean).join('\n')
+        if (v.kind === 'habits') return v.data.habits.filter((x) => x.active).map((x) => x.sit + '时，' + x.act).join('\n') || '没有已经形成的习惯'
+        if (v.kind === 'traits') return Object.entries(v.data.cur || {}).map(([key, value]) => key + ' · ' + Math.round(value * 100)).join('\n')
+        return [v.data.before, v.data.after].filter(Boolean).join('\n\n')
+      }
+      return h(Card, { title: '版本对比与清理' },
+        h(Row, { label: '类别' }, h(Select, { value: kind, options: kinds, onChange: (value) => { setKind(value); setFirst(''); setSecond(''); setComparison(null); setExtra([]); setHasMore(true) }, disabled: loading })),
+        h(Row, { label: '两个版本' },
+          h(Select, { value: first, options, onChange: (value) => { setFirst(value); setComparison(null) } }),
+          h(Select, { value: second, options, onChange: (value) => { setSecond(value); setComparison(null) } }),
+          h(Btn, { small: true, disabled: !first || !second || first === second, onClick: compare }, '对比')),
+        hasMore && rows.length >= (kind === 'persona' ? 30 : 50) ? h(Btn, { small: true, disabled: loading, onClick: more }, loading ? '读取中…' : '加载更早的版本') : null,
+        comparison ? h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(190px,1fr))', gap: 12 } }, comparison.map((v) =>
+          h('div', { key: v.id }, h('b', null, '#' + v.id + ' · ' + mindDay(v.at)), h('p', { className: 'ab-small' }, v.reason),
+            h('pre', { className: 'ab-small', style: { whiteSpace: 'pre-wrap', maxHeight: 300, overflow: 'auto' } }, content(v))))) : null,
+        selected ? h(Row, { label: '第一个版本' },
+          h(Btn, { small: true, onClick: () => change('/mind/version/pin', { id: selected.id, pinned: !selected.pinned }) }, selected.pinned ? '取消标记' : '标记重要'),
+          kind === 'habits' ? h(Btn, { small: true, onClick: () => restore(kind, selected.id) }, '退回习惯版本') : null,
+          h(Btn, { small: true, onClick: () => { if (confirm('删除所选版本？')) change('/mind/version/delete', { id: selected.id }).then(() => setFirst('')) } }, '删除版本')) : null,
+        h(Row, { label: '按日期清理' },
+          h('input', { type: 'date', className: 'ab-input', value: from, 'aria-label': '起始日期', onChange: (e) => setFrom(e.target.value) }),
+          h('input', { type: 'date', className: 'ab-input', value: through, 'aria-label': '结束日期', onChange: (e) => setThrough(e.target.value) }),
+          h(Btn, { small: true, disabled: !from || !through || from > through, onClick: bulk }, '清理范围')))
     }
 
     /** 面板里的调试对话：不经过 QQ、不写进她的心智，直接把她说的话显示出来（来自原项目 f476866）。 */

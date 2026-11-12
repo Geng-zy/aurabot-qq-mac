@@ -926,13 +926,16 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
   }
 
   async function process1(job) {
+    await job.checkpoint?.()
     const c = cfg()
     const voice = listVoices(P().models).find((v) => v.id === (job.voice || c.voice)) || listVoices(P().models)[0]
     if (!voice && !local?.active('song')) throw new Error('还没有可用的音色模型')
     const pitch = Number.isFinite(Number(job.pitch)) ? Math.max(-24, Math.min(24, Math.round(Number(job.pitch)))) : Number(c.pitch) || 0
     const dir = join(work(), Date.now().toString(36))
     mkdirSync(dir, { recursive: true })
-    current.stage = '下载歌曲'
+    job.workDir = dir
+    const stage = (value) => { current.stage = value; job.progress?.(value) }
+    stage('下载歌曲')
     const song = job.file || (await download(job, dir))
     // 同一首歌、同一个音色、同样的设置做过的，直接复用
     // v2：0.6.2 起才检查有没有人声，之前缓存的可能是只有伴奏的成品，一律不用
@@ -945,9 +948,10 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       log.info(`翻唱：「${job.title}」做过了，直接用缓存`)
       return { file: cached, voice: voice?.id, pitch, dir }
     }
-    current.stage = '截取要唱的那一段'
+    stage('截取要唱的那一段')
+    await job.checkpoint?.()
     const part = await cutFirst(song, dir)
-    current.stage = '分离人声和伴奏'
+    stage('分离人声和伴奏')
     const { vocals, inst } = await separate(part.file, dir)
     // 纯音乐 / 伴奏版分不出人声：换下一首候选重做，不然发出去只有伴奏
     const vol = await meanVolume(vocals)
@@ -958,12 +962,13 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       if (job.file || job.songId) throw new Error('这首没有人声（像是纯音乐或伴奏版），换一首吧')
       job.skip = [...(job.skip || []), job.songKey]
       if (job.skip.length >= 3) throw new Error(`搜到的几版「${job.query}」都没有人声，换个说法试试（比如带上歌手名）`)
-      current.stage = '换一版重下'
+      stage('换一版重下')
       return process1(job)
     }
-    current.stage = '换成她的声音'
+    stage('换成她的声音')
+    await job.checkpoint?.()
     const converted = await convert(vocals, dir, voice, pitch, job.duet)
-    current.stage = '混音'
+    stage('混音')
     const mixed = await mix(converted, job.acapella ? null : inst, dir)
     const out = part.cut ? await fade(mixed, dir, part.length) : mixed
     mkdirSync(join(work(), 'cache'), { recursive: true })
@@ -1003,20 +1008,26 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     log.info(`翻唱开始：「${job.query}」→ ${job.chatId}`)
     try {
       const r = await process1(job)
+      await job.checkpoint?.()
       current.stage = '发送'
-      const sent = await sendVoiceFile(job.chatId, r.file, `[${job.acapella ? '清唱' : '翻唱'}] ${job.title || job.query}`)
+      const simulated = Boolean(job.delivery && getConfig().dryRun && !getConfig().debug)
+      if (!simulated) job.delivery?.beginDelivery()
+      const sent = simulated ? null : await sendVoiceFile(job.chatId, r.file, `[${job.acapella ? '清唱' : '翻唱'}] ${job.title || job.query}`, job.delivery ? { isCurrent: job.delivery.isCurrent, allowQueue: false } : undefined)
       const delivered = Boolean(sent && !sent.queued && !sent.simulated)
       const message = delivered ? `用时 ${Math.round((Date.now() - current.startedAt) / 1000)} 秒` : sent?.queued ? '已做好，正在等待发送' : '已做好，未确认送达'
       history.unshift({ at: Date.now(), title: job.title || job.query, voice: r.voice, pitch: r.pitch, ok: delivered, message })
       log.info(`翻唱完成：「${job.title || job.query}」`)
       if (delivered) onSung?.(job.title || job.query, job.chatId)
+      job.onResult?.({ ok: delivered, ...(simulated ? { simulated } : {}), summary: message, outcome: 0.8 })
       if (!cfg().keepWork) try { rmSync(r.dir, { recursive: true, force: true }) } catch (error) {}
     } catch (error) {
+      if (job.workDir && !cfg().keepWork) try { rmSync(job.workDir, { recursive: true, force: true }) } catch {}
       const why = explainSongError(error.message)
       history.unshift({ at: Date.now(), title: job.title || job.query, ok: false, message: why })
       log.warn(`翻唱失败：「${job.query}」：`, error.message)
       // 说什么由她自己定：原来那句固定文案对谁、什么原因都一样，听着不像她说的
-      noticeFail(job, error, why)
+      if (job.onResult) job.onResult({ ok: false, summary: why })
+      else noticeFail(job, error, why)
     } finally {
       history = history.slice(0, 20)
       current = null
@@ -1025,17 +1036,24 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
   }
 
   /** 点一首：马上返回，做好了自己发到聊天里。 */
-  function request({ song, songId, file, pitch, voice, chatId, acapella, duet }) {
+  function request({ song, songId, file, pitch, voice, chatId, acapella, duet, checkpoint, progress, delivery, onResult }) {
     const c = cfg()
     if (!c.enabled) return { ok: false, message: '翻唱还没打开（面板「翻唱」标签里开）' }
     const st = status()
     if (!st.ready) return { ok: false, message: '翻唱环境还没装好：' + st.message }
     if (!song && !songId && !file) return { ok: false, message: '要说唱哪首歌' }
     if (queue.length >= 5) return { ok: false, message: '排队的歌太多了，等会儿再点' }
-    queue.push({ query: song || basename(file || ''), songId, file, pitch, voice, chatId, acapella: Boolean(acapella), duet: Boolean(duet) })
+    queue.push({ query: song || basename(file || ''), songId, file, pitch, voice, chatId, acapella: Boolean(acapella), duet: Boolean(duet), checkpoint, progress, delivery, onResult })
     const ahead = queue.length - 1 + (current ? 1 : 0)
     pump()
     return { ok: true, message: `开始准备「${song || basename(file || '')}」，大概要两三分钟${ahead ? `（前面还有 ${ahead} 首）` : ''}，做好了会直接发语音` }
+  }
+
+  function requestAutonomous(options) {
+    return new Promise((resolve) => {
+      const queued = request({ ...options, onResult: resolve })
+      if (!queued.ok) resolve({ ok: false, summary: queued.message })
+    })
   }
 
   return {
@@ -1043,6 +1061,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     convertSpeech,
     install: () => { runInstall(); return { ok: true, message: '开始安装，要下载好几个 GB，可能要十几分钟' } },
     request,
+    requestAutonomous,
     search: (q) => searchSongs(q, { cookie: cfg().neteaseCookie, limit: 8 }),
     account: () => account(cfg().neteaseCookie),
     voices: () => listVoices(P().models).map((v) => v.id),

@@ -146,7 +146,8 @@ export function createInner(deps) {
   async function deepThink(s, step, reason, canCommit) {
     const day = dayKey(now(), deps.tz())
     if (s.deepToday.day !== day) s.deepToday = { day, n: 0 }
-    if (!ask || !deps.budget.allow('deep', 3000)) return null
+    if (!ask || !canCommit()) return null
+    if (!deps.budget.allow('deep', 3000)) return { deferred: true }
     const thoughts = [step, ...s.log.slice(0, 5)].reverse().map((x) => x.thought).join('\n')
     const recalled = await deps.memory.recall({ cue: step.thought, limit: 5, deliberate: true }).catch(() => [])
     const text = `【为什么要认真想】${reason}\n【刚才的念头】\n${thoughts}\n【想起来的】\n${recalled.map((m) => `- ${dayKey(m.at, deps.tz())} ${m.text}`).join('\n') || '（没有）'}\n${deps.body.describe()}`
@@ -154,6 +155,7 @@ export function createInner(deps) {
     try {
       out = parseJson(await ask({ scene: 'deep', system: DEEP_SYSTEM(), text, maxTokens: 800 }))
     } catch (error) {
+      if (error.code === 'BUDGET') return { deferred: true }
       log.debug('深想失败：', error.message)
       return null
     }
@@ -179,6 +181,25 @@ export function createInner(deps) {
 
   async function thinkStep(canCommit) {
     const s = load()
+    const today = dayKey(now(), deps.tz())
+    const pending = (s.deferred || []).filter((item) => now() - item.step.at < 7 * 24 * 60 * MIN)
+    s.deferred = pending
+    const due = pending.filter((item) => item.day !== today).sort((a, b) => b.priority - a.priority || a.step.at - b.step.at)[0]
+    if (due && ask && deps.budget.allow('deep', 3000)) {
+      const deep = await deepThink(s, due.step, due.reason, canCommit)
+      if (!canCommit()) return null
+      if (!deep?.deferred) {
+        s.deferred = pending.flatMap((item) => item !== due ? [item] : deep || (due.attempts || 0) >= 2
+          ? [] : [{ ...due, day: today, attempts: (due.attempts || 0) + 1 }])
+        if (deep) {
+          const resumed = { ...due.step, at: now(), deep, resumed: true }
+          s.log = [resumed, ...s.log].slice(0, 300)
+          save(s)
+          return resumed
+        }
+        save(s)
+      }
+    }
     const cue = s.log[0]?.thought || recentHappenings(0).lines.slice(-1)[0] || ''
     const recalled = cue ? await deps.memory.recall({ cue, limit: 2 }).catch(() => []) : []
     if (!canCommit()) return null
@@ -198,10 +219,17 @@ export function createInner(deps) {
     // 重复：和前几步很像 → 停下来放空，无聊感上升
     const repeated = s.log.slice(0, 3).some((x) => overlap(x.thought, p.thought) >= 0.7)
     if (repeated) st.repeated = true
-    const reason = repeated ? '' : needsDeep(s, st)
+    const reason = repeated ? '' : needsDeep(s, { ...st, deep: p.deep })
     if (reason) {
       const d = await deepThink(s, st, reason, canCommit)
-      if (d) st.deep = d
+      if (d?.deferred) {
+        const queue = s.deferred || pending
+        const priority = reason === '越想越难受' ? 3 : reason === '涉及主人和你们的关系' ? 2 : 1
+        if (!queue.some((item) => overlap(item.step.thought, st.thought) >= 0.7)) {
+          s.deferred = [...queue, { day: today, step: st, reason, priority }]
+            .sort((a, b) => b.priority - a.priority || a.step.at - b.step.at).slice(0, 50)
+        }
+      } else if (d) st.deep = d
     }
     if (!canCommit()) return null
     if (recalled.length) deps.memory.strengthen(recalled.map((m) => m.id))
@@ -232,6 +260,12 @@ export function createInner(deps) {
     save(s)
   }
   function diary(limit = 50) { return load().log.slice(0, limit) }
+  function clearDeferred() {
+    const s = load()
+    s.deferred = []
+    save(s)
+  }
+  function deferredCount() { return (load().deferred || []).length }
   function boredom() { return load().boredom }
   /** 聊天时自然提起「我刚才还在想……」：最近 30 分钟里最后一个念头。 */
   function lastThought() {
@@ -239,5 +273,5 @@ export function createInner(deps) {
     return x && now() - x.at < 30 * MIN && !x.repeated ? x : null
   }
 
-  return { connect, step, idleTick, relieve, diary, boredom, lastThought, parseThought }
+  return { connect, step, idleTick, relieve, diary, boredom, lastThought, clearDeferred, deferredCount, parseThought }
 }

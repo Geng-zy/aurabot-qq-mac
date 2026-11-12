@@ -214,7 +214,7 @@ export interface MindApi {
   offer(a: {
     id: string; label: string; needs: Record<string, number>; effort?: number; delayHours?: number; cooldownMinutes?: number
     payoff?: number; keywords?: string[]; available?: () => true | string | false
-    run: () => Promise<{ ok: boolean; summary?: string; outcome?: number }>
+    run: (ctx: { checkpoint: () => Promise<void>; signal: AbortSignal; wants: string[] }) => Promise<{ ok: boolean; summary?: string; outcome?: number }>
   }): () => void
   /** 主人有没有批准她这项权限。 */
   granted(key: string): boolean

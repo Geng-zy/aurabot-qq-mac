@@ -15,11 +15,13 @@ export default {
   files: ['song/studio.js'],
   setup(api) {
     const { hub, local, http } = api.core
+    let closed = false
+    api.onDispose?.(() => { closed = true })
     const song = createSongStudio({
       local,
       getConfig: api.config,
       log: api.log,
-      sendVoiceFile: (chatId, file, note) => hub.sendVoiceFile(chatId, file, note),
+      sendVoiceFile: (chatId, file, note, opts) => hub.sendVoiceFile(chatId, file, note, opts),
       sendText: (chatId, text) => hub.sendText(chatId, text),
       // 翻唱失败那句话不写死：把歌名和真实原因给她，在那个聊天里用她自己的话说（参考原项目 6ac8693）。
       // 聊天空着就交给那个聊天的会话；正忙就单独组织一句；念了内部信息的句子不发。都不成由 studio 发一句兜底短话。
@@ -38,6 +40,42 @@ export default {
         api.emit('song/sung', { title, chatId })
       },
     })
+    function requestTask(options, requesters) {
+      if (!api.core.tasks || api.config().debug) return song.request(options)
+      if (!api.config().song.enabled) return { ok: false, message: '翻唱还没打开' }
+      const status = song.status()
+      if (!status.ready) return { ok: false, message: '翻唱环境还没装好：' + status.message }
+      if (hub.containsProtectedText?.(options.chatId, options.song)) return { ok: false, message: '点歌内容含私密信息' }
+      return api.core.tasks.start({
+        kind: '翻唱', chatId: options.chatId, requesters,
+        run: async (task) => {
+          const checkpoint = (stage) => {
+            if (closed) throw new Error('翻唱模块已关闭')
+            task.checkpoint(stage)
+          }
+          checkpoint('等待翻唱')
+          const result = await song.requestAutonomous({ ...options, checkpoint, progress: checkpoint, delivery: { ...task, isCurrent: () => !closed && task.isCurrent() } })
+          if (!result.ok && !result.simulated && !closed && task.isCurrent()) await hub.sendText(options.chatId, '这首歌没唱成，可以问我当前进度。')
+          return result
+        },
+      })
+    }
+
+    api.mind?.offer?.({
+      id: 'own-song', label: '翻唱一首自己想唱的歌', needs: { beauty: 0.55, competence: 0.5, companion: 0.3 },
+      effort: 0.55, cooldownMinutes: 720, keywords: ['想唱', '唱歌', '唱一首'],
+      available: () => Boolean(api.config().song.enabled && api.mind.creativeTarget('song') && song.status().ready),
+      async run({ checkpoint, wants }) {
+        const chatId = api.mind.creativeTarget('song')
+        if (!chatId) return { ok: false }
+        const title = await api.mind.creativeIdea('song', wants)
+        if (!title) return { ok: false }
+        return await song.requestAutonomous({ song: title, chatId, checkpoint: async () => {
+          await checkpoint()
+          if (api.mind.creativeTarget('song', { continuing: true }) !== chatId) throw new Error('主动翻唱已暂停')
+        } })
+      },
+    })
 
     // 面板里打开了才给她（没开就别让她答应唱歌）
     api.tool(({ chat, sessionId }) => (api.config().song.enabled && chat.kind !== 'system' ? defineTool({
@@ -48,7 +86,7 @@ export default {
       slow: '好，我这就去弄，稍等一会儿（做好了发你）。',
       execute: async ({ song: name, pitch, acapella, duet }) => {
         if (api.config().song.ownerOnly && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能点歌' }
-        return song.request({ song: name, pitch, acapella, duet, chatId: chat.chatId })
+        return requestTask({ song: name, pitch, acapella, duet, chatId: chat.chatId }, api.core.taskRequesters?.({ chat, sessionId }) || [])
       },
     }) : []))
 
@@ -77,9 +115,9 @@ export default {
     // 面板里试唱：发到主人私聊
     api.route('/song/request', async (req) => {
       const b = await http.body(req)
-      return song.request({ song: b.song, songId: b.songId, pitch: b.pitch, voice: b.voice, chatId: b.chatId || `private:${api.config().ownerQQ}` })
+      return requestTask({ song: b.song, songId: b.songId, pitch: b.pitch, voice: b.voice, chatId: b.chatId || `private:${api.config().ownerQQ}` }, [String(api.config().ownerQQ)])
     })
-    return song
+    return { ...song, requestTask }
   },
 }
 

@@ -70,13 +70,16 @@ test('工具接到网关：查询走 onebot，别人写操作被拒', async () =
 
 test('主人也不能把转发/点赞/拍一拍/资料操作发到白名单外的人或群', () => {
   const o = (action, params) => check(action, params, { owner: true })
-  assert.equal(o('forward_friend_single_msg', { message_id: 1, user_id: 5 }), '')
+  assert.match(o('forward_friend_single_msg', { message_id: 1, user_id: 5 }), /消息编号/)
   assert.match(o('forward_friend_single_msg', { message_id: 1, user_id: 6 }), /白名单/)
-  assert.equal(o('forward_group_single_msg', { message_id: 1, group_id: 9 }), '')
+  assert.match(o('forward_group_single_msg', { message_id: 1, group_id: 9 }), /消息编号/)
   assert.match(o('forward_group_single_msg', { message_id: 1, group_id: 10 }), /白名单/)
   assert.equal(o('send_like', { user_id: 5 }), '')
   assert.match(o('send_like', { user_id: 6 }), /白名单/)
   assert.match(o('friend_poke', { user_id: 6 }), /白名单/)
   assert.match(o('send_custom_face', { emoji_id: 1, group_id: 10 }), /白名单/)
+  assert.match(o('send_group_ai_record', { group_id: 10, character: '测试', text: '早上好' }), /白名单/)
+  assert.match(o('send_group_forward_msg', { group_id: 9, messages: [{ type: 'node', data: { id: 1 } }] }), /消息编号/)
+  assert.equal(o('send_group_forward_msg', { group_id: 9, messages: [{ type: 'node', data: { content: '早上好' } }] }), '')
   assert.equal(o('delete_msg', { message_id: 1 }), '', '不带目标的写操作不受影响')
 })

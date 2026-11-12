@@ -87,14 +87,15 @@ test('接线契约：preset、人格变量、闸门、面板开关都在', () =>
   const safeLine = /GROUP_GUEST_SAFE = \[([\s\S]*?)\]\r?\n/.exec(hub)
   assert.ok(safeLine, '没找到 GROUP_GUEST_SAFE 定义')
   const patterns = [...safeLine[1].matchAll(/\/((?:\\.|[^/\\])+)\//g)].map((m) => new RegExp(m[1]))
-  assert.ok(patterns.length >= 5, '白名单正则没解析出来')
+  assert.equal(patterns.length, 2, '白名单正则没解析出来')
   const dangerous = ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'read_image', 'web_fetch', 'web_search',
     'spawn_teammate', 'team_task_create', 'team_task_update', 'create_skill', 'working_directory',
-    'remote_upload_file', 'remote_read_session', 'job_kill', 'schedule_create',
+    'remote_upload_file', 'remote_read_session', 'job_kill', 'schedule_create', 'recall_memory', 'skill', 'present',
+    'mcp__AkashaTerminal_mihoyoAll__akasha_search',
     'mcp__fastctx__run', 'mcp__fastctx__run_background', 'mcp__fastctx__replace', 'mcp__fastctx__inspect_local_file']
   for (const bad of dangerous) assert.ok(!patterns.some((re) => re.test(bad)), `白名单不能匹配 ${bad}`)
   // 该留的还在
-  for (const ok of ['todo_write', 'ask_user_question', 'recall_memory', 'mcp__AkashaTerminal_mihoyoAll__akasha_search']) {
+  for (const ok of ['todo_write', 'ask_user_question']) {
     assert.ok(patterns.some((re) => re.test(ok)), `白名单应当留下 ${ok}`)
   }
   assert.ok(hub.includes("level === 'group-full'"), 'mount 没给 group-full 登记闸门')
@@ -136,4 +137,52 @@ test('闸门：群里非主人说话时本机工具被收走', async () => {
   assert.equal(hub.turnSendersAllOwner(sid), false, '掺了别人就要收紧')
   hub.simulateTurn(sid, [OTHER])
   assert.equal(hub.turnSendersAllOwner(sid), false, '只有别人时收紧')
+})
+
+test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async (t) => {
+  const { mkdtempSync, rmSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const { join } = await import('node:path')
+  const { createFakeDsh } = await import('./helpers/fake-dsh.js')
+  const { createHub } = await import('../src/chat/hub.js')
+  const dir = mkdtempSync(join(tmpdir(), 'aurabot-purge-tools-'))
+  const originalDataDir = process.env.AURABOT_DATA_DIR
+  process.env.AURABOT_DATA_DIR = join(dir, 'data')
+  const fake = createFakeDsh({ brain: () => '好' })
+  const cfg = normalize({ enabled: true, dryRun: true, ownerQQ: '10001', workspaceDir: join(dir, 'ws') })
+  const log = { info() {}, warn() {}, debug() {}, error() {} }
+  const hub = createHub({ dsh: fake.ctx, getConfig: () => cfg, log, onebot: { call: async () => ({}) } })
+  t.after(() => {
+    hub.dispose()
+    fake.dispose()
+    if (originalDataDir === undefined) delete process.env.AURABOT_DATA_DIR
+    else process.env.AURABOT_DATA_DIR = originalDataDir
+    rmSync(dir, { recursive: true, force: true })
+  })
+  const controller = fake.ctx.services.sessionController
+  const create = controller.create.bind(controller)
+  const purge = ['purge_apply', 'purge_revert', 'purge_status']
+  controller.create = async (request) => {
+    const result = await create(request)
+    const agent = fake.agents.get(result.sessionId)
+    const restrict = agent.ctx.tools.restrict
+    agent.ctx.tools.restrict = (filter) => {
+      if (filter.deny?.includes('aurabot__probe__')) {
+        throw new Error('tools.restrict() names unknown global tool "aurabot__probe__"; known global tools: ' + [...purge, 'present'].join(', '))
+      }
+      return restrict(filter)
+    }
+    return result
+  }
+  const chats = [
+    { kind: 'private', chatId: 'private:10001', userId: '10001' },
+    { kind: 'private', chatId: 'private:20002', userId: '20002' },
+    { kind: 'group', chatId: 'group:100200300', groupId: '100200300', userId: '10001' },
+  ]
+  for (const chat of chats) {
+    await hub.pushToSession(chat, [{ type: 'text', text: '你好' }], chat.userId)
+    const agent = [...fake.agents.values()].at(-1)
+    const expected = chat.chatId === 'private:10001' ? [] : purge
+    assert.deepEqual([...agent.denied], expected, chat.chatId)
+  }
 })

@@ -165,8 +165,9 @@ test('本地旧脚本未声明支持时，在执行前报错；已适配脚本�
 test('图库只接受文件名；任意路径、URL、base64 输入、伪图片一律拒绝', async (t) => {
   sandbox(t)
   const path = savePainting(PNG, '旧画'), file = basename(path)
-  const context = { chat: privateChat, hub: { referenceImage: () => { throw new Error('不该查询聊天') } } }
+  const context = { chat: privateChat, allowGlobalPaintings: true, hub: { referenceImage: () => { throw new Error('不该查询聊天') } } }
   assert.deepEqual(await resolveDrawImage(file, context), PNG)
+  await assert.rejects(resolveDrawImage(file, { ...context, chat: groupChat, allowGlobalPaintings: false }), /找不到这张画作/)
   for (const ref of [path, '../secret.png', '..\\secret.png', 'C:\\secret.png', 'C:/secret.png', '/tmp/secret.png', 'https://image.example/a.png', 'file:///tmp/secret.png', 'base64://' + b64, 'a.png\0', { file }]) {
     await assert.rejects(resolveDrawImage(ref, context), /只接受/)
   }
@@ -231,7 +232,8 @@ test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保
     onebot: { call: async (action) => {
       assert.equal(action, 'get_msg')
       gets++
-      return { sender: { user_id: OWNER }, message: [{ type: 'image', data: { file: 'base64://' + (gets === 2 ? OTHER : PNG).toString('base64') } }] }
+      const source = gets <= 2 ? { message_type: 'group', group_id: gets === 1 ? '123' : '456' } : { message_type: 'private' }
+      return { ...source, sender: { user_id: OWNER }, message: [{ type: 'image', data: { file: 'base64://' + (gets === 2 ? OTHER : PNG).toString('base64') } }] }
     } },
   })
   t.after(() => hub.dispose())

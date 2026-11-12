@@ -304,10 +304,15 @@ function visibleContent(text) {
 }
 
 /** 所有投递路径共用这一份清洗，区间也交给消息段出口使用。 */
-export function cleanOutboundText(text, { warn, promptSources, fingerprint, userText, ownerPrivate = false, allowPromptEcho = false, onPromptDecision, onRanges } = {}) {
+export function cleanOutboundText(text, { warn, promptSources, fingerprint, userText, ownerPrivate = false, allowPromptEcho = false, onPromptDecision, onRanges, protectedText } = {}) {
   const active = currentPromptSources()
   const sources = promptSources ?? [...(active?.system.values() || []), active?.context || '', ...(active?.memory || [])]
   const raw = String(text || '')
+  if (raw && protectedText?.(raw)) {
+    warn?.('消息含其他会话的私密内容，已拦下')
+    onRanges?.([{ start: 0, end: raw.length }])
+    return ''
+  }
   // 先剥 HTML 残片：它们和工具调用、提示词复读互不重叠，按原文坐标并进同一份区间表。
   const { cuts: htmlCuts } = stripHtmlFragments(raw)
   // time-context 注入不是提示词复读，主人私聊的复读豁免不该放过它，这里直接并进必删区间。
@@ -345,8 +350,16 @@ export function cleanOutboundText(text, { warn, promptSources, fingerprint, user
 /** 最终平台出口：合并检查整条消息的文字段，避免调用被拆段绕过；引用、@ 和媒体段原样保留。 */
 export function cleanOutboundSegments(message, options) {
   const texts = message.filter((seg) => seg.type === 'text')
-  if (!texts.length) return message
   const raw = texts.map((seg) => String(seg.data?.text || '')).join('')
+  if (options?.protectedText) {
+    const embedded = message.flatMap((seg) => seg.type === 'text' ? [] : ['title', 'summary', 'desc', 'content', 'text', 'name', 'data']
+      .map((key) => seg.data?.[key]).filter((value) => typeof value === 'string'))
+    if ([raw, ...embedded].some(options.protectedText)) {
+      options.warn?.('已拦下疑似包含私密记忆的回复')
+      return []
+    }
+  }
+  if (!texts.length) return message
   let ranges
   const clean = cleanOutboundText(raw, { ...options, onRanges: (value) => { ranges = value } })
   if (clean === raw) return message

@@ -107,6 +107,8 @@ test('画作引用：记住后能按编号 / 别名 / 文件名解析；不认�
     assert.equal(resolvePainting('private:1', basename(a)).file, basename(a))
     assert.equal(resolvePainting('private:1', '#999'), null, '不认识的编号不给')
     assert.equal(resolvePainting('private:2', '#1'), null, '别的聊天里没有这个编号')
+    assert.equal(resolvePainting('private:2', '最新'), null, '没有本会话画作时不回退到整个图库')
+    assert.equal(resolvePainting('private:2', basename(a)), null, '文件名不能读取其他聊天画作')
     assert.equal(resolvePainting('private:1', '../x.png'), null, '非法文件名不给')
     assert.deepEqual(recentPaintings('private:1', 2).map((x) => x.prompt), ['第二张', '第一张'])
   } finally {

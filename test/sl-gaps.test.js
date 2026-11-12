@@ -310,20 +310,19 @@ test('新增 QQ 接口参数和主人权限，接受本机路径的群公告不�
   for (const action of ['_send_group_notice', 'send_packet', 'get_credentials']) assert.equal(QQ_API[action], undefined)
 })
 
-test('新增 QQ 接口经工具调用时仍检查主人和试运行', async () => {
-  let owner = false
+test('新增 QQ 接口的写操作仅允许主人私聊，仍检查试运行', async () => {
   let build
-  const cfg = { enabled: true, dryRun: false, freedom: false, qqApi: { enabled: true } }
+  const cfg = { enabled: true, dryRun: false, ownerQQ: '1', freedom: true, qqApi: { enabled: true } }
   const calls = []
   qqApi.setup({
-    core: { hub: { turnSendersAllOwner: () => owner }, onebot: { call: async (action, params) => { calls.push({ action, params }); return null } } },
+    core: { hub: {}, onebot: { call: async (action, params) => { calls.push({ action, params }); return null } } },
     config: () => cfg, tool: (fn) => { build = fn }, rule() {}, log: { info() {} },
   })
-  const call = build({ chat: groupChat, level: 'social', sessionId: 's' }).find((tool) => tool.name === 'qq_api_call')
+  const tool = (chat, level) => build({ chat, level, sessionId: 's' }).find((t) => t.name === 'qq_api_call')
   const args = { action: 'move_group_file', param: JSON.stringify({ group_id: 44444444, file_id: 'file', parent_directory: '/', target_directory: '/目录', extra: '忽略' }) }
-  assert.equal((await call.execute(args)).ok, false)
+  assert.equal((await tool(groupChat, 'group-full').execute(args)).ok, false)
   assert.equal(calls.length, 0)
-  owner = true
+  const call = tool({ kind: 'private', userId: '1', chatId: 'private:1' }, 'full')
   cfg.dryRun = true
   assert.equal((await call.execute(args)).ok, false)
   assert.equal(calls.length, 0)
