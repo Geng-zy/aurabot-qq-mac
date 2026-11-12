@@ -194,6 +194,24 @@ test('令牌过期（401）会刷新一次再重试', async () => {
   assert.equal(n, 2)
 })
 
+test('订阅生图把选中的 GPT Image 2.6 模型传给服务端', async () => {
+  for (const model of ['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst']) {
+    const cfg = normalize({ imageGen: { enabled: true, provider: 'codex', codex: { model } } })
+    const requests = []
+    const gen = createImageGen({
+      getConfig: () => cfg,
+      log: silent,
+      fetchImpl: async (_url, init) => {
+        requests.push(JSON.parse(init.body).model)
+        return new Response(JSON.stringify({ data: [{ b64_json: b64 }] }))
+      },
+      codexAuth: { status: () => ({ loggedIn: true }), ensureAccess: async () => ({ access: 'T', accountId: 'A' }) },
+    })
+    await gen.generate('猫')
+    assert.deepEqual(requests, [model])
+  }
+})
+
 test('403 / 429 给人话', async () => {
   const mk = (status) => createImageGen({
     getConfig: () => normalize({ imageGen: { enabled: true, provider: 'codex' } }),
