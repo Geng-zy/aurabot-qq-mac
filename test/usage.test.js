@@ -138,7 +138,7 @@ test('后台任务按功能分：聊天不拆，后台轮次按模块名拆开',
   assert.equal(usage.moduleLabel('private:1316149505'), '聊天')
   assert.equal(usage.moduleLabel('system:diary'), '空间日记（后台）')
   assert.equal(usage.moduleLabel('system:ext-heybox'), '刷小黑盒（后台）')
-  assert.equal(usage.moduleLabel('system:bili'), '刷 B 站（后台）')
+  assert.equal(usage.moduleLabel('system:douyin'), '刷抖音（后台）')
   assert.equal(usage.moduleLabel('memory'), '记忆')
   assert.equal(usage.moduleLabel('mood'), '心情')
   assert.equal(usage.moduleLabel('未知模块'), '未知模块', '认不出的模块原样显示')
@@ -211,12 +211,7 @@ test('口径：inputTokens 是未命中缓存的输入，cacheReadTokens 是命�
 })
 
 test('工具归属：聊天里调用某模块的工具时，它的消耗算到那个功能名下', () => {
-  // 聊天里让她刷 B 站 → 调 bili_watch → 下一步读字幕/热评算「刷 B 站」，不全是「聊天」
-  assert.equal(usage.moduleOfTool('bili_watch'), '刷 B 站')
-  assert.equal(usage.moduleOfTool('bili_comment'), '刷 B 站')
-  assert.equal(usage.moduleOfTool('bili_danmaku'), '刷 B 站')
-  // bili 模块注册的 B 站截图工具，名字是 qq_ 开头，得靠例外表
-  assert.equal(usage.moduleOfTool('qq_send_shot'), '刷 B 站')
+  assert.equal(usage.moduleOfTool('voice_speak'), '语音')
   assert.equal(usage.moduleOfTool('qq_draw_image'), '生图')
   // 聊天本身的工具不算任何模块（仍记「聊天」）
   assert.equal(usage.moduleOfTool('qq_send_message'), '')
@@ -231,7 +226,7 @@ test('按聊天只列群聊和私聊，后台会话只在按模块里看', () =>
   const u = { inputTokens: 100, outputTokens: 10 }
   usage.recordUsage({ module: '聊天', chat: 'group:777', model: 'deepseek-v4.1-flash', usage: u, at })
   usage.recordUsage({ module: '聊天', chat: 'private:888', model: 'deepseek-v4.1-flash', usage: u, at })
-  usage.recordUsage({ module: '刷 B 站（后台）', chat: 'system:bili', model: 'deepseek-v4.1-flash', usage: u, at })
+  usage.recordUsage({ module: '空间日记（后台）', chat: 'system:diary', model: 'deepseek-v4.1-flash', usage: u, at })
   usage.recordUsage({ module: '其他后台任务', chat: '', model: 'deepseek-v4.1-flash', usage: u, at })
   const r = usage.usageReport({ now: at + 60_000, range: 'today' })
   const chats = r.current.byChat.map((x) => x.key)
@@ -239,6 +234,6 @@ test('按聊天只列群聊和私聊，后台会话只在按模块里看', () =>
   assert.ok(chats.every((k) => /^(group|private):/.test(k)))
   // 后台那两项在按模块里，不能丢
   const mods = r.current.byModule.map((x) => x.key)
-  assert.ok(mods.includes('刷 B 站（后台）'))
+  assert.ok(mods.includes('空间日记（后台）'))
   assert.ok(mods.includes('其他后台任务'))
 })

@@ -20,7 +20,6 @@ function cfg () {
     ownerName: '主人',
     stickers: { enabled: false },
     imageGen: { enabled: false },
-    bili: { enabled: false },
     memory: { enabled: true, recallCount: 8 },
   })
 }

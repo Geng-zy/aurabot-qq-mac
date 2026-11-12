@@ -15,7 +15,7 @@ export function createMediaAccess({ root, use, config }) {
   }
   return {
     mimeOf, parseWav, toMono16k,
-    ffmpegPath: () => findFfmpeg(config().bili?.ffmpegPath || ''),
+    ffmpegPath: () => findFfmpeg(config().local?.ffmpegPath || ''),
     avatar: () => picture(existsSync(dataDir('avatar.img')) ? dataDir('avatar.img') : join(root, 'assets', 'dafeiyu.jpg')),
     sticker(md5) {
       const item = use('stickers')?.library?.().items.find((i) => i.md5 === md5)

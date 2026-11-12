@@ -18,6 +18,23 @@ function recentLines(rows) {
   return rows.map((row) => ({ direction: row.dir, text: row.text.slice(0, 240) }))
 }
 
+const FOLLOW_UP = /^(?:(?:嗯|哦|对|所以)[，,、 ]*)?(?:那|这|后来|然后|之前|刚才|上次|接着|继续|他|她|它|他们|那个|这个|the[nm]\b|what (?:about|happened)\b|and then\b)/iu
+const NEW_TOPIC = /换个话题|说点别的|不说这个|先不说|说回|另外|顺便问|新问题|转个话题|on another note|unrelated|new topic/iu
+function contextCue(event, getHistory, speakers, now, isHidden) {
+  if (!speakers.length || !event || event.length > 42 || event.includes('\n') || !FOLLOW_UP.test(event) || NEW_TOPIC.test(event)) return ''
+  const prior = getHistory({ since: now - 30 * 60_000, limit: 12 }).filter((row) =>
+    row.dir === 'in' && speakers.includes(row.who) && !isHidden(row.who) && row.text.trim() !== event)
+  const anchors = []
+  for (const row of prior.reverse()) {
+    const text = row.text.trim()
+    if (NEW_TOPIC.test(text)) break
+    if (text.length < 5 || (text.length <= 42 && FOLLOW_UP.test(text))) continue
+    anchors.push(text.slice(0, 110))
+    if (anchors.length === 2) break
+  }
+  return anchors.reverse().join('\n')
+}
+
 function normalizeAppraisal(result, event, speakers, earlier, observations) {
   const evidence = typeof result?.e === 'string' ? result.e.trim() : ''
   if (!evidence || evidence.length > 80 || !event.includes(evidence)) return null
@@ -142,7 +159,8 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     let appraisal = null
     let timer
     try {
-      const recall = memory.workingMemory({ cue: event, window, people: speakers, readOnly, isCurrent: current, limit })
+      const context = contextCue(event, (options) => history(window, options), speakers, now(), (id) => person(id)?.noMemory)
+      const recall = memory.workingMemory({ cue: event, contextCue: context, window, people: speakers, readOnly, isCurrent: current, limit, embeddingTimeoutMs: Math.min(1800, Math.max(1, timeoutMs * 0.6)) })
         .then((value) => { if (current()) working = value })
         .catch((error) => log.debug('回复前回忆未完成：', error.message))
       const evaluate = readOnly ? null : appraise(window, observedEvent, speakers, state, current, utterances?.filter((line) => observedEvent.includes(line.text)))

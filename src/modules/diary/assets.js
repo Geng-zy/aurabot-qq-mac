@@ -61,7 +61,7 @@ export function createDiaryAssets(dir, { download = downloadImage } = {}) {
   }
   async function materialize(picture) {
     let bytes
-    if (picture.kind === 'browsing' && !picture.localShot) bytes = await download(picture.src)
+    if (picture.kind === 'browsing') bytes = await download(picture.src)
     else {
       // 目录扫描与实际读取之间再次检查，链接或越界文件不能混进选图。
       if (picture.root) {

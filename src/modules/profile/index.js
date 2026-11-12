@@ -1,6 +1,6 @@
 // 内置模块：主人私聊时查看自己的 QQ 资料，以及按权限修改昵称、签名、头像。
 // 三个都是 SnowLuma 的扩展动作（不是标准 OneBot v11）：set_qq_profile / set_self_longnick / set_qq_avatar。
-// 每个操作单独一档权限（面板「权限」页）：off 关 / owner 仅主人私聊（默认）/ all 所有人。B 站签名在 bili 模块里。
+// 每个操作单独一档权限（面板「权限」页）：off 关 / owner 仅主人私聊（默认）/ all 所有人。
 
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -33,7 +33,7 @@ export function avatarSource(input) {
 /** 换头像前把图压到 QQ 能收下：1MB 以内原样，大了先缩到 640 以内、JPEG。缩不了返回 null。 */
 async function smallerForAvatar (buf, cfg) {
   if (buf.length <= 1024 * 1024) return buf
-  const ffmpeg = findFfmpeg(cfg && cfg.bili && cfg.bili.ffmpegPath)
+  const ffmpeg = findFfmpeg(cfg?.local?.ffmpegPath)
   let small = ffmpeg ? await shrinkImage(buf, AVATAR_MAX_SIDE, ffmpeg) : null
   if (!small) small = await shrinkWithSharp(await findSharp(), buf, AVATAR_MAX_SIDE)
   if (!small || small.length > AVATAR_MAX_BYTES) return null

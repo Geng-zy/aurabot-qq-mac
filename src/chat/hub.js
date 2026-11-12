@@ -12,8 +12,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ownerAuthorizationRevision } from '../core/config.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { gifFrames } from '../core/image-info.js'
-import { parseReply, bubbleDelay, wantsVoice, itemsToLine, cleanOutboundText, cleanOutboundSegments } from './reply.js'
+import { parseReply, bubbleDelay, wantsVoice, itemsToLine, cleanOutboundText, cleanOutboundSegments, isSilence } from './reply.js'
 import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, topicRelevance } from './group-policy.js'
+import { guardReply, extractReply, CODE_INSTRUCTION, MARKER_INSTRUCTION } from './output-guard.js'
 import { checkAllowed, levelFor, presetFor, isOwner } from './access.js'
 import { fetchImage, segmentBytes } from '../core/net.js'
 import { toMono16k } from '../voice/wav.js'
@@ -531,7 +532,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const suffix = String(scope || '').trim().replace(/[^\w:-]/g, '').slice(0, 32)
     return suffix ? `system:${name}:${suffix}` : `system:${name}`
   }
-  /** 某个后台用途（比如 bili）的会话在冷却中吗。 */
+  /** 某个后台用途的会话在冷却中吗。 */
   function systemSessionCooldown(name, { key = '' } = {}) {
     const chatId = systemChatId(name, key)
     const failure = [sessionFailure(chatId), systemFailures.get(chatId)].find((item) => item && Date.now() < item.until)
@@ -685,13 +686,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         log.debug('换会话判断失败（不换）：', error.message)
       }
       if (reason) {
-        const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
-        try {
-          Promise.resolve(reg?.archiveSession?.(sid)).catch((error) => log.debug('归档会话失败：', error.message))
-        } catch (error) {
-          log.debug('归档会话失败：', error.message)
-        }
-        log.info(`${chat.chatId} 换新会话（${reason}），旧会话 ${sid.slice(-8)} 已归档`)
+        archiveQuietly(sid)
+        log.info(`${chat.chatId} 换新会话（${reason}），旧会话 ${sid.slice(-8)} 保留历史`)
         // 旧会话里还没记成经历的，马上记（不等聊天停下来）：最近几十条原话会接到新会话里，更早的靠这一步才想得起来
         try { Promise.resolve(mind?.encodeChat?.(chat.chatId)).catch(() => {}) } catch (error) {}
         sessionToChat.delete(sessionKey(sid))
@@ -711,7 +707,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     assertActive()
     const want = keyOf(target)
     const m = map()
-    if (want && m.chats[chat.chatId] && m.chats[chat.chatId].model !== want) {
+    const entryModel = m.chats[chat.chatId]?.model
+    const currentModel = typeof agent.model?.current === 'function' ? keyOf(agent.model.current()) : entryModel
+    if (want && m.chats[chat.chatId] && (currentModel !== want || entryModel !== want)) {
       if (applyModel(agent, target)) {
         m.chats[chat.chatId].model = want
         saveMap(m)
@@ -795,11 +793,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (!target) return false
       const sel = { provider: target.provider, model: target.model }
       if (target.reasoningEffort) sel.reasoningEffort = target.reasoningEffort
-      // 活着的会话只认会话控制器内存里的选择：用它的 selectForNextRequest（selectModel 也是调它，
-      // 但 selectModel 还会顺手改掉 DSH 的全局默认模型，我们不要）。拿不到就只写持久事件（重启恢复时生效）。
-      const agents = controller().agents
-      if (agents && typeof agents.selectForNextRequest === 'function') agents.selectForNextRequest(agent, sel)
-      else agent.session.append('model/selection', sel)
+      // agent.model.select 只作用于当前会话。旧宿主用控制器内部的会话选择接口。
+      if (typeof agent.model?.select === 'function') agent.model.select(sel)
+      else {
+        const agents = controller().agents
+        if (typeof agents?.selectForNextRequest === 'function') agents.selectForNextRequest(agent, sel)
+        else agent.session.append('model/selection', sel)
+      }
       return true
     } catch (error) {
       log.debug('设置会话模型失败（用默认）：', error.message)
@@ -843,7 +843,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         try {
           // 慢工具（生图 / 翻唱……）卡超过 1.5 秒就先发一条提示：不让主人以为她没收到（issue #74）。
           // 包装只加在挂给 agent 的这份工具上；面板里直接调工具（host 路由）照旧。
-          let reg = tool
+          const execute = async (args, exec) => {
+            if (turnState.get(sid)?.rewriting) return { ok: false, message: '这一步只重写回复正文' }
+            return tool.execute(args, exec)
+          }
+          let reg = { ...tool, execute }
           if (tool.slow) {
             const { slow, ...base } = tool
             const notice = typeof slow === 'string' ? slow : '好，我这就去做，做完跟你说一声。'
@@ -851,7 +855,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
               ...base,
               async execute(args, exec) {
                 let fired = false
-                const isCurrent = () => !disposed && running.has(chat.chatId)
+                const token = running.get(chat.chatId)
+                const isCurrent = () => !disposed && token !== undefined && running.get(chat.chatId) === token
                 const timer = setTimeout(() => {
                   slowTimers.delete(timer)
                   if (fired) return
@@ -864,7 +869,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
                 slowTimers.set(timer, sid)
                 timer.unref?.()
                 try {
-                  return await tool.execute(args, exec)
+                  return await execute(args, exec)
                 } finally {
                   clearTimeout(timer)
                   slowTimers.delete(timer)
@@ -897,6 +902,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
               const t = p({ chat, sessionId: sid, publicOnly: sources.publicOnly === true })
               if (t) parts.push(t)
             } catch (error) {}
+          }
+          if (chat.kind !== 'system') {
+            if (getConfig().chat?.thinkingGuard !== false) parts.push(CODE_INSTRUCTION)
+            if (getConfig().chat?.replyMarker) parts.push(MARKER_INSTRUCTION)
           }
           const text = cleanText(parts.join('\n\n'))
           sources.context = text
@@ -1013,14 +1022,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!text.trim()) return null
     // 文字里的 <face:名字> 换成 QQ 系统表情，和文字在同一条消息里；系统表情关着就去掉标签
     const channel = channelOf(chatId)
-    let segs = channel?.textSegments ? channel.textSegments(text, Boolean(getConfig().stickers.faces && channel.caps?.faces)) : [{ type: 'text', data: { text: stripFaceTags(text) } }]
+    let segs = opts.literalCode ? [{ type: 'text', data: { text } }] : channel?.textSegments ? channel.textSegments(text, Boolean(getConfig().stickers.faces && channel.caps?.faces)) : [{ type: 'text', data: { text: stripFaceTags(text) } }]
     // 群里的 @名字 / <at:QQ号> 换成真 @（对方会收到提醒）
-    if (chatId.startsWith('group:') && hasMention(text)) segs = expandMentions(segs, await membersOf(chatId.slice(6)), missed)
+    if (!opts.literalCode && chatId.startsWith('group:') && hasMention(text)) segs = expandMentions(segs, await membersOf(chatId.slice(6)), missed)
     if (!segs.length || (segs.length === 1 && segs[0].type === 'text' && !segs[0].data.text.trim())) return null
     return sendSegments(chatId, [...quote(replyId), ...mention(userId, segs), ...segs], (replyId ? '[引用] ' : '') + text.slice(0, 60), opts)
   }
 
-  async function sendVoice(chatId, text, replyId, userId) {
+  async function sendVoice(chatId, text, replyId, userId, opts = {}) {
     text = cleanOutboundText(text, cleaningFor(chatId))
     if (!text.trim()) return false
     let b64, engine, extras
@@ -1034,20 +1043,20 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       b64 = readFileSync(voice.file).toString('base64')
     } catch (error) {
       log.warn('语音没合成出来，改发文字：', error.message)
-      await sendText(chatId, text, replyId, undefined, userId)
+      await sendText(chatId, text, replyId, undefined, userId, opts)
       return false
     }
     // QQ 客户端不支持「引用 / @ + 语音」同一条消息：语音条一律单独成条（issue #103）。
     if (replyId || userId) log.debug(`语音条不能带引用/@（QQ 限制），单独发：${chatId}`)
     try {
-      const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64 } }], `[语音·${engine}] ${text.slice(0, 40)}`, { throwOnError: true, timeoutMs: FILE_TIMEOUT_MS })
+      const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64 } }], `[语音·${engine}] ${text.slice(0, 40)}`, { ...opts, throwOnError: true, timeoutMs: FILE_TIMEOUT_MS })
       if (r || getConfig().dryRun || !getConfig().enabled) {
         bump('voice')
         // 表情不念出来，但要补上：语音条发完再单独发一条文字里的表情（用户反馈：希望表情和语音分开发）
         if (extras && getConfig().voice.emojiSeparate !== false) {
           // 补发是额外的一条：失败只记日志，不算这一轮发失败（不然语音明明发出去了也会被当成没发）
           try {
-            const sent = await sendText(chatId, extras, undefined, undefined, undefined, { quiet: true })
+            const sent = await sendText(chatId, extras, undefined, undefined, undefined, { ...opts, quiet: true })
             log.debug(sent ? `语音后面补发了一条表情：${chatId}` : '表情没补发出去（不影响语音条）')
           } catch (error) {
             log.debug('表情没补发出去：', error.message)
@@ -1062,7 +1071,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     } catch (error) {
       if (definiteFailure(chatId, error)) {
         log.warn('语音没发出去，改发文字：', error.message)
-        await sendText(chatId, text, replyId, undefined, userId)
+        await sendText(chatId, text, replyId, undefined, userId, opts)
       } else {
         log.warn('语音发送结果不确定，不再改发文字：', error.message)
         failStore.getStore()?.push(error.message)
@@ -1207,7 +1216,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
   }
 
-  async function sendSticker(chatId, query, replyId, userId) {
+  async function sendSticker(chatId, query, replyId, userId, opts = {}) {
     // 面板里把表情包关了：回复里的 <sticker:…>、工具、扩展模块要发的一律不发（#31）
     if (!getConfig().stickers.enabled) {
       log.debug(`表情包关着，「${typeof query === 'object' ? query?.name || '' : query}」不发`)
@@ -1220,7 +1229,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     const seg = stickers.segmentFor(item)
     if (!seg) return false
-    await sendSegments(chatId, [...quote(replyId), ...mention(userId), seg], `[表情] ${item.name || item.md5.slice(0, 8)}`)
+    await sendSegments(chatId, [...quote(replyId), ...mention(userId), seg], `[表情] ${item.name || item.md5.slice(0, 8)}`, opts)
     stickers.markUsed?.(item.md5)
     bump('stickers')
     return true
@@ -1251,7 +1260,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // 用 pathToFileURL 转成合法的 file:// 地址（路径里的空格、中文会正确编码）
       const file = local.startsWith('file://') ? local : pathToFileURL(local).href
       try {
-        const r = await sendSegments(chatId, [...head, { type: 'image', data: { file } }], `[图片·路径] ${local.slice(-40)}`, { throwOnError: true })
+        const r = await sendSegments(chatId, [...head, { type: 'image', data: { file } }], `[图片·路径] ${local.slice(-40)}`, { ...opts, throwOnError: true })
         if (r) {
           log.debug(`${chatId}：按路径发图「${local.slice(-40)}」`)
           return r
@@ -1270,7 +1279,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     try {
       const buf = await fetchImage(s, { maxBytes: MAX_IMAGE_BYTES })
-      return sendSegments(chatId, [...head, { type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[图片] ${s.slice(-40)}`)
+      return sendSegments(chatId, [...head, { type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[图片] ${s.slice(-40)}`, opts)
     } catch (error) {
       log.warn('图片发不出去：', error.message)
       return null
@@ -1290,13 +1299,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 一轮回复落地：拆条、语音、表情。 */
   function deliver(chatId, text, opts = {}) {
     const active = currentPromptSources()
-    const current = active || outputSources.get(chatId)
+    const current = opts.sources || active || outputSources.get(chatId)
     const sources = current && { ...current, system: new Map(current.system), memory: [...current.memory] }
     return outputScope.run({ chatId, sources, sent: 0, blocked: false, allowPromptEcho: false }, () => deliverTurn(chatId, text, opts))
   }
 
   async function deliverTurn(chatId, text, opts = {}) {
-    if (disposed) return
+    const current = () => !disposed && (opts.isCurrent?.() ?? true)
+    if (!current()) return
     const cfg = getConfig()
     text = cleanOutboundText(text, cleaningFor(chatId))
     if (text.trim() && hooks?.reply) {
@@ -1308,14 +1318,15 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         log.warn('扩展模块改写回复出错：', error.message)
       }
     }
-    if (disposed) return
+    if (!current()) return
+    if (opts.own && cfg.chat?.thinkingGuard !== false) text = guardReply(text)
     text = cleanOutboundText(text, { ...cleaningFor(chatId), onPromptDecision: (allow) => { outputScope.getStore().allowPromptEcho = allow } })
     const r = parseReply(text, cleaningFor(chatId))
     if (r.silent) return silenceTurn(chatId)
     let items = r.items
     // 分条发出的中间段（chat.everyStep）：只发她当时说的原话，不做语音转换、不补表情、不按概率改形态，
     // 免得一段闲聊被拆成语音条和表情乱入。标签、markdown 图片照旧解析。
-    const interim = Boolean(opts.interim)
+    const interim = Boolean(opts.interim) || items.some((item) => item.code)
     // 对方明确要语音、她却只打了字：整段改成语音发（模型偶尔会忘，这里兜底）
     if (!interim && opts.wantVoice && cfg.voice.enabled && !items.some((i) => i.kind === 'voice')) {
       const spoken = items.filter((i) => i.kind === 'text').map((i) => i.value).join('，')
@@ -1360,22 +1371,22 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const failures = []
     await failStore.run(failures, async () => {
       for (let i = 0; i < items.length; i++) {
-        if (disposed) return
+        if (!current()) return
         const it = items[i]
         const selected = it.replyTo ? refs[it.replyTo] : (!explicit && i === firstSendable ? opts.autoReply : null)
         const replyId = selected?.mid
         // 她自己引用了 @ 她的人就照常 @；自动回复只有一个人说话时才有（#160）
         const userId = selected && (selected.direct || opts.autoReply?.uid === selected.uid) ? selected.uid : undefined
         if (it.replyTo && !replyId) log.debug(`${chatId}：引用的编号 ${it.replyTo} 对不上，正常发`)
-        if (it.kind === 'text') await sendText(chatId, it.value, replyId, missedAt, userId)
+        if (it.kind === 'text') await sendText(chatId, it.value, replyId, missedAt, userId, { isCurrent: current, literalCode: it.code })
         else if (it.kind === 'voice') {
-          if (cfg.voice.enabled) await sendVoice(chatId, it.value, replyId, userId)
+          if (cfg.voice.enabled) await sendVoice(chatId, it.value, replyId, userId, { isCurrent: current })
           else await sendText(chatId, it.value, replyId, missedAt, userId)
-        } else if (it.kind === 'sticker') await sendSticker(chatId, it.value, replyId, userId)
+        } else if (it.kind === 'sticker') await sendSticker(chatId, it.value, replyId, userId, { isCurrent: current })
         else if (it.kind === 'poke') { if (!opts.simulate) await pokeBack(chatId) }
         else if (it.kind === 'image') {
           if (localImageBlocked(chatId, it.value)) log.warn(`${chatId}：回复里的本机图片不在允许的目录里，没发`)
-          else await sendImage(chatId, it.value, replyId, userId)
+          else await sendImage(chatId, it.value, replyId, userId, { isCurrent: current })
         }
         if (i < items.length - 1 && !opts.simulate) await pause(bubbleDelay(items[i + 1].kind === 'text' ? items[i + 1].value : '') * mood().delay)
       }
@@ -1436,6 +1447,19 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!chatId || !event) return
     const st = turnState.get(key) || { lastTurn: -1, text: '', senders: new Set() }
     turnState.set(key, st)
+    const dTurn = event.data?.turn
+    if (dTurn != null && st.finishedTurns?.has(dTurn) && ['turn/start', 'assistant/message', 'turn/end', 'tool/call'].includes(event.type)) return
+    if (event.type === 'turn/start' || event.type === 'assistant/message' || event.type === 'tool/call') {
+      if (st.runToken !== undefined && st.activeTurn != null && st.finishedTurns?.has(st.activeTurn)
+        && dTurn != null && dTurn !== st.activeTurn && !running.has(chatId)
+        && (event.type === 'turn/start' || (typeof dTurn === 'number' && typeof st.activeTurn === 'number' && dTurn > st.activeTurn))
+        && turnCurrent(chatId, key, st.runToken)) {
+        // 宿主可能在上一轮还在投递时开始处理已接收的插话。
+        markRunning(chatId, st)
+      }
+      if (dTurn != null && st.runToken !== undefined && running.get(chatId) === st.runToken) st.activeTurn ??= dTurn
+      if (event.type === 'turn/start' || (st.runToken !== undefined && dTurn != null && st.activeTurn != null && dTurn !== st.activeTurn)) return
+    }
     if (event.type === 'user/message') {
       // 主人在 DSH 会话窗口里直接打字（不是从 QQ 转进来的，#58）：只有主人能操作 DSH，
       // 这一轮按「主人说的」算；不然重开会话后在面板里让她改资料会报没权限。
@@ -1452,8 +1476,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (event.type === 'assistant/message') {
       const d = event.data || {}
       // 用量：DSH 把每次模型调用的 token 数记在这个事件里（含重试）。
-      // 平时按「聊天」记账；如果这一步是在处理某个工具的结果（比如聊天里让她刷 B 站），
-      // 算到那个工具所属的模块名下，别把「刷 B 站」的消耗全算成聊天。
+      // 平时按「聊天」记账；如果这一步是在处理某个工具的结果（比如聊天里让她生图），
+      // 算到那个工具所属的模块名下，别把生图的消耗全算成聊天。
       // 系统会话（刷小黑盒 / 日记 / 目的引擎那种）本来就按来源记，不受影响。
       if (d.usage) {
         const target = sessionTarget.get(key)
@@ -1486,22 +1510,21 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // 此刻还不知道后面有没有话，把当前段提前发掉会让最后一段变成重复。最后一段仍由 turn/end 发。
       if (raw && getConfig().chat?.everyStep) {
         let prev = takeInterim(st, { turn: d.turn, step: d.step, text: raw })
+        if (prev && getConfig().chat?.replyMarker) prev = extractReply(prev) || ''
+        if (prev && getConfig().chat?.thinkingGuard !== false) prev = guardReply(prev)
+        const token = st.runToken
         // 中间段里的 <feel> 也交给心智核心（发出去时会被剥掉，这里不收就丢了）
         if (prev && mind?.feel) { try { prev = mind.feel(chatId, prev, { senders: [...(st.senders || [])] }) } catch (error) {} }
         if (prev) {
           // 不在这里记账：deliver 会在真发出去之后自己 logChat，一条都没发成功就不记。
           // 这里再记一次会让每个中间段在聊天流水里出现两遍，发送失败时还会把没发出去的话算成说过。
           log.debug(`${chatId}：分条发出上一段（${prev.length} 字）`)
-          chainSend(chatId, () => deliver(chatId, prev, { own: true, interim: true }), '分条发送出错：')
+          chainSend(chatId, () => deliver(chatId, prev, { own: true, interim: true, isCurrent: () => turnCurrent(chatId, key, token) }), '分条发送出错：')
         }
       }
       return
     }
     if (event.type === 'turn/end') {
-      slowNoticeSent.delete(key)
-      clearSlowNotices(key)
-      clearRunning(chatId)
-      stopTyping(key)
       // 只让「这个聊天当前模式在用的那条会话」把回复发出去：切过调试 / 正式、或者点过「重新开始」以后，
       // 旧会话可能还开在侧栏里，在那儿打字，她的回复不该发到 QQ（来自原项目 cd19db4 / 6949a96）
       if (!chatId.startsWith('system:')) {
@@ -1509,15 +1532,24 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         const mode = getConfig().debug ? 'debug' : 'live'
         if (!cur || sessionKey(cur.sessionId) !== key || (cur.mode || 'live') !== mode) {
           log.info(`${chatId} 的旧会话（${key.slice(0, 8)}…）这一轮不发：它不是当前模式在用的会话`)
-          return release(chatId)
+          if (st.runToken !== undefined) release(chatId, st.runToken)
+          return
         }
       }
       const d = event.data || {}
+      const token = st.runToken
+      if (token !== undefined && !turnCurrent(chatId, key, token)) return
+      if (st.activeTurn != null && d.turn != null && st.activeTurn !== d.turn) return
+      rememberFinished(st, d.turn)
+      slowNoticeSent.delete(key)
+      clearSlowNotices(key)
+      clearRunning(chatId)
+      stopTyping(key)
       const completed = d.reason && d.reason.kind === 'completed'
       let text = st.lastTurn === d.turn ? st.text : ''
       // 整轮一段正文都没有：她可能把话全写在思考里了（Reply: 起草 → Careful: 自检 → N lines: 定稿），
       // 正文块是空的。chat.rescueFromThinking 打开时从最后一步的思考里捞回定稿；捞不到就照旧不发。
-      if (!text && completed && getConfig().chat?.rescueFromThinking && st.thinking && st.thinking.turn === d.turn) {
+      if (!text && completed && !getConfig().chat?.replyMarker && getConfig().chat?.rescueFromThinking && st.thinking && st.thinking.turn === d.turn) {
         const rescued = rescueFromThinking(st.thinking.text)
         if (rescued) {
           text = rescued
@@ -1525,6 +1557,19 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         }
       }
       st.thinking = null
+      if (!chatId.startsWith('system:')) {
+        const settings = getConfig().chat
+        if (completed && settings?.replyMarker && !isSilence(text)) {
+          const marked = extractReply(text)
+          if (marked === null && !st.rewriting) {
+            requestReplyRewrite(chatId, key, st)
+            return
+          }
+          text = marked || ''
+        }
+        if (settings?.thinkingGuard !== false) text = guardReply(text)
+      }
+      st.rewriting = false
       // 心智核心：收走回复里的 <feel>（她的感受，别人看不到），一轮聊完花一点精力
       const turnSenders = [...(st.senders || [])]
       if (mind?.feel && text) {
@@ -1550,28 +1595,34 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         return
       }
       if (!completed) {
-        const detail = String(d.reason?.error?.message || d.reason?.failure?.message || '').replace(/\s+/g, ' ').slice(0, 180)
-        log.warn(`${chatId} 这一轮没正常结束（${d.reason?.kind || '?'}${detail ? '：' + redact(detail) : ''}），不发`)
-        release(chatId)
+        const failure = d.reason?.error || d.reason?.failure
+        const code = typeof failure?.code === 'string' ? failure.code.replace(/[^\w/-]/g, '').slice(0, 60) : ''
+        const detail = String(failure?.message || '').replace(/\s+/g, ' ').slice(0, 180)
+        log.warn(`${chatId} 这一轮没正常结束（${d.reason?.kind || '?'}${code ? ' ' + code : ''}${detail ? '：' + redact(detail) : ''}），不发`)
+        release(chatId, token)
         return
       }
       if (chatId.startsWith('system:')) return // 已超时的后台轮次不能误发到 QQ
       // 面板里的调试对话在等这一轮：把她说的话交回去（调试模式下照常只进日志，不发 QQ）
       const waiter = debugWaiters.get(chatId)
       if (waiter) { debugWaiters.delete(chatId); waiter(text) }
-      if (!text) return release(chatId)
+      if (!text) return release(chatId, token)
       // 发完再放开：发送期间来的消息也攒到下一段。
       // 没有中间段在发的时候就走原来的路径（同步开始、release 跟着这一条走），时序和以前一模一样；
       // 只有前面真有中间段没发完时才排队，保证最后一段一定是最后一条（#214 review）。
-      const sendLast = () => deliver(chatId, text, { wantVoice, autoReply, userText: st.lastText || '', own: true })
+      const userText = st.lastText || ''
+      const isCurrent = () => turnSessionCurrent(chatId, key)
+      const captured = outputSources.get(chatId)
+      const sources = captured && { ...captured, system: new Map(captured.system), memory: [...captured.memory] }
+      const sendLast = () => deliver(chatId, text, { wantVoice, autoReply, userText, own: true, isCurrent, sources })
         .catch((error) => log.warn('发送出错：', error.message))
-        .finally(() => release(chatId))
+        .finally(() => { if (turnEpochs.get(chatId)?.token === token) release(chatId, token) })
       const pending = sendChain.get(chatId)
       if (pending) {
-        const chained = pending.then(sendLast, sendLast)
-        sendChain.set(chatId, chained)
-        const done = () => { if (sendChain.get(chatId) === chained) sendChain.delete(chatId) }
-        chained.then(done, done)
+        const sending = pending.then(sendLast, sendLast)
+        sendChain.set(chatId, sending)
+        const done = () => { if (sendChain.get(chatId) === sending) sendChain.delete(chatId) }
+        sending.then(done, done)
       } else {
         sendLast()
       }
@@ -1786,7 +1837,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 超大的图交给模型可能让整轮请求失败：先缩小，缩不了就跳过这张，别的照常。 */
   async function fitForModel(buf) {
     if (buf.length <= MODEL_IMAGE_BYTES) return buf
-    const ffmpeg = findFfmpeg(getConfig().bili?.ffmpegPath || '')
+    const ffmpeg = findFfmpeg(getConfig().local?.ffmpegPath || '')
     const small = (ffmpeg ? await shrinkImage(buf, 2048, ffmpeg) : null) || await shrinkWithSharp(await findSharp(), buf, 2048)
     if (!small || small.length > MODEL_IMAGE_BYTES) throw new Error(`图片 ${Math.round(buf.length / 1048576)}MB 缩不下来`)
     return small
@@ -2260,6 +2311,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const running = new Map() // chatId → 这一轮的编号（模型 / 工具还没结束，turn/end 之前）；私聊此时新消息直接 steer 进去
   // 轮次兜底（来自原项目 9c8c0f5 / 077b56c）：模型或工具卡住时 turn/end 永远不来，running 一直挂着，
   // 后面的私聊消息全被当成 steer 塞进那一轮，看上去就是「不理人」。超过上限就强制放开，下一条消息正常开新一轮。
+  const turnEpochs = new Map()
   const runningTimers = new Map() // chatId → timer
   let turnSeq = 0
   const turnMaxMs = () => {
@@ -2267,23 +2319,66 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!Number.isFinite(mins)) return 30 * 60_000
     return mins <= 0 ? 0 : mins * 60_000 // 0 = 关掉兜底
   }
-  function markRunning(chatId) {
+  function turnSessionCurrent(chatId, key) {
+    if (disposed) return false
+    if (chatId.startsWith('system:')) return true
+    const entry = map().chats[chatId]
+    return Boolean(entry && sessionKey(entry.sessionId) === key && (entry.mode || 'live') === (getConfig().debug ? 'debug' : 'live'))
+  }
+  const turnCurrent = (chatId, key, token) => turnEpochs.get(chatId)?.token === token && turnSessionCurrent(chatId, key)
+
+  function rememberFinished(st, turn) {
+    if (turn == null) return
+    st.finishedTurns ??= new Set()
+    st.finishedTurns.add(turn)
+    if (st.finishedTurns.size > 24) st.finishedTurns.delete(st.finishedTurns.values().next().value)
+  }
+
+  function requestReplyRewrite(chatId, key, st) {
+    st.rewriting = true
+    busy.set(chatId, Date.now())
+    st.text = ''
+    st.lastTurn = -1
+    st.interimTurn = null
+    st.interimText = ''
+    const token = markRunning(chatId, st, { rewrite: true })
+    const agent = mounted.get(key)?.agent
+    const fail = (error) => {
+      if (!turnCurrent(chatId, key, token)) return
+      log.debug('重写正文未完成：', error?.message || '会话不可用')
+      release(chatId, token)
+    }
+    if (!agent?.followup) return fail()
+    const request = { id: randomUUID(), role: 'user', content: [{ type: 'text', text: '请把上一轮的最终正文重写一次。保留原意，只输出给对方看的话，不要调用工具。' + MARKER_INSTRUCTION }], source: { kind: SOURCE_KIND, speaker: { role: 'none' } } }
+    Promise.resolve().then(() => {
+      if (turnCurrent(chatId, key, token)) return withPromptCapture(sourcesFor(chatId), () => agent.followup(request))
+    }).catch(fail)
+  }
+
+  function markRunning(chatId, st, { rewrite = false } = {}) {
     const token = ++turnSeq
     running.set(chatId, token)
+    turnEpochs.set(chatId, { token, st })
+    if (st) {
+      st.runToken = token
+      st.activeTurn = null
+      st.rewriting = rewrite
+    }
     const old = runningTimers.get(chatId)
     if (old) { clearTimeout(old); runningTimers.delete(chatId) }
-    const limit = turnMaxMs()
-    if (!limit) return
+    const max = turnMaxMs()
+    const limit = rewrite ? Math.min(max || 20000, 20000) : max
+    if (!limit) return token
     const timer = setTimeout(() => {
       // 只放开卡住的那一轮：已经换成新一轮就别误伤
       if (running.get(chatId) !== token) return
-      running.delete(chatId)
-      runningTimers.delete(chatId)
-      log.warn(`${chatId}：这一轮超过 ${Math.round(limit / 60000)} 分钟没结束，强制放开（后面的消息不会再被塞进卡住的轮次）`)
-      release(chatId)
+      if (st) rememberFinished(st, st.activeTurn)
+      log.warn(`${chatId}：${rewrite ? '重写回复' : '这一轮'}超时，强制放开`)
+      release(chatId, token)
     }, limit)
     timer.unref?.()
     runningTimers.set(chatId, timer)
+    return token
   }
   function clearRunning(chatId) {
     running.delete(chatId)
@@ -2326,7 +2421,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 「她挑」的提示统一在这里补：私聊、群聊、插话三条路都要带上
     const hint = p.stickerPick ? '\n\n' + stickerHint(p.stickerPick) : ''
     // 私聊：她这一轮还在跑（想 / 调工具），新消息直接 steer 进当前这一轮，像在 DSH 界面里插话一样（#7）
-    if (isBusy(chatId) && p.chat.kind === 'private' && running.has(chatId)) {
+    if (isBusy(chatId) && p.chat.kind === 'private' && running.has(chatId) && !turnEpochs.get(chatId)?.st?.rewriting) {
       pending.delete(chatId)
       if (p.count > 1) log.info(`${chatId}：合并了 ${p.count} 条消息一起插给她`)
       const content = [{ type: 'text', text: p.texts.join('\n') + hint }, ...p.images]
@@ -2401,7 +2496,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         log.info(`${chatId}：${error.message}`)
         return
       }
-      release(chatId)
+      if (!error.aurabotTurnReleased) release(chatId)
       bump('errors')
       log.error(`转进 DSH 失败（${chatId}）：`, error.message)
     }
@@ -2434,7 +2529,24 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   /** 她这一轮说完了（或者没说）：放开，把这期间攒下的消息交给她。 */
-  function release(chatId) {
+  function release(chatId, token) {
+    if (token !== undefined && turnEpochs.get(chatId)?.token !== token) return
+    const state = turnEpochs.get(chatId)?.st
+    if (state) {
+      const key = sessionKey(map().chats[chatId]?.sessionId)
+      if (turnState.get(key) === state) {
+        slowNoticeSent.delete(key)
+        clearSlowNotices(key)
+        stopTyping(key)
+      }
+      rememberFinished(state, state.activeTurn)
+      state.runToken = undefined
+      state.activeTurn = null
+      state.rewriting = false
+    }
+    turnEpochs.delete(chatId)
+    const waiter = debugWaiters.get(chatId)
+    if (waiter) { debugWaiters.delete(chatId); waiter('') }
     busy.delete(chatId)
     clearRunning(chatId)
     mind?.endTurn?.(chatId)
@@ -2472,17 +2584,29 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     flush(next).catch(() => {})
   }
 
-  async function admit(agent, content) {
-    if (content.length === 1) return content
-    const att = dsh.attachments || dsh.get('attachments')
-    if (att && typeof att.admitPromptContent === 'function') {
+  async function admit(content) {
+    const images = content.filter((part) => part.type === 'image')
+    if (!images.length) return content
+    const att = optionalService('attachments')
+    const nonImages = content.filter((part) => part.type !== 'image')
+    if (typeof att?.admitPromptContent === 'function') {
       try {
         return await att.admitPromptContent(content)
       } catch (error) {
-        log.warn('图片交给 DSH 没成功（这轮只给文字）：', error.message)
+        const code = String(error?.code || '')
+        log.warn(`DSH 图片准入失败${code ? `（${code}）` : ''}：`, redact(error?.message || String(error)))
+        // DSH 对整批图片原子校验。数量或总大小超限时，留一张可查看的图继续这一轮。
+        if (images.length > 1 && ['TOO_MANY_IMAGES', 'IMAGES_TOO_LARGE'].includes(code)) {
+          try {
+            const first = images[0]
+            const reduced = content.filter((part) => part.type !== 'image' || part === first)
+            const admitted = await att.admitPromptContent(reduced)
+            return [...admitted, { type: 'text', text: '（这次只交给你第一张图片，其余图片超出宿主的单次限制。）' }]
+          } catch {}
+        }
       }
     }
-    return content.filter((c) => c.type === 'text')
+    return [...nonImages, { type: 'text', text: `（这次的 ${images.length} 张图片未能交给你查看，可请对方重发。）` }]
   }
 
   // 私聊里等她回复时，在 QQ 上显示「对方正在输入…」（模型慢的时候让人知道她在想）
@@ -2591,7 +2715,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     sources.userText += '\n' + userText
     if (hooks?.prompt) {
       try {
-        const next = await hooks.prompt(content, { chat, sessionId, senderId, prevText, ...opts })
+        const canShareRecent = getConfig().chat?.shareRecentWithModules && !opts.internal && senderId
+          && [senderId, ...(opts.extraSenders || [])].every((id) => isOwner(getConfig(), id, chat.chatId))
+        const recentMessages = canShareRecent ? mind?.recentUserMessages?.(chat, userText) || [] : []
+        const next = await hooks.prompt(content, { chat, sessionId, senderId, prevText, ...opts, recentMessages })
         if (next === null) {
           log.info(`${chat.chatId}：扩展模块决定这次不交给她`)
           if (!opts.steer) release(chat.chatId) // 插话被拦下时，当前这一轮还在跑，不能放开
@@ -2648,7 +2775,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!opts.steer) st.autoReply = opts.autoReply || null
     turnState.set(key, st)
     content = await seedHistoryOnce(sessionId, chat, content)
-    const admitted = await admit(agent, content)
+    const admitted = await admit(content)
     for (const block of admitted.filter((c) => c.type === 'text')) {
       for (const r of memoryPromptRanges(block.text, { toEndOfText: true })) sources.memory.push(block.text.slice(r.start, r.end))
     }
@@ -2665,8 +2792,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       log.info(`${chat.chatId}：她还在忙，这句直接插进当前这一轮（steer）`)
       await withPromptCapture(sources, () => agent.steer(message))
     } else {
-      markRunning(chat.chatId)
-      await withPromptCapture(sources, () => agent.followup(message))
+      const token = markRunning(chat.chatId, st)
+      try { await withPromptCapture(sources, () => agent.followup(message)) }
+      catch (error) {
+        if (turnEpochs.get(chat.chatId)?.token !== token) return
+        release(chat.chatId, token)
+        throw Object.assign(new Error(error?.message || String(error), { cause: error }), { code: error?.code, aurabotTurnReleased: true })
+      }
     }
     try {
       if (dsh.sessions && typeof dsh.sessions.flush === 'function') await dsh.sessions.flush(agent.session)
@@ -2701,7 +2833,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     lastChatAt = Date.now()
     if (chatId === `private:${owner}`) { lastOwnerChatAt = lastChatAt; lastPrivateAt.set(owner, lastChatAt) }
     onActivity?.({ kind: 'in', chatId, userId: owner, nickname: chat.nickname, text, direct: true, owner: true })
-    await pushToSession(chat, content, owner, { queryText: text || '[图片]', steer: running.has(chatId), assertAuthorized: validate })
+    await pushToSession(chat, content, owner, { queryText: text || '[图片]', steer: running.has(chatId) && !turnEpochs.get(chatId)?.st?.rewriting, assertAuthorized: validate })
     return { ok: true }
   }
 
@@ -2728,8 +2860,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
     if (typeof reg?.archiveSession !== 'function') throw new Error('宿主没有归档会话的能力')
     if (!current.archived && !(reg.archivedSessionIds || []).includes(sessionId)) {
-      const archived = await reg.archiveSession(sessionId)
-      if (archived === false || archived?.ok === false) throw new Error(archived?.message || '归档会话失败')
+      await archiveOwnedSession(sessionId)
       current.archived = true
     }
     assertActive()
@@ -2911,58 +3042,81 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 一个聊天记着的所有会话（正式 + 调试，去重）。 */
   const sessionsOf = (e) => [...new Set([e.sessionId, ...Object.values(e.sessions || {})].filter(Boolean))]
 
-  /** 只让一个聊天重新开始：归档它的会话，下一条消息开新会话。 */
+  async function archiveOwnedSession(sessionId) {
+    const reg = optionalService('workspaceRegistry')
+    if (typeof reg?.archiveSession !== 'function') throw new Error('宿主没有归档会话的能力')
+    if ((reg.archivedSessionIds || []).includes(sessionId)) return 'archived'
+    const query = optionalService('sessionQuery')
+    // DSH 的归档可以触发工作树清理。读取公开的会话快照，保留有自行创建工作树记录的会话。
+    if (typeof query?.observeSession === 'function') {
+      let observation
+      try {
+        observation = await query.observeSession(sessionId, { projectionMode: 'none', signal: AbortSignal.timeout(3000) })
+        const inherited = Number(observation.inheritedEventCount) || 0
+        if (observation.events.some((event) => event.seq >= inherited && event.type === 'plugin:worktree/created' && event.ignorable === true)) return 'retained'
+      } catch (error) {
+        log.debug(`无法核对会话 ${String(sessionId).slice(-8)} 的工作树，保留该会话：`, error.message)
+        return 'retained'
+      } finally { observation?.[Symbol.dispose]?.() }
+    } else if (optionalService('worktrees')) {
+      return 'retained'
+    }
+    const result = await reg.archiveSession(sessionId)
+    if (result === false || result?.ok === false) throw new Error(result?.message || '归档会话失败')
+    return 'archived'
+  }
+
+  function archiveQuietly(sessionId) {
+    archiveOwnedSession(sessionId).then((state) => {
+      if (state === 'retained') log.info(`保留会话 ${String(sessionId).slice(-8)}，避免归档时清理工作树`)
+    }).catch((error) => log.debug('归档会话失败：', error.message))
+  }
+
+  /** 只让一个聊天重新开始，下一条消息开新会话。 */
   function resetChat(chatId) {
-    const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
     const m = map()
     const e = m.chats[chatId]
     if (!e) return false
     // 正式和调试两条都归档
     for (const sid of sessionsOf(e)) {
-      Promise.resolve(reg?.archiveSession?.(sid)).catch((error) => log.debug('归档会话失败：', error.message))
+      archiveQuietly(sid)
       sessionToChat.delete(sessionKey(sid))
       turnState.delete(sessionKey(sid))
+      stopTyping(sessionKey(sid))
+      clearSlowNotices(sessionKey(sid))
     }
     outputSources.delete(chatId)
     delete m.chats[chatId]
     saveMap(m)
+    release(chatId)
     log.info(`${chatId} 重新开始`)
     return true
   }
 
-  /** 重新开始：把现有的 QQ 会话都归档（侧栏里还能找回），下一条消息起开新会话。 */
-  function resetSessions() {
-    const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
+  /** 只断开 AuraBot 自己映射的聊天会话。共享工作区的其它 DSH 会话由用户管理。 */
+  async function resetSessions() {
     const m = map()
-    let n = 0
-    for (const [chatId, e] of Object.entries(m.chats)) {
-      for (const sid of sessionsOf(e)) {
-        try {
-          // 可能返回 Promise：必须接住 rejection，未处理的 rejection 会让 DSH 宿主退出
-          Promise.resolve(reg?.archiveSession?.(sid)).catch((error) => log.debug('归档会话失败：', error.message))
-        } catch (error) {
-          log.debug('归档会话失败：', error.message)
-        }
+    const chats = Object.entries(m.chats)
+    const ids = new Set()
+    for (const [chatId, entry] of chats) {
+      for (const sid of sessionsOf(entry)) {
+        ids.add(sid)
         sessionToChat.delete(sessionKey(sid))
         turnState.delete(sessionKey(sid))
+        stopTyping(sessionKey(sid))
+        clearSlowNotices(sessionKey(sid))
       }
       outputSources.delete(chatId)
       delete m.chats[chatId]
-      n++
     }
-    // 专用工作区里其他零散的会话（比如手动点「新会话」留下的空白会话）也一起归档
-    try {
-      const norm = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
-      const ws = (reg?.list?.() || []).find((w) => norm(w.path) === norm(workspaceDirOf(getConfig())))
-      for (const sid of ws?.sessionIds || []) {
-        if ((reg.archivedSessionIds || []).includes(sid)) continue
-        Promise.resolve(reg.archiveSession(sid)).catch(() => {})
-        n++
-      }
-    } catch (error) {}
     saveMap(m)
-    log.info(`重新开始：归档了 ${n} 个 QQ 会话`)
-    return n
+    for (const [chatId] of chats) release(chatId)
+    const result = { archived: 0, retained: 0, failed: 0 }
+    for (const id of ids) {
+      try { result[await archiveOwnedSession(id)]++ }
+      catch (error) { result.failed++; log.debug('归档会话失败：', error.message) }
+    }
+    return result
   }
 
   /** 模拟测试：fn 里发出去的消息都记下来不真发，返回 { result, sent }。 */
@@ -2977,7 +3131,19 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 子智能体委派（DSH subagent 服务，spawn 后端 + delivery:'caller'）----------
+  const subagentParentChat = { chatId: 'system:ext-subagent-parent', kind: 'system', title: '子智能体调度' }
   let subagentParentAgent = null // 常驻父级 agent：spawn 子级必须有活的 parent 句柄，这里挂一次反复用
+  const subagentRuns = new Set()
+
+  function optionalService(name) {
+    try { return dsh.get?.(name) ?? dsh[name] } catch { return null }
+  }
+
+  function disposeActivation(activation) {
+    if (typeof activation?.dispose === 'function') {
+      Promise.resolve().then(() => activation.dispose()).catch((error) => log.debug('释放子智能体失败：', error.message))
+    }
+  }
   async function subagentParent() {
     if (subagentParentAgent) {
       const live = dsh.agents?.get?.(subagentParentAgent.id) || dsh.agents?.get?.('session-' + subagentParentAgent.id)
@@ -2986,8 +3152,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     // 父级不能 noTools：spawn 子级继承父级的工具配置，父级没工具子级就拿不到 shell，跑不了 adb。
     // 父级本身从不发起回合（只当 spawn 挂钩），带工具没有副作用。
-    const chat = { chatId: 'system:ext-subagent-parent', kind: 'system', title: '子智能体调度' }
-    const { agent } = await agentFor(chat)
+    const { agent } = await agentFor(subagentParentChat)
     subagentParentAgent = agent
     return agent
   }
@@ -3031,37 +3196,55 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!fromOwner && !fromBackground) {
       throw Object.assign(new Error('子智能体委派要主人开口：source 必须是主人私聊，或打开「后台子智能体」开关（没人应答时一律拒绝）'), { code: 'OWNER_REQUIRED' })
     }
-    // ctx 是严格注入代理：inject 白名单外的属性直接读会抛「without inject」；
-    // subagents 是可选服务，照 bridge 同款姿势用的时候再 ctx.get；旧版 ctx 没有 get 就退回直接读，再抛错就当没有服务
-    const dshService = (n) => {
-      if (typeof dsh.get === 'function') { try { return dsh.get(n) } catch { /* 继续退回直接读 */ } }
-      try { return dsh[n] } catch { return null }
-    }
-    const subagents = dshService('subagents')
+    const subagents = optionalService('subagents')
     if (!subagents || typeof subagents.startActivation !== 'function') {
       throw Object.assign(new Error('宿主没有 subagents 委派服务（需要较新的 DSH）'), { code: 'SUBAGENT_UNAVAILABLE' })
     }
+    // rc.2 的具名子智能体服务同时采用扁平参数。rc.1 的服务需要 request 包装。
+    const namedService = typeof subagents.namesOf === 'function'
     const parent = await subagentParent()
+    // 调度父会话没有模型请求记录。DSH 会从创建参数继承选模，因此每次委派显式传入 AuraBot 的模型。
+    const agentOptions = namedService ? await resolveTarget(subagentParentChat) : null
     assertActive()
     const ac = new AbortController()
-    const timer = setTimeout(() => ac.abort(new Error(`子智能体超时（${Math.round(timeoutMs / 1000)} 秒）`)), Math.max(5000, Number(timeoutMs) || 600000))
+    subagentRuns.add(ac)
+    const limit = Math.min(2_147_483_647, Math.max(5000, Number(timeoutMs) || 600000))
+    const timer = setTimeout(() => ac.abort(Object.assign(new Error(`子智能体超时（${Math.round(limit / 1000)} 秒）`), { code: 'SUBAGENT_TIMEOUT' })), limit)
+    let rejectOnAbort
+    const aborted = new Promise((_, reject) => {
+      rejectOnAbort = () => reject(ac.signal.reason)
+      ac.signal.addEventListener('abort', rejectOnAbort, { once: true })
+    })
     let activation = null
     try {
-      activation = await subagents.startActivation({
-        provider: 'spawn',
-        label: String(title || name || '任务').slice(0, 80),
-        // agentPreset 必须显式指定：不指定时子级继承父级 preset（aurabot-social，零本地工具），
-        // 子级就拿不到 shell/文件工具，跑不了 adb。aurabot-subagent 是插件 patch 里专给子级准备的
-        // 「无 QQ 人格 + 本机命令工具」preset；旧 DSH 装不上它时 mount 会失败，模块侧自动降级兜底。
-        request: { prompt: [{ type: 'text', text: String(prompt) }], parent, agentPreset: 'aurabot-subagent' },
-        signal: ac.signal,
-        delivery: 'caller',
+      const task = {
+        prompt: [{ type: 'text', text: String(prompt) }], parent, agentPreset: 'aurabot-subagent',
+        ...(agentOptions ? { agentOptions } : {}),
+      }
+      const starting = Promise.resolve().then(() => {
+        ac.signal.throwIfAborted()
+        return subagents.startActivation({
+          ...(namedService ? task : { request: task }),
+          provider: 'spawn',
+          label: String(title || name || '任务').slice(0, 80),
+          signal: ac.signal,
+          delivery: 'caller',
+        })
+      }).then((started) => {
+        if (ac.signal.aborted) {
+          disposeActivation(started)
+          throw ac.signal.reason
+        }
+        activation = started
+        return started
       })
-      const r = await activation.result
+      const started = await Promise.race([starting, aborted])
+      // 新服务的 signal 只保证创建阶段取消，创建成功后的超时要 dispose 精确的 activation。
+      const r = await Promise.race([started.result, aborted])
       if (r && r.error) throw new Error(`子智能体执行失败：${r.error}`)
       // 新版 DSH 用 stopReason 标记结果，非正常完成时 output 可能是不完整的过程内容。
       if (r && typeof r === 'object' && 'stopReason' in r && r.stopReason !== 'completed') {
-        throw Object.assign(new Error('子智能体没有正常完成'), { code: 'SUBAGENT_INCOMPLETE' })
+        throw Object.assign(new Error(`子智能体没有正常完成（${r.stopReason}）`), { code: 'SUBAGENT_INCOMPLETE' })
       }
       // 兼容旧版字符串/包装对象；有类型的消息块只接受 text，绝不递归读取 reasoning 或工具块。
       const collect = (v, out = []) => {
@@ -3083,11 +3266,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       }
       const parts = collect(r)
       if (!parts.length) throw Object.assign(new Error('子智能体没有可用的最终文字'), { code: 'SUBAGENT_EMPTY_OUTPUT' })
-      return parts[parts.length - 1]
+      return namedService ? parts.join('\n') : parts.at(-1)
     } finally {
       clearTimeout(timer)
-      // 结果到手（或超时/失败）就释放整个子树；已完成/已失败的 activation dispose 只是清理，不会抛断流程
-      if (activation && typeof activation.dispose === 'function') activation.dispose().catch(() => {})
+      ac.signal.removeEventListener('abort', rejectOnAbort)
+      subagentRuns.delete(ac)
+      disposeActivation(activation)
     }
   }
 
@@ -3099,6 +3283,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 三审 #177：常驻的子智能体父级 agent 一并置空——插件重装/重启后下次 spawn 重新建，
     // 别攥着旧句柄不放（旧的父会话交给 DSH 自己的会话回收去清）。
     subagentParentAgent = null
+    for (const run of subagentRuns) run.abort(disposedError())
+    subagentRuns.clear()
     for (const p of pending.values()) clearTimeout(p.timer)
     pending.clear()
     for (const key of [...typing.keys()]) stopTyping(key)
@@ -3122,6 +3308,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     privateSources.clear()
     quoteCache.clear()
     busy.clear()
+    for (const timer of runningTimers.values()) clearTimeout(timer)
+    runningTimers.clear()
+    turnEpochs.clear()
     running.clear()
     recentMedia.dispose()
   }

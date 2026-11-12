@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto'
 import { lstatSync, readdirSync, realpathSync, readFileSync } from 'node:fs'
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { stickerPath } from '../../features/stickers.js'
-import { loadShots, shotPath } from '../../bili/shots.js'
 import { dataDir } from '../../core/store.js'
 import { clipText } from '../../core/text.js'
 
@@ -36,7 +35,6 @@ function archiveMetadata(file) {
     if (metadata.schema !== 1 || metadata.kind !== 'browsing') return {}
     const url = new URL(metadata.url)
     let id = ''
-    if (metadata.platform === 'B站') id = /^\/video\/(BV\w{10})\/?$/.exec(url.pathname)?.[1]
     if (metadata.platform === '抖音') id = /^\/(?:video|note)\/(\d{5,25})\/?$/.exec(url.pathname)?.[1]
     if (metadata.platform === '小红书') id = /^\/explore\/([a-f0-9]{24})\/?$/i.exec(url.pathname)?.[1]
     if (metadata.platform === '触站') id = /^\/draw\/(\d{1,15})\/?$/.exec(url.pathname)?.[1]
@@ -88,8 +86,7 @@ function remoteImage(value) {
 
 // 公开作品链接重新构造，不把 Cookie、分享令牌或任意查询参数带进正文。
 function sourceLink(platform, item) {
-  const id = String(item.id || item.bvid || '')
-  if (platform === 'B站' && /^BV[\w]{10}$/.test(id)) return 'https://www.bilibili.com/video/' + id
+  const id = String(item.id || '')
   if (platform === '抖音' && /^\d{5,25}$/.test(id)) return 'https://www.douyin.com/video/' + id
   if (platform === '小红书' && /^[a-f0-9]{24}$/i.test(id)) return 'https://www.xiaohongshu.com/explore/' + id
   if (platform === '淘宝' && /^\d{5,25}$/.test(id)) return 'https://item.taobao.com/item.htm?id=' + id
@@ -109,7 +106,6 @@ export function collectSources(api, settings, history = [], now = Date.now()) {
   }
   if (settings.browsing) {
     const platforms = [
-      ['bili', 'B站', ['watch', 'share']],
       ['xhs', '小红书', ['read', 'share']],
       ['douyin', '抖音', ['read', 'share']],
       ['taobao', '淘宝', ['select', 'share']],
@@ -136,13 +132,6 @@ export function collectSources(api, settings, history = [], now = Date.now()) {
           add({ id: key, kind: 'browsing', src: remoteImage(item.cover || item.images?.[0]), caption: platform + '《' + title + '》', title, author, platform, url, at: Number(row.at) })
         }
       }
-    }
-    // 只读已有 B 站视频抽帧，不调用会裁剪图库的 panel()，也不抓取桌面。
-    for (const item of loadShots().items.slice(0, 40)) {
-      const title = clip(item.title, 70)
-      const url = sourceLink('B站', item)
-      if (!url || !title || !publicText(title) || !(item.at >= now - 48 * 3600_000 && item.at <= now)) continue
-      add({ id: 'bili-shot:' + item.md5, kind: 'browsing', localShot: true, src: shotPath(item), root: dataDir('bili-shots'), caption: 'B站视频抽帧《' + title + '》', title, platform: 'B站', url, at: item.at })
     }
   }
   if (settings.stickers) {

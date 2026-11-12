@@ -26,7 +26,7 @@ Aurabot's mind core works the other way round: **she has exactly one mind**. Mem
 | **Memory** | Everything stuffed into context, or keyword search | Fades fast then slowly; recalling strengthens it; vague memories stay vague, some are on the tip of her tongue; one memory leads to the next by association; "what did we do last month?" works by date; she consolidates and dreams while asleep |
 | **Mood** | Re-judged every message | Emotions have a target, a reason, and research-based durations (sadness lasts far longer than embarrassment); mood has inertia; anger at one person isn't taken out on another |
 | **Daily rhythm** | Always online, always fresh | Gets tired, sleepy and hungry; sleeps during her night and only you can wake her; stays up chatting with you and is sleepier the next day |
-| **Initiative** | A timer fires a message; every feature DMs you on its own | Thinks on her own when idle; does what she wants (browse Bilibili, post to Qzone, read trending lists, message you) only when motivated enough; procrastinates; learns from outcomes; modules only do the work — whether to tell you what they found is her call |
+| **Initiative** | A timer fires a message; every feature DMs you on its own | Thinks on her own when idle; does what she wants (post to Qzone, read trending lists, message you) only when motivated enough; procrastinates; learns from outcomes; modules only do the work — whether to tell you what they found is her call |
 | **Personality** | Fixed in the card — or swayed by one message, different every day | 19 traits move in small steps only after repeated experience; your own influence is capped; she can also decide to rewrite her persona, rename herself, write her own story, and start calling you something new as things change between you |
 | **Relationships** | Same with everyone | A record per QQ number: closeness, liking, trust, nicknames, inside jokes, no-go topics, grudges; remembers people's pending things (an interview, an exam) and asks how it went; fades without contact; "exclusive" is on by default — romantic feelings are only for you |
 | **Group chats** | Fixed interjection probability | She decides, from her sociability, mood, how relevant the topic is to her, and how close she is to who's talking; emoji reactions follow her mood too |
@@ -41,14 +41,14 @@ Panel pages: **Right now** (body, feelings, feed her, wake her), **Inner life** 
 
 ## 📌 What this repository is
 
-A **fork of [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)** (MIT, branched from upstream v1.2.0), the "Aurabot / Dafeiyu" QQ bot plugin for DeepSeek Harness (DSH). Chat, voice, stickers, song covers, Qzone, Bilibili and the module system **come from upstream and its contributors**.
+A **fork of [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq)** (MIT, branched from upstream v1.2.0), the "Aurabot / Dafeiyu" QQ bot plugin for DeepSeek Harness (DSH). Chat, voice, stickers, song covers, Qzone and the module system **come from upstream and its contributors**.
 
 This fork does two things:
 
 1. **The mind core** (above), written from scratch, replacing upstream's separate memory, mood and speak-up modules. Code in `src/mind/` (imports nothing from the plugin); the QQ side is `src/mind-adapter/`.
 2. **macOS (Apple silicon) only**: Windows / Linux-only code was removed. On Windows use [upstream](https://github.com/aureth-labs/dsh-aurabot-qq).
 
-Features from upstream's 1.3.0 beta that don't overlap the mind core were ported and adapted: Breeze TTS, cloud speech recognition, cloud backup (Gitee / WebDAV, always including her mind), DSH sidebar browser, owner-only local tools in groups, emoji reactions, Bilibili QR login, one-click update and security hardening — see the [changelog](CHANGELOG.md).
+Features from upstream's 1.3.0 beta that don't overlap the mind core were ported and adapted: Breeze TTS, cloud speech recognition, cloud backup (Gitee / WebDAV, always including her mind), DSH sidebar browser, owner-only local tools in groups, emoji reactions, one-click update and security hardening — see the [changelog](CHANGELOG.md).
 
 It keeps the upstream package name and plugin id (`dsh-aurabot-qq`), so it replaces upstream and can't be installed alongside it; when you switch, your old memories, mood and impressions of people move into the mind core on first start.
 
@@ -75,7 +75,7 @@ It keeps the upstream package name and plugin id (`dsh-aurabot-qq`), so it repla
 | DeepSeek Harness desktop | the plugin runs inside it | set up a model in DSH; enable DSH's speech-input plugin if she should understand voice notes |
 | [OrbStack](https://orbstack.dev) (or Docker Desktop) | runs the QQ gateway | approve its prompt on first launch |
 | [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) container | QQ gateway (OneBot v11) | start the official docker-compose.yml, log the bot account in through its remote desktop (`http://127.0.0.1:6081`); any OneBot v11 implementation works |
-| [Homebrew](https://brew.sh) + `brew install ffmpeg` | only for looking at Bilibili video frames | optional |
+| [Homebrew](https://brew.sh) + `brew install ffmpeg` | Audio conversion and image processing | optional |
 
 No Python, Xcode command line tools, uv, Node or Git to install, no PATH or environment variables, no macOS privacy permissions.
 
@@ -86,7 +86,7 @@ No Python, Xcode command line tools, uv, Node or Git to install, no PATH or envi
    "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac
    ```
 3. Follow the setup wizard: QQ numbers, then the OneBot forward WebSocket URL (usually `ws://127.0.0.1:3001`) and token.
-4. As needed in the panel: one-click song install and import a voice, install edge-tts, scan in to Bilibili / Qzone, add an image API.
+4. As needed in the panel: one-click song install and import a voice, install edge-tts, scan in to Qzone, add an image API.
 
 Upgrade by running the same command again and restarting DSH; settings, personas and memories are kept. Old memories, mood and impressions of people are moved into the mind core on first start; afterwards confirm her starting personality once in the panel.
 

@@ -5,7 +5,7 @@
 // 面板在侧栏「自动化任务」下面（网页半边见 client/client.js），这里提供它要的 /aurabot/api/* 接口。
 //
 // 这个文件只管「核心」：配置、QQ 网关、聊天中枢、人格、面板接口、模块内核和联动。
-// 表情、语音、记忆、空间、B 站、翻唱、生图……都是模块（src/modules/），能单独关掉，也能用自己写的替换。
+// 表情、语音、记忆、空间、翻唱、生图……都是模块（src/modules/），能单独关掉，也能用自己写的替换。
 //
 // ⚠ 安全默认：总开关关、试运行开。不手动打开，一句都不会真的发到 QQ。
 
@@ -145,7 +145,7 @@ export function apply(ctx) {
   let pushTimer = null // 云备份每日定时
   const getConfig = () => cfg
   setSsrpMode(() => (getConfig().security && getConfig().security.ssrfMode === 'loose' ? 'loose' : 'strict'))
-  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey); registerSecret(cfg.backup?.remote?.token); registerSecret(cfg.backup?.remote?.webdav?.password); registerSecret(cfg.voice?.asrApi?.apiKey); registerSecret(cfg.voice?.breeze?.key); registerSecret(cfg.voice?.breeze?.password) } // 云备份令牌 / WebDAV 密码、语音的 Key 也按密钥脱敏
+  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); for (const item of cfg.imageGen.fallbacks || []) registerSecret(item.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey); registerSecret(cfg.backup?.remote?.token); registerSecret(cfg.backup?.remote?.webdav?.password); registerSecret(cfg.voice?.asrApi?.apiKey); registerSecret(cfg.voice?.breeze?.key); registerSecret(cfg.voice?.breeze?.password) } // 云备份令牌 / WebDAV 密码、语音的 Key 也按密钥脱敏
   const setConfig = (next) => {
     const before = cfg
     cfg = saveConfig(next, before)
@@ -783,8 +783,9 @@ export function apply(ctx) {
         if (!title) title = sid.slice(-8)
         const queued = noticeRelay.announce('question', { id: `q:${sid}:${d.callId}`, sessionId: sid, title, questions: qs })
         log.info(`提问上报：${qs.length} 个问题（${title}）→ ${queued ? '已入队' : (noticeRelay.enabled('question', sid) ? '重复/已在队列' : '被开关挡掉')}`)
-      } else if (event.type === 'tool/result' && d.toolCallId) {
-        noticeRelay.cancel(`q:${sid}:${d.toolCallId}`) // 答完 / 超时跳过：还没说出去的那条撤掉
+      } else if (event.type === 'tool/result') {
+        const callId = d.message?.toolCallId ?? d.toolCallId
+        if (callId) noticeRelay.cancel(`q:${sid}:${callId}`) // 已有结果（包括错误）就撤掉待发提醒
       }
     } catch (error) {
       log.debug?.('提问上报失败：', error.message)
@@ -1335,8 +1336,13 @@ export function apply(ctx) {
   })
 
   route('/sessions/reset', async () => {
-    const n = hub.resetSessions()
-    return { ok: true, message: n ? `归档了 ${n} 个会话，下一条消息起她会重新开始` : '本来就没有会话' }
+    const result = await hub.resetSessions()
+    const { archived, retained, failed } = result
+    if (!archived && !retained && !failed) return { ok: true, ...result, message: '本来就没有聊天会话' }
+    const notes = [`归档了 ${archived} 个聊天会话`]
+    if (retained) notes.push(`为保留工作树留下 ${retained} 个旧会话`)
+    if (failed) notes.push(`${failed} 个会话归档失败，旧会话仍可查看`)
+    return { ok: true, ...result, message: notes.join('，') + '。下一条消息起她会重新开始。' }
   })
 
   // 人格
@@ -1347,13 +1353,20 @@ export function apply(ctx) {
     const m = mind.mind
     return { ok: true, status: m.status(), usage: m.budget.spent(), sleep: m._store.get('sleep.lastReport', null), dreams: m._store.get('dreams.log', []).slice(0, 10), pending: m.memory.pendingWindows().length }
   })
-  route('/mind/vectors', async () => (mind ? { ok: true, ...mind.mind.memory.vectorProgress() } : mindOff))
+  route('/mind/vectors', async () => (mind ? { ok: true, ...mind.mind.memory.vectorProgress(), ...mind.embeddingStatus() } : mindOff))
   route('/mind/memories', async (req) => {
     if (!mind) return mindOff
     const qs = query(req)
     const status = ['live', 'archived'].includes(qs.status) ? qs.status : 'live'
-    return { ok: true, items: mind.mind.memory.list({ status, kind: qs.kind || '', q: String(qs.q || '').slice(0, 100), limit: 200, offset: Math.max(0, Number(qs.offset) || 0) }), counts: mind.mind.memory.counts() }
+    const limit = Math.max(1, Math.min(200, Math.trunc(Number(qs.limit)) || 200))
+    const offset = Math.max(0, Math.min(1_000_000, Math.trunc(Number(qs.offset)) || 0))
+    const memory = mind.mind.memory
+    const items = memory.list({ status, kind: qs.kind || '', q: String(qs.q || '').slice(0, 100), limit: limit + 1, offset })
+    return { ok: true, items: items.slice(0, limit), next: items.length > limit ? offset + limit : null, counts: memory.counts(), ...(offset ? {} : { sources: memory.sourceCounts(status) }) }
   })
+  route('/mind/memory/related', async (req) => mind
+    ? { ok: true, items: mind.mind.memory.related(String(query(req).id || '').slice(0, 200)) }
+    : mindOff)
   route('/mind/memory/delete', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)

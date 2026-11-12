@@ -61,8 +61,8 @@ test('本地小模型：没设或文件不对就说清楚原因；设好了要�
 })
 
 test('解析一步念头：四行格式；没写格式也取第一句；认不出的情绪不要', () => {
-  const p = parseThought('念头：刚才群里在聊抽卡，好想也抽一发\n感受：期待 0.6\n打算：刷 B 站看看抽卡视频\n深想：否')
-  assert.deepEqual(p, { thought: '刚才群里在聊抽卡，好想也抽一发', feel: { name: '期待', intensity: 0.6 }, plan: '刷 B 站看看抽卡视频', deep: false })
+  const p = parseThought('念头：刚才群里在聊抽卡，好想也抽一发\n感受：期待 0.6\n打算：逛热榜看看抽卡消息\n深想：否')
+  assert.deepEqual(p, { thought: '刚才群里在聊抽卡，好想也抽一发', feel: { name: '期待', intensity: 0.6 }, plan: '逛热榜看看抽卡消息', deep: false })
   assert.equal(parseThought('就是有点困').thought, '就是有点困')
   assert.equal(parseThought('念头：嗯\n感受：叽里咕噜 0.5').feel, null)
   assert.equal(parseThought('念头：嗯\n打算：无').plan, '')
@@ -90,7 +90,7 @@ test('基本需要：没人理的时候陪伴的需要慢慢涨，一整天就�
 test('做还是不做：无聊了就去刷；累坏了就犯懒；做过了冷却一会儿；几件事里动力大的赢', async () => {
   const { m, set } = mind()
   const ran = []
-  m.motivation.offer({ id: 'browse', label: '刷 B 站', needs: { fun: 1 }, effort: 0.15, delayHours: 0.05, cooldownMinutes: 60, run: async () => { ran.push('browse'); return { ok: true, outcome: 0.9 } } })
+  m.motivation.offer({ id: 'browse', label: '逛热榜', needs: { fun: 1 }, effort: 0.15, delayHours: 0.05, cooldownMinutes: 60, run: async () => { ran.push('browse'); return { ok: true, outcome: 0.9 } } })
   m.motivation.offer({ id: 'write', label: '写日记', needs: { recognition: 1 }, effort: 0.6, delayHours: 2, run: async () => { ran.push('write'); return { ok: true } } })
   m.motivation.offer({ id: 'off', label: '做不了的', needs: { fun: 2 }, available: () => '没打开', run: async () => ({ ok: true }) })
   set(T0 + 8 * H) // 闲了八个小时，新鲜和乐趣缺得厉害
@@ -120,11 +120,11 @@ test('从结果里学：比预想的开心下次更想做，没做成就没那�
 
 test('具体想要：很像的不重复记，会加强；对上某件事就算它的动力；做到了就消失；一周没动静就淡了', async () => {
   const { m, set } = mind()
-  m.motivation.offer({ id: 'browse', label: '刷 B 站', needs: { fun: 0.1 }, keywords: ['B站'], cooldownMinutes: 0, run: async () => ({ ok: true }) })
-  const w = m.motivation.want('想去B站看抽卡视频')
-  assert.equal(m.motivation.want('想去B站看抽卡视频').id, w.id)
+  m.motivation.offer({ id: 'browse', label: '逛热榜', needs: { fun: 0.1 }, keywords: ['热榜'], cooldownMinutes: 0, run: async () => ({ ok: true }) })
+  const w = m.motivation.want('想去热榜看抽卡消息')
+  assert.equal(m.motivation.want('想去热榜看抽卡消息').id, w.id)
   const st = { body: { energy: 1, sleepiness: 0.2, hunger: 0 }, mood: { v: 0 } }
-  assert.deepEqual(m.motivation.motives(st)[0].wants, ['想去B站看抽卡视频'])
+  assert.deepEqual(m.motivation.motives(st)[0].wants, ['想去热榜看抽卡消息'])
   await m.motivation.act('browse')
   assert.equal(m.motivation.state().wants.length, 0, '做到了')
   m.motivation.want('想把那首歌唱好', { strength: 0.3 })
@@ -304,13 +304,13 @@ test('睡着、刚聊完、正在做事时不走神；内心活动可以关掉',
 test('模块交给她的事：按动力去做；模块停了就撤掉', async () => {
   const { a, set } = adapter({ reply: '念头：好无聊\n打算：无' })
   let n = 0
-  const off = a.moduleApi('bili').offer({ id: 'browse', label: '刷 B 站', needs: { fun: 1 }, effort: 0.1, run: async () => { n++; return { ok: true, outcome: 0.8 } } })
+  const off = a.moduleApi('tophub').offer({ id: 'browse', label: '逛热榜', needs: { fun: 1 }, effort: 0.1, run: async () => { n++; return { ok: true, outcome: 0.8 } } })
   a.mind.updateSettings({ 'motivation.dailyOutreachCap': 0, 'motivation.quietHours': '00:00-23:59' }) // 不让「找主人」抢
   set(T0 + 10 * H)
   await a.innerTick()
   await new Promise((x) => setTimeout(x, 10))
   assert.equal(n, 1)
-  assert.ok(a.mind.motivation.state().actions.some((x) => x.id === 'bili:browse'))
+  assert.ok(a.mind.motivation.state().actions.some((x) => x.id === 'tophub:browse'))
   off()
-  assert.ok(!a.mind.motivation.state().actions.some((x) => x.id === 'bili:browse'))
+  assert.ok(!a.mind.motivation.state().actions.some((x) => x.id === 'tophub:browse'))
 })

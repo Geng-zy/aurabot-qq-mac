@@ -264,3 +264,20 @@ test('向量接口：按顺序取回，数量不对就报错；在线服务没�
   const local = createEmbedClient({ url: () => 'http://127.0.0.1:9/v1', model: () => 'm', fetch: async () => ({ ok: true, json: async () => ({ data: [{ embedding: [1] }] }) }) })
   assert.deepEqual(await local(['a']), [[1]], '本机服务不要密钥')
 })
+
+test('面板分页、来源与关联都是只读查询', async (t) => {
+  const { m, mem } = setup()
+  t.after(() => m.close())
+  const first = mem.insert({ at: T0, window: 'qq:private:8', gist: '春天第一次去爬山', kind: 'event' })
+  const second = mem.insert({ at: T0, window: 'other:group:park', gist: '后续约在公园集合', kind: 'event', extra: { derivedFrom: [first] } })
+  const third = mem.insert({ at: T0 + 1, window: 'qq:private:8', gist: '看到一份公园地图', kind: 'event' })
+  m._store.prep('INSERT INTO links (a, b, kind, weight) VALUES (?, ?, ?, ?)').run(second, third, 'similar', 0.9)
+  const before = mem.row(second).last_recall
+  const page1 = mem.list({ limit: 2 })
+  const page2 = mem.list({ limit: 2, offset: 2 })
+  assert.equal(new Set([...page1, ...page2].map((e) => e.id)).size, 3)
+  assert.deepEqual(mem.sourceCounts('live'), [{ platform: 'qq', count: 2 }, { platform: 'other', count: 1 }])
+  const related = mem.related(second)
+  assert.deepEqual(related.map((item) => [item.id, item.relation]), [[third, 'similar'], [first, 'source']])
+  assert.equal(mem.row(second).last_recall, before)
+})

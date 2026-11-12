@@ -25,7 +25,7 @@ export const DEFAULTS = {
   notice: { enabled: true, approval: true, question: true, workspaces: {} },
   qqApi: { enabled: true }, // 她能用 qq_api_call 调 QQ 接口：别人只能查当前群，写操作只听主人
   approvalViaQQ: true, // 主人私聊会话要授权时，在 QQ 回复「确认」直接批准这一次
-  profilePerms: { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', biliSign: 'owner', biliAvatar: 'owner', biliComment: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner' }, // 改资料类操作（含抖音浏览 / 点赞 / 评论 / 分享）的权限：off 关 / owner 仅主人私聊 / all 所有人。抖音项默认仅主人，总开关默认关
+  profilePerms: { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner' }, // 改资料类操作（含抖音浏览 / 点赞 / 评论 / 分享）的权限：off 关 / owner 仅主人私聊 / all 所有人。抖音项默认仅主人，总开关默认关
   longTasks: true, // 长任务模式：主人私聊（完整权限）额外挂 dsh-tool-jobs + dsh-tool-schedule，会多一点工具定义、稍慢
   // 后台子智能体委派（默认关）：模块用 hub.runSubagentTurn 派子智能体时，正常要求「主人开口」的来源；
   // 定时任务这类没人应答的场合，只有打开这个开关才允许派活。关着 = 一律拒绝（一审 #177 的审批策略）。
@@ -75,6 +75,8 @@ export const DEFAULTS = {
     baseUrl: '',
     apiKey: '',
     model: '',
+    fallbackEnabled: false,
+    fallbacks: [],
     size: '1024x1024',
     shape: 'her', // 工具可选构图；her 时未指定就沿用 size
     stylePrompt: '', // 每次生图自动加在前面的风格描述
@@ -168,38 +170,7 @@ export const DEFAULTS = {
     audienceQQs: '', // selected / excluded 时可见（或不可见）的好友 QQ 号，换行或逗号分隔
   },
   // 本地接口：数据目录 local/ 里的脚本接管这几项（文件要在、开关要开）
-  local: { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20 },
-  bili: {
-    enabled: false,
-    sessdata: '', // B 站 Cookie 里的 SESSDATA（登录凭证）
-    biliJct: '', // B 站 Cookie 里的 bili_jct（发评论要用）。两个都不填也能看视频，只是不能评论
-    buvid3: '', // 设备指纹之一：扫码登录时跟票一起发下来，重启后要沿用同一个，不然容易被风控
-    buvid4: '', // 设备指纹之一：跟 buvid3 配套，一起发下来、一起保存
-    dedeUserId: '', // 这个号自己的 UID（Cookie 里的 DedeUserID），跟票绑在一起
-    ownerName: '', // 主人的 B 站昵称：她写 @主人 时 @ 这个号
-    cookie: '', // 由上面几个拼出来给接口用；老配置的整串会自动拆到上面几个里
-    autoBrowse: true, // 定时自己去刷
-    intervalHours: 4, // 多久刷一轮
-    maxRunsPerDay: 3,
-    perRun: 3, // 一轮看几个视频
-    keywords: [], // 额外想让她搜的方向（另外还会参考她的兴趣和记忆里你喜欢的东西）
-    minViews: 5000, // 播放量门槛
-    maxAgeDays: 60, // 只看最近多少天发的
-    comment: true, // 自己发评论
-    maxCommentsPerDay: 3,
-    reply: true, // 回别人回她的评论
-    maxRepliesPerDay: 6,
-    danmakuEnabled: false, // 主人主动打开后才允许发送弹幕
-    autoDanmaku: false, // 刷完自己发弹幕，另行开启
-    maxDanmakuPerDay: 3, // 手动和自动共用提交上限（失败也计数）
-    shareToOwner: true, // 看到好玩的私聊分享给主人
-    like: false, // 顺手点赞
-    vision: false, // 可选：ffmpeg 抽帧交给视觉模型
-    visionFrames: 6,
-    ffmpegPath: '', // 留空从 PATH 查找
-    shotChance: 0.35, // 刷完发截图给主人；0 = 不自动发
-    shotLibrary: 300,
-  },
+  local: { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20, ffmpegPath: '' },
   // 刷抖音：专用浏览器（独立登录资料，不碰你平时的浏览器），经 CDP 控制。浏览 / 点赞 / 评论 / 分享各项权限在 profilePerms.douyin*。
   douyin: {
     enabled: false, // 总开关：默认关，先在面板里扫码登录再打开
@@ -236,7 +207,7 @@ export const DEFAULTS = {
     maxPostsPerDay: 3, // 每天最多发帖（硬上限，多了容易被限）
     defaultTopic: 7214, // 发帖默认分区：7214 盒友杂谈 / 18745 数码硬件 / 806933 AI
     postStyle: 'mix', // 发帖风格：diary 大肥鱼日记 / news 热搜文 / mix 肥鱼热搜
-    shareToOwner: true, // 逛到有意思的帖子，私聊分享给主人（和 B 站同一个思路）
+    shareToOwner: true, // 逛到有意思的帖子，私聊分享给主人
     shareBias: 'normal', // stingy | normal | proactive：分享给主人的积极程度
     shareDaily: 3, // 每天最多分享几条（避免刷屏）
     // 谷时逛：只在非峰时跑自动逛，避开工作日 9-12 / 14-18 的高峰，省 token
@@ -268,7 +239,7 @@ export const DEFAULTS = {
   // everyStep：一轮里她分几段说就发几条（默认关 = 只发最后一段）
   // rescueFromThinking：整轮一段正文都没写时，从思考里捞出她自己定稿的那段（默认关，捞不到就不发）
   // turnTimeoutMinutes：一轮跑超过这么多分钟就强制放开（模型 / 工具卡死时私聊会一直不理人）；0 = 不兜底
-  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false, turnTimeoutMinutes: 30 },
+  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false, thinkingGuard: true, replyMarker: false, shareRecentWithModules: false, turnTimeoutMinutes: 30 },
   // 聊天流水 chatlog/ 留多久（记忆本身在心智核心里）
   memory: { keepChatlogDays: 7, keepChatlogSet: false },
   song: {
@@ -329,6 +300,7 @@ export const DEFAULTS = {
   },
   // 心智核心在 Aurabot 这边要的东西（其余设置都在心智核心自己的库里）
   mind: {
+    embedBackend: 'remote', // remote | local
     embedKey: '', // 向量接口的密钥（默认 SiliconFlow）；第一次从旧记忆模块的设置里带过来
   },
 }
@@ -547,22 +519,9 @@ export function normalize(raw) {
   delete q.intervalMin // 什么时候逛空间由她自己决定（心智核心的动机）
   for (const k of ['tts', 'image', 'song', 'asr', 'video']) c.local[k] = bool(c.local[k], false)
   c.local.videoTimeoutMin = num(c.local.videoTimeoutMin, 20, 1, BIG)
-  const b = c.bili
-  Object.assign(b, splitBiliCookie(b))
-  for (const k of ['enabled', 'autoBrowse', 'comment', 'reply', 'shareToOwner', 'like', 'vision', 'danmakuEnabled', 'autoDanmaku']) b[k] = bool(b[k], DEFAULTS.bili[k])
-  b.visionFrames = Math.round(num(b.visionFrames, 6, 1, 100))
-  b.ffmpegPath = String(b.ffmpegPath || '').trim()
-  b.shotChance = num(b.shotChance, 0.35, 0, 1)
-  b.shotLibrary = Math.round(num(b.shotLibrary, 300, 1, BIG))
-  b.intervalHours = num(b.intervalHours, 4, 0.1, BIG)
-  b.maxRunsPerDay = num(b.maxRunsPerDay, 3, 0, BIG)
-  b.perRun = num(b.perRun, 3, 1, BIG)
-  b.minViews = num(b.minViews, 5000, 0, BIG * 1e6)
-  b.maxAgeDays = num(b.maxAgeDays, 60, 0, BIG)
-  b.maxCommentsPerDay = num(b.maxCommentsPerDay, 3, 0, BIG)
-  b.maxRepliesPerDay = num(b.maxRepliesPerDay, 6, 0, BIG)
-  b.maxDanmakuPerDay = Math.round(num(b.maxDanmakuPerDay, 3, 1, 20))
-  b.keywords = (Array.isArray(b.keywords) ? b.keywords : String(b.keywords || '').split(/[\n,，]+/)).map((x) => String(x).trim()).filter(Boolean).slice(0, 30)
+  // 旧版把共享的 ffmpeg 路径放在 B 站设置里。只迁移路径，保留显式清空。
+  c.local.ffmpegPath = String(raw?.local?.ffmpegPath ?? raw?.bili?.ffmpegPath ?? '').trim()
+  delete c.bili
   const hb = c.heybox
   hb.shareToOwner = bool(hb.shareToOwner, true)
   hb.shareBias = ['stingy', 'normal', 'proactive'].includes(hb.shareBias) ? hb.shareBias : 'normal'
@@ -632,6 +591,9 @@ export function normalize(raw) {
   c.chat.seedHistoryCount = num(c.chat.seedHistoryCount, 20, 1, BIG)
   c.chat.everyStep = bool(c.chat.everyStep, false)
   c.chat.rescueFromThinking = bool(c.chat.rescueFromThinking, false)
+  c.chat.thinkingGuard = bool(c.chat.thinkingGuard?.enabled ?? c.chat.thinkingGuard, true)
+  c.chat.shareRecentWithModules = bool(c.chat.shareRecentWithModules, false)
+  c.chat.replyMarker = bool(c.chat.replyMarker?.enabled ?? c.chat.replyMarker, false)
   c.chat.turnTimeoutMinutes = num(c.chat.turnTimeoutMinutes, 30, 0, 180)
   // 老版本的 0 是当时的默认值，不是谁选的：升级后改成留 7 天，以后面板里再选 0 才算数
   const keepUnset = raw?.memory?.keepChatlogDays === 0 && !raw.memory.keepChatlogSet
@@ -639,6 +601,7 @@ export function normalize(raw) {
   c.memory.keepChatlogSet = true
   c.memory = { keepChatlogDays: c.memory.keepChatlogDays, keepChatlogSet: true }
   if (!isObj(c.mind)) c.mind = { ...DEFAULTS.mind }
+  c.mind.embedBackend = c.mind.embedBackend === 'local' ? 'local' : 'remote'
   c.mind.embedKey = String(c.mind.embedKey || '').trim() || oldVectorKey
   g.interests = (Array.isArray(g.interests) ? g.interests : String(g.interests || '').split(/[\s,，]+/)).map((s) => String(s).trim()).filter(Boolean)
   g.minRelevance = num(g.minRelevance, 0.25, 0, 1)
@@ -671,6 +634,18 @@ export function normalize(raw) {
   c.voice.rate = signed(pct ? Math.max(-50, Math.min(50, Number(pct[1]))) : 0, '%')
   const hz = /^([+-]?\d{1,3})\s*Hz$/i.exec(String(c.voice.pitch || '').trim())
   c.voice.pitch = signed(hz ? Math.max(-80, Math.min(80, Number(hz[1]))) : 0, 'Hz')
+  c.imageGen.fallbackEnabled = bool(c.imageGen.fallbackEnabled, false)
+  const fallbackIds = new Set()
+  c.imageGen.fallbacks = (Array.isArray(c.imageGen.fallbacks) ? c.imageGen.fallbacks : []).flatMap((item) => {
+    const id = String(item?.id || '').slice(0, 80)
+    if (!/^[a-z0-9_-]+$/i.test(id) || fallbackIds.has(id)) return []
+    fallbackIds.add(id)
+    return [{
+      id, provider: item.provider === 'codex' ? 'codex' : 'openai',
+      baseUrl: String(item.baseUrl || '').trim().replace(/\/+$/, '').slice(0, 500),
+      apiKey: String(item.apiKey || '').trim(), model: String(item.model || '').trim().slice(0, 200),
+    }]
+  }).slice(0, 5)
   c.imageGen.enabled = bool(c.imageGen.enabled, false)
   c.imageGen.ownerOnly = bool(c.imageGen.ownerOnly, true)
   c.imageGen.seeOwn = bool(c.imageGen.seeOwn, true)
@@ -751,7 +726,7 @@ export function normalize(raw) {
 }
 
 // 面板里不回传原文的字段：路径（几层都行）
-const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bili', 'cookie'], ['bili', 'sessdata'], ['bili', 'biliJct'], ['heybox', 'cookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
+const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['heybox', 'cookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
 // 扩展模块设置里的密码类字段（模块加载时登记）：['ext', 模块id, 字段]
 const extraSecrets = new Map()
 export function registerSecretField(path) { extraSecrets.set(path.join('\u0000'), path) }
@@ -765,72 +740,10 @@ const parentOf = (obj, path, create) => {
   return cur
 }
 const getAt = (obj, path) => { const p = parentOf(obj, path, false); return p ? p[path.at(-1)] : undefined }
-// 这些密钥在面板里显示结尾几位（「已保存（结尾 …a1b2）」），方便认出存的是哪一份；完整值不回传
-const HINTED = [['bili', 'sessdata'], ['bili', 'biliJct']]
-
-/** 从一串 Cookie 里取某个值（「SESSDATA=xxx; bili_jct=yyy」）。 */
-export function cookieValue(raw, key) {
-  for (const part of String(raw || '').split(/;\s*/)) {
-    const i = part.indexOf('=')
-    if (i > 0 && part.slice(0, i).trim() === key) return part.slice(i + 1).trim()
-  }
-  return ''
-}
-
-/**
- * 把票和设备指纹拼成接口要的 Cookie 串。字段顺序固定：SESSDATA → bili_jct → buvid3 → buvid4 → DedeUserID。
- * 扫码登录、配置归一化、手工粘贴三条路都走这里——各拼一份的话，字段或顺序漂移一次，票就和指纹对不上了。
- */
-export function buildBiliCookie({ sessdata = '', biliJct = '', buvid3 = '', buvid4 = '', dedeUserId = '' } = {}) {
-  return [
-    sessdata && `SESSDATA=${sessdata}`,
-    biliJct && `bili_jct=${biliJct}`,
-    buvid3 && `buvid3=${buvid3}`,
-    buvid4 && `buvid4=${buvid4}`,
-    dedeUserId && `DedeUserID=${dedeUserId}`,
-  ].filter(Boolean).join('; ')
-}
-
-/**
- * B 站 Cookie 整理成完整指纹：粘了整串 / 带了「SESSDATA=」前缀的都认得；老配置只有整串的拆开。
- * 返回 {sessdata, biliJct, buvid3, buvid4, dedeUserId, cookie}，cookie 是拼好给接口用的。
- * 设备指纹三项优先用字段，为空时从整串 cookie 里补（扫码登录写回配置后，重启也沿用同一个指纹）。
- */
-export function splitBiliCookie({ sessdata = '', biliJct = '', cookie = '', buvid3 = '', buvid4 = '', dedeUserId = '' } = {}) {
-  const a = String(sessdata || '').trim()
-  const b = String(biliJct || '').trim()
-  // 框里粘的是「xxx=…」这种整串或带前缀的：从里面取；纯值原样用
-  const isRaw = (v) => /(^|;\s*)(SESSDATA|bili_jct)=/.test(v)
-  let s = isRaw(a) ? '' : a
-  let j = isRaw(b) ? '' : b
-  for (const v of [a, b]) {
-    if (!isRaw(v)) continue
-    s = cookieValue(v, 'SESSDATA') || s
-    j = cookieValue(v, 'bili_jct') || j
-  }
-  if (!s && !j && cookie) {
-    s = cookieValue(cookie, 'SESSDATA')
-    j = cookieValue(cookie, 'bili_jct')
-  }
-  // 指纹：字段优先；没填就从整串 cookie / 粘进来的整串里找。都没有就保持空串，不产生空段。
-  let b3 = String(buvid3 || '').trim()
-  let b4 = String(buvid4 || '').trim()
-  let uid = String(dedeUserId || '').trim()
-  if (!b3 || !b4 || !uid) {
-    const sources = [cookie, isRaw(a) ? a : '', isRaw(b) ? b : ''].filter(Boolean)
-    for (const src of sources) {
-      if (!b3) b3 = cookieValue(src, 'buvid3')
-      if (!b4) b4 = cookieValue(src, 'buvid4')
-      if (!uid) uid = cookieValue(src, 'DedeUserID')
-    }
-  }
-  return { sessdata: s, biliJct: j, buvid3: b3, buvid4: b4, dedeUserId: uid, cookie: buildBiliCookie({ sessdata: s, biliJct: j, buvid3: b3, buvid4: b4, dedeUserId: uid }) }
-}
-
 const FILE = () => dataDir('config.json')
 
 /** 在某次更新里新增、会替她公开发东西的功能。以后再加这类功能，把配置键名加到这里。 */
-export const OPT_IN_ON_UPDATE = ['qzoneSocial', 'bili', 'douyin']
+export const OPT_IN_ON_UPDATE = ['qzoneSocial', 'douyin']
 
 export function loadConfig() {
   const raw = readJson(FILE(), {})
@@ -862,9 +775,13 @@ export function saveConfig(cfg, previous = loadConfig()) {
 export function publicConfig(cfg) {
   const c = structuredClone(cfg)
   delete c.ownerAuthorization
+  delete c.bili
+  for (const item of c.imageGen?.fallbacks || []) {
+    item.apiKeySet = Boolean(item.apiKey)
+    item.apiKey = ''
+  }
   // 面板上的「试运行」只表示「试运行但不调试」：调试开着时它显示为关，两个开关天然互斥
   c.dryRun = Boolean(c.dryRun && !c.debug)
-  for (const [g, k] of HINTED) c[g][`${k}Hint`] = c[g][k] ? '…' + String(c[g][k]).slice(-4) : ''
   for (const path of allSecrets()) {
     const p = parentOf(c, path, false)
     if (!p) continue
@@ -888,12 +805,18 @@ export function mergeFromPanel(current, incoming) {
     delete p[`${k}Set`]
     delete p[`${k}Hint`]
   }
+  if (Array.isArray(incoming?.imageGen?.fallbacks)) {
+    const saved = new Map((current.imageGen?.fallbacks || []).map((item) => [item.id, item]))
+    next.imageGen.fallbacks = incoming.imageGen.fallbacks.filter(isObj).map((item) => {
+      const old = saved.get(item.id)
+      const sameEndpoint = old && old.baseUrl === String(item.baseUrl || '').trim().replace(/\/+$/, '') && (item.provider === 'codex' ? 'codex' : 'openai') === old.provider
+      return { ...item, apiKey: item.apiKey === null ? '' : item.apiKey || (sameEndpoint ? old.apiKey : '') }
+    })
+  }
   // 主人的抖音 secUid / uid / 昵称只能由「核对」写入，面板存配置时保留原值
   next.douyin.owner = { ...next.douyin.owner, ...Object.fromEntries(['secUid', 'uid', 'nickname', 'confirmedInput'].map((k) => [k, current.douyin?.owner?.[k] ?? ''])) }
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''
-  // B 站：只改了其中一个值时，另一个保留；整串粘进来的会在 normalize 里拆开
-  if (incoming?.bili && (incoming.bili.sessdata || incoming.bili.biliJct)) next.bili.cookie = ''
   if (incoming?.group?.overrides) next.group.overrides = incoming.group.overrides
   // 按聊天选模型：两张表整张替换（deepMerge 会让删掉的条目又回来）
   if (incoming?.chatModels?.privates) next.chatModels.privates = incoming.chatModels.privates

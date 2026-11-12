@@ -81,8 +81,8 @@ before(async () => {
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'no-snowluma') },
     voice: { engine: 'system', autoChance: 0 }, stickers: { autoChance: 0 },
     merge: { waitSec: 0.2, maxSec: 2 },
-    bili: { enabled: true },
-    modules: { bili: { enabled: false } },
+    bili: { enabled: true, cookie: 'old-login', ffmpegPath: '/opt/bin/ffmpeg' },
+    profilePerms: { biliSign: 'all' },
     files: { enabled: true, maxMB: 5, dirs: [dataDir], imageByPath: true },
   }))
   writeMod('echo', echoCode('pong'))
@@ -110,7 +110,7 @@ after(async () => {
   setTimeout(() => process.exit(0), 200).unref()
 })
 
-test('自己写的模块加载了；同名的替换了内置的；关掉的内置模块没在跑', async () => {
+test('自己写的模块加载了；同名的替换了内置的', async () => {
   const echo = await mod('echo')
   assert.equal(echo.running, 'user')
   assert.deepEqual(echo.tools, ['echo_tool'])
@@ -119,18 +119,14 @@ test('自己写的模块加载了；同名的替换了内置的；关掉的内�
   assert.equal(diary.running, 'user')
   assert.equal(diary.builtin, true)
   assert.equal(diary.forkedFrom, '1.0.0', '记下了替换时内置模块的版本')
-  assert.equal((await mod('bili')).running, null)
   assert.equal((await mod('stickers')).running, 'builtin')
-  // 被替换的接口走自己写的；关掉模块的接口告诉面板「模块没开」
+  // 被替换的接口走自己写的
   assert.equal((await fake.call('/diary/history')).json().mine, true)
-  const off = (await fake.call('/bili/state')).json()
-  assert.equal(off.ok, false)
-  assert.equal(off.moduleOff, true)
   // 自己写的模块的接口在 /ext/模块id/ 下面，设置有默认值
   assert.equal((await fake.call('/ext/echo/hi')).json().hi, '你好')
 })
 
-test('模块接管消息、改写回复、加命令；她的规则里有模块补的话，没有关掉模块的本事', async () => {
+test('模块接管消息、改写回复、加命令；她的规则里有模块补的话', async () => {
   mock.push(priv('ping'))
   await until(() => sentTo(OWNER).includes('pong'))
   const turns = fake.turns.length
@@ -149,11 +145,9 @@ test('模块接管消息、改写回复、加命令；她的规则里有模块�
 
   const rules = fake.variables.get('aurabot_rules_private')()
   assert.match(rules, /你会说回声/)
-  assert.doesNotMatch(rules, /你会刷 B 站/, 'B 站模块关着就不说她会刷 B 站')
-  // 主人私聊会话：有模块的工具，没有关掉模块的工具
+  // 主人私聊会话同时带扩展工具和心智工具
   const agent = [...fake.agents.values()].find((a) => String(a.preset).startsWith('aurabot-private'))
   assert.ok(agent.tools.has('echo_tool'))
-  assert.ok(!agent.tools.has('bili_watch'))
   assert.ok(agent.tools.has('mind_remember'), '心智核心的记忆工具一直在')
 })
 
@@ -216,23 +210,19 @@ test('新建模块：从模板建，能直接跑', async () => {
   assert.equal((await fake.call('/modules/create', { id: 'Bad Id' })).json().ok, false)
 })
 
-test('复制 B 站模块：抽帧 / 截图库文件一起复制，用户模块能启动并提供图库路由', async () => {
-  await fake.call('/save', { modules: { bili: { enabled: true } } })
-  try {
-    const r = (await fake.call('/modules/fork', { id: 'bili' })).json()
-    assert.equal(r.ok, true, r.message)
-    assert.ok(existsSync(join(modDir('bili'), 'vision.js')))
-    assert.ok(existsSync(join(modDir('bili'), 'shots.js')))
-    const m = await mod('bili')
-    assert.equal(m.running, 'user', m.error)
-    assert.ok(m.tools.includes('qq_send_shot'))
-    assert.ok(m.tools.includes('qq_list_shots'))
-    const shots = (await fake.call('/bili/shots')).json()
-    assert.equal(shots.ok, true)
-    assert.deepEqual(shots.items, [])
-  } finally {
-    await fake.call('/save', { modules: { bili: { enabled: false } } })
+test('旧版 B 站配置不会重新启用内置功能，ffmpeg 路径继续可用', async () => {
+  assert.equal(await mod('bili'), undefined)
+  assert.doesNotMatch(fake.variables.get('aurabot_rules_private')(), /你会刷 B 站|bili_watch/)
+  const agent = [...fake.agents.values()].find((a) => String(a.preset).startsWith('aurabot-private'))
+  assert.ok(agent)
+  assert.ok([...agent.tools.keys()].every((name) => !name.startsWith('bili_') && !['qq_send_shot', 'qq_list_shots'].includes(name)))
+  for (const path of ['/bili/state', '/bili/qr/start', '/bili/danmaku/send', '/bili/shots']) {
+    assert.ok(!fake.routes.has('/aurabot/api' + path))
   }
+  const cfg = (await fake.call('/state')).json().config
+  assert.equal(cfg.local.ffmpegPath, '/opt/bin/ffmpeg')
+  assert.equal(Object.hasOwn(cfg, 'bili'), false)
+  assert.equal(Object.hasOwn(cfg.profilePerms, 'biliSign'), false)
 })
 
 test('模块设置里的密码不回传给面板', async () => {

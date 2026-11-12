@@ -916,7 +916,7 @@ test('面板接口：token 用量（今日 / 昨日 / 近 7 天 / 近 30 天 + �
   assert.equal(d30.current.runs, d30.ranges.last30.runs, 'range=30 时 current 就是近 30 天')
 })
 
-test('用量归属：聊天里让她刷 B 站，处理工具结果那次调用算「刷 B 站」而不是「聊天」', async () => {
+test('用量归属：聊天里让她生图，处理工具结果那次调用算「生图」而不是「聊天」', async () => {
   let sid = api.hub.sessions()['private:10000001']?.sessionId
   if (!sid) {
     const n = fake.turns.length
@@ -931,10 +931,10 @@ test('用量归属：聊天里让她刷 B 站，处理工具结果那次调用�
 
   const before = await read()
   const chatBefore = runsOf(before, '聊天')
-  const biliBefore = runsOf(before, '刷 B 站')
+  const imageBefore = runsOf(before, '生图')
 
-  // 这一轮：她调 bili_watch（step 1），然后处理看回来的内容（step 2，带 usage）
-  fake.emit('session/event', sess, { type: 'tool/call', data: { turn: 9001, step: 1, callId: 'c1', name: 'bili_watch', arguments: '{"link":"BV1xx"}' } })
+  // 这一轮：她调 qq_draw_image（step 1），然后处理生图结果（step 2，带 usage）
+  fake.emit('session/event', sess, { type: 'tool/call', data: { turn: 9001, step: 1, callId: 'c1', name: 'qq_draw_image', arguments: '{"prompt":"测试图"}' } })
   fake.emit('session/event', sess, {
     type: 'assistant/message',
     time: Date.now(),
@@ -942,19 +942,19 @@ test('用量归属：聊天里让她刷 B 站，处理工具结果那次调用�
       turn: 9001,
       step: 2,
       usage: { inputTokens: 3000, outputTokens: 20, cacheReadTokens: 0 },
-      message: { role: 'assistant', content: [{ type: 'text', text: '这视频挺好笑' }] },
+      message: { role: 'assistant', content: [{ type: 'text', text: '画好了' }] },
     },
   })
   await sleep(200)
 
   const after = await read()
-  assert.equal(runsOf(after, '刷 B 站') - biliBefore, 1, '刷 B 站那次调用要算到「刷 B 站」名下')
+  assert.equal(runsOf(after, '生图') - imageBefore, 1, '生图那次调用要算到「生图」名下')
   assert.equal(runsOf(after, '聊天') - chatBefore, 0, '这一步不该再算一笔「聊天」')
 
   // 普通工具（发消息这类）不改变归属，仍记「聊天」
   const mid = await read()
   const chat2 = runsOf(mid, '聊天')
-  const bili2 = runsOf(mid, '刷 B 站')
+  const image2 = runsOf(mid, '生图')
   fake.emit('session/event', sess, { type: 'tool/call', data: { turn: 9002, step: 1, callId: 'c2', name: 'qq_send_message', arguments: '{}' } })
   fake.emit('session/event', sess, {
     type: 'assistant/message',
@@ -969,7 +969,7 @@ test('用量归属：聊天里让她刷 B 站，处理工具结果那次调用�
   await sleep(200)
   const after2 = await read()
   assert.equal(runsOf(after2, '聊天') - chat2, 1, '聊天自己的工具仍算「聊天」')
-  assert.equal(runsOf(after2, '刷 B 站') - bili2, 0)
+  assert.equal(runsOf(after2, '生图') - image2, 0)
 })
 
 test('头像：上传自定义头像、同步成 QQ 头像、恢复默认', async () => {
@@ -1477,7 +1477,7 @@ test('#58 在 DSH 会话窗口里直接打字：这一轮按主人说的算（�
   const sid = fake.workspaces[0].sessionIds.at(-1)
   assert.ok(sid, '新会话建出来了')
   // 模拟主人在 DSH 会话窗口里直接打字（DSH 会发 user/message，source.kind = 'user'）
-  api.hub.onSessionEvent({ id: sid }, { type: 'user/message', data: { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '帮我把 B 站头像改一下' }] } })
+  api.hub.onSessionEvent({ id: sid }, { type: 'user/message', data: { role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '帮我把 QQ 头像改一下' }] } })
   assert.equal(api.hub.turnSendersAllOwner(sid), true, '面板里直接打字也算主人')
   assert.equal(api.hub.turnHasOwner(sid), true)
   // 权限真的通了：改昵称工具（默认仅主人）能执行

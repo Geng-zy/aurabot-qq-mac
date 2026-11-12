@@ -43,6 +43,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+## BAAI bge-small-zh-v1.5（MIT）
+
+- 模型和词表来自上游 Aurabot [beta 的模型目录](https://github.com/aureth-labs/dsh-aurabot-qq/tree/fd7d746/models)，模型卡见 [BAAI](https://huggingface.co/BAAI/bge-small-zh-v1.5)。许可原文见随包的 `models/LICENSE`。
+- 本地推理的接线基于上游 Aurabot [vector-embed.js](https://github.com/aureth-labs/dsh-aurabot-qq/blob/fd7d746/src/features/vector-embed.js)，并接到本项目的心智向量接口。
+
+## Microsoft ONNX Runtime Web（MIT）
+
+- `models/onnxruntime/` 中的 JavaScript 和 WebAssembly 文件取自 [onnxruntime-web 1.31.1](https://www.npmjs.com/package/onnxruntime-web/v/1.31.1) 的官方 npm 包。运行时的 `LICENSE` 和 `ThirdPartyNotices.txt` 一同分发。
+
 ## 其他
 
 - `README.md` 的「致谢」一节还列出了在 DSH 插件机制上参考过思路的其他插件（MIT），那些只参考了踩坑经验，未复制代码。

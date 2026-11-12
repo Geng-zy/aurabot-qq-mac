@@ -38,7 +38,7 @@ export function createSleep(mem, deps) {
       const self = mem.row(id)
       if (!self) continue
       // 拿它自己的向量去找
-      const hits = v.search(vecOf(id), { model: String(S('embedModel')), limit: 6, min: 0.8, filter: (x) => x !== id })
+      const hits = v.search(vecOf(id), { model: mem.embedModel(), limit: 6, min: 0.8, filter: (x) => x !== id })
       for (const h of hits) {
         const [a, b] = id < h.id ? [id, h.id] : [h.id, id]
         n += ins.run(a, b, 'similar', h.sim).changes
@@ -47,7 +47,7 @@ export function createSleep(mem, deps) {
     return n
   }
   function vecOf(id) {
-    const r = store.prep('SELECT dim, vec FROM vectors WHERE id = ?').get(String(id))
+    const r = store.prep('SELECT dim, vec FROM vectors WHERE id = ? AND model = ?').get(String(id), mem.embedModel())
     return r ? Array.from(new Float32Array(r.vec.buffer, r.vec.byteOffset, r.dim)) : null
   }
 
@@ -72,7 +72,7 @@ export function createSleep(mem, deps) {
     for (const e of recent.slice(0, 30)) {
       const v = vecOf(e.id)
       if (!v) continue
-      for (const h of mem.vectors.search(v, { model: String(S('embedModel')), limit: 3, min: 0.6, filter: (x) => x !== e.id && !picked.has(x) })) {
+      for (const h of mem.vectors.search(v, { model: mem.embedModel(), limit: 3, min: 0.6, filter: (x) => x !== e.id && !picked.has(x) })) {
         const old = mem.row(h.id)
         if (old && old.status === 'live' && !NOT_EVIDENCE.has(old.data.kind) && old.at < since && picked.size < 100) picked.set(old.id, old)
       }
@@ -84,7 +84,7 @@ export function createSleep(mem, deps) {
     const addKnown = (e) => { if (e && e.status === 'live' && KNOWLEDGE.has(e.data.kind) && !e.data.outdated && e.at < since && !picked.has(e.id) && knownOld.size < 40) knownOld.set(e.id, e) }
     for (const e of recent.slice(0, 30)) {
       const v = vecOf(e.id)
-      if (v) for (const h of mem.vectors.search(v, { model: String(S('embedModel')), limit: 3, min: 0.6, filter: (x) => x !== e.id })) addKnown(mem.row(h.id))
+      if (v) for (const h of mem.vectors.search(v, { model: mem.embedModel(), limit: 3, min: 0.6, filter: (x) => x !== e.id })) addKnown(mem.row(h.id))
     }
     const abouts = [...new Set(recent.map((e) => e.data.about).filter((x) => x && x !== 'self'))].slice(0, 8)
     for (const who of abouts) {
@@ -170,7 +170,7 @@ export function createSleep(mem, deps) {
       let similar = null
       if (level >= 0.2 && random() < level) {
         const v = vecOf(e.id)
-        const h = v && mem.vectors.search(v, { model: String(S('embedModel')), limit: 3, min: 0.8, filter: (x) => x !== e.id })
+        const h = v && mem.vectors.search(v, { model: mem.embedModel(), limit: 3, min: 0.8, filter: (x) => x !== e.id })
           .map((x) => mem.row(x.id)).find((x) => mem.visibleIn(x, e.window || '') && !NOT_EVIDENCE.has(x.data.kind))
         similar = h || null
       }

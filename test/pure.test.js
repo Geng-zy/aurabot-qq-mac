@@ -337,6 +337,19 @@ test('更新后：会公开发东西的新功能，老用户先关着，新安�
   }
 })
 
+test('升级只保留旧版 B 站配置里的共享 ffmpeg 路径', async () => {
+  const { normalize, mergeFromPanel, publicConfig } = await import('../src/core/config.js')
+  const raw = { bili: { ffmpegPath: ' /opt/bin/ffmpeg ', cookie: 'legacy-cookie' }, local: { asr: true } }
+  const config = normalize(raw)
+  assert.equal(config.local.ffmpegPath, '/opt/bin/ffmpeg')
+  assert.equal(config.local.asr, true)
+  assert.equal(Object.hasOwn(config, 'bili'), false)
+  assert.equal(Object.hasOwn(publicConfig(raw), 'bili'), false)
+  assert.equal(normalize({ ...raw, local: { ffmpegPath: '/usr/local/bin/ffmpeg' } }).local.ffmpegPath, '/usr/local/bin/ffmpeg')
+  assert.equal(normalize({ ...raw, local: { ffmpegPath: '' } }).local.ffmpegPath, '')
+  assert.equal(mergeFromPanel(config, { local: { ffmpegPath: '' } }).local.ffmpegPath, '')
+})
+
 test('空间互动：说说下的评论整理成上下文', async () => {
   const { summarizeComments } = await import('../src/features/qzone-social.js')
   const comments = [
@@ -361,8 +374,8 @@ test('解析：合并转发记下 id，回复里的 <poke> 变成戳一戳', asy
 test('#6 改资料权限：默认仅主人私聊；所有人含群；关了都不行；执行时再查', async () => {
   const { normalize } = await import('../src/core/config.js')
   const d = normalize({ ownerQQ: '1', freedom: false })
-  assert.deepEqual(d.profilePerms, { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', biliSign: 'owner', biliAvatar: 'owner', biliComment: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner', heyboxBrowse: 'owner', heyboxLike: 'owner', heyboxComment: 'owner', heyboxPost: 'owner' })
-  assert.equal(normalize({ profilePerms: { qqAvatar: 'boss', biliSign: 'all' } }).profilePerms.qqAvatar, 'owner', '乱填的回到默认')
+  assert.deepEqual(d.profilePerms, { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner', heyboxBrowse: 'owner', heyboxLike: 'owner', heyboxComment: 'owner', heyboxPost: 'owner' })
+  assert.equal(normalize({ profilePerms: { qqAvatar: 'boss' } }).profilePerms.qqAvatar, 'owner', '乱填的回到默认')
   const ownerPm = { kind: 'private', userId: '1' }
   const otherPm = { kind: 'private', userId: '2' }
   const group = { kind: 'group', userId: '1', groupId: '9' }

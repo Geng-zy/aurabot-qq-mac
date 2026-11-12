@@ -7,7 +7,6 @@ import { join } from 'node:path'
 import { normalize } from '../src/core/config.js'
 import { createHub } from '../src/chat/hub.js'
 import { isSessionBackoff } from '../src/chat/session-backoff.js'
-import { createBili } from '../src/bili/duty.js'
 import { createFakeDsh } from './helpers/fake-dsh.js'
 import { qqIn } from './helpers/qq-in.js'
 
@@ -27,7 +26,6 @@ function setup(t) {
   const cfg = normalize({ enabled: true, dryRun: true, setupDone: true, ownerQQ: OWNER, botQQ: BOT,
     workspaceDir: join(root, 'workspace'), merge: { enabled: false }, voice: { enabled: false },
     stickers: { autoChance: 0, reactChance: 0 }, allow: { groups: ['777'] },
-    bili: { enabled: true, autoBrowse: true, keywords: ['猫'], maxRunsPerDay: 10, intervalHours: 1, reply: true },
     speakUp: { awakeFrom: 0, awakeTo: 24, nudge: false },
     ext: { purpose: { enabled: true, minMaterials: 0 } },
   })
@@ -255,29 +253,6 @@ test('QQ 并发创建也只调一次宿主', async (t) => {
   assert.ok(results.every((r) => r.status === 'rejected' && isSessionBackoff(r.reason)))
   assert.equal(s.calls.length, 1)
   assert.equal(s.logs.warn.length, 1)
-})
-
-test('B站挑关键词遇到挂载失败直接跳过；冷却期间 tick/run/checkReplies 不再请求宿主或 B站', async (t) => {
-  const s = setup(t)
-  let apiCalls = 0
-  const api = Object.fromEntries(['search', 'popular', 'replyFeed', 'nav'].map((name) => [name, async () => { apiCalls++; return [] }]))
-  const bili = createBili({ getConfig: () => s.cfg, hub: s.hub, log: s.log, dsh: s.fake.ctx, api })
-  t.after(() => bili.dispose())
-  const first = await bili.run()
-  assert.equal(first.skipped, true)
-  assert.equal(s.calls.length, 1)
-  assert.equal(apiCalls, 0, '不应退回随机关键词后继续搜索')
-  const before = structuredClone(s.logs)
-  for (let i = 0; i < 3; i++) {
-    await bili.tick()
-    assert.equal((await bili.run()).skipped, true)
-    assert.equal((await bili.checkReplies()).skipped, true)
-  }
-  assert.equal(s.calls.length, 1)
-  assert.equal(apiCalls, 0)
-  assert.equal(bili.state().runs, 0)
-  assert.equal(bili.state().lastRun, 0)
-  assert.deepEqual(s.logs, before)
 })
 
 test('更换工作区不沿用旧路径冷却', async (t) => {

@@ -117,34 +117,31 @@ export function priceOf(model, at = Date.now(), p = pricing) {
 // 记账用的模块名：模块 id → 中文；system:xxx 的后台轮次标成「xxx（后台）」
 const MODULE_LABELS = {
   memory: '记忆', mood: '心情', diary: '空间日记', purpose: '目的引擎', 'purpose-nudge': '目的引擎（追问）',
-  stickers: '表情包', imagegen: '生图', bili: '刷 B 站', heybox: '刷小黑盒', douyin: '刷抖音', video: '生视频',
+  stickers: '表情包', imagegen: '生图', heybox: '刷小黑盒', douyin: '刷抖音', video: '生视频',
   voice: '语音', song: '翻唱', pet: '桌宠', profile: '改资料', contacts: '好友申请',
   'qq-tools': 'QQ 工具', 'qq-api': 'QQ 接口', 'group-admin': '群管', 'qzone-social': '空间互动',
   // 心智核心的后台用途（记经历、睡觉整理、做梦、深想……），见 src/mind-adapter 的 EFFORT
   'mind:record': '心智核心（记经历）', 'mind:consolidate': '心智核心（睡觉整理）', 'mind:reconsolidate': '心智核心（记忆改写）',
   'mind:dream': '心智核心（做梦）', 'mind:deep': '心智核心（深想）', 'mind:think': '心智核心（念头）',
   'mind:traits': '心智核心（推性格）', 'mind:selfstory': '心智核心（写自己的故事）', 'mind:outreach': '心智核心（主动找你）', 'mind:permission': '心智核心（申请权限）',
-  speakup: '主动搭话', bridge: '联动接口', 'bili-vision': 'B 站看画面', persona: '人格生成', 'model-ping': '模型测试', notice: 'QQ 里提醒你（授权 / 提问）', background: '其他后台任务',
+  speakup: '主动搭话', bridge: '联动接口', persona: '人格生成', 'model-ping': '模型测试', notice: 'QQ 里提醒你（授权 / 提问）', background: '其他后台任务',
 }
 
 /**
  * 聊天轮次里「是某个工具干的活」时，把这一步的用量记到工具所属模块名下，别全算成「聊天」。
- * 例：聊天里让她刷 B 站 → 她调 `bili_watch` → 下一步读字幕/热评那次调用算「刷 B 站」。
+ * 例：聊天里让她生图 → 她调 `qq_draw_image` → 下一步处理工具结果的调用算「生图」。
  * 返回 '' 表示这个工具不属于任何记账模块（就还按「聊天」算）。
  */
 export function moduleOfTool(name) {
   const n = String(name || '').trim().toLowerCase()
   if (!n) return ''
-  // 名字前缀猜归属（bili_watch → bili）；前缀不是模块 id 的，再看这两张表
+  // 名字前缀猜归属（imagegen_draw → imagegen）；前缀不是模块 id 的，再看这两张表
   const owner = TOOL_MODULES[n] || n.split('_')[0]
   return MODULE_LABELS[owner] || ''
 }
 
 // 工具名 → 模块 id：只收「前缀猜不出来」和「前缀会猜错」的，其余走前缀
 const TOOL_MODULES = {
-  // bili 模块注册的，但名字是 qq_ 开头（B 站截图）
-  qq_send_shot: 'bili',
-  qq_list_shots: 'bili',
   qq_draw_image: 'imagegen',
   qq_generate_video: 'video',
   qq_send_sticker: 'stickers',
@@ -158,7 +155,7 @@ const TOOL_MODULES = {
 /**
  * 把「聊天 id」或「模块 id」变成记账用的名字。
  *   group:123 / private:456 → 聊天
- *   system:diary / system:bili → 空间日记（后台）/ 刷 B 站（后台）
+ *   system:diary → 空间日记（后台）
  *   memory / mood / … → 记忆 / 心情 …
  */
 export function moduleLabel(key) {

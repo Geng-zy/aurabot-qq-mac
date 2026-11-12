@@ -1,3 +1,5 @@
+import { fileURLToPath } from 'node:url'
+import { createEmbedder } from './local-embedding.js'
 // 心智核心和 Aurabot 之间的对接层。
 // 这里把渠道消息变成感知记录，把发出去的消息段变成她说过的话，
 // 会话用量 → 要不要换新会话，人格卡 → 心智里的版本，每天一份快照；
@@ -105,21 +107,36 @@ export function createMindAdapter(opts) {
   const trashDir = opts.trashDir || join(homedir(), '.Trash')
   const mem = mind.memory
 
-  // 记忆接上模型和向量（心情、精力等第三阶段接上，现在按平常算）
+  const localEmbedding = opts.localEmbedding || createEmbedder(fileURLToPath(new URL('../../models/', import.meta.url)))
+  const embedBackend = () => opts.getConfig()?.mind?.embedBackend === 'local' ? 'local' : 'remote'
+  const embedRemote = createEmbedClient({
+    url: () => mind.setting('memory.embedUrl'),
+    model: () => mind.setting('memory.embedModel'),
+    key: () => opts.embedKey?.() || '',
+    fetch: opts.fetch,
+  })
+  const rerankRemote = createRerankClient({
+    url: () => mind.setting('memory.embedUrl'),
+    model: () => mind.setting('memory.rerankModel'),
+    key: () => opts.embedKey?.() || '',
+    fetch: opts.fetch,
+  })
+  function embeddingStatus() {
+    const backend = embedBackend()
+    const error = backend === 'local' ? localEmbedding.probe() : ''
+    return { backend, error }
+  }
   mem.connect({
-    embed: createEmbedClient({
-      url: () => mind.setting('memory.embedUrl'),
-      model: () => mind.setting('memory.embedModel'),
-      key: () => opts.embedKey?.() || '',
-      fetch: opts.fetch,
-    }),
-    // 精排和向量共用地址、密钥（SiliconFlow 上 bge-reranker-v2-m3 免费）
-    rerank: createRerankClient({
-      url: () => mind.setting('memory.embedUrl'),
-      model: () => mind.setting('memory.rerankModel'),
-      key: () => opts.embedKey?.() || '',
-      fetch: opts.fetch,
-    }),
+    embeddingIdentity: () => embedBackend() === 'local' ? 'local:bge-small-zh-v1.5-int8' : mind.setting('memory.embedModel'),
+    embeddingReady: () => !embeddingStatus().error,
+    embed: async (texts, { query = false } = {}) => {
+      if (embedBackend() !== 'local') return embedRemote(texts)
+      const out = []
+      for (const text of texts) out.push(await localEmbedding.embed(text, { query }))
+      return out
+    },
+    // 离线模式的记忆和查询都留在本机。
+    rerank: (cue, candidates, options) => embedBackend() === 'local' ? [] : rerankRemote(cue, candidates, options),
   })
 
   // 本地小模型（内心活动用）：路径来自心智设置；留空就用 Aurabot 的安装位置 ~/Aurabot/mind（和翻唱的 ~/Aurabot/rvc 一样）
@@ -140,6 +157,15 @@ export function createMindAdapter(opts) {
 
   /** 这个人设成了「以后不记」：他的话不进感知记录，和他私聊时她说的也不记。 */
   const notRemembered = (person) => Boolean(person) && mind.person(person)?.noMemory === true
+
+  function recentUserMessages(chat, currentText) {
+    const chatId = windowOf(chat?.chatId)
+    if (debug() || !isOwnerChat(chatId)) return []
+    const current = new Set(String(currentText || '').split('\n').map((line) => line.trim()))
+    return mind.history(chatId, { since: now() - 30 * 60_000, limit: 32 })
+      .filter((row) => row.dir === 'in' && row.who === ownerOf() && !notRemembered(row.who) && !current.has(row.text.trim()))
+      .slice(-8).map((row) => ({ speakerId: row.who, at: row.at, text: row.text.slice(0, 300) }))
+  }
 
   /** 收到的一条渠道消息（已经过白名单）。 */
   function perceive(msg) {
@@ -241,7 +267,7 @@ export function createMindAdapter(opts) {
       }
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)
-      // 身体和心情：QQ 聊天、她自己去做事的后台会话（刷 B 站、写空间……）都带上，哪里都是同一个她
+      // 身体和心情：QQ 聊天、她自己去做事的后台会话（读热榜、写空间……）都带上，哪里都是同一个她
       if (args.chat) {
         const b = mind.body.state({ persist: false })
         parts.push(mind.body.describe(b))
@@ -614,7 +640,7 @@ export function createMindAdapter(opts) {
        * 现在能找主人（不在勿扰时段、今天还没找够、上次找他他回了）就由她自己开口（不想说可以不说）；
        * 不能就先记着，接下来两天里和主人私聊时她会想起来，聊到合适的时候提。
        * @param {{ text: string, url?: string, hint?: string, importance?: number }} e
-       *   text：是什么、她觉得怎么样；url：链接；hint：她要发的话怎么发（比如「用 qq_send_shot 发截图」）
+       *   text：是什么、她觉得怎么样；url：链接；hint：她要发的话怎么发（比如「用附件工具发图」）
        */
       async share(e = {}) {
         const text = String(e.text || '').trim().slice(0, 160)
@@ -738,7 +764,8 @@ export function createMindAdapter(opts) {
   const sharesOf = () => { const v = mind._store.get('shares', []); return Array.isArray(v) ? v : [] }
   /** 和主人私聊时想起来的「之前想给他看的」：每条最多想起两次，两天后就算了。 */
   function pendingShares() {
-    const list = sharesOf().filter((x) => now() - x.at < SHARE_TTL && x.shown < 2)
+    // 升级后不再提起旧版内置 B 站模块排队的分享。
+    const list = sharesOf().filter((x) => x.by !== 'bili' && now() - x.at < SHARE_TTL && x.shown < 2)
     if (!list.length) return ''
     mind._store.set('shares', list.map((x) => ({ ...x, shown: x.shown + 1 })))
     return '（你之前刷到、想给他看的：' + list.slice(0, 3).map((x) => x.text + (x.url ? ' ' + x.url : '') + (x.hint ? `（${x.hint}）` : '')).join('；') + '。聊到合适的时候可以提，不提也行。）'
@@ -1366,10 +1393,11 @@ export function createMindAdapter(opts) {
     for (const t of [timer, encodeTimer, sleepTimer, innerTimer]) if (t) clearInterval(t)
     timer = encodeTimer = sleepTimer = innerTimer = null
     try { local.stop() } catch {}
+    localEmbedding.close?.()
     mind.close()
   }
 
-  return { mind, perceive, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, endTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
+  return { mind, perceive, recentUserMessages, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, endTurn, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, embeddingStatus, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
     selfPrompt: () => mind.selfPrompt(),
     /** 她现在怎么叫主人（她自己改过就用她的，没改过用主人设的）。 */
     ownerCall: () => mind.self.ownerCall(), ownerChat, checkPromises, changeSelf, inferTraits, dislikes, ignoreChance, groupInterest, reactWish, forgetPerson, restorePerson, interjectCap, wakeWords, missOwner, importLegacySocial }

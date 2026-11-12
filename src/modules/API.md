@@ -3,7 +3,7 @@
 > 这个文件由插件维护，每次启动都会更新成当前版本，**别改它**（改了也会被覆盖）。
 > 你自己写的模块放在和它同一个文件夹（`modules/`）里，插件升级不会动。
 
-她的每项本事都是一个**模块**：表情包、语音、空间日记、B 站、翻唱、生图……（她的记忆、情绪、身体、性格和关系不是模块，在心智核心里，见下面「心智核心」一节）
+她的每项本事都是一个**模块**：表情包、语音、空间日记、翻唱、生图……（她的记忆、情绪、身体、性格和关系不是模块，在心智核心里，见下面「心智核心」一节）
 你可以：
 
 - **加新模块**：给她新本事（查天气、接智能家居、关键词回复、对接自己的服务……）
@@ -209,7 +209,7 @@ QQ 主人命令的参数或回执涉及隐私时，可用 `api.command({ name: '
 | 事件 | 参数 | 改的是什么 |
 |---|---|---|
 | `group/decide` | `decision, { msg, policy, recentTexts, memScore }` | 群里这条消息（没被 `message` 接管的）她**回不回、怎么回**。没人叫她时插不插话本来由她自己（心智核心按她的性格、心情、话题、在场的人算），`policy.interjectChance` 就是这次她想接话的程度。返回 `null` 在这里无效（等于不改）。`decision` 是 `{ reply, mode, reason }`，mode 是 `must`（被叫到）/ `engaged`（正在参与话题）/ `interject`（插话）。返回 `{ reply: true, mode: 'must' }` 就让她必回，`{ reply: false }` 就让她不理。想整套换掉插话策略就在这里写 |
-| `prompt` | `content, { chat, senderId, queryText }` | **交给她的内容**：`[{ type: 'text', text }, { type: 'image', … }]`。可以加背景信息、改格式、去掉图片；返回 `null` 这次不交给她 |
+| `prompt` | `content, { chat, senderId, queryText, recentMessages }` | **交给她的内容**：`[{ type: 'text', text }, { type: 'image', … }]`。可以加背景信息、改格式、去掉图片；返回 `null` 这次不交给她。面板「给扩展提供近期私聊线索」打开后，已获主人身份的当前主人私聊可提供最近的 `recentMessages`，格式为 `{ speakerId, at, text }[]`。其他情况为空。 |
 | `reply/items` | `items, { chatId, text, userText }` | 她的回复**拆好之后**（哪条发语音、配不配表情都已经决定了）：每条 `{ kind: 'text' \| 'voice' \| 'sticker' \| 'poke' \| 'image', value, replyTo }`。可以改顺序、全部变语音、去掉表情、加图片 |
 | `send` | `message, { chatId, note, force }` | **最终发给 QQ 的消息段**（OneBot 格式）。所有发出去的消息都经过这里：她的回复、命令回复、模块发的。加签名、过滤词、抄送到别处都在这里 |
 | `model` | `selection, chat` | **这个聊天用哪个模型**（同步，不能 async）：返回 `{ provider, model, reasoningEffort }`。比如群里用便宜的、私聊用好的。`selection` 是面板选的（没选时是 DSH 默认，拿不到时是 `null`），主人在面板里「按聊天选模型」设过的话，已经按那个聊天算好了；模块在它之后还可以再改。换了之后从这个聊天的下一条消息起生效 |
@@ -285,7 +285,7 @@ api.tool(({ chat, level, sessionId }) => {
 ## 面板
 
 **自动表单**：写了 `settings`，面板会多一个这个模块的标签页，自动生成设置表单，用户改完点保存。
-定义里写了 `tab: '内置标签页'`（`voice` `stickers` `imagegen` `diary` `song` `bili` `local` `group` `model` `persona` `access` `connect` `overview`），设置和面板就放进那一页的最下面，不单独占一页。比如给翻唱加功能的模块写 `tab: 'song'`。
+定义里写了 `tab: '内置标签页'`（`voice` `stickers` `imagegen` `diary` `song` `local` `group` `model` `persona` `access` `connect` `overview`），设置和面板就放进那一页的最下面，不单独占一页。比如给翻唱加功能的模块写 `tab: 'song'`。
 
 ```js
 settings: [
@@ -328,7 +328,6 @@ return function Panel({ settings, save, toast }) {
 | `voice` | 语音 | `speak(文字) → { file, engine }` |
 | `imagegen` | 生图 | `enabled()` `generate(描述) → Buffer` |
 | `diary` | 空间日记 | `writeDiary()` `post(正文, { images, visibility })` `remove(tid)` `history()` `nextTime()` |
-| `bili` | B 站 | `watch(链接)` `comment(链接, 文字)` `run()` `checkReplies()` `account()` `state()` |
 | `song` | 翻唱 | `request({ song, pitch, chatId })` `search(关键词)` `status()` `install()` |
 
 QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`）和空间互动（`qzone-social`）。实现位于 `src/channels/qq/features/`，沿用原有设置和模块 id。空间互动仍可用 `api.use('qzone-social')` 调用 `run({ force })`、`state()`。
@@ -346,7 +345,7 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 | `api.mind.now()` | 她现在的时间（按她的时区） |
 | `api.mind.awake()` | 她醒着没有。睡着时模块别替她做事、别替她看消息 |
 | `api.mind.offer({ id, label, needs, effort, delayHours, cooldownMinutes, payoff, keywords, available, run })` | 把一件她能做的事交给她，**由她自己决定什么时候做**（模块不再自己定时去做）。`needs` 是这件事满足哪些基本需要（`fun` 新鲜和乐趣、`curiosity` 好奇、`beauty` 美、`companion` 陪伴、`recognition` 被认可、`meaning` 意义……），0～1；`effort` 多费力（0～1）；`delayHours` 回报要等多久；`available()` 返回 `true` 或者做不了的原因（面板里的开关、每天上限照旧在这里判断）；`run()` 返回 `{ ok, summary, outcome }`，`outcome` 0～1 是她做完有多满意，她会按它学下次还想不想做。模块停了，交出去的事自动撤掉 |
-| `await api.mind.share({ text, url, hint })` | 刷到 / 做了想给主人看的东西。**模块只提供手，别自己私聊主人**：交给她，她现在能找主人（不在勿扰时段、今天还没找够、上次找他他回了）就自己开口，不想说可以不说；不能就先记着，接下来两天里和主人私聊时她会想起来。`text` 是什么、她觉得怎么样；`url` 链接；`hint` 她要发的话怎么发（比如「用 qq_send_shot 发截图」） |
+| `await api.mind.share({ text, url, hint })` | 刷到 / 做了想给主人看的东西。**模块只提供手，别自己私聊主人**：交给她，她现在能找主人（不在勿扰时段、今天还没找够、上次找他他回了）就自己开口，不想说可以不说；不能就先记着，接下来两天里和主人私聊时她会想起来。`text` 是什么、她觉得怎么样；`url` 链接；`hint` 她要发的话怎么发（比如「用附件工具发图」） |
 | `api.mind.granted(名字)` | 主人有没有批准她这项权限。她通过 QQ 私聊向主人申请，只有主人本人在私聊里说「同意 #编号」才算 |
 
 看见的内容（`seen`）只是她看过，不是作者对她说的话。真实聊天平台上和人的对话不要用 `experience`，那是她的感知，由聊天中枢交给心智核心。

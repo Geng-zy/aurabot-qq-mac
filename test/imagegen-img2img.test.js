@@ -21,7 +21,7 @@ const OWNER = '10000001', BOT = '20000002'
 const privateChat = { kind: 'private', chatId: `private:${OWNER}`, userId: OWNER }
 const groupChat = { kind: 'group', chatId: 'group:123', groupId: '123' }
 const unsupported = { message: '这个生图服务不支持参考图' }
-const config = (extra = {}) => normalize({ freedom: false, imageGen: { enabled: true, baseUrl: 'https://image.example/v1', apiKey: 'key', model: 'image-test', stylePrompt: '水彩', ...extra } })
+const config = (extra = {}) => normalize({ dryRun: false, freedom: false, imageGen: { enabled: true, baseUrl: 'https://image.example/v1', apiKey: 'key', model: 'image-test', stylePrompt: '水彩', ...extra } })
 const result = () => new Response(JSON.stringify({ data: [{ b64_json: b64 }] }))
 function sandbox(t) {
   const previous = process.env.AURABOT_DATA_DIR
@@ -330,4 +330,15 @@ test('发送失败沿用原流程：不保存画作、不记成功经历', async
   assert.match(out.message, /没有发到 QQ/)
   assert.equal(s.events.length, 0)
   assert.ok(!readdirSync(dir).includes('imagegen'))
+})
+
+test('试运行生成并保存画作，不调用发送接口或记录已送达经历', async (t) => {
+  const dir = sandbox(t)
+  const s = drawTool({ ...config({ seeOwn: false }), dryRun: true })
+  const out = await s.tool.execute({ prompt: '测试图', image: 'quote' })
+  assert.equal(out.ok, true)
+  assert.match(out.message, /试运行已生成图片并存入画作库/)
+  assert.equal(s.sent.length, 0)
+  assert.equal(s.events.length, 0)
+  assert.equal(readdirSync(join(dir, 'imagegen')).length, 1)
 })

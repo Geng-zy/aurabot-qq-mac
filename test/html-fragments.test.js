@@ -7,7 +7,7 @@ const clean = (text) => stripHtmlFragments(text).value
 
 test('剥掉落单的块级收尾片段', () => {
   // 2026-11-06 群 644343678 实况：模型 reasoning 之后直接吐 HTML 收尾。
-  assert.equal(clean('</p>\n\n\n\n\n\nB站那个是全本 3214集 中间不插广告'), 'B站那个是全本 3214集 中间不插广告')
+  assert.equal(clean('</p>\n\n\n\n\n\n这部剧有全本 3214 集，中间不插广告'), '这部剧有全本 3214 集，中间不插广告')
   assert.equal(clean('你好</p>世界'), '你好世界')
   assert.equal(clean('就这样</div>'), '就这样')
   assert.equal(clean('前</section>后'), '前后')
@@ -77,7 +77,7 @@ test('非字符串和空串原样返回', () => {
 })
 
 test('接进出站清洗：整条回复里不残留落单标签', () => {
-  assert.equal(cleanOutboundText('</p>\n\n\n\n\n\nB站那个是全本 3214集 中间不插广告'), 'B站那个是全本 3214集 中间不插广告')
+  assert.equal(cleanOutboundText('</p>\n\n\n\n\n\n这部剧有全本 3214 集，中间不插广告'), '这部剧有全本 3214 集，中间不插广告')
   assert.equal(cleanOutboundText('你好</p>世界'), '你好世界')
   // 成对标签和 br 走完整条链路也不动。
   assert.equal(cleanOutboundText('我喜欢 <div>内容</div>'), '我喜欢 <div>内容</div>')

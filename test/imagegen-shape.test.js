@@ -128,3 +128,35 @@ test('qq_draw_image 的 size 参数暴露 2K/4K，传给生成器', async () => 
   assert.equal((await tool.execute({ prompt: '猫', size: '4096x4096' })).ok, true)
   assert.equal(seen.at(-1).size, '4096x4096')
 })
+
+test('主接口限流时按顺序换服务，参考图、尺寸与各自密钥保持独立', async () => {
+  const c = config({ fallbackEnabled: true, apiKey: 'primary-key', fallbacks: [
+    { id: 'one', baseUrl: 'https://backup-a.example/v1', model: 'backup-1', apiKey: 'a-key' },
+    { id: 'two', baseUrl: 'https://backup-b.example/v1', model: 'backup-2', apiKey: 'b-key' },
+  ] })
+  const calls = []
+  const gen = createImageGen({ getConfig: () => c, log, fetchImpl: async (url, request) => {
+    calls.push({ url, key: request.headers.authorization, size: request.body.get('size'), image: request.body.get('image') })
+    return calls.length < 3
+      ? Response.json({ error: { message: 'limit' } }, { status: 429 })
+      : Response.json({ data: [{ b64_json: PNG.toString('base64') }] })
+  } })
+  assert.deepEqual(await gen.generate('猫', { image: PNG, size: '2048x2048' }), PNG)
+  assert.deepEqual(calls.map(({ url, key, size }) => [url, key, size]), [
+    ['https://image.example/v1/images/edits', 'Bearer primary-key', '2048x2048'],
+    ['https://backup-a.example/v1/images/edits', 'Bearer a-key', '2048x2048'],
+    ['https://backup-b.example/v1/images/edits', 'Bearer b-key', '2048x2048'],
+  ])
+  assert.ok(calls.every((call) => call.image.size === PNG.length))
+})
+
+test('主服务拒绝内容时不发给备用服务', async () => {
+  const c = config({ fallbackEnabled: true, fallbacks: [{ id: 'one', baseUrl: 'https://backup.example/v1', model: 'backup' }] })
+  let count = 0
+  const gen = createImageGen({ getConfig: () => c, log, fetchImpl: async () => {
+    count++
+    return Response.json({ error: { message: 'content policy violation' } }, { status: 400 })
+  } })
+  await assert.rejects(gen.generate('测试'), /content policy/)
+  assert.equal(count, 1)
+})

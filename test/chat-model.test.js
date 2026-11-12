@@ -125,7 +125,6 @@ before(async () => {
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'no-snowluma') },
     voice: { engine: 'system', autoChance: 0 }, stickers: { autoChance: 0 },
     merge: { waitSec: 0.2, maxSec: 2 },
-    modules: { bili: { enabled: false } },
   }))
   fake = createFakeDsh({ brain: async () => '嗯' })
   const host = await import('../src/host.js')

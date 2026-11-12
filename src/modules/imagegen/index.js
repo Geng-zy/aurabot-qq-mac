@@ -140,12 +140,14 @@ export default {
           usedLooks = false
           buf = await gen.generate(drawPrompt, { shape, size })
         }
-        const sent = await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`)
-        if (!sent) return { ok: false, message: '画好了，但没有发到 QQ（请检查试运行和网关）' }
+        const cfg = api.config()
+        const dryRun = cfg.dryRun && !cfg.debug
+        const sent = dryRun ? null : await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`)
+        if (!sent && !dryRun) return { ok: false, message: '画好了，但没有发到 QQ（请检查网关）' }
         const saved = savePainting(buf, String(prompt || ''))
         if (saved) api.log.debug(`生图已存盘：${saved}`)
         try {
-          if (!sent.queued && !sent.simulated) api.mind?.experience?.({ chatId: chat.chatId, about: chat.kind === 'private' ? chat.userId : '', text: reference ? `参考了一张图画了：${String(prompt).slice(0, 120)}（提示词不一定等于实际画面）` : `按提示词画了一张图（不一定等于实际画面）：${String(prompt).slice(0, 120)}`, tags: ['画画'], importance: 0.4 })
+          if (sent && !sent.queued && !sent.simulated) api.mind?.experience?.({ chatId: chat.chatId, about: chat.kind === 'private' ? chat.userId : '', text: reference ? `参考了一张图画了：${String(prompt).slice(0, 120)}（提示词不一定等于实际画面）` : `按提示词画了一张图（不一定等于实际画面）：${String(prompt).slice(0, 120)}`, tags: ['画画'], importance: 0.4 })
         }
         catch (error) { api.log.warn('生图已发送，但经历没记下来：', error.message) }
         let visual = (await hub.canSeeImages(chat)) === true
@@ -155,7 +157,7 @@ export default {
         // 图要先缩、再登记成 DSH 附件块 —— 直接塞 base64 会让下一轮请求整轮失败（实测）
         let img = null
         if (visual && seeOwn) {
-          img = await imageToolBlock(api.dsh, buf, { ffmpegPath: api.config().bili && api.config().bili.ffmpegPath })
+          img = await imageToolBlock(api.dsh, buf, { ffmpegPath: api.config().local?.ffmpegPath })
           if (!img) {
             // 图没给成：如实说看不了，别让她照着提示词编画面细节
             visual = false
@@ -168,6 +170,8 @@ export default {
         else if (!seeOwn) message = drawToolMessage({ visual: true, seeOwn: false })
         else if (!shown) message = drawToolMessage({ visual: false })
         else message = drawToolMessage({ visual: true, seeOwn: true })
+        if (dryRun) message = saved ? '试运行已生成图片并存入画作库，未发送到聊天。' : '试运行已生成图片，保存失败，未发送到聊天。'
+        else if (sent?.queued) message = '画好了，图片正在排队发送。' + (!shown ? '你还没看到图，别描述画面。' : '')
         // 画作编号：换头像 / 收表情时用编号，别用路径（路径只在图真的交出去时才附带）
         const index = saved ? rememberPainting(chat.chatId, saved) : 0
         const out = {

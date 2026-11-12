@@ -3,10 +3,14 @@ import { randomUUID } from 'node:crypto'
 import { fetchImage } from '../core/net.js'
 import { pickShape } from './image-shape.js'
 
+function unavailable(message) {
+  return Object.assign(new Error(message), { fallbackable: true })
+}
+
 export function createCodexImage({ auth, fetchImpl, log }) {
   return async function generate(config, prompt, { shape, image } = {}) {
     // 现有订阅端点只有 JSON 文生图约定，没有已知的参考图字段；不能带图时偷跑文生图。
-    if (image) throw new Error('这个生图服务不支持参考图')
+    if (image) throw unavailable('这个生图服务不支持参考图')
     const revision = auth.revision?.()
     const check = () => auth.assertCurrent?.(revision)
     check()
@@ -20,25 +24,27 @@ export function createCodexImage({ auth, fetchImpl, log }) {
         method: 'POST',
         headers: { authorization: `Bearer ${access}`, 'chatgpt-account-id': accountId, accept: 'application/json', 'content-type': 'application/json', originator: 'pi', 'x-codex-image-turn-id': randomUUID(), 'user-agent': 'aurabot-qq' },
         body: JSON.stringify(body), signal: AbortSignal.timeout(180000),
-      })
+      }).catch(() => { throw unavailable('订阅生图连接失败或超时') })
     }
     log.info(`订阅生图请求：${body.model} / ${body.quality}`)
+    if (auth.status && !auth.status().loggedIn) throw unavailable('还没登录订阅生图账号')
     let r = await once(await auth.ensureAccess())
     check()
     if (r.status === 401) {
       await r.body?.cancel()
       let credential
       try { credential = await auth.ensureAccess({ force: true }) }
-      catch (error) { throw new Error('订阅登录已过期，去生图页重新登录 ChatGPT') }
+      catch (error) { throw unavailable('订阅登录已过期，去生图页重新登录 ChatGPT') }
       r = await once(credential)
       check()
     }
     const j = await r.json().catch(() => null)
     check()
     if (!r.ok) {
-      if (r.status === 401) throw new Error('订阅登录已失效，去生图页重新登录 ChatGPT')
+      if (r.status === 401) throw unavailable('订阅登录已失效，去生图页重新登录 ChatGPT')
       if (r.status === 403) throw new Error('这个订阅 / 工作区不能用生图（HTTP 403）')
-      if (r.status === 429) throw new Error('订阅生图用得太频繁或额度用完了（HTTP 429）')
+      if (r.status === 429) throw unavailable('订阅生图用得太频繁或额度用完了（HTTP 429）')
+      if (r.status >= 500) throw unavailable(`订阅生图服务异常（HTTP ${r.status}）`)
       throw new Error(`订阅生图失败（HTTP ${r.status}）`)
     }
     const item = j?.data?.[0]
@@ -48,6 +54,6 @@ export function createCodexImage({ auth, fetchImpl, log }) {
       check()
       return buf
     }
-    throw new Error('订阅生图没有返回图片')
+    throw unavailable('订阅生图没有返回图片')
   }
 }

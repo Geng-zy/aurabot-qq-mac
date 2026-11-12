@@ -200,3 +200,52 @@ test('cordis.patch.yml 里有专给子级的 aurabot-subagent preset：本机工
   assert.match(body, /dsh-tool-fs/, '要能读写文件')
   assert.doesNotMatch(body, /aurabot_persona/, '子级不带 QQ 人格')
 })
+
+test('rc.2 具名服务接收外层参数，保留最终回复的所有文字块', async (t) => {
+  let request
+  let disposed = 0
+  const s = setup(t, { subagents: {
+    namesOf() {},
+    async startActivation(spec) {
+      request = spec
+      return { name: 'agent-1', result: Promise.resolve({ stopReason: 'completed', output: [
+        { type: 'text', text: '第一段' },
+        { type: 'reasoning', text: '内部内容' },
+        { type: 'text', text: '第二段' },
+      ] }), dispose: async () => { disposed++ } }
+    },
+  } })
+  assert.equal(await s.run('测试任务'), '第一段\n第二段')
+  assert.equal(request.request, undefined)
+  assert.equal(request.parent.preset, 'aurabot-social')
+  assert.equal(request.prompt[0].text, '测试任务')
+  assert.equal(request.agentPreset, 'aurabot-subagent')
+  assert.equal(request.delivery, 'caller')
+  assert.deepEqual(request.agentOptions, { provider: 'fake', model: 'fake-1', reasoningEffort: 'low' })
+  s.cfg.model = { ...s.cfg.model, provider: 'fake', model: 'm-owner', reasoningEffort: 'high' }
+  assert.equal(await s.run('再试一次'), '第一段\n第二段')
+  assert.deepEqual(request.agentOptions, { provider: 'fake', model: 'm-owner', reasoningEffort: 'high' })
+  await settle()
+  assert.equal(disposed, 2)
+})
+
+test('卸载后释放已开始的子代理，不依赖宿主兑现 result', async (t) => {
+  let started
+  const published = new Promise((resolve) => { started = resolve })
+  let disposed = 0
+  const s = setup(t, { subagents: {
+    namesOf() {},
+    async startActivation() {
+      started()
+      return { name: 'agent-1', result: new Promise(() => {}), dispose: async () => { disposed++ } }
+    },
+  } })
+  const run = s.run('测试等待')
+  const rejected = assert.rejects(run, /卸载|关闭/)
+  await published
+  await settle()
+  s.hub.dispose()
+  await rejected
+  await settle()
+  assert.equal(disposed, 1)
+})

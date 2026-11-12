@@ -144,7 +144,7 @@ export function parseMessageEvent(event, selfId, { faceName } = {}) {
   }
 }
 
-/** QQ 分享卡片（B 站 / 链接分享）里认出标题和链接；认不出就是「[卡片消息]」。 */
+/** QQ 链接分享卡片里认出标题和链接；认不出就是「[卡片消息]」。 */
 export function cardText(raw) {
   try {
     const j = typeof raw === 'string' ? JSON.parse(raw) : raw

@@ -65,6 +65,8 @@ export function createMemory(deps) {
   // 外面接进来的能力：想（模型）、算向量、此刻的心情和精力
   let think = null
   let embed = null
+  let embeddingIdentity = null
+  let embeddingReady = null
   let rerank = null
   let state = () => ({ valence: 0, energy: 1 })
   // 记经历时顺带问的（人格的状态记录、对人的看法）和收到结果后交给谁：由心智入口接上，记忆本身不认识它们
@@ -73,6 +75,8 @@ export function createMemory(deps) {
   function connect(o = {}) {
     if (o.think !== undefined) think = o.think
     if (o.embed !== undefined) embed = o.embed
+    if (o.embeddingIdentity !== undefined) embeddingIdentity = o.embeddingIdentity
+    if (o.embeddingReady !== undefined) embeddingReady = o.embeddingReady
     if (o.rerank !== undefined) rerank = o.rerank
     if (o.state !== undefined) state = o.state
     if (o.encodeExtra !== undefined) encodeExtra = o.encodeExtra
@@ -81,7 +85,7 @@ export function createMemory(deps) {
 
   const S = (k) => setting('memory.' + k)
   const levels = () => ({ clear: S('levelClear'), vague: S('levelVague'), tip: S('levelTip'), strongCue: S('strongCue') })
-  const embedModel = () => String(S('embedModel') || '')
+  const embedModel = () => String(embeddingIdentity?.() ?? S('embedModel') ?? '')
 
   function row(id) {
     const r = store.prep('SELECT * FROM episodes WHERE id = ?').get(String(id))
@@ -137,7 +141,7 @@ export function createMemory(deps) {
   async function embedEpisodes(ids) {
     const model = embedModel()
     const list = ids.map(row).filter(Boolean).filter((e) => !vectors.has(e.id, model))
-    if (!list.length || !embed) {
+    if (!list.length || !canEmbed()) {
       for (const e of list) queueJob('embed', e.id)
       return 0
     }
@@ -158,14 +162,16 @@ export function createMemory(deps) {
     }
   }
   async function embedText(text, timeoutMs = 4000) {
-    if (!embed || !String(text || '').trim()) return null
+    if (!canEmbed() || !String(text || '').trim()) return null
+    let timer
     try {
-      const r = await Promise.race([embed([text]), new Promise((_, rej) => setTimeout(() => rej(new Error('超时')), timeoutMs))])
-      return r[0] || null
+      const model = embedModel()
+      const r = await Promise.race([embed([text], { query: true }), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('超时')), timeoutMs) })])
+      return model === embedModel() ? r[0] || null : null
     } catch (error) {
       log.debug('线索算向量失败：', error.message)
       return null
-    }
+    } finally { clearTimeout(timer) }
   }
 
   // ---------- 后台任务 ----------
@@ -393,7 +399,7 @@ export function createMemory(deps) {
   /**
    * period：{ start, end } 只想这段时间里的事（end 不含）。线索空着就按重要程度列这段时间的事。
    */
-  async function recall({ cue, window = '', audienceWindow, people = [], limit = Number(S('recallLimit')) || 6, deliberate = false, period = null } = {}) {
+  async function recall({ cue, contextCue = '', window = '', audienceWindow, people = [], embeddingTimeoutMs, limit = Number(S('recallLimit')) || 6, deliberate = false, period = null } = {}) {
     if (!limit) return []
     const at = now()
     const inPeriod = (e) => !period || (e.at >= period.start && e.at < period.end)
@@ -417,11 +423,16 @@ export function createMemory(deps) {
         }
       }
     }
-    const qv = String(cue || '').trim() ? await embedText(cue) : null
+    const query = [cue, contextCue].filter(Boolean).join('\n')
+    const qv = query.trim() ? await embedText(query, embeddingTimeoutMs) : null
     if (qv) for (const h of vectors.search(qv, { model: embedModel(), limit: period ? 200 : 80, min: cueMatch * 0.8 })) cand.set(h.id, h.sim)
     // 关键词：命中的词越多（按分量算）越像想到了；全中的能单独把记忆勾起来，向量服务慢或连不上时也想得起
     for (const [id, cov] of keywordHits(cue)) {
       const sim = cueMatch * ((deliberate ? 0.9 : 0.85) + 0.3 * cov)
+      cand.set(id, Math.max(cand.get(id) || 0, sim))
+    }
+    if (contextCue) for (const [id, cov] of keywordHits(contextCue)) {
+      const sim = cueMatch * (0.82 + 0.26 * cov)
       cand.set(id, Math.max(cand.get(id) || 0, sim))
     }
     // 眼前的人也是线索：关于他们的事
@@ -455,7 +466,7 @@ export function createMemory(deps) {
       const n = Math.max(2, Math.min(50, Number(S('rerankTopN')) || 20))
       const head = scored.slice(0, n)
       try {
-        const rel = await rerank(String(cue), head.map((x) => x.e.gist + (x.e.detail ? '：' + String(x.e.detail).slice(0, 200) : '')), { timeoutMs: Number(S('rerankTimeoutMs')) || 1500 })
+        const rel = await rerank(query, head.map((x) => x.e.gist + (x.e.detail ? '：' + String(x.e.detail).slice(0, 200) : '')), { timeoutMs: Number(S('rerankTimeoutMs')) || 1500 })
         if (rel.length === head.length) {
           head.forEach((x, i) => { x.score = rel[i] * (0.5 + 0.5 * x.r) })
           head.sort((a, b) => b.score - a.score)
@@ -694,9 +705,9 @@ export function createMemory(deps) {
    * 这一轮的工作记忆：想起来的事 + 惦记着的要做的事，按字数上限裁。
    * 想起来的会被加强（她真的想起来了）。
    */
-  async function workingMemory({ cue, window, people = [], readOnly = false, isCurrent = () => true, limit } = {}) {
+  async function workingMemory({ cue, contextCue, window, people = [], readOnly = false, isCurrent = () => true, limit, embeddingTimeoutMs } = {}) {
     const max = Number(S('workingChars')) || 1800
-    const got = await recall({ cue, window, people, audienceWindow: window || '', limit })
+    const got = await recall({ cue, contextCue, window, people, embeddingTimeoutMs, audienceWindow: window || '', limit })
     if (!isCurrent()) return { text: '', recalled: [] }
     const lines = []
     let total = 0
@@ -829,13 +840,42 @@ export function createMemory(deps) {
     const args = [status]
     if (kind) { where.push('kind = ?'); args.push(String(kind)) }
     if (q) { where.push("(gist LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR json LIKE ? ESCAPE '\\')"); args.push(like(q), like(q), like(q)) }
-    const rows = store.prep(`SELECT * FROM episodes WHERE ${where.join(' AND ')} ORDER BY at DESC LIMIT ? OFFSET ?`).all(...args, limit, offset)
+    const rows = store.prep(`SELECT * FROM episodes WHERE ${where.join(' AND ')} ORDER BY at DESC, id DESC LIMIT ? OFFSET ?`).all(...args, limit, offset)
     return rows.map((r) => {
       const e = { ...r, data: JSON.parse(r.json) }
       const rv = rOf(e, at)
-      return { id: e.id, at: e.at, window: e.window, gist: e.gist, detail: e.detail, kind: e.data.kind, r: rv, level: levelOf(rv, 1, levels()), stability: e.stability, original: e.data.original || null, emotion: e.data.emotion || null, outdated: e.data.outdated || null, toldTo: e.data.toldTo || null }
+      return { id: e.id, at: e.at, window: e.window, platform: place(e.window).platform || '', gist: e.gist, detail: e.detail, kind: e.data.kind, r: rv, level: levelOf(rv, 1, levels()), stability: e.stability, original: e.data.original || null, emotion: e.data.emotion || null, outdated: e.data.outdated || null, toldTo: e.data.toldTo || null }
     })
   }
+  function sourceCounts(status) {
+    const result = new Map()
+    const rows = store.prep('SELECT window, COUNT(*) AS n FROM episodes WHERE status = ? GROUP BY window').all(status)
+    for (const r of rows) {
+      const platform = place(r.window).platform || ''
+      result.set(platform, (result.get(platform) || 0) + r.n)
+    }
+    return [...result].map(([platform, count]) => ({ platform, count })).sort((a, b) => b.count - a.count)
+  }
+
+  function related(id) {
+    const root = row(id)
+    if (!root || !['live', 'archived'].includes(root.status) || root.data.needsRecompute) return []
+    const rows = store.prep(`SELECT b AS id, kind, weight FROM links WHERE a = ?
+      UNION ALL SELECT a AS id, kind, weight FROM links WHERE b = ? ORDER BY weight DESC, id LIMIT 12`).all(id, id)
+    const found = new Map()
+    for (const edge of rows) if (!found.has(edge.id)) found.set(edge.id, edge.kind)
+    for (const key of ['derivedFrom', 'from']) {
+      if (!Array.isArray(root.data[key])) continue
+      for (const source of root.data[key].slice(0, 12)) if (typeof source === 'string') found.set(source, 'source')
+    }
+    return [...found].flatMap(([key, relation]) => {
+      if (key === id) return []
+      const other = row(key)
+      if (!other || !['live', 'archived'].includes(other.status) || other.data.needsRecompute) return []
+      return [{ id: key, relation, at: other.at, gist: other.gist, kind: other.data.kind, platform: place(other.window).platform || '' }]
+    }).slice(0, 12)
+  }
+
   function counts() {
     return Object.fromEntries(store.prep('SELECT status, COUNT(*) AS n FROM episodes GROUP BY status').all().map((r) => [r.status, r.n]))
   }
@@ -855,11 +895,11 @@ export function createMemory(deps) {
     return { done, total, model: embedModel() }
   }
   /** 能不能算向量（接上了向量接口）。 */
-  const canEmbed = () => Boolean(embed)
+  const canEmbed = () => Boolean(embed) && (embeddingReady?.() ?? true)
 
   return {
     connect, encodeWindow, encodePending, pendingWindows, recall, strengthen, workingMemory, visibleIn,
-    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, counts,
-    embedEpisodes, staleVectorIds, vectorProgress, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
+    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, list, sourceCounts, related, counts,
+    embedEpisodes, staleVectorIds, vectorProgress, embedModel, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }

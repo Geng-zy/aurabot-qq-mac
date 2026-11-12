@@ -105,3 +105,23 @@ test('忘掉一个人会清除已有的评价，未完成的评价也不会补�
   assert.deepEqual(mind.emotion.state().active, [])
   assert.deepEqual(mind.emotion.history(), [])
 })
+
+test('短追问只补同窗同人的近期线索，评价仍用这句话', async (t) => {
+  const queries = []
+  const events = []
+  const mind = createMind({ memoryDb: true, now: () => NOW, model: async ({ scene, text }) => {
+    if (scene === 'appraisal') events.push(JSON.parse(text).event)
+    return '{}'
+  } })
+  t.after(() => mind.close())
+  mind.memory.connect({ embed: async (texts) => { queries.push(...texts); return [] } })
+  mind.perceive({ window: 'local:group:other', who: SPEAKER, text: '另一处的私有线索', at: NOW - 5000 })
+  mind.perceive({ window: WINDOW, who: 'local:another', text: '另一人的线索', at: NOW - 4000 })
+  mind.perceive({ window: WINDOW, who: SPEAKER, text: '樱花公园的预约出了点问题', at: NOW - 3000 })
+  mind.perceive({ window: WINDOW, who: SPEAKER, text: '那后来呢？', at: NOW - 1000 })
+  await mind.conversation.prepare({ window: WINDOW, people: [SPEAKER], text: '那后来呢？' })
+  assert.deepEqual(queries, ['那后来呢？\n樱花公园的预约出了点问题'])
+  assert.deepEqual(events, ['那后来呢？'])
+  await mind.conversation.prepare({ window: WINDOW, people: [SPEAKER], text: '那换个话题，去哪里买咖啡？' })
+  assert.equal(queries.at(-1), '那换个话题，去哪里买咖啡？')
+})

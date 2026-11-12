@@ -11,6 +11,7 @@
 
 import { contextInjectionRanges, currentPromptSources, promptFingerprint, promptTextRanges } from '../security/leak-guard.js'
 import { stripHtmlFragments } from './html-fragments.js'
+import { codeFences } from './output-guard.js'
 
 export const SILENCE = '[沉默]'
 
@@ -245,7 +246,7 @@ function toolTextRanges (raw, { ownerPrivate = false } = {}) {
   }
 
   // 4) 通用下划线标签：只认 tool/param/invoke 类名（<x_1>、<snake_case> 这类正常文字不删）
-  // 只认协议类名和本插件已知的工具名前缀（qq_/bili_/...），避免 <x_1>、<snake_case> 这类正常文字被误删。
+  // 只认协议类名和本插件当前和旧版工具的已知前缀，避免 <x_1>、<snake_case> 这类正常文字被误删。
   for (const match of raw.matchAll(/[<＜]\s*[\/／]?\s*(?:tool|function|invoke|param(?:eter)?|antml|dsml|arguments?|call|qq|bili|qzone|song|pet|memory|mood|sticker|diary|video|voice|contact|profile|purpose|speak|draw|image|send|get|set)[_:\s]+[a-z0-9_]+["＂]?\s*[>＞]/gi)) {
     if (toolTag(match[0])) continue // 已知协议标签已单独处理，这里只补通用下划线形式
     found.push({ start: match.index, end: match.index + match[0].length, kind: 'generic', paired: false })
@@ -366,7 +367,18 @@ export function parseReply(text, options) {
   // 模型偶尔把换行写成 HTML `<br>`：当真正的换行处理；代码示例里的字面量保留。
   // 先按工具 / 提示词复读清洗，再剥掉模型漏进来的特殊 token 和消息编号（m12345 这种）。
   // 顺序不能反：特殊 token 先剥会把 DSML 工具调用拆碎，工具清洗就认不出来了
-  const cleaned = stripModelArtifacts(cleanOutboundText(text, options))
+  const sanitized = cleanOutboundText(text, options)
+  const fenced = []
+  let masked = ''
+  let cursor = 0
+  let prefix = '\uE000code'
+  while (sanitized.includes(prefix)) prefix += 'x'
+  for (const span of codeFences(sanitized)) {
+    masked += sanitized.slice(cursor, span.start) + prefix + fenced.length + '\uE001'
+    fenced.push(sanitized.slice(span.start, span.end))
+    cursor = span.end
+  }
+  const cleaned = stripModelArtifacts(masked + sanitized.slice(cursor))
   const code = codeRanges(cleaned)
   const raw = cleaned.replace(/<br\s*\/?>/gi, (tag, offset) => insideCode(code, offset, offset + tag.length) ? tag : '\n').trim()
   if (isSilence(raw)) return { silent: true, items: [] }
@@ -418,6 +430,15 @@ export function parseReply(text, options) {
     quoted = true
   }
   if (items.length === 0) return { silent: true, items: [] }
+  for (const item of items) {
+    if (item.kind !== 'text' && item.kind !== 'voice') continue
+    const value = item.value.replace(new RegExp(prefix + '(\\d+)\uE001', 'g'), (_, i) => fenced[Number(i)])
+    if (value !== item.value) {
+      item.kind = 'text'
+      item.value = value
+      item.code = true
+    }
+  }
   return { silent: false, items: capBubbles(items) }
 }
 

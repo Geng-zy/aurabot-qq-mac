@@ -120,17 +120,17 @@ test('内心：内心日记（标出深想和放空）、想要的、能做的�
       { at: Date.now() - 60000, thought: '他是不是不理我了', by: 'local', deep: { reason: '涉及主人和你们的关系', thought: '他只是在忙' } },
       { at: Date.now() - 120000, thought: '好无聊', by: 'deepseek', repeated: true },
     ],
-    motivation: { wants: [{ id: 'w1', text: '想找主人说话', at: Date.now() }], needs: [{ id: 'companion', name: '陪伴和归属', deficit: 0.8, strength: 0.5 }], learned: { 'bili:browse': { runs: 3, expect: 0.7 } }, log: [{ at: Date.now(), label: '刷 B 站', ok: true, summary: '看了 2 个视频' }] },
-    motives: [{ id: 'bili:browse', label: '刷 B 站', motive: 0.62, available: true, why: '', wants: [] }, { id: 'diary:write', label: '写空间日记', motive: 0.1, available: false, why: '今天写够了', wants: [] }],
+    motivation: { wants: [{ id: 'w1', text: '想找主人说话', at: Date.now() }], needs: [{ id: 'companion', name: '陪伴和归属', deficit: 0.8, strength: 0.5 }], learned: { 'tophub:browse': { runs: 3, expect: 0.7 } }, log: [{ at: Date.now(), label: '读热榜', ok: true, summary: '看了 2 条热榜' }] },
+    motives: [{ id: 'tophub:browse', label: '读热榜', motive: 0.62, available: true, why: '', wants: [] }, { id: 'diary:write', label: '写空间日记', motive: 0.1, available: false, why: '今天写够了', wants: [] }],
     outreach: { pending: { reason: '想他了' }, log: [{ at: Date.now(), reason: '想他了', kind: 'miss' }] },
-    grants: { requests: [{ n: 1, key: 'qqSignature', what: '自己改 QQ 签名', why: '想写点心情', at: Date.now(), status: 'pending' }], granted: { biliSign: { at: 1 } } },
+    grants: { requests: [{ n: 1, key: 'qqSignature', what: '自己改 QQ 签名', why: '想写点心情', at: Date.now(), status: 'pending' }], granted: { qqAvatar: { at: 1 } } },
     local: { configured: false, reason: '没设本地小模型（Python 和模型文件夹）', running: false, lastError: '' },
     usage: { tokens: 42000 },
   }
   slots[1] = ''
   const tree = render(panel.MindInner, { toast() {} })
   const text = textOf(tree)
-  for (const s of ['好想他', '深想（涉及主人和你们的关系）：他只是在忙', '在重复，放空了', '想找主人说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'biliSign ✕', '没装：没设本地小模型', '42K']) assert.ok(text.includes(s), '缺：' + s)
+  for (const s of ['好想他', '深想（涉及主人和你们的关系）：他只是在忙', '在重复，放空了', '想找主人说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'qqAvatar ✕', '没装：没设本地小模型', '42K']) assert.ok(text.includes(s), '缺：' + s)
   assert.ok(findAll(tree, panel.Meter).some((m) => m.props.label === '陪伴和归属'))
 })
 
