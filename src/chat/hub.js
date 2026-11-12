@@ -2044,7 +2044,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 心智核心：睡着时谁叫得醒她、很累时回不回（按人，不按地方：私聊、群里 @ / 叫名字 / 引用她都算在叫她）
     if (mind?.gate) {
       let g = null
-      try { g = mind.gate({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, direct: msg.kind === 'private' || mode === 'must', event }) } catch (error) { log.debug('心智判断回不回失败：', error.message) }
+      try { g = mind.gate({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, direct: msg.kind === 'private' || mode === 'must', event: msg }) } catch (error) { log.debug('心智判断回不回失败：', error.message) }
       if (g && !g.reply) {
         log.info(`${msg.chatId}：${g.reason || '她现在不回'}`)
         logChat(msg.chatId, msg.nickname, msg.text, msg.userId)

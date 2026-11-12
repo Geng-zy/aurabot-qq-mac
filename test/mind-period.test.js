@@ -49,7 +49,8 @@ test('mind_recall：只给时间就列那段时间的事，带线索就只在那
 })
 
 test('mind_read_day：翻那天的原话；别的聊天只有主人私聊里能看，标明是资料', async () => {
-  const { a, tools } = setup()
+  let ownerTurn = true
+  const { a, tools } = setup(() => ownerTurn)
   const at = Date.UTC(2026, 10, 10, 2) // 上海 11-10 10:00
   a.mind.perceive({ window: 'qq:private:1', who: 'qq:1', text: '明天要考试', at, msgId: 'a' })
   a.mind.said({ window: 'qq:private:1', text: '加油！', at: at + 60000, msgId: 'b' })
@@ -64,10 +65,14 @@ test('mind_read_day：翻那天的原话；别的聊天只有主人私聊里能�
   assert.match(g.message, /群里聊游戏/)
   assert.match((await t.mind_read_day.execute({ period: '昨天', query: '考试' })).message, /考试/)
   assert.match((await t.mind_read_day.execute({ period: '前天' })).message, /没有说过/)
+  ownerTurn = false
+  assert.doesNotMatch((await t.mind_read_day.execute({ period: '昨天', chat: 'group:5' })).message, /游戏/)
   // 群里（不是主人这一轮）：没有 chat 参数，只能翻这个群
-  const guest = setup(false)
+  const guest = setup(() => false)
   guest.a.mind.perceive({ window: 'qq:private:1', who: 'qq:1', text: '私事', at, msgId: 'd' })
   const gt = guest.tools(GROUP).mind_read_day
   assert.equal('chat' in gt.parameters.properties, false)
   assert.doesNotMatch((await gt.execute({ period: '昨天', chat: 'private:1' })).message, /私事/)
+  ownerTurn = true
+  assert.equal('chat' in tools({ ...GROUP, userId: '1' }).mind_read_day.parameters.properties, false)
 })

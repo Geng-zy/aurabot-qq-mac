@@ -388,6 +388,11 @@ export function createMindAdapter(opts) {
   }
   function buildTools(chat, ownerTurn) {
     const window = windowOf(chat.chatId)
+    const canReadOtherChats = () => {
+      const owner = ownerId()
+      return chat.kind === 'private' && Boolean(owner) && String(chat.userId) === owner
+        && (typeof ownerTurn === 'function' ? ownerTurn() === true : ownerTurn === true)
+    }
     return [
       defineTool({
         name: 'mind_recall',
@@ -415,11 +420,11 @@ export function createMindAdapter(opts) {
       defineTool({
         name: 'mind_read_day',
         description: '翻某一天（或某几天）在这个聊天里大家说过的原话，一字不差，你自己的话也在里面。记不清那天具体怎么说的时候用；只想知道那天发生了什么用 mind_recall。'
-          + (ownerTurn ? '和主人私聊时可以填 chat 看别的聊天。' : ''),
+          + (canReadOtherChats() ? '和主人私聊时可以填 chat 看别的聊天。' : ''),
         properties: {
           period: str('哪天 / 哪段时间：2026-11-03、11月3号、昨天、上周、最近3天……'),
           query: str('可选：只看带这些词的（空格分开，每个词都要有）'),
-          ...(ownerTurn ? { chat: str('可选：看别的聊天，填 private:QQ号 或 group:群号；不填就是这里') } : {}),
+          ...(canReadOtherChats() ? { chat: str('可选：看别的聊天，填 private:QQ号 或 group:群号；不填就是这里') } : {}),
         },
         required: ['period'],
         execute: async ({ period, query, chat: other }) => {
@@ -427,7 +432,8 @@ export function createMindAdapter(opts) {
           const range = parsePeriod(period, now(), tz)
           if (!range) return { ok: false, message: `「${period}」是哪天没认出来：写成 2026-11-03、11月3号、昨天、上周 这样` }
           if (range.end - range.start > 31 * 86400000) return { ok: false, message: '一次最多翻一个月的原话，范围小一点' }
-          const target = ownerTurn && String(other || '').trim() ? String(other).trim() : chat.chatId
+          const requested = String(other || '').trim()
+          const target = requested && canReadOtherChats() ? requested : chat.chatId
           if (!/^(private|group):\d+$/.test(target)) return { ok: false, message: 'chat 要写成 private:QQ号 或 group:群号' }
           const words = String(query || '').trim().split(/\s+/).filter(Boolean)
           const rows = mind.history(windowOf(target), { since: range.start, until: range.end - 1, limit: 2000 })
