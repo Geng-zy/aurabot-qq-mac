@@ -5,7 +5,7 @@
 import { createOneBotClient, isDefiniteFailure } from './client.js'
 import { createOutbox } from './outbox.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
-import { parseMessageEvent } from './inbound.js'
+import { isPrivateDrawMessage, parseMessageEvent } from './inbound.js'
 import { createFaces, textToSegments, stripFaceTags } from './faces.js'
 import { readForward } from './forward.js'
 import { noticeText } from './notices.js'
@@ -123,9 +123,10 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     dispatch(ev)
   }
 
-  /** 核对通过后的事件：先原样给一份（模块能看到所有原始事件），再拆成壳认识的几种。 */
+  /** 核对通过后，普通事件先发给原始事件监听器，再拆成壳认识的几种。 */
   function dispatch(ev) {
-    emit({ type: 'raw', event: ev })
+    const privateDraw = isPrivateDrawMessage(ev.message ?? ev.raw_message)
+    if (!privateDraw) emit({ type: 'raw', event: ev })
     if (ev.post_type === 'message') emit({ type: 'message', msg: channel.parse(ev) })
     else if (ev.post_type !== 'notice') return
     else if (ev.notice_type === 'bot_offline') {
@@ -255,14 +256,16 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
      * 发一条消息。route.groupId：私聊是从群里临时会话来的，回的时候带上群号。
      * queue：确定没发出去（网关还没就绪）时放进补发队列，返回 { queued:true }；入不了队把原因写在 error.queueProblem 上再抛。
      */
-    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '' } = {}) {
+    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '', privateDelivery = false } = {}) {
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error(`不是 QQ 的聊天：${chatId}`)
       const action = tgt.kind === 'group' ? 'send_group_msg' : 'send_private_msg'
       const sourceGroupId = tgt.kind === 'private' ? String(route?.groupId || '') : ''
       const params = tgt.kind === 'group' ? { group_id: Number(tgt.id), message } : { user_id: Number(tgt.id), ...(sourceGroupId ? { group_id: Number(sourceGroupId) } : {}), message }
       try {
-        const r = await gw.call(action, params, timeoutMs ? { timeoutMs } : undefined)
+        if (privateDelivery && (tgt.kind !== 'private' || sourceGroupId || !ready())) throw new Error('没有已核对的 QQ 私聊连接')
+        // 私聊直出使用接收消息的已核对连接，不在其他连接上重试。
+        const r = await gw.call(action, params, privateDelivery ? { timeoutMs, wsOnly: true } : timeoutMs ? { timeoutMs } : undefined)
         return { ...(r && typeof r === 'object' ? r : {}), ...(r && r.message_id !== undefined ? { messageId: String(r.message_id) } : {}) }
       } catch (error) {
         // 超时（uncertain）不入队，避免同一条消息发两次。
@@ -369,14 +372,14 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       if (!tgt || tgt.kind !== 'private') return
       await gw.call('set_input_status', { user_id: Number(tgt.id), event_type: 1 }, { timeoutMs: 5000 })
     },
-    /** 最近的消息（OneBot 原样）。 */
+    /** 最近的消息（保留原格式，滤掉私聊直出生图）。 */
     async history(chatId, count, { timeoutMs = 8000, retries, anchor } = {}) {
       const tgt = qqTarget(chatId)
       if (!tgt) return []
       const base = tgt.kind === 'group' ? { group_id: Number(tgt.id) } : { user_id: Number(tgt.id) }
       const params = anchor ? { ...base, message_id: anchor, count, reverse_order: false } : { ...base, count }
       const r = await gw.call(tgt.kind === 'group' ? 'get_group_msg_history' : 'get_friend_msg_history', params, { timeoutMs, ...(retries !== undefined ? { retries } : {}) })
-      return Array.isArray(r) ? r : r?.messages || []
+      return (Array.isArray(r) ? r : r?.messages || []).filter((m) => !isPrivateDrawMessage(m?.message ?? m?.raw_message))
     },
     /**
      * 被引用的那条消息：{ time, userId, nickname, msg }（msg 是通用形状）。
@@ -386,6 +389,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error('引用没有对应的聊天')
       let m = await gw.call('get_msg', { message_id: Number(id) || id }, { timeoutMs: 5000, retries: 0 })
+      if (isPrivateDrawMessage(m?.message ?? m?.raw_message)) throw new Error('这条消息不对聊天模型开放')
       const group = m?.group_id && String(m.group_id) !== '0' ? String(m.group_id) : ''
       const author = String(m?.sender?.user_id ?? m?.user_id ?? '')
       const peer = String(m?.target_id ?? m?.peer_id ?? '')

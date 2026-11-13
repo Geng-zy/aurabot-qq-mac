@@ -1102,6 +1102,130 @@ test('生图：主人让她画图，调生图服务并把图发出去', async ()
   assert.equal(st.config.imageGen.apiKeySet, true)
 })
 
+test('私聊 /画图 直接交给本地脚本，群聊和别人的私聊无法执行', async () => {
+  const localDir = join(dataDir, 'local')
+  mkdirSync(localDir, { recursive: true })
+  const script = join(localDir, 'image.mjs')
+  const png = fakePng(64, 64, 17)
+  const taskFile = join(dataDir, 'creative-tasks.json')
+  const mark = '私聊生图测试标记只供本地'
+  const state = { calls: [] }
+  const key = 'aurabotE2ePrivateImage'
+  globalThis[key] = state
+  writeFileSync(script, `
+    import { writeFileSync } from 'node:fs'
+    import { join } from 'node:path'
+    export default async function ({ prompt, size, log, outDir, signal }) {
+      const state = globalThis[${JSON.stringify(key)}]
+      state.calls.push({ prompt, size, outDir })
+      log.info(prompt)
+      if (prompt.startsWith('失败')) throw new Error(prompt)
+      if (prompt.startsWith('延后')) await new Promise((resolve, reject) => {
+        state.finish = resolve
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+      })
+      const file = join(outDir, 'image.png')
+      writeFileSync(file, Buffer.from('${png.toString('base64')}', 'base64'))
+      return { file }
+    }
+  `)
+  const orig = api.getConfig()
+  const hooks = { raw: [], sent: [] }
+  const off = api.modules.listen('onebot', (event) => hooks.raw.push(event))
+  const offSend = api.modules.listen('send', (message) => { hooks.sent.push(message); return message })
+  const replyAfter = (n, pattern) => sentTo('private', OWNER).slice(n).some((c) => pattern.test(c.params.message[0]?.data.text || ''))
+  const imageAfter = (n) => sentTo('private', OWNER).slice(n).find((c) => c.params.message.some((segment) => segment.type === 'image'))
+  const gallery = async () => (await fake.call('/image/gallery')).json().items
+  try {
+    api.setConfig({ ...orig, allow: { ...orig.allow, private: [...orig.allow.private, '6789'] },
+      imageGen: { ...orig.imageGen, shape: 'wide', stylePrompt: '别添加这一段' }, local: { ...orig.local, image: true } })
+    assert.ok((await fake.call('/commands')).json().list.some((c) => c.name === '画图'))
+    const before = fake.turns.length
+    const n = sentTo('private', OWNER).length
+    const art = await gallery()
+    assert.ok(Array.isArray(art))
+    const inbound = priv(OWNER, text('／画图 一艘雨天靠岸的小船。' + mark))
+    mock.push(inbound)
+    const image = await until(() => imageAfter(n))
+    assert.equal(image.params.group_id, undefined)
+    assert.equal(image.params.message.find((s) => s.type === 'image').data.file, 'base64://' + png.toString('base64'))
+    assert.ok(replyAfter(n, /生图已安排/))
+    assert.equal(state.calls[0].prompt, '一艘雨天靠岸的小船。' + mark)
+    assert.equal(state.calls[0].size, '1536x864')
+    assert.throws(() => readdirSync(state.calls[0].outDir), { code: 'ENOENT' })
+    assert.deepEqual(await gallery(), art)
+    assert.equal(fake.turns.length, before)
+    const history = JSON.stringify(api.mind.mind.history(`qq:private:${OWNER}`))
+    assert.ok(!history.includes(mark))
+    assert.ok(!history.includes('私聊生图］'))
+    assert.ok(!JSON.stringify(fake.logs).includes(mark))
+    assert.ok(!JSON.stringify(hooks.raw).includes(mark))
+    assert.ok(!JSON.stringify(hooks.sent).includes(png.toString('base64')))
+    assert.ok(!readFileSync(taskFile, 'utf8').includes(mark))
+
+    mock.push(grp('555', OWNER, [{ type: 'at', data: { qq: BOT } }, ...text('/画图 ' + mark)]))
+    mock.push(priv('6789', text('/画图 ' + mark)))
+    mock.push(priv(OWNER, text('/画图 ' + mark), { sub_type: 'group', sender: { user_id: Number(OWNER), group_id: 555 } }))
+    const panel = (await fake.call('/modules/simulate', { text: '/画图 ' + mark })).json()
+    assert.match(panel.steps.join(), /模拟不会执行/)
+    await sleep(650)
+    assert.equal(state.calls.length, 1)
+    assert.equal(fake.turns.length, before)
+    assert.ok(!JSON.stringify(hooks.raw).includes(mark))
+
+    mock.state.messages = { [inbound.message_id]: inbound }
+    mock.state.history = [inbound, { message_id: 88662, message: image.params.message, sender: { user_id: Number(BOT) } }]
+    mock.state.forwards = { privateDraw: [
+      { message: inbound.message, sender: { user_id: Number(OWNER) } },
+      { message: image.params.message, sender: { user_id: Number(BOT) } },
+      { message: text('可以查看的转发文字'), sender: { user_id: Number(OWNER) } },
+    ] }
+    mock.push(priv(OWNER, [
+      { type: 'reply', data: { id: inbound.message_id } }, ...text('翻聊天记录'),
+      { type: 'forward', data: { id: 'privateDraw' } },
+    ]))
+    const read = await until(() => fake.turns.slice(before).find((turn) => turn.toolCalls.some((c) => c.name === 'qq_chat_history')))
+    assert.match(read.userText, /可以查看的转发文字/)
+    assert.ok(!JSON.stringify(read).includes(mark))
+    assert.ok(!JSON.stringify(read).includes('私聊生图］'))
+    assert.equal(read.images, 0)
+
+    const fail = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('/画图 失败' + mark)))
+    await until(() => replyAfter(fail, /本地生图未完成/))
+    assert.ok(!imageAfter(fail))
+    assert.ok(!JSON.stringify(fake.logs).includes(mark))
+
+    const revocation = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('/画图 延后' + mark)))
+    await until(() => state.finish)
+    api.setConfig({ ...api.getConfig(), ownerQQ: '8765' })
+    state.finish()
+    await until(() => readFileSync(taskFile, 'utf8').includes('"state": "failed"') &&
+      JSON.parse(readFileSync(taskFile, 'utf8')).at(-1)?.state === 'failed')
+    assert.ok(!imageAfter(revocation))
+    api.setConfig({ ...api.getConfig(), ownerQQ: OWNER, dryRun: true })
+    const dry = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('/画图 ' + mark)))
+    await until(() => replyAfter(dry, /关闭试运行/))
+    assert.equal(state.calls.length, 3)
+    api.setConfig({ ...api.getConfig(), dryRun: false, local: { ...orig.local, image: false } })
+    const disabled = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('/画图 ' + mark)))
+    await until(() => replyAfter(disabled, /配置并开启生图/))
+    assert.equal(state.calls.length, 3)
+  } finally {
+    off()
+    offSend()
+    delete globalThis[key]
+    rmSync(script, { force: true })
+    delete mock.state.messages
+    delete mock.state.history
+    delete mock.state.forwards
+    api.setConfig(orig)
+  }
+})
+
 test('生图后台运行时仍能查进度并取消，成品不会再发出', async () => {
   const { createServer } = await import('node:http')
   let started = false

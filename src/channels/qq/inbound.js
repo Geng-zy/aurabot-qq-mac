@@ -8,6 +8,24 @@ export function segmentsOf(event) {
   return []
 }
 
+// 用固定的文字段标记直出的图片和回执。QQ 历史可能在重启后才读到，也可能没有可靠的发送回执。
+export const PRIVATE_DRAW_NAME = '画图'
+export const PRIVATE_DRAW_LABEL = '［私聊生图］'
+const PRIVATE_DRAW_COMMAND = new RegExp(`^[/／]\\s*${PRIVATE_DRAW_NAME}(?:\\s+([\\s\\S]*))?$`, 'u')
+
+const messageText = (message) => segmentsOf({ message })
+  .filter((seg) => seg.type === 'text').map((seg) => String(seg.data?.text ?? '')).join('').trim()
+
+/** null 表示不是命令。仅取用户实际发来的文字段，引用和转发不作为参数。 */
+export function privateDrawPrompt(message) {
+  const match = PRIVATE_DRAW_COMMAND.exec(messageText(message))
+  return match ? (match[1] || '').trim() : null
+}
+
+export function isPrivateDrawMessage(message) {
+  return privateDrawPrompt(message) !== null || messageText(message).startsWith(PRIVATE_DRAW_LABEL)
+}
+
 /** 这个段是不是「表情包」（不是普通照片）。判定必须严格。 */
 export function isStickerSegment(seg) {
   if (!seg || !seg.data) return false

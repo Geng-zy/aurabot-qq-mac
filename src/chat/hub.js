@@ -1030,8 +1030,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // system：系统通知，不算她说的话。
+  // privateDelivery：隔离的私聊回执，跳过改写、临时群路由、补发和心智记录。
   // quiet：这一条是额外的（比如语音后面补发的表情），失败了不算到这一轮头上（deliver 按 failStore 里的条数判断整条有没有发出去）。
-  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false, sensitive = false, allowQueue = true } = {}) {
+  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false, sensitive = false, allowQueue = true, privateDelivery = false } = {}) {
     if (disposed) return null
     const cfg = getConfig()
     const tgt = targetOf(chatId)
@@ -1041,7 +1042,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     message = cleanOutboundSegments(message, cleaning)
     if (!message.length) return null
     // 扩展模块最后改一次（加签名、过滤敏感词、转发到别处……）；返回 null 就不发
-    if (hooks?.send) {
+    if (!privateDelivery && hooks?.send) {
       try {
         const next = await hooks.send(message, { chatId, note, force })
         if (next === null) { log.info(`扩展模块拦下了 → ${chatId}：${note}`); return null }
@@ -1084,21 +1085,21 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     const channel = channelOf(chatId)
     if (!channel) { log.warn(`发不出去：${chatId} 所在的平台没有连接`); return null }
-    const sourceGroupId = tgt.kind === 'private' ? privateSources.get(normChat(chatId)) : ''
+    const sourceGroupId = !privateDelivery && tgt.kind === 'private' ? privateSources.get(normChat(chatId)) : ''
     try {
-      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive, note, system, privacyRevision: audienceRevision(chatId) })
+      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive && !privateDelivery, note, system, privateDelivery, privacyRevision: audienceRevision(chatId) })
       if (r?.queued) {
         log.warn(`发到 ${chatId} 时网关还没就绪，已排队补发：${note || r.error?.message || ''}`)
         return { queued: true, queuedId: r.queuedId }
       }
-      onDelivered({ chatId, message, note, messageId: r?.message_id ?? r?.messageId, system: system || sensitive })
+      onDelivered({ chatId, message, note, messageId: r?.message_id ?? r?.messageId, system: system || sensitive || privateDelivery })
       if (outputScope.getStore()?.chatId === chatId) outputScope.getStore().sent++
       return r
     } catch (error) {
       // 网关预热/短暂不可达：确定没发出去的消息由连接放进补发队列（上面 queued），入不了队的在这里说一声。
-      if (error?.queueProblem) log.warn(`发到 ${chatId} 失败，且无法入队（${error.queueProblem}）：`, error.message)
+      if (!privateDelivery && error?.queueProblem) log.warn(`发到 ${chatId} 失败，且无法入队（${error.queueProblem}）：`, error.message)
       bump('errors')
-      const detail = sensitive ? '敏感命令回执发送失败' : error.message
+      const detail = privateDelivery ? '私聊生图消息发送失败' : sensitive ? '敏感命令回执发送失败' : error.message
       log.warn(`发到 ${chatId} 失败：`, detail)
       if (throwOnError) throw error
       if (!quiet) failStore.getStore()?.push(detail)

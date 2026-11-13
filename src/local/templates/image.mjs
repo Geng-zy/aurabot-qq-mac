@@ -1,7 +1,7 @@
 // 本地接口 · 生图：用你电脑上的画图服务（SD WebUI / Forge / ComfyUI ……）画图（替换面板里填的在线生图服务）。
 // 约定见同目录的「README-本地接口.md」。改完保存就生效，不用重启 DSH；面板「本地接口」页可以点「试一下」。
 //
-// 输入：{ prompt, size, image?, outDir, log }
+// 输入：{ prompt, size, image?, outDir, log, signal }
 //   prompt 要画什么（已经带上了面板里的「固定风格」）
 //   size   面板里选的尺寸，比如 "1024x1024"
 //   image  可选参考图，纯 base64（不带 data: 前缀）；有图时必须用图生图，不能忽略。
@@ -13,13 +13,13 @@
 const API = 'http://127.0.0.1:7860/sdapi/v1'
 export const supportsImage = true
 
-export default async function image({ prompt, size, image, log }) {
+export default async function image({ prompt, size, image, log, signal }) {
   const [width, height] = String(size || '1024x1024').split('x').map(Number)
   const r = await fetch(`${API}/${image ? 'img2img' : 'txt2img'}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ prompt, negative_prompt: 'lowres, bad anatomy, text, watermark', width, height, steps: 25, cfg_scale: 6, ...(image ? { init_images: [image], denoising_strength: 0.65 } : {}) }),
-    signal: AbortSignal.timeout(300000),
+    signal: signal || AbortSignal.timeout(300000),
   })
   if (!r.ok) {
     if (image && [404, 405, 415, 501].includes(r.status)) throw new Error('这个生图服务不支持参考图')

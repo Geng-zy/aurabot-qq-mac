@@ -10,6 +10,7 @@ import { withTimeoutSignal } from '../core/net.js'
 
 const TEMPLATES = fileURLToPath(new URL('./templates/', import.meta.url))
 const README = 'README-本地接口.md'
+const silentLog = Object.freeze({ debug() {}, info() {}, warn() {}, error() {} })
 
 export const SLOTS = {
   tts: { file: 'tts.mjs', title: '语音合成', timeoutMs: 60_000, example: 'GPT-SoVITS（http://127.0.0.1:9880，参考音频在 D:/voices/ref.wav）' },
@@ -20,13 +21,13 @@ export const SLOTS = {
 }
 
 /** 生图脚本的各种返回值统一成 Buffer。 */
-export async function toImageBuffer(r, { signal } = {}) {
+export async function toImageBuffer(r, { signal, allowUrl = true } = {}) {
   signal?.throwIfAborted()
   if (Buffer.isBuffer(r)) return r
   if (r?.buffer && Buffer.isBuffer(r.buffer)) return r.buffer
   if (r?.base64) return Buffer.from(String(r.base64).replace(/^data:[^,]+,/, ''), 'base64')
   if (r?.file) return readFileSync(r.file)
-  if (r?.url) {
+  if (allowUrl && r?.url) {
     const res = await fetch(r.url, { signal: withTimeoutSignal(60000, signal) })
     if (!res.ok) throw new Error(`下载图片失败（HTTP ${res.status}）`)
     return Buffer.from(await res.arrayBuffer())
@@ -49,7 +50,7 @@ export function createLocal({ getConfig, log }) {
     return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot))
   }
 
-  async function call(slot, args, { signal } = {}) {
+  async function call(slot, args, { signal, outDir: output = outDir(), sensitive = false, onLateFinish } = {}) {
     const spec = SLOTS[slot]
     const file = pathOf(slot)
     const t = Date.now()
@@ -66,20 +67,24 @@ export function createLocal({ getConfig, log }) {
       if (slot === 'image' && args?.image && mod.supportsImage !== true) throw new Error('这个生图服务不支持参考图')
       const fn = mod.default || mod.run
       if (typeof fn !== 'function') throw new Error(`${spec.file} 里没有 export default 的函数`)
-      mkdirSync(outDir(), { recursive: true })
-      const child = log.child ? log.child('local') : log
+      mkdirSync(output, { recursive: true })
+      const child = sensitive ? silentLog : log.child ? log.child('local') : log
       const interrupted = new Promise((_, reject) => {
         onAbort = () => reject(activeSignal.reason)
         activeSignal.addEventListener('abort', onAbort, { once: true })
       })
       timer = setTimeout(() => deadline.abort(new Error(`超过 ${Math.round(timeoutMs / 1000)} 秒没完成`)), timeoutMs)
-      const result = await Promise.race([
-        interrupted,
-        Promise.resolve().then(() => fn({ ...args, outDir: outDir(), log: child, signal: activeSignal })),
-      ])
-      last[slot] = { ok: true, at: Date.now(), message: `用时 ${((Date.now() - t) / 1000).toFixed(1)} 秒` }
+      const work = Promise.resolve().then(() => {
+        activeSignal.throwIfAborted()
+        return fn({ ...args, outDir: output, log: child, signal: activeSignal })
+      }).finally(() => {
+        if (activeSignal.aborted) return onLateFinish?.()
+      })
+      const result = await Promise.race([interrupted, work])
+      if (!sensitive) last[slot] = { ok: true, at: Date.now(), message: `用时 ${((Date.now() - t) / 1000).toFixed(1)} 秒` }
       return result
     } catch (error) {
+      if (sensitive) throw error
       last[slot] = { ok: false, at: Date.now(), message: String(error.message || error).slice(0, 300) }
       // 传进来的可能是根 logger（只有 child，没有 warn），直接调会把真实错误盖成 TypeError
       const say = typeof log.warn === 'function' ? log : log.child('local')

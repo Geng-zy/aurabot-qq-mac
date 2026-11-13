@@ -13,6 +13,7 @@ import { SIZE_OPTIONS } from '../../features/image-shape.js'
 import { dataDir } from '../../core/store.js'
 import { mimeOf } from '../../core/image-info.js'
 import { isOwner } from '../../chat/access.js'
+import { PRIVATE_DRAW_LABEL } from '../../channels/qq/inbound.js'
 
 export default {
   id: 'imagegen',
@@ -25,8 +26,40 @@ export default {
     const { hub, local } = api.core
     const gen = createImageGen({ getConfig: api.config, log: api.log, local })
     const auth = gen.codexAuth
-    let closed = false
-    api.onDispose?.(() => { closed = true; gen.dispose() })
+    const lifetime = new AbortController()
+    api.onDispose?.(() => { lifetime.abort(); gen.dispose() })
+    const closed = () => lifetime.signal.aborted
+
+    function queuePrivateDraw({ prompt, chatId, userId, authorized, reply }) {
+      const enabled = () => {
+        const cfg = api.config()
+        return !closed() && authorized() && cfg.enabled && !cfg.dryRun && !cfg.debug && local.active('image')
+      }
+      return api.core.tasks.start({
+        kind: '生图', chatId, requesters: [userId],
+        run: async (task) => {
+          const isCurrent = () => enabled() && task.isCurrent()
+          if (!isCurrent()) return { ok: false }
+          task.checkpoint('生成图片')
+          const signal = AbortSignal.any([task.signal, lifetime.signal])
+          let buf
+          try {
+            buf = await gen.generatePrivate(prompt, { signal })
+          } catch {
+            if (isCurrent()) await reply('本地生图未完成。请检查本地模型服务和生图脚本。')
+            return { ok: false }
+          }
+          if (!isCurrent()) return { ok: false }
+          task.beginDelivery()
+          const sent = await hub.sendSegments(chatId, [
+            { type: 'text', data: { text: PRIVATE_DRAW_LABEL } },
+            { type: 'image', data: { file: 'base64://' + buf.toString('base64') } },
+          ], PRIVATE_DRAW_LABEL, { privateDelivery: true, isCurrent })
+          if (!sent && isCurrent()) await reply('图片已生成，QQ 发送结果未确认。')
+          return { ok: Boolean(sent && !sent.queued && !sent.simulated) }
+        },
+      })
+    }
     const accountAction = (fn) => async (req) => {
       if (req?.method !== 'POST' || !/^application\/json(?:\s*;|$)/i.test(String(req.headers?.['content-type'] || ''))) return { ok: false, message: '账号操作需要 POST JSON 请求' }
       return fn(req)
@@ -154,7 +187,7 @@ export default {
           }
         }
         const draw = async (task) => {
-          if (closed) return { ok: false, message: '生图模块已关闭' }
+          if (closed()) return { ok: false, message: '生图模块已关闭' }
           task?.checkpoint('生成图片')
           let buf
           try {
@@ -169,11 +202,11 @@ export default {
             buf = await gen.generate(drawPrompt, { shape, size, signal: task?.signal })
           }
           task?.checkpoint('准备发送')
-          if (closed) return { ok: false, message: '生图模块已关闭' }
+          if (closed()) return { ok: false, message: '生图模块已关闭' }
           const cfg = api.config()
           const dryRun = cfg.dryRun && !cfg.debug
           if (!dryRun) task?.beginDelivery()
-          const sent = dryRun ? null : await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`, task ? { isCurrent: () => !closed && task.isCurrent(), allowQueue: false } : undefined)
+          const sent = dryRun ? null : await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`, task ? { isCurrent: () => !closed() && task.isCurrent(), allowQueue: false } : undefined)
           if (!sent && !dryRun) return { ok: false, message: '画好了，但没有发到 QQ（请检查网关）' }
           const saved = savePainting(buf, String(prompt || ''))
           if (saved) api.log.debug(`生图已存盘：${saved}`)
@@ -230,13 +263,13 @@ export default {
           run: async (task) => {
             try { return await draw(task) }
             catch (error) {
-              if (!closed && task.isCurrent()) await hub.sendText(chat.chatId, '这张图没画成，可以问我当前进度。')
+              if (!closed() && task.isCurrent()) await hub.sendText(chat.chatId, '这张图没画成，可以问我当前进度。')
               throw error
             }
           },
         })
       },
     }) : []))
-    return gen
+    return { ...gen, queuePrivateDraw }
   },
 }

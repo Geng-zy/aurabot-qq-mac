@@ -4,6 +4,9 @@
 // 地址和密钥由主人在面板里填；生成结果统一成 Buffer 交给 QQ 发出。
 
 import { lstatSync, readFileSync } from 'node:fs'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { fetchImage, withTimeoutSignal } from '../core/net.js'
 import { resolvePainting } from './paintings.js'
 import { createCodexAuth } from './codex-auth.js'
@@ -142,6 +145,26 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
   const fetch = fetchImpl || ((...args) => globalThis.fetch(...args))
   const auth = codexAuth || createCodexAuth({ log, fetchImpl: fetch })
   const viaCodex = createCodexImage({ auth, fetchImpl: fetch, log })
+  async function generatePrivate(prompt, { signal } = {}) {
+    signal?.throwIfAborted()
+    if (!local?.active('image')) throw new Error('本地生图未启用')
+    const config = getConfig().imageGen
+    const outDir = await mkdtemp(join(tmpdir(), 'aurabot-private-image-'))
+    const cleanup = () => rm(outDir, { recursive: true, force: true })
+    try {
+      const result = await local.call('image', { prompt, size: imageSizeFor(undefined, config) }, {
+        signal, outDir, sensitive: true, onLateFinish: cleanup,
+      })
+      const { toImageBuffer } = await import('../local/local.js')
+      const buf = await toImageBuffer(result, { signal, allowUrl: false })
+      signal?.throwIfAborted()
+      if (!String(mimeOf(buf)).startsWith('image/')) throw new Error('本地生图没有返回有效图片')
+      return buf
+    } finally {
+      await cleanup()
+    }
+  }
+
   /**
    * extra：除了 image 以外的参考图（比如她的形象图的其余几张）。能一次收好几张的服务（gpt-image 系列）都给，别的只用 image 那一张
    */
@@ -287,7 +310,7 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     return c.provider === 'custom' ? Boolean(c.custom && c.custom.url) : Boolean(c.baseUrl && c.model)
   }
 
-  return { generate, enabled, codexAuth: auth, dispose: () => auth.dispose?.() }
+  return { generate, generatePrivate, enabled, codexAuth: auth, dispose: () => auth.dispose?.() }
 }
 
 /**

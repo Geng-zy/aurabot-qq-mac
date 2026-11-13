@@ -19,6 +19,8 @@ import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
 import { createChannels, LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createQqChannel } from './channels/qq/index.js'
+import { PRIVATE_DRAW_NAME, PRIVATE_DRAW_LABEL, isPrivateDrawMessage, privateDrawPrompt } from './channels/qq/inbound.js'
+import { isOwner } from './chat/access.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
@@ -211,6 +213,37 @@ export function apply(ctx) {
   const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
+  const privateDrawCommand = { name: PRIVATE_DRAW_NAME, desc: '仅主人好友私聊：/画图 画面描述（直达本地生图）', module: 'imagegen' }
+  const privateDrawModule = () => mods?.running('imagegen') === 'builtin' ? mods.use('imagegen') : null
+  const listedCommands = () => [...mods.commands(), ...(privateDrawModule() ? [privateDrawCommand] : [])]
+
+  async function onPrivateDraw(msg, prompt) {
+    const chat = parseChat(msg.chatId)
+    const before = getConfig()
+    if (msg.kind !== 'private' || msg.subType !== 'friend' || msg.sourceGroupId || chat?.kind !== 'private' ||
+        chat.platform !== 'qq' || chat.id !== msg.userId || msg.userId === msg.selfId || !isOwner(before, msg.userId, msg.chatId)) return
+    const revision = ownerAuthorizationRevision(before)
+    const authorized = () => {
+      const current = getConfig()
+      return current.botQQ === before.botQQ && ownerAuthorizationRevision(current) === revision && isOwner(current, msg.userId, msg.chatId)
+    }
+    const reply = (status) => hub.sendSegments(msg.chatId, [{ type: 'text', data: { text: PRIVATE_DRAW_LABEL + ' ' + status } }], PRIVATE_DRAW_LABEL, {
+      force: true, privateDelivery: true, isCurrent: authorized,
+    })
+    if (before.debug) return
+    if (!before.enabled || before.dryRun) return reply('请先打开总开关并关闭试运行。')
+    if (!prompt) return reply('用法：/画图 画面描述')
+    const imagegen = privateDrawModule()
+    if (!imagegen) return reply('请先启用内置生图模块。')
+    if (!local.active('image')) return reply('请先在「本地接口」里配置并开启生图。')
+    try {
+      const result = imagegen.queuePrivateDraw({ prompt, chatId: msg.chatId, userId: msg.userId, authorized, reply })
+      await reply(result.message)
+    } catch {
+      await reply('生图任务未能启动。')
+    }
+  }
+
   // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
   channels.on((e) => {
     if (e.type === 'state') { if (e.platform === 'qq') mods?.emit('onebot/state', e.state); return }
@@ -219,6 +252,14 @@ export function apply(ctx) {
     if (e.type === 'raw') { if (e.platform === 'qq') mods?.emit('onebot', e.event); return }
     if (e.type === 'message') {
       const msg = e.msg
+      if (e.platform === 'qq') {
+        const message = msg.raw?.message ?? msg.raw?.raw_message
+        if (isPrivateDrawMessage(message)) {
+          const prompt = privateDrawPrompt(message)
+          if (prompt !== null) onPrivateDraw(msg, prompt).catch(() => log.warn('私聊生图命令处理失败'))
+          return
+        }
+      }
       // 危险命令确认：主人的「确认 / 取消」回复先在这里截住，不交给聊天中枢
       if (dangerGuard && msg.kind === 'private') {
         const raw = msg.raw
@@ -375,7 +416,7 @@ export function apply(ctx) {
         if (cmd.ext.sensitive === true && !markSensitive(cmd.name)) return ''
         return String((await cmd.ext.run(cmd.arg, msg)) ?? '')
       }
-      return runCommand(cmd, msg, { getConfig, setConfig, mutes, hub, mind, qzone: use('diary'), song: use('song'), listModels, defaultModel: () => defaultModel(ctx, { model: {} }), extraCommands: mods.commands() })
+      return runCommand(cmd, msg, { getConfig, setConfig, mutes, hub, mind, qzone: use('diary'), song: use('song'), listModels, defaultModel: () => defaultModel(ctx, { model: {} }), extraCommands: listedCommands() })
     },
     isMuted: (chatId) => mutes.muted(chatId),
     // 心情、精力、困对说话方式的影响（表情包、语音、回复快慢、插话）
@@ -1273,7 +1314,7 @@ export function apply(ctx) {
     return { ok: true, entries: logger.recent(Number(q.limit) || 300, { level: q.level || '', area: q.area || '' }) }
   })
 
-  route('/commands', async () => ({ ok: true, list: commandList(mods.commands()) }))
+  route('/commands', async () => ({ ok: true, list: commandList(listedCommands()) }))
   // 更新：检查 GitHub 上有没有新版本；这次更新了什么
   const checkUpdate = createUpdateChecker({ pkg: PKG, log, unstable: () => getConfig().update.unstable })
   // 宿主环境（macOS + 桌面版/网页版）决定更新命令怎么写；检查的是 package.json 里的仓库（你自己的），只认发布过的 Release
@@ -1983,7 +2024,9 @@ export function apply(ctx) {
     const steps = []
     const msg = { ...chat, nickname: owner ? cfg.ownerName || '主人' : '路人', role: '', messageId: 'sim', text, mentioned: Boolean(b.mentioned), replyId: '', images: [], stickers: [], records: [], forwards: [], raw: { simulated: true } }
     const { sent } = await hub.capture(async () => {
-      if (text) {
+      if (privateDrawPrompt(text) !== null) {
+        steps.push('这是主人好友私聊的本地生图命令，面板模拟不会执行。')
+      } else if (text) {
         const cmd = owner && /^\s*[/／]/.test(text) ? parseCommand(text, mods.commands()) : null
         if (cmd && cmd.ext) {
           const reply = String((await cmd.ext.run(cmd.arg, msg)) ?? '')
