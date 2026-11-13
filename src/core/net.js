@@ -119,19 +119,27 @@ export async function assertPublicUrl(url) {
   if (ssrfBlocked(ips)) throw new Error('不允许访问内网地址')
 }
 
+export function withTimeoutSignal(timeoutMs, signal) {
+  const timeout = AbortSignal.timeout(timeoutMs)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
+
 /**
  * 手动跟重定向：每一跳都重新做 SSRF 检查，避免「公网地址 302 到你内网」。
  * 默认最多 5 跳；fetchImpl 只给测试注入。
  */
 export async function fetchGuarded(url, o = {}) {
   const fetchImpl = o.fetchImpl || fetch
+  const signal = withTimeoutSignal(o.timeoutMs ?? 20000, o.signal)
   let current = String(url)
   for (let hop = 0; hop <= 5; hop++) {
+    signal.throwIfAborted()
     await assertPublicUrl(current)
-    const r = await fetchImpl(current, { signal: AbortSignal.timeout(o.timeoutMs ?? 20000), redirect: 'manual' })
+    const r = await fetchImpl(current, { signal, redirect: 'manual' })
     if ([301, 302, 303, 307, 308].includes(r.status)) {
       const loc = r.headers.get('location')
       if (loc) {
+        await r.body?.cancel().catch(() => {})
         current = new URL(loc, current).href
         continue
       }
@@ -175,9 +183,10 @@ export async function segmentBytes(seg, onebot, o = {}) {
 
 /**
  * @param {string} src http(s) 地址 / base64://… / file:// / 本地绝对路径
- * @param {{maxBytes?:number, timeoutMs?:number, allowLocal?:boolean, fetchImpl?:Function}} [o]
+ * @param {{maxBytes?:number, timeoutMs?:number, allowLocal?:boolean, fetchImpl?:Function, signal?:AbortSignal}} [o]
  */
 export async function fetchImage(src, o = {}) {
+  o.signal?.throwIfAborted()
   const maxBytes = o.maxBytes ?? 10 * 1024 * 1024
   const s = String(src || '').trim()
   if (!s) throw new Error('没有地址')
@@ -188,9 +197,16 @@ export async function fetchImage(src, o = {}) {
   }
   if (/^https?:\/\//i.test(s)) {
     const r = await fetchGuarded(s, o)
-    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    if (!r.ok) {
+      await r.body?.cancel().catch(() => {})
+      throw new Error(`HTTP ${r.status}`)
+    }
     const len = Number(r.headers.get('content-length') || 0)
-    if (len > maxBytes) throw new Error('太大了')
+    if (len > maxBytes) {
+      await r.body?.cancel().catch(() => {})
+      throw new Error('太大了')
+    }
+    if (!r.body) throw new Error('没有下载内容')
     const reader = r.body.getReader()
     const chunks = []
     let total = 0
@@ -199,7 +215,7 @@ export async function fetchImage(src, o = {}) {
       if (done) break
       total += value.length
       if (total > maxBytes) {
-        try { reader.cancel() } catch (e) {}
+        await reader.cancel().catch(() => {})
         throw new Error('太大了')
       }
       chunks.push(Buffer.from(value))

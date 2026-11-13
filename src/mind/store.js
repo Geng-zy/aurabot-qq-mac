@@ -1,7 +1,8 @@
 // 心智核心的数据库：一个 SQLite 文件，放她的全部数据。
 // 只依赖 Node 自带的 node:sqlite，不引用 Aurabot 的任何代码。
 
-import { copyFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync, readdirSync, renameSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, existsSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 
 let DatabaseSync
@@ -187,6 +188,13 @@ function wrap(db, file) {
     try { return JSON.parse(text) } catch { return fallback }
   }
 
+  function snapshot(target) {
+    if (existsSync(target)) throw new Error('快照文件已存在：' + target)
+    mkdirSync(dirname(target), { recursive: true })
+    db.prepare('VACUUM INTO ?').run(target)
+    return target
+  }
+
   return {
     file,
     db,
@@ -228,21 +236,17 @@ function wrap(db, file) {
     },
 
     /** 在线快照：开着也能安全地备一份。 */
-    snapshot(target) {
-      if (existsSync(target)) throw new Error('快照文件已存在：' + target)
-      mkdirSync(dirname(target), { recursive: true })
-      db.prepare('VACUUM INTO ?').run(target)
-      return target
-    },
+    snapshot,
 
     /**
      * 整个数据库的一份完整字节（给外部备份打包用）。
-     * 先把 WAL 并回主文件再读；同步 API，读的过程中不会有别的写入插进来。
+     * 通过 SQLite 生成独立快照，即使别的连接正在读写，也能包含当前已提交的 WAL 内容。
      */
     bytes() {
       if (file === ':memory:') throw new Error('内存数据库没有文件')
-      db.exec('PRAGMA wal_checkpoint(TRUNCATE)')
-      return readFileSync(file)
+      const dir = mkdtempSync(join(tmpdir(), 'aurabot-mind-backup-'))
+      try { return readFileSync(snapshot(join(dir, 'mind.sqlite'))) }
+      finally { rmSync(dir, { recursive: true, force: true }) }
     },
 
     close() {

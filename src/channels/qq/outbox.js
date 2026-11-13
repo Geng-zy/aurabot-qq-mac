@@ -34,35 +34,37 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
     }
   }
 
-  function save () {
+  function save (next) {
     try {
       ensureDir(dirname(file))
       const tmp = `${file}.${process.pid}.tmp`
-      writeFileSync(tmp, JSON.stringify(items), { encoding: 'utf8', mode: 0o600 })
+      writeFileSync(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600 })
       try { chmodSync(tmp, 0o600) } catch (error) {}
       renameSync(tmp, file)
+      items = next
+      return true
     } catch (error) {
       log?.warn?.('发送队列落盘失败：', error.message)
+      return false
     }
   }
 
   function prune (at = now()) {
     load()
-    const before = items.length
-    items = items.filter((x) => Number(x.expiresAt) > at)
-    if (items.length !== before) save()
+    const next = items.filter((x) => Number(x.expiresAt) > at)
+    if (items.length !== next.length) save(next)
   }
 
   function list () {
     prune()
-    return items.map((x) => ({ ...x }))
+    return items.filter((x) => x.expiresAt > now()).map((x) => structuredClone(x))
   }
 
   /**
    * 加入一条待发送消息。只接受 send_private_msg / send_group_msg；
    * 图片 base64 等过大内容不入队，避免队列文件失控。
    */
-  function add ({ action, params, chatId = '', note = '', kind = 'reply', ttlMs } = {}) {
+  function add ({ action, params, chatId = '', note = '', kind = 'reply', ttlMs, privacyRevision = '' } = {}) {
     if (action !== 'send_private_msg' && action !== 'send_group_msg') {
       return { ok: false, message: '不是可补发的消息类型' }
     }
@@ -75,87 +77,84 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
     const text = JSON.stringify(params || {})
     if (Buffer.byteLength(text, 'utf8') > maxBytes) return { ok: false, message: '消息太大，不放进补发队列' }
     prune()
-    if (items.length >= maxItems) {
-      // 丢最旧的一条，保证不无限增长
-      items.shift()
-      log?.warn?.(`发送队列已满（${maxItems}），丢弃最旧一条`)
-    }
     const at = now()
     const item = {
       id: randomUUID(),
       action,
-      params: params || {},
+      params: JSON.parse(text),
       chatId: String(chatId || ''),
       note: String(note || '').slice(0, 120),
       kind,
+      ...(privacyRevision ? { privacyRevision } : {}),
       createdAt: at,
       expiresAt: at + Math.max(10_000, Number(ttlMs) || ttlForKind(kind)),
       attempts: 0,
       nextAt: at,
     }
-    items.push(item)
-    save()
+    const full = items.length >= maxItems
+    if (!save([...(full ? items.slice(1) : items), item])) return { ok: false, message: '发送队列未能保存' }
+    if (full) log?.warn?.(`发送队列已满（${maxItems}），丢弃最旧一条`)
     return { ok: true, id: item.id, expiresAt: item.expiresAt }
   }
 
   function remove (id) {
     load()
-    const before = items.length
-    items = items.filter((x) => x.id !== id)
-    if (items.length !== before) save()
+    const next = items.filter((x) => x.id !== id)
+    return items.length !== next.length && save(next)
   }
 
   /**
    * 连接后按顺序补发。call(action, params, { retries: 0 }) 由调用方提供。
    * 仅 transport 失败保留；uncertain / 业务错误丢弃，避免重复发或永远堵住队列。
    */
-  function flush (call, { onSent } = {}) {
-    if (!flushing) flushing = Promise.resolve().then(() => drain(call, onSent)).finally(() => { flushing = null })
+  function flush (call, { onSent, canSend, isReady = () => true } = {}) {
+    if (!flushing) flushing = Promise.resolve().then(() => drain(call, onSent, canSend, isReady)).finally(() => { flushing = null })
     return flushing
   }
 
-  async function drain (call, onSent) {
+  async function drain (call, onSent, canSend, isReady) {
     load()
     let sent = 0
     let dropped = 0
     for (const item of list()) {
+      if (!isReady()) break
+      if (!items.some(({ id }) => id === item.id)) continue
       const at = now()
       if (item.expiresAt <= at) {
-        remove(item.id)
+        if (!remove(item.id)) break
         dropped++
         log?.warn?.(`补发过期，丢弃：${item.note || item.chatId || item.action}`)
         continue
       }
-      if (Number(item.nextAt) > at) continue
+      if (Number(item.nextAt) > at) break
+      if (canSend && !canSend(item)) {
+        if (!remove(item.id)) break
+        dropped++
+        continue
+      }
+      // 先落盘移出队列。若网关已经收到而进程在回执前退出，重启也不会重发。
+      if (!remove(item.id)) break
       try {
         const result = await call(item.action, item.params, { retries: 0, timeoutMs: 30_000 })
-        remove(item.id)
         sent++
         log?.info?.(`补发成功：${item.note || item.chatId || item.action}`)
         try { onSent?.(item, result) } catch (error) { log?.warn?.('记录补发结果失败：', error.message) }
       } catch (error) {
         if (error?.uncertain) {
           // 可能已经发出去了，宁可少发一次，不能重复。
-          remove(item.id)
           dropped++
           log?.warn?.(`补发结果不确定，丢弃避免重复：${item.note || item.chatId || item.action}`)
           continue
         }
         if (!error?.transport) {
-          remove(item.id)
           dropped++
           log?.warn?.(`补发失败（非网络）：${error?.message || error}`)
           continue
         }
         item.attempts = Number(item.attempts || 0) + 1
         item.nextAt = at + Math.min(60_000, 2 ** Math.min(item.attempts, 5) * 1000)
-        const raw = items.find((x) => x.id === item.id)
-        if (raw) {
-          raw.attempts = item.attempts
-          raw.nextAt = item.nextAt
-          save()
-        }
-        log?.warn?.(`补发时网关仍不可用，留队重试：${item.note || item.chatId || item.action}`)
+        if (items.length < maxItems && save([item, ...items])) log?.warn?.(`补发时网关仍不可用，留队重试：${item.note || item.chatId || item.action}`)
+        else dropped++
         break
       }
     }
@@ -163,8 +162,8 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
   }
 
   function status () {
-    prune()
-    return { count: items.length, oldestAt: items.length ? Math.min(...items.map((x) => x.createdAt)) : 0 }
+    const current = list()
+    return { count: current.length, oldestAt: current.length ? Math.min(...current.map((x) => x.createdAt)) : 0 }
   }
 
   return { add, list, remove, prune, flush, status }

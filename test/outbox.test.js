@@ -63,3 +63,26 @@ test('队列落盘可恢复，且只接受消息类 action', () => {
   const q2 = createOutbox({ log, file })
   assert.equal(q2.status().count, 1, '新实例能读回队列')
 })
+
+test('补发在途时重开队列不会重复发送，连接失效后暂停后续发送', async () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'aurabot-outbox-flight-')), 'queue.json')
+  const q = createOutbox({ log, file })
+  const a = q.add({ action: 'send_private_msg', params: { user_id: 1 } })
+  const b = q.add({ action: 'send_private_msg', params: { user_id: 2 } })
+  let connected = true
+  const result = await q.flush(async () => {
+    const reopened = createOutbox({ log, file })
+    assert.ok(!reopened.list().some(({ id }) => id === a.id))
+    connected = false
+    return { message_id: 9 }
+  }, { isReady: () => connected })
+  assert.equal(result.sent, 1)
+  assert.deepEqual(q.list().map(({ id }) => id), [b.id])
+})
+
+test('队列落盘失败时不会报告已排队', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'aurabot-outbox-unwritable-'))
+  const q = createOutbox({ log, file: dir })
+  assert.equal(q.add({ action: 'send_group_msg', params: { group_id: 1 } }).ok, false)
+  assert.equal(q.status().count, 0)
+})

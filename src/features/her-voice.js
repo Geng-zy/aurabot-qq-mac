@@ -16,7 +16,7 @@ const CLEAN_RE = /\[沉默\]|<\/?voice>/g
  * @param {(chatId: string) => boolean} o.busy 这个聊天这一轮还在跑
  * @param {(note: string, chatId: string) => Promise<any>} o.pushNote 把一条提示推进那个聊天的会话，由她自己说
  * @param {(o: { system: string, text: string }) => Promise<string>} o.ask 单独问一次模型
- * @param {() => string} o.persona 她现在的人格（和会话里用的同一份）
+ * @param {(chatId: string) => string} o.persona 在目标会话可以使用的人格内容
  * @param {(chatId: string) => string} [o.context] 她此刻的状态（时间、身体、心情、在这个聊天里想起的事）
  * @param {(chatId: string, text: string) => Promise<any>} o.send 发到 QQ（会记成她说的话）
  * @param {object} [o.log]
@@ -27,7 +27,7 @@ export function createHerVoice({ ownerChatId, busy, pushNote, ask, persona, cont
   async function direct(chatId, facts, must, fallback, clean) {
     const mustLine = must.length ? `必须原样带上这些字：${must.map((w) => `「${w}」`).join('、')}（他要照着回）。` : ''
     const system = [
-      String(persona?.() || '').trim(),
+      String(persona?.(chatId) || '').trim(),
       String(context?.(chatId) || '').trim(),
       (chatId.startsWith('group:') ? '【现在要做的事】下面是你刚看到的一件事，要在这个 QQ 群里说一声。' : '【现在要做的事】下面是你刚看到的一件事，要在 QQ 私聊里告诉对方。') + '用你自己的口气说一两句，像平时聊天那样顺口说，别念条目、别写成通知、别加引号或前缀。' + mustLine + '只输出要发的那句话本身。',
     ].filter(Boolean).join('\n\n')

@@ -306,9 +306,10 @@ test('群管：群友要求禁言被拒绝，主人要求才执行', async () =>
   assert.equal(mock.sent('set_group_ban').length, 0)
 
   mock.push(grp('555', OWNER, [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 帮我把999禁言' } }], 'xiaoming'))
-  await until(() => mock.sent('set_group_ban').length === 1)
+  await until(() => fake.turns.at(-1)?.userText.includes('帮我把999禁言') && fake.turns.at(-1).toolCalls.length)
   call = fake.turns.at(-1).toolCalls[0]
   assert.equal(call.result.ok, true)
+  assert.equal(mock.sent('set_group_ban').length, 1)
   assert.equal(mock.sent('set_group_ban')[0].params.duration, 300)
 })
 
@@ -1103,10 +1104,12 @@ test('生图：主人让她画图，调生图服务并把图发出去', async ()
 
 test('生图后台运行时仍能查进度并取消，成品不会再发出', async () => {
   const { createServer } = await import('node:http')
-  let finish
+  let started = false
+  let connectionClosed = false
   const server = createServer(async (req, res) => {
     for await (const _ of req) {}
-    finish = () => res.end(JSON.stringify({ data: [{ b64_json: fakePng(64, 64).toString('base64') }] }))
+    started = true
+    res.once('close', () => { connectionClosed = !res.writableEnded })
   })
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
   try {
@@ -1116,18 +1119,18 @@ test('生图后台运行时仍能查进度并取消，成品不会再发出', as
     const before = fake.turns.length
     mock.push(priv(OWNER, text('画一只后台测试的鲸鱼')))
     const queued = await until(() => call('qq_draw_image')?.taskId && call('qq_draw_image'))
-    await until(() => finish)
+    await until(() => started)
     mock.push(priv(OWNER, text('后台任务进度测试 ' + queued.taskId)))
     const status = await until(() => call('aurabot_task_status'))
     assert.match(status.message, /生成图片/)
     mock.push(priv(OWNER, text('后台任务取消测试 ' + queued.taskId)))
     const cancelled = await until(() => call('aurabot_task_cancel'))
     assert.equal(cancelled.ok, true)
-    finish()
+    await until(() => connectionClosed)
     await until(() => readFileSync(join(dataDir, 'creative-tasks.json'), 'utf8').includes('"state": "cancelled"'))
     assert.ok(!sentTo('private', OWNER).slice(n).some((c) => c.params.message.some((segment) => segment.type === 'image')))
   } finally {
-    finish?.()
+    server.closeAllConnections()
     server.close()
   }
 })

@@ -75,4 +75,4 @@ JSONL 每行一个事件，按 `at` 升序（ISO 时间或毫秒时间戳）。�
 
 需要让模型按需展开时，调用 `conversation.prepare({ window, text, compactRecall: true })`。工作记忆给出带编号的摘要。模型请求展开后，用 `memory.recallMore(id, { audienceWindow: window })` 读取一跳。每次读取都按当前会话核对原记忆和关联记忆。AuraBot 将这个入口提供为 `mind_recall_more`。
 
-`npm run mind:privacy` 用合成主人私聊验证公开片段，分别统计私密内容通过和普通内容被拦的次数。测试把每条样例都标成拟分享，以便测量代码的可见性判断。`--input` 可传入包含 `name`、`messages`、`share` 和可选 `line` 的 JSON 数组。默认样例也包含字面毫无线索的暗语，报告会记录这一类漏判。
+`npm run mind:privacy` 用合成主人私聊验证公开片段，分别统计私密内容通过和普通内容被拦的次数。测试把每条样例都标成拟分享，以便测量代码的可见性判断。`--input` 可传入包含 `name`、`messages`、`share` 和可选 `line` 的 JSON 数组。默认样例也包含字面毫无线索的暗语，报告会记录这一类漏判。用 `--owner-only` 验证关闭自动跨会话使用日常片段后的行为。

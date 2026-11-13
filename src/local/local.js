@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, copyFileSync, statSync, readFileSync } from 'nod
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dataDir } from '../core/store.js'
+import { withTimeoutSignal } from '../core/net.js'
 
 const TEMPLATES = fileURLToPath(new URL('./templates/', import.meta.url))
 const README = 'README-本地接口.md'
@@ -19,13 +20,14 @@ export const SLOTS = {
 }
 
 /** 生图脚本的各种返回值统一成 Buffer。 */
-export async function toImageBuffer(r) {
+export async function toImageBuffer(r, { signal } = {}) {
+  signal?.throwIfAborted()
   if (Buffer.isBuffer(r)) return r
   if (r?.buffer && Buffer.isBuffer(r.buffer)) return r.buffer
   if (r?.base64) return Buffer.from(String(r.base64).replace(/^data:[^,]+,/, ''), 'base64')
   if (r?.file) return readFileSync(r.file)
   if (r?.url) {
-    const res = await fetch(r.url, { signal: AbortSignal.timeout(60000) })
+    const res = await fetch(r.url, { signal: withTimeoutSignal(60000, signal) })
     if (!res.ok) throw new Error(`下载图片失败（HTTP ${res.status}）`)
     return Buffer.from(await res.arrayBuffer())
   }
@@ -47,25 +49,34 @@ export function createLocal({ getConfig, log }) {
     return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot))
   }
 
-  async function call(slot, args) {
+  async function call(slot, args, { signal } = {}) {
     const spec = SLOTS[slot]
     const file = pathOf(slot)
     const t = Date.now()
     // 生视频比别的慢得多，超时可以在面板单独调
     const timeoutMs = slot === 'video' ? (Number(getConfig().local?.videoTimeoutMin) || 20) * 60_000 : spec.timeoutMs
+    const deadline = new AbortController()
+    const activeSignal = signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal
+    let timer, onAbort
     try {
+      activeSignal.throwIfAborted()
       // 带上修改时间：脚本改了就重新加载
       const mod = await import(pathToFileURL(file).href + '?v=' + statSync(file).mtimeMs)
+      activeSignal.throwIfAborted()
       if (slot === 'image' && args?.image && mod.supportsImage !== true) throw new Error('这个生图服务不支持参考图')
       const fn = mod.default || mod.run
       if (typeof fn !== 'function') throw new Error(`${spec.file} 里没有 export default 的函数`)
       mkdirSync(outDir(), { recursive: true })
       const child = log.child ? log.child('local') : log
-      let timer
+      const interrupted = new Promise((_, reject) => {
+        onAbort = () => reject(activeSignal.reason)
+        activeSignal.addEventListener('abort', onAbort, { once: true })
+      })
+      timer = setTimeout(() => deadline.abort(new Error(`超过 ${Math.round(timeoutMs / 1000)} 秒没完成`)), timeoutMs)
       const result = await Promise.race([
-        fn({ ...args, outDir: outDir(), log: child }),
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`超过 ${Math.round(timeoutMs / 1000)} 秒没完成`)), timeoutMs) }),
-      ]).finally(() => clearTimeout(timer))
+        interrupted,
+        Promise.resolve().then(() => fn({ ...args, outDir: outDir(), log: child, signal: activeSignal })),
+      ])
       last[slot] = { ok: true, at: Date.now(), message: `用时 ${((Date.now() - t) / 1000).toFixed(1)} 秒` }
       return result
     } catch (error) {
@@ -74,6 +85,9 @@ export function createLocal({ getConfig, log }) {
       const say = typeof log.warn === 'function' ? log : log.child('local')
       say.warn(`本地接口「${spec.title}」出错：`, last[slot].message)
       throw error
+    } finally {
+      clearTimeout(timer)
+      if (onAbort) activeSignal.removeEventListener('abort', onAbort)
     }
   }
 

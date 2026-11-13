@@ -375,6 +375,26 @@ export function cleanOutboundSegments(message, options) {
   return result.some((seg) => seg.type === 'text' ? seg.data.text.trim() : !['reply', 'at'].includes(seg.type)) ? result : []
 }
 
+export const MAX_OUTBOUND_CHARS = 1500
+
+/** 限制所有文字段的总长度，保留段落顺序和其余字段。 */
+export function capOutboundText(parts, textOf, replaceText, limit = MAX_OUTBOUND_CHARS) {
+  let left = limit
+  return parts.flatMap((part) => {
+    const text = textOf(part)
+    if (typeof text !== 'string') return [part]
+    const chars = Array.from(text)
+    if (chars.length <= left) {
+      left -= chars.length
+      return [part]
+    }
+    if (!left) return []
+    const clipped = chars.slice(0, left - 1).join('') + '…'
+    left = 0
+    return [replaceText(part, clipped)]
+  })
+}
+
 /** 解析一轮回复；在拆气泡/语音前清洗，避免协议里的竖线被误作气泡分隔符。 */
 export function parseReply(text, options) {
   // 模型偶尔把换行写成 HTML `<br>`：当真正的换行处理；代码示例里的字面量保留。

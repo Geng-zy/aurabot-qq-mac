@@ -29,12 +29,17 @@ test('群的了解按整个窗口记：不同平台同一个群号不串', () =>
   assert.match(m.relations.describe([], { window: 'feishu:group:9' }), /飞书工作群/)
 })
 
-test('私聊里的事留在原会话，不向其他平台的群公开', async () => {
+test('其他人的私聊记忆可以跨平台使用，主人的私聊原话仅在来源窗口可读', async () => {
   const m = mk()
   m.memory.insert({ at: T0, window: 'wechat:private:wxid_2', gist: '小明说他在准备考研复试', kind: 'fact', about: 'wechat:wxid_2', speaker: 'wechat:wxid_2', importance: 0.8 })
   const w = await m.memory.workingMemory({ cue: '考研复试', window: 'feishu:group:9', people: ['wechat:wxid_2'] })
-  assert.doesNotMatch(w.text, /考研复试/)
+  assert.match(w.text, /考研复试/)
   assert.match((await m.memory.workingMemory({ cue: '考研复试', window: 'wechat:private:wxid_2' })).text, /考研复试/)
+  const dm = 'wechat:private:wxid_o'
+  m.perceive({ window: dm, who: 'wechat:wxid_o', text: '这段话只在私聊说', msgId: 'w1', at: T0 })
+  assert.equal(m.linkPerson('wechat:wxid_o', 'qq:1').ok, true)
+  assert.equal(m.history(dm, { audienceWindow: dm })[0].text, '这段话只在私聊说')
+  assert.deepEqual(m.history(dm, { audienceWindow: 'feishu:group:9' }), [])
 })
 
 test('同一个人：主人的微信连到主人以后，算主人；原话、经历、名字都并过去', () => {

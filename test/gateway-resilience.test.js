@@ -1,11 +1,44 @@
 // 网关韧性：启动前探测/等待（A）+ 发送失败重试（B）
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import net from 'node:net'
 
 const { createOneBotClient, OneBotError } = await import('../src/channels/qq/client.js')
 
 const silent = { info () {}, warn () {}, debug () {}, error () {} }
+
+test('重连后旧 WebSocket 的关闭和消息事件不会影响新连接', async (t) => {
+  const sockets = []
+  const original = globalThis.WebSocket
+  globalThis.WebSocket = class {
+    readyState = 0
+    constructor() { sockets.push(this) }
+    open() { this.readyState = 1; this.onopen() }
+    send(text) { this.request = JSON.parse(text) }
+    message(data) { this.onmessage({ data: JSON.stringify(data) }) }
+    close() { this.readyState = 3 }
+  }
+  t.after(() => { globalThis.WebSocket = original })
+  const events = []
+  const c = createOneBotClient({
+    endpoint: () => ({ wsUrl: 'ws://127.0.0.1:3000' }), onEvent: (event) => events.push(event), log: silent,
+  })
+  t.after(() => c.stop())
+  c.start()
+  const first = sockets[0]
+  first.open()
+  const stopped = assert.rejects(c.call('get_login_info', {}, { wsOnly: true }), /已停止/)
+  c.restart()
+  await stopped
+  const second = sockets[1]
+  second.open()
+  const answer = c.call('get_login_info', {}, { wsOnly: true })
+  first.onclose({ code: 1000 })
+  first.message({ post_type: 'message' })
+  second.message({ echo: second.request.echo, status: 'ok', data: { user_id: 7 } })
+  assert.deepEqual(await answer, { user_id: 7 })
+  assert.deepEqual(events, [])
+  assert.equal(c.state, 'connected')
+})
 
 // ---------- A. 启动前探测 ----------
 

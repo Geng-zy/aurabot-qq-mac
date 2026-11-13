@@ -8,11 +8,10 @@ const host = readFileSync(new URL('../src/host.js', import.meta.url), 'utf8')
 const config = readFileSync(new URL('../src/core/config.js', import.meta.url), 'utf8')
 
 test('安全防护页接上了页签、组件、搜索和 SSRF 模式配置', () => {
-  assert.ok(client.includes("{ id: 'security', label: '安全防护' }"), '缺安全防护页签')
-  assert.ok(client.includes("tabs: ['connect', 'model', 'access', 'browser', 'security', 'backup', 'about', 'logs']"), '安全防护要注册在系统组')
+  assert.match(client, /id: 'system'[^\n]*pages: \[([^\]]|\n)*id: 'security', label: '安全防护'/, '安全防护要注册在系统组')
   assert.ok(client.includes('security: Security'), '组件表缺 security → Security')
   assert.ok(client.includes('function Security({ st, draft, setDraft })'), '缺 Security 组件')
-  assert.ok(client.includes("security: '安全 防护 ssrf 内网 图片"), '搜索索引缺安全防护关键词')
+  assert.match(client, /id: 'security'[^\n]*search: '[^']*SSRF/, '搜索索引缺安全防护关键词')
   assert.ok(client.includes("security: ['security', 'update']"), '安全防护页的未保存改动没接上')
   // 默认值行本身会随新增字段变化，这里只锁「security 里有 ssrfMode: 'strict'」这个事实
   assert.match(config, /security:\s*\{[^}]*ssrfMode:\s*'strict'/, '缺 ssrfMode 默认值')

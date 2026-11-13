@@ -7,20 +7,25 @@ function setup({ owner = true, result = 'D:/out/a.mp4', active = true, sendFails
   const sent = []
   const calls = []
   let tool = null
+  let dispose
   let finish
   const done = new Promise((r) => { finish = r })
   const hub = {
     turnSendersAllOwner: () => owner,
-    sendSegments: async (chatId, segs) => { if (sendFails) throw new Error('网关不收'); sent.push({ chatId, segs }); finish() },
+    sendSegments: async (chatId, segs) => { if (sendFails) throw sendFails instanceof Error ? sendFails : new Error('网关不收'); sent.push({ chatId, segs }); finish() },
     sendFile: async (chatId, file) => { sent.push({ chatId, file }); finish() },
     sendText: async (chatId, text) => { sent.push({ chatId, text }); finish() },
   }
-  const local = { active: () => active, call: async (slot, args) => { calls.push({ slot, args }); if (result instanceof Error) throw result; return result } }
+  const local = { active: () => active, call: async (slot, args, options) => {
+    calls.push({ slot, args })
+    if (result instanceof Error) throw result
+    return typeof result === 'function' ? result(options) : result
+  } }
   const rules = []
-  const api = { core: { hub, local }, config: () => ({ freedom: false }), log: { warn() {} }, rule: (f) => rules.push(f), tool: (f) => { tool = f }, onDispose() {} }
+  const api = { core: { hub, local }, config: () => ({ freedom: false }), log: { warn() {} }, rule: (f) => rules.push(f), tool: (f) => { tool = f }, onDispose(f) { dispose = f } }
   video.setup(api)
   const chat = { chatId: 'private:1', kind: 'private' }
-  return { get: (c = chat) => tool({ chat: c, sessionId: 's' }), rules, sent, calls, done }
+  return { get: (c = chat) => tool({ chat: c, sessionId: 's' }), rules, sent, calls, done, dispose }
 }
 
 test('video 槽位默认等 20 分钟', () => {
@@ -55,7 +60,28 @@ test('失败时告诉对方', async () => {
   const s = setup({ result: new Error('显存不够') })
   await s.get().execute({ prompt: '一条鱼' })
   await s.done
-  assert.match(s.sent[0].text, /没做成.*显存不够/)
+  assert.match(s.sent[0].text, /视频任务.*显存不够/)
+})
+
+test('视频发送结果不明时不重复发文件', async () => {
+  const s = setup({ sendFails: Object.assign(new Error('超时'), { uncertain: true }) })
+  await s.get().execute({ prompt: '一条鱼' })
+  await s.done
+  assert.match(s.sent[0].text, /可能已发出/)
+  assert.equal(s.sent.some((message) => message.file), false)
+})
+
+test('卸载后通知本地视频脚本取消，拒绝旧工具的后续请求', async () => {
+  let signal
+  let finish
+  const s = setup({ result: (options) => { signal = options.signal; return new Promise((resolve) => { finish = resolve }) } })
+  const tool = s.get()
+  await tool.execute({ prompt: '一条鱼' })
+  s.dispose()
+  assert.equal(signal.aborted, true)
+  finish('D:/out/a.mp4')
+  assert.equal((await tool.execute({ prompt: '下一段' })).ok, false)
+  assert.deepEqual(s.sent, [])
 })
 
 test('只有主人能生成，后台会话和没开时没有工具，规则跟着开关走', async () => {

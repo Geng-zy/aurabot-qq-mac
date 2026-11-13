@@ -33,7 +33,7 @@ export const qqChat = (kind, id) => chatIdOf(PLATFORM, kind, String(id))
  * @param {object} [o.client]   测试用：直接给一个 { call, start, stop, restart, state } 当网关
  * @param {object} [o.outbox]   测试用
  */
-export function createQqChannel({ getConfig, log, client = null, outbox = null, flushEveryMs = 10_000 }) {
+export function createQqChannel({ getConfig, log, client = null, outbox = null, flushEveryMs = 10_000, canReplayDelivery }) {
   const listeners = new Set()
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn('处理 QQ 事件出错：', error.message) } } }
 
@@ -50,23 +50,26 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   // 直接丢弃的话，刚连上那几百毫秒里主人发的消息就没了（登录核对要等一次 get_login_info 往返）。
   let verifying = false
   let pendingEvents = []
+  let connectionRevision = 0
   let disposed = false
 
   // outbox: false = 不要补发队列（测试、只读场合）
   const box = outbox === false ? null : (outbox || createOutbox({ log: log.child ? log.child('outbox') : log }))
 
-  async function checkLogin() {
+  async function checkLogin(revision) {
     verifying = true
     pendingEvents = []
     try {
       let uin = ''
       try {
-        const info = await gw.call('get_login_info', {}, { timeoutMs: 10000 })
+        // 核对事件来自哪一个连接，必须以当前 WebSocket 上的响应为准。
+        const info = await gw.call('get_login_info', {}, { timeoutMs: 10000, wsOnly: true })
         uin = String(info?.user_id ?? '')
       } catch (error) {
+        if (revision !== connectionRevision) return
         log.warn('核对登录的 QQ 号失败：', error.message)
       }
-      if (gwState !== 'connected') return
+      if (revision !== connectionRevision) return
       if (!uin) {
         // 核对不了就别用，断开后由看门狗重试
         gw.stop()
@@ -78,14 +81,17 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
         // 把核对期间攒下的补上（按到达顺序）
         const queued = pendingEvents
         pendingEvents = []
-        for (const ev of queued) dispatch(ev)
+        for (const ev of queued) {
+          if (revision !== connectionRevision) break
+          dispatch(ev)
+        }
       } else {
         wrongAccount = uin
         pendingEvents = []
         gw.stop()
       }
     } finally {
-      verifying = false
+      if (revision === connectionRevision) verifying = false
     }
   }
 
@@ -97,9 +103,10 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   })
 
   function onState(s, d) {
+    const revision = ++connectionRevision
     gwState = s
-    if (s !== 'connected') { loginOk = false; pendingEvents = [] }
-    else checkLogin().then(() => { if (loginOk) flushOutbox() }).catch((error) => log.warn('核对登录号出错：', error.message))
+    if (s !== 'connected') { loginOk = false; verifying = false; pendingEvents = [] }
+    else checkLogin(revision).then(() => { if (revision === connectionRevision && loginOk) flushOutbox() }).catch((error) => log.warn('核对登录号出错：', error.message))
     log.info(`QQ 网关：${s}${d ? '（' + d + '）' : ''}`)
     emit({ type: 'state', state: s })
   }
@@ -136,10 +143,16 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   // 网关未就绪时先攒着：只有「确定没发出去」的消息才入队，连接后按 TTL 补发。
   async function flushOutbox() {
-    const config = getConfig()
-    if (!box || gwState !== 'connected' || !loginOk || config.enabled === false || config.debug || config.dryRun) return
+    const revision = connectionRevision
+    const isReady = () => {
+      const config = getConfig()
+      return !disposed && revision === connectionRevision && ready() && config.enabled !== false && !config.debug && !config.dryRun
+    }
+    if (!box || !isReady()) return
     try {
       const r = await box.flush((action, params, opts) => gw.call(action, params, { ...opts, retries: 0 }), {
+        isReady,
+        canSend: canReplayDelivery,
         onSent: (item, result) => emit({
           type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
           messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system',
@@ -242,7 +255,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
      * 发一条消息。route.groupId：私聊是从群里临时会话来的，回的时候带上群号。
      * queue：确定没发出去（网关还没就绪）时放进补发队列，返回 { queued:true }；入不了队把原因写在 error.queueProblem 上再抛。
      */
-    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false } = {}) {
+    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '' } = {}) {
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error(`不是 QQ 的聊天：${chatId}`)
       const action = tgt.kind === 'group' ? 'send_group_msg' : 'send_private_msg'
@@ -254,7 +267,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       } catch (error) {
         // 超时（uncertain）不入队，避免同一条消息发两次。
         if (queue && box && isDefiniteFailure(error)) {
-          const q = box.add({ action, params, chatId, note, kind: system ? 'system' : 'reply' })
+          const q = box.add({ action, params, chatId, note, kind: system ? 'system' : 'reply', privacyRevision })
           if (q.ok) return { queued: true, queuedId: q.id, error }
           error.queueProblem = q.message
         }

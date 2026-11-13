@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { moveWorkspace, realWorkspace } from '../src/core/workspace-move.js'
@@ -46,10 +46,20 @@ test('不能搬的情况什么都不动', (t) => {
   mkdirSync(full)
   writeFileSync(join(full, 'x'), '1')
   assert.equal(moveWorkspace(from, full).ok, false)
-  assert.equal(moveWorkspace(from, join(from, 'sub', 'in')).ok, false)
+  assert.match(moveWorkspace(from, join(from, 'sub', 'in')).message, /重叠/)
   assert.equal(moveWorkspace(from, 'relative\\path').ok, false)
   assert.equal(moveWorkspace(from, '').ok, false)
   assert.equal(lstatSync(from).isSymbolicLink(), false)
   assert.equal(readFileSync(join(from, 'sub', 'a.txt'), 'utf8'), '文件')
   assert.equal(readFileSync(join(full, 'x'), 'utf8'), '1')
+})
+
+test('新位置经符号链接指回旧工作区时，复制前就拒绝', (t) => {
+  const { root, from } = setup(t)
+  const alias = join(root, 'alias')
+  symlinkSync(from, alias, 'dir')
+  const r = moveWorkspace(from, join(alias, '..media', 'missing', 'target'))
+  assert.match(r.message, /重叠/)
+  assert.equal(existsSync(join(from, '..media')), false)
+  assert.equal(readFileSync(join(from, 'sub', 'a.txt'), 'utf8'), '文件')
 })

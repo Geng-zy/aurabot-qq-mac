@@ -7,11 +7,10 @@ const client = readFileSync(new URL('../client/client.js', import.meta.url), 'ut
 const config = readFileSync(new URL('../src/core/config.js', import.meta.url), 'utf8')
 
 test('浏览器页接上了页签、导航、组件、路由和脏检查', () => {
-  assert.ok(client.includes("{ id: 'browser', label: '浏览器' }"), '缺浏览器页签')
-  assert.ok(client.includes("tabs: ['connect', 'model', 'access', 'browser', 'security'"), '浏览器页要注册在系统组（排在安全防护前）')
-  assert.ok(client.includes('local: LocalApi, browser: Browser,'), '组件表缺 browser → Browser')
+  assert.match(client, /id: 'system'[^\n]*pages: \[([^\]]|\n)*id: 'browser', label: '浏览器'/, '浏览器页要注册在系统组')
+  assert.ok(client.includes('browser: Browser, local: LocalApi,'), '组件表缺 browser → Browser')
   assert.ok(client.includes('function Browser({ st, draft, setDraft })'), '缺 Browser 组件')
-  assert.ok(client.includes("browser: '浏览器 侧边"), '搜索索引缺浏览器关键词')
+  assert.match(client, /id: 'browser'[^\n]*search: '[^']*侧边栏/, '搜索索引缺浏览器关键词')
   assert.ok(client.includes("browser: ['browser']"), '浏览器页的未保存改动没接上')
 })
 

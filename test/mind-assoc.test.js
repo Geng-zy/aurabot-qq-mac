@@ -31,28 +31,33 @@ test('从一件事想到下一件、再下一件，越远越淡（两步外只�
   assert.equal(c.level, 'vague')
 })
 
-test('对话的联想跳过私聊和秘密，内部联想保留', async () => {
+test('对话的联想跳过受保护的来源，内部联想保留', async () => {
   const { m } = setup()
   const w = await m.memory.workingMemory({ cue: '海边看了日出', window: 'qq:group:5', people: [] })
   assert.match(w.text, /看了日出/)
   assert.doesNotMatch(w.text, /其实很累|想去海边/)
 })
 
-test('回顾和提炼结果继承私聊范围，普通对话的回忆工具只返回可见经历', async (t) => {
+test('回顾和提炼结果继承来源范围，其他人的私聊可以跨会话', async (t) => {
   const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => T0 })
   t.after(() => a.close())
   const mem = a.mind.memory
-  const dm = 'qq:private:2'
+  const dm = 'qq:private:1'
   const insert = (fields) => mem.insert({ at: T0, importance: 0.8, ...fields })
   const source = insert({ window: dm, gist: '山路的约定', kind: 'event' })
   const summary = insert({ gist: '回顾：山路的约定', kind: 'day-summary', extra: { from: [source] } })
   insert({ gist: '提炼：山路的约定', kind: 'semantic', extra: { derivedFrom: [summary] } })
+  const other = insert({ window: 'qq:private:2', gist: '小红提过山路上的观景台', kind: 'event' })
+  const otherSummary = insert({ gist: '回顾：山路上的观景台', kind: 'day-summary', extra: { from: [other] } })
+  insert({ gist: '提炼：山路上的观景台', kind: 'semantic', extra: { derivedFrom: [otherSummary] } })
   insert({ window: 'qq:group:5', gist: '群里在聊山路', kind: 'event' })
   const recall = (chat) => a.tools({ chat }).find((tool) => tool.name === 'mind_recall').execute({ query: '山路' })
   const group = await recall({ chatId: 'group:5', kind: 'group', groupId: '5' })
   assert.match(group.message, /群里在聊山路/)
+  assert.match(group.message, /回顾：山路上的观景台/)
+  assert.match(group.message, /提炼：山路上的观景台/)
   assert.doesNotMatch(group.message, /山路的约定/)
-  const same = await recall({ chatId: 'private:2', kind: 'private', userId: '2' })
+  const same = await recall({ chatId: 'private:1', kind: 'private', userId: '1' })
   assert.match(same.message, /回顾：山路的约定/)
 })
 

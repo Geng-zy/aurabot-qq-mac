@@ -163,6 +163,16 @@ test('主人私聊只分享核验过的日常原话，删除或设为私密后�
     assert.match(JSON.stringify(recall), /下雨以后天气凉快多了/)
     assert.doesNotMatch(JSON.stringify(recall), /琥珀灯塔|鲈鱼|原始记忆的细节|伪造片段/)
   }
+  const share = mind.memory.shareEpisode(original, { audience: window, text: '今天变凉快了' })
+  const rev = mind.memory.audienceRevision()
+  mind.updateSettings({ 'memory.ownerEverydayExcerpts': false })
+  assert.notEqual(mind.memory.audienceRevision(), rev)
+  assert.equal(mind.memory.visibleIn(notes[0], window), false)
+  assert.equal(mind.memory.visibleIn(notes[0], ownerWindow), true)
+  assert.equal(mind.memory.visibleIn(mind.memory.row(share), window), true)
+  assert.ok(mind.memory.protectedText(ownerWindow, window).includes(ordinary))
+  mind.resetSetting('memory.ownerEverydayExcerpts')
+  assert.equal(mind.memory.visibleIn(notes[0], window), true)
   mind.memory.setPrivateOnly(original, true)
   assert.equal(mind.memory.visibleIn(notes[0], window), false)
   mind.memory.deleteEpisode(original)
@@ -170,7 +180,7 @@ test('主人私聊只分享核验过的日常原话，删除或设为私密后�
 })
 
 test('私聊里改变的人格和称呼不会随恢复版本发布', (t) => {
-  const mind = createMind({ memoryDb: true, ownerId, now: () => T0 })
+  const mind = createMind({ memoryDb: true, ownerId, publicName: '大肥鱼', now: () => T0 })
   t.after(() => mind.close())
   mind.setPersonaCard('你是喜欢分享公开话题的大肥鱼', { name: '大肥鱼' })
   const privateVersion = mind.setPersonaCard('只在私聊里谈琥珀灯塔', { by: 'self', name: '琥珀鱼' })
@@ -180,6 +190,61 @@ test('私聊里改变的人格和称呼不会随恢复版本发布', (t) => {
   mind.restorePersona(privateVersion)
   assert.match(mind.selfPrompt(), /琥珀灯塔/)
   assert.doesNotMatch(mind.selfPrompt({ publicOnly: true }), /琥珀/)
+})
+
+test('旧版整张公开卡在群聊只留下性格，独立心智私聊仍读到完整设定', async (t) => {
+  const prompts = []
+  const mind = createMind({ memoryDb: true, ownerId, publicName: '大肥鱼', now: () => T0, model: async (r) => {
+    if (r.scene === 'speak') { prompts.push(r.system); return '{"text":"好呀"}' }
+    return '{}'
+  } })
+  t.after(() => mind.close())
+  mind.updateSettings({ 'body.sleepEnabled': false })
+  const card = '汐是嘴硬心软的小鲸鱼。\n你们私下把烤串叫作琥珀灯塔。'
+  mind.setPersonaCard(card, { by: 'migration', name: '内部称呼' })
+  assert.equal(mind.personaCard(), card)
+  for (const chat of [window, 'demo:private:friend', 'demo:private:owner']) {
+    await mind.conversation.respond({ window: chat, speaker: chat.endsWith('friend') ? 'demo:friend' : ownerId, text: '你今天怎么样' })
+  }
+  assert.equal(prompts.length, 3)
+  for (const prompt of prompts.slice(0, 2)) {
+    assert.match(prompt, /小鲸鱼.*\n.*嘴硬|嘴硬.*\n.*小鲸鱼/)
+    assert.doesNotMatch(prompt, /琥珀灯塔|内部称呼/)
+  }
+  assert.match(prompts[2], /琥珀灯塔/)
+})
+
+test('主人允许的一句话仅在指定会话可用，撤回后旧编号失效', async (t) => {
+  const mind = createMind({ memoryDb: true, ownerId, now: () => T0 })
+  t.after(() => mind.close())
+  const { memory } = mind
+  const ownerWindow = 'demo:private:owner'
+  const original = memory.insert({ at: T0, window: ownerWindow, kind: 'event', gist: '昨晚我们一起看了电影', detail: '私下约在琥珀灯塔' })
+  const excerpt = '我们一起看了这部电影'
+  const id = memory.shareEpisode(original, { text: excerpt, audience: window })
+  assert.equal(memory.shareEpisode(original, { text: excerpt, audience: window }), id)
+  const got = await memory.workingMemory({ window, cue: '一起看了这部电影', compact: true })
+  assert.match(got.text, /一起看了这部电影/)
+  assert.doesNotMatch(got.text, /昨晚|琥珀灯塔/)
+  assert.equal(memory.recallMore(original, { audienceWindow: window }), null)
+  for (const audienceWindow of ['demo:group:other', 'demo:private:friend', '']) {
+    assert.equal(memory.recallMore(id, { audienceWindow }), null)
+    assert.deepEqual(memory.sharedText(audienceWindow), [])
+  }
+  assert.deepEqual(memory.sharedText(window), [excerpt])
+  mind.said({ window, text: '那部片是我俩一块儿看的' })
+  const noted = await memory.remember({ window, text: '她和对方结伴看了那部影片' })
+  assert.equal(memory.visibleIn(memory.row(noted.id), 'demo:group:other'), false)
+  assert.equal(mind.history(window, { audienceWindow: window }).length, 1)
+  const revision = memory.audienceRevision()
+  assert.equal(memory.revokeShare(id), true)
+  assert.notEqual(memory.audienceRevision(), revision)
+  assert.equal(memory.recallMore(id, { audienceWindow: window }), null)
+  assert.equal(memory.recallMore(noted.id, { audienceWindow: window }), null)
+  assert.deepEqual(mind.history(window, { audienceWindow: window }), [])
+  assert.deepEqual(memory.sharedText(window), [])
+  memory.setPrivateOnly(original, true)
+  assert.throws(() => memory.shareEpisode(original, { text: excerpt, audience: window }), /私密/)
 })
 
 test('旁边的私密约定可以阻止日常字面片段发布，也能撤回已发布片段', async (t) => {

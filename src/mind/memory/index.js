@@ -2,7 +2,7 @@
 // 规矩同心智核心：不引用 Aurabot；模型（think）、向量（embed）、心情和精力（state）都由外面注入。
 // 设计见设计文档「记忆」一章。
 
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { retention, initialStability, afterRecall, levelOf } from './curve.js'
 import { createVectorIndex } from './vectors.js'
 import { estimateTokens } from '../budget.js'
@@ -32,6 +32,8 @@ export const KINDS = {
   intention: '要做的事',
   semantic: '知道的事（整理出来的）',
   noted: '特意记下的',
+  'public-note': '可聊的片段',
+  'shared-note': '允许分享的片段',
   dream: '梦',
   experience: '经历',
   'own-post': '自己发过的',
@@ -91,26 +93,39 @@ export function createMemory(deps) {
     const r = store.prep('SELECT * FROM episodes WHERE id = ?').get(String(id))
     return r ? { ...r, data: JSON.parse(r.json) } : null
   }
+  function ownerPrivate(window) {
+    const p = place(window)
+    return p.kind === 'private' && deps.isOwner?.(p.platform ? `${p.platform}:${p.id}` : p.id)
+  }
+
+  function shareSourceAllowed(e) {
+    return e && ownerPrivate(e.window) && !e.data.secret && !e.data.privateOnly && !e.data.needsRecompute
+  }
+  const hasSecretScope = (e) => e.data.secret && !['group', 'private'].includes(place(e.window).kind)
+  const audienceRevision = () => store.get('memory.audienceRevision', 'persona-audience-v1')
+  const touchAudience = () => store.set('memory.audienceRevision', randomUUID())
   /** 内心整理可以读取全部经历。对话和模块只拿得到当前会话有权看到的内容。 */
   function visibleIn(e, window, path = new Set()) {
-    if (!e || e.data.needsRecompute) return false
+    if (!e || e.data.needsRecompute || e.data.shareRevoked) return false
     if (window === undefined) return true
     if (path.has(e.id)) return false
     const { data } = e
+    if (data.audienceOnly && e.window !== window) return false
     if (data.privateOnly) {
-      const audience = place(window)
-      const account = audience.platform ? audience.platform + ':' + audience.id : audience.id
-      if (!window || audience.kind !== 'private' || !deps.isOwner?.(account)) return false
+      if (!ownerPrivate(window)) return false
     }
     if ((data.kind === 'dream' && !Array.isArray(data.from)) || (!e.window && data.kind === 'belief' && data.speaker === 'self')) return false
-    if ((data.secret || place(e.window).kind === 'private') && (!window || e.window !== window)) return false
+    if ((hasSecretScope(e) || deps.isPrivateHistoryWindow(e.window)) && (!window || e.window !== window)) return false
     if (data.publicSource) {
       const original = row(data.publicSource)
-      if (!original || original.data.secret || original.data.privateOnly || original.data.needsRecompute) return false
-      const sources = original.data.sources || []
-      if (!sources.length || !publicSourceLines(e.gist, original.window, sources)) return false
+      if (!shareSourceAllowed(original)) return false
+      if (data.kind === 'shared-note') {
+        if (!ownerPrivate(window) && !data.shareWith?.includes(window)) return false
+      } else if ((S('ownerEverydayExcerpts') === false && window !== original.window) ||
+        jointExperience.test(compact(e.gist)) || !original.data.sources?.length || !publicSourceLines(e.gist, original.window, original.data.sources)) return false
     }
     const sources = [
+      ...(Array.isArray(data.audienceShares) ? data.audienceShares : []),
       ...(Array.isArray(data.derivedFrom) ? data.derivedFrom : []),
       ...(Array.isArray(data.from) ? data.from : []),
       ...(Array.isArray(data.promptSources) ? data.promptSources : []),
@@ -125,15 +140,18 @@ export function createMemory(deps) {
   }
   function sourceVisible(source, window) {
     const line = store.prep('SELECT window FROM perception WHERE id = ?').get(source)
-    if (!line || (place(line.window).kind === 'private' && line.window !== window)) return false
+    if (!line || (deps.isPrivateHistoryWindow(line.window) && line.window !== window)) return false
     return store.prep("SELECT id FROM episodes WHERE EXISTS (SELECT 1 FROM json_each(episodes.json, '$.sources') WHERE value = ?)").all(source)
       .every(({ id }) => visibleIn(row(id), window))
   }
 
   function protectedText(ownerWindow, audience) {
-    const rows = store.prep("SELECT * FROM episodes WHERE (json_extract(json, '$.privateOnly') = 1 OR json_extract(json, '$.secret') = 1) ORDER BY at DESC LIMIT 250").all()
+    const rows = store.prep("SELECT * FROM episodes WHERE kind = 'shared-note' OR (kind = 'public-note' AND ?) OR json_extract(json, '$.privateOnly') = 1 OR json_extract(json, '$.secret') = 1 ORDER BY at DESC LIMIT 250").all(Number(S('ownerEverydayExcerpts') === false))
     const values = []
-    for (const row of rows) if (!visibleIn({ ...row, data: JSON.parse(row.json) }, audience)) values.push(row.gist, row.detail)
+    for (const row of rows) {
+      const e = { ...row, data: JSON.parse(row.json) }
+      if ((e.data.kind === 'shared-note' || e.data.kind === 'public-note' || e.data.privateOnly || hasSecretScope(e) || deps.isPrivateHistoryWindow(e.window)) && !visibleIn(e, audience)) values.push(e.gist, e.detail)
+    }
     if (ownerWindow) {
       const lines = store.prep("SELECT at, text FROM perception WHERE window = ? AND dir = 'in' ORDER BY id DESC LIMIT 200").all(ownerWindow).reverse()
       for (const [index, line] of lines.entries()) {
@@ -141,6 +159,20 @@ export function createMemory(deps) {
       }
     }
     return values.filter(Boolean)
+  }
+
+  function sharedText(audience) {
+    return sharesIn(audience).map((e) => e.gist)
+  }
+
+  function sharesIn(audience) {
+    return store.prep("SELECT id FROM episodes WHERE kind = 'shared-note' AND json_extract(json, '$.shareWith[0]') = ?").all(audience)
+      .map(({ id }) => row(id)).filter((e) => visibleIn(e, audience))
+  }
+
+  function restrictedShareText(audience) {
+    return store.prep("SELECT id FROM episodes WHERE kind = 'shared-note' ORDER BY at DESC LIMIT 250").all()
+      .map(({ id }) => row(id)).filter((e) => !visibleIn(e, audience)).map((e) => e.gist)
   }
 
   function save(e) {
@@ -254,6 +286,7 @@ export function createMemory(deps) {
   const privateCue = /私密|隐私|保密|秘密|不公开|别(?:告诉|提|说给|对外说|在.{0,8}(?:说|提))|不要(?:告诉|提起|外传)|只[跟给和]|只属于|我们俩|咱俩|两个人之间|我和你|你和我|私聊|专属|我家|住址|手机号|身份证|暗号|密码|口令|验证码|银行|账户|病情|检查结果|亲密|表白|感情|纪念日|老地方|那个地方|上(?:次|回)(?:说好|那套|的事)|前面说的是那件事|心里有数就行|(?:到你这儿|知道|懂)就好|到你这儿就行|(?:等我|碰头|碰面|见面)|我喊你的|[路街巷弄][零一二三四五六七八九十百\d]+号|\d{6}|https?:|@/i
   const compact = (text) => String(text ?? '').normalize('NFKC').replace(/[\s\p{Cf}]+/gu, '')
   const hasPrivateCue = (text) => privateCue.test(compact(text))
+  const jointExperience = /我们|咱们|我(?:和|跟)他|他(?:和|跟)我|他陪我|我陪他|一起|昨晚|昨夜|上次见|上回见/
   const pointsForward = /下一句|接下来(?:那句|说的)|后面(?:那句|说的)/
   const pointsBack = /刚才(?:那句|说的)|前面(?:那句|说的)|上一句/
   const closeTo = (a, b) => a && b && Math.abs(a.at - b.at) <= 20 * 60_000
@@ -261,6 +294,10 @@ export function createMemory(deps) {
   function privateContext(line, before, after) {
     return (closeTo(line, before) && pointsForward.test(compact(before.text)) && hasPrivateCue(before.text))
       || (closeTo(line, after) && pointsBack.test(compact(after.text)) && hasPrivateCue(after.text))
+  }
+
+  function notePrivacyContext(window, text) {
+    if (ownerPrivate(window) && pointsBack.test(compact(text)) && hasPrivateCue(text)) touchAudience()
   }
 
   function publicSourceLines(quote, window, ids) {
@@ -281,7 +318,7 @@ export function createMemory(deps) {
     if (location.kind !== 'private' || !deps.isOwner?.(account) || ep.secret === true) return ''
     const quote = String(ep.publicQuote || '').trim()
     if (quote.length < 4 || quote.length > 100 || /[\r\n]/.test(quote) || !ordinaryTopic.test(quote)) return ''
-    if (!src.length || ep.sources.length !== src.length || hasPrivateCue(quote)) return ''
+    if (!src.length || ep.sources.length !== src.length || hasPrivateCue(quote) || jointExperience.test(compact(quote))) return ''
     return publicSourceLines(quote, window, src.map((line) => line.id)) ? quote : ''
   }
 
@@ -300,7 +337,7 @@ export function createMemory(deps) {
 - emotion：你当时的感受，name 用一个词，intensity 0~1，valence -1~1（负面到正面）；没什么感觉就 null。
 - who：涉及的人的 id 列表（行首方括号里的 id）。about：这件事主要关于谁（id），speaker：这件事是谁说的（id，你自己是 self）。
 - sources：依据的行号。
-- secret：私人经历、你和对方之间的私密关系、身份信息、承诺或有人要求保密的事填 true。
+- secret：只有在主人私聊整理私人经历、私密关系、身份信息、承诺或被要求保密的事时才填 true。
 - publicQuote（可选）：主人私聊里明确无隐私的天气、公开影视、音乐、游戏、开源技术或日常饮食，可以从主人原话中选一段独立的连续原文。连同它前后的消息判断用途。代称、暗语、相约、只点到为止的话，以及前后要求只留在这里的原话，就算字面是天气或电影也不分享。不能含姓名、身份、地点、行程、私下关系或承诺。只有清楚属于日常话题时才填，不确定就留空。
 
 只输出 JSON：{"episodes":[{"type":"event|fact|hearsay|belief|intention|pending|date","gist":"","detail":"","importance":0.5,"emotion":{"name":"","intensity":0.5,"valence":0},"who":[],"about":"","speaker":"","due":null,"yearly":null,"sources":[1],"secret":false,"publicQuote":""}]}；没有值得记的就输出 {"episodes":[]}。`
@@ -374,6 +411,8 @@ export function createMemory(deps) {
     const committed = store.tx(() => {
       if (!unchanged()) return false
       store.del('encode.fail.' + window)
+      // 已在指定群聊提过的分享仍只属于那个群，不能靠重新整理变成别处的经历。
+      const audienceShares = [...new Set(rows.flatMap((r) => JSON.parse(r.json || '{}').audienceShares || []))]
       for (const ep of Array.isArray(parsed?.episodes) ? parsed.episodes : []) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue
@@ -403,7 +442,7 @@ export function createMemory(deps) {
           importance: ep.importance ?? 0.5, emotion: emo, about, speaker,
           who: Array.isArray(ep.who) ? ep.who.map(String) : [],
           sources: src.map((r) => r.id), due, attention,
-          extra: { ...(ep.secret === true ? { secret: true } : {}), ...follow, ...(yb ? { yearly: `${String(yb.month).padStart(2, '0')}-${String(yb.day).padStart(2, '0')}` } : {}) },
+          extra: { ...(audienceShares.length ? { audienceOnly: true, audienceShares } : {}), ...(ep.secret === true ? { secret: true } : {}), ...follow, ...(yb ? { yearly: `${String(yb.month).padStart(2, '0')}-${String(yb.day).padStart(2, '0')}` } : {}) },
         })
         ids.push(id)
         const quote = publicQuote(ep, src, window)
@@ -478,7 +517,7 @@ export function createMemory(deps) {
   /**
    * period：{ start, end } 只想这段时间里的事（end 不含）。线索空着就按重要程度列这段时间的事。
    */
-  async function recall({ cue, contextCue = '', window = '', audienceWindow, people = [], embeddingTimeoutMs, limit = Number(S('recallLimit')) || 6, deliberate = false, period = null, compact = false } = {}) {
+  async function recall({ cue, contextCue = '', window = '', audienceWindow, people = [], embeddingTimeoutMs, limit = Number(S('recallLimit')), deliberate = false, period = null, compact = false } = {}) {
     if (!limit) return []
     const at = now()
     const inPeriod = (e) => !period || (e.at >= period.start && e.at < period.end)
@@ -590,7 +629,7 @@ export function createMemory(deps) {
       found.sort((a, b) => a.hop - b.hop || b.sim - a.sim)
       top.push(...found.slice(0, cap))
     }
-    return top.map(({ e, r, level, associated, hop }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), hop: hop || 0, text: render(e, level, compact), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret), toldTo: e.data.toldTo || null }))
+    return top.map(({ e, r, level, associated, hop }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), hop: hop || 0, text: render(e, level, compact), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret && (hasSecretScope(e) || deps.isPrivateHistoryWindow(e.window))), toldTo: e.data.toldTo || null }))
   }
 
   /** 按想起的清楚程度给出她脑子里的样子。 */
@@ -618,7 +657,7 @@ export function createMemory(deps) {
         e.data.hits = (e.data.hits || 0) + 1
         save(e)
         const p = Number(S('reconsolidation')) || 0
-        if (p > 0 && random() < p && !['intention', 'dream'].includes(e.data.kind)) {
+        if (p > 0 && random() < p && !['intention', 'dream', 'public-note', 'shared-note'].includes(e.data.kind)) {
           queueJob('reconsolidate', id, { mood: (state() || {}).valence || 0, at })
         }
       }
@@ -844,7 +883,9 @@ export function createMemory(deps) {
         }
       }
     }
-    const id = insert({ at: now(), window, gist, kind: 'noted', importance, about, speaker: 'self', attention: 1 })
+    const audienceShares = sharesIn(window).map((e) => e.id)
+    const id = insert({ at: now(), window, gist, kind: 'noted', importance, about, speaker: 'self', attention: 1,
+      extra: audienceShares.length ? { audienceOnly: true, audienceShares } : {} })
     if (qv) vectors.put(id, embedModel(), qv, hash(gist))
     else queueJob('embed', id)
     return { id, merged: false }
@@ -855,7 +896,7 @@ export function createMemory(deps) {
   function deleteEpisode(id, { record = true } = {}) {
     const e = row(id)
     if (!e) return false
-    store.tx(() => removeOne(e, record))
+    store.tx(() => { removeOne(e, record); touchAudience() })
     return true
   }
   function removeOne(e, record) {
@@ -938,8 +979,47 @@ export function createMemory(deps) {
     if ((e.data.privateOnly === true) === (enabled === true)) return true
     if (record) deps.recordPrivacy?.(e.id, enabled === true)
     e.data.privateOnly = enabled === true
-    save(e)
+    store.tx(() => { save(e); touchAudience() })
     return true
+  }
+
+  /** 只由宿主的主人设置入口调用。单独保存主人核准的说法，不把原经历的任何字段复制给接收方。 */
+  function shareEpisode(id, { text, audience } = {}) {
+    const original = row(id)
+    if (!shareSourceAllowed(original)) throw new Error('只有未标为私密的主人私聊经历可以分享')
+    const gist = typeof text === 'string' ? text.trim() : ''
+    if (!gist || gist.length > 300) throw new Error('请填写可以分享的内容，最多 300 字')
+    const target = typeof audience === 'string' ? audience.trim() : ''
+    if (!['group', 'private'].includes(place(target).kind) || ownerPrivate(target)) throw new Error('请选择一个要分享给的群或私聊')
+    return store.tx(() => {
+      const prior = store.prep("SELECT id FROM episodes WHERE kind = 'shared-note' AND gist = ? AND json_extract(json, '$.publicSource') = ? AND json_extract(json, '$.shareWith[0]') = ? AND coalesce(json_extract(json, '$.shareRevoked'), 0) = 0").get(gist, original.id, target)
+      return prior?.id || insert({ id: 'share:' + randomUUID(), at: now(), gist, kind: 'shared-note', speaker: 'self', importance: 0.8,
+        extra: { publicSource: original.id, shareWith: [target] } })
+    })
+  }
+
+  function revokeShare(id, { record = true } = {}) {
+    const e = row(id)
+    if (e?.data.kind !== 'shared-note') return false
+    if (e.data.shareRevoked) return true
+    if (record) deps.recordShareRevoked?.(e.id)
+    store.tx(() => {
+      e.data.shareRevoked = true
+      save(e)
+      touchAudience()
+    })
+    return true
+  }
+
+  function privacyCandidates(text, ownerWindow, audience) {
+    const rows = [...keywordHits(text)].filter(([, score]) => score >= 0.45).sort((a, b) => b[1] - a[1])
+      .map(([id]) => row(id)).filter(Boolean)
+    const hits = rows.filter((e) => (e.window === ownerWindow || deps.isPrivateHistoryWindow(e.window) || e.data.kind === 'shared-note') && !visibleIn(e, audience))
+    const allowed = rows.filter((e) => ['shared-note', 'public-note'].includes(e.data.kind) && visibleIn(e, audience))
+    return {
+      private: hits.slice(0, 6).map((e) => [e.gist, e.detail].filter(Boolean).join('\n').slice(0, 450)),
+      allowed: allowed.slice(0, 6).map((e) => e.gist),
+    }
   }
 
   /**
@@ -957,7 +1037,7 @@ export function createMemory(deps) {
   function list({ status = 'live', limit = 100, offset = 0, kind, q = '' } = {}) {
     const at = now()
     const like = (x) => '%' + String(x).replace(/[%_\\]/g, (c) => '\\' + c) + '%'
-    const where = ['status = ?']
+    const where = ['status = ?', "coalesce(json_extract(json, '$.shareRevoked'), 0) = 0"]
     const args = [status]
     if (kind) { where.push('kind = ?'); args.push(String(kind)) }
     if (q) { where.push("(gist LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\' OR json LIKE ? ESCAPE '\\')"); args.push(like(q), like(q), like(q)) }
@@ -965,7 +1045,7 @@ export function createMemory(deps) {
     return rows.map((r) => {
       const e = { ...r, data: JSON.parse(r.json) }
       const rv = rOf(e, at)
-      return { id: e.id, at: e.at, window: e.window, platform: place(e.window).platform || '', gist: e.gist, detail: e.detail, kind: e.data.kind, r: rv, level: levelOf(rv, 1, levels()), stability: e.stability, original: e.data.original || null, emotion: e.data.emotion || null, outdated: e.data.outdated || null, toldTo: e.data.toldTo || null, privateOnly: e.data.privateOnly === true }
+      return { id: e.id, at: e.at, window: e.window, platform: place(e.window).platform || '', gist: e.gist, detail: e.detail, kind: e.data.kind, r: rv, level: levelOf(rv, 1, levels()), stability: e.stability, original: e.data.original || null, emotion: e.data.emotion || null, outdated: e.data.outdated || null, toldTo: e.data.toldTo || null, privateOnly: e.data.privateOnly === true, canShare: Boolean(shareSourceAllowed(e)), shareWith: e.data.shareWith || null }
     })
   }
   function sourceCounts(status) {
@@ -1035,8 +1115,8 @@ export function createMemory(deps) {
   const canEmbed = () => Boolean(embed) && (embeddingReady?.() ?? true)
 
   return {
-    connect, encodeWindow, encodePending, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, sourceVisible, protectedText,
-    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, setPrivateOnly, list, sourceCounts, related, counts,
+    connect, encodeWindow, encodePending, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, sourceVisible, protectedText, sharesIn, sharedText, restrictedShareText, privacyCandidates,
+    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, setPrivateOnly, shareEpisode, revokeShare, audienceRevision, touchAudience, notePrivacyContext, list, sourceCounts, related, counts,
     embedEpisodes, staleVectorIds, vectorProgress, embedModel, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }

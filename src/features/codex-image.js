@@ -1,6 +1,6 @@
 // 实验性订阅接法：使用非公开端点，账号 / 工作区是否可用由服务端决定。
 import { randomUUID } from 'node:crypto'
-import { fetchImage } from '../core/net.js'
+import { fetchImage, withTimeoutSignal } from '../core/net.js'
 import { pickShape } from './image-shape.js'
 
 function unavailable(message) {
@@ -8,11 +8,11 @@ function unavailable(message) {
 }
 
 export function createCodexImage({ auth, fetchImpl, log }) {
-  return async function generate(config, prompt, { shape, image } = {}) {
+  return async function generate(config, prompt, { shape, image, signal } = {}) {
     // 现有订阅端点只有 JSON 文生图约定，没有已知的参考图字段；不能带图时偷跑文生图。
     if (image) throw unavailable('这个生图服务不支持参考图')
     const revision = auth.revision?.()
-    const check = () => auth.assertCurrent?.(revision)
+    const check = () => { signal?.throwIfAborted(); auth.assertCurrent?.(revision) }
     check()
     const c = config.codex || {}
     const hint = { square: '方图构图（1:1）', portrait: '竖版构图（2:3）', landscape: '横版构图（3:2）', wide: '宽幅横版构图（16:9）' }[pickShape(shape, config)]
@@ -23,7 +23,7 @@ export function createCodexImage({ auth, fetchImpl, log }) {
       return fetchImpl('https://chatgpt.com/backend-api/codex/images/generations', {
         method: 'POST',
         headers: { authorization: `Bearer ${access}`, 'chatgpt-account-id': accountId, accept: 'application/json', 'content-type': 'application/json', originator: 'pi', 'x-codex-image-turn-id': randomUUID(), 'user-agent': 'aurabot-qq' },
-        body: JSON.stringify(body), signal: AbortSignal.timeout(180000),
+        body: JSON.stringify(body), signal: withTimeoutSignal(180000, signal),
       }).catch(() => { throw unavailable('订阅生图连接失败或超时') })
     }
     log.info(`订阅生图请求：${body.model} / ${body.quality}`)
@@ -50,7 +50,7 @@ export function createCodexImage({ auth, fetchImpl, log }) {
     const item = j?.data?.[0]
     if (typeof item?.b64_json === 'string' && item.b64_json) return Buffer.from(item.b64_json, 'base64')
     if (typeof item?.url === 'string' && item.url) {
-      const buf = await fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000 })
+      const buf = await fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
       check()
       return buf
     }

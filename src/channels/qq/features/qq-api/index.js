@@ -174,6 +174,12 @@ export default {
               : (text) => cleanOutboundText(text, { ownerPrivate: target === `private:${api.config().ownerQQ}` })
             const cleaned = cleanOutboundParams(name, picked, clean)
             if (!cleaned.ok) return { ok: false, message: cleaned.message }
+            if (TEXT_PARAM_FIELDS[name] && hub.checkOutgoingPrivacy) {
+              const text = []
+              for (const field of TEXT_PARAM_FIELDS[name]) cleanParamValue(cleaned.params[field], (value) => { text.push(value); return value })
+              if (await hub.checkOutgoingPrivacy(target, text.join('\n'))) return { ok: false, message: '内容可能转述了私密经历，已拦下' }
+              if (!cleanOutboundParams(name, cleaned.params, clean).ok) return { ok: false, message: '发送前内容可见性变化，已拦下' }
+            }
             if (cleaned.changed) api.log.info(`qq_api：${chat.chatId} 调用 ${name} 前清洗了外显文本`)
             api.log.info(`qq_api：${chat.chatId} 调用 ${name}`)
             const data = await onebot.call(name, cleaned.params, { timeoutMs: 15000, retries: 0 })

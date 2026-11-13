@@ -20,7 +20,7 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
       state, stage: state === item.state ? item.stage : '', updatedAt: state === item.state ? item.updatedAt : now() })
   }
   const waiting = new Map()
-  const running = new Set()
+  const running = new Map()
   let closed = false
 
   function persist() {
@@ -42,12 +42,13 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
       const item = records.get(id)
       if (running.has(item.kind)) continue
       waiting.delete(id)
-      running.add(item.kind)
-      void execute(item, run)
+      const controller = new AbortController()
+      running.set(item.kind, controller)
+      void execute(item, run, controller.signal)
     }
   }
 
-  async function execute(item, run) {
+  async function execute(item, run, signal) {
     const isCurrent = () => !closed && (item.state === 'running' || item.state === 'delivering')
     function checkpoint(stage) {
       if (!isCurrent()) throw new Error('任务已取消')
@@ -60,7 +61,7 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
     }
     try {
       update(item, 'running')
-      const result = await run({ checkpoint, beginDelivery, isCurrent })
+      const result = await run({ checkpoint, beginDelivery, isCurrent, signal })
       if (closed) return
       if (item.state === 'cancelling') update(item, 'cancelled')
       else if (result?.simulated && item.state === 'running') update(item, 'simulated')
@@ -118,12 +119,19 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
           if (item.state === 'queued') {
             update(item, 'cancelled')
             waiting.delete(item.id)
-          } else if (item.state === 'running') update(item, 'cancelling')
+          } else if (item.state === 'running') {
+            update(item, 'cancelling')
+            running.get(item.kind)?.abort(new Error('任务已取消'))
+          }
           return { ok: item.state === 'cancelling' || item.state === 'cancelled', message: describe(item) }
         },
       }),
     ]
   }
 
-  return { start, tools, dispose() { closed = true; waiting.clear() } }
+  return { start, tools, dispose() {
+    closed = true
+    waiting.clear()
+    for (const controller of running.values()) controller.abort(new Error('后台任务服务已关闭'))
+  } }
 }

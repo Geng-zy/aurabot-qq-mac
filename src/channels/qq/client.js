@@ -46,6 +46,14 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
   const pending = new Map()
   const retryWaits = new Set()
 
+  function clearPending(message) {
+    for (const p of pending.values()) {
+      clearTimeout(p.t)
+      p.reject(new OneBotError(p.action, { message }, { uncertain: true }))
+    }
+    pending.clear()
+  }
+
   const setState = (s, detail) => {
     if (state === s) return
     state = s
@@ -94,8 +102,9 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
     return `连不上 QQ 网关（${where}）：${why}`
   }
 
-  async function call(action, params = {}, { timeoutMs = 30000, retries = retryDelays.length } = {}) {
+  async function call(action, params = {}, { timeoutMs = 30000, retries = retryDelays.length, wsOnly = false } = {}) {
     if (explicitlyStopped) throw new OneBotError(action, { message: 'QQ 网关客户端已停止' })
+    if (wsOnly) return callWs(action, params, timeoutMs)
     const ep0 = endpoint()
     // 压根没配网关：立即失败，别让调用方白等重试（查群名之类的会立刻回退）
     if (!ep0.httpUrl && !ep0.wsUrl) {
@@ -128,7 +137,8 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
   }
 
   function callWs(action, params, timeoutMs) {
-    if (!ws || ws.readyState !== 1) return Promise.reject(new OneBotError(action, { message: '没连上 QQ 网关' }, { transport: true }))
+    const sock = ws
+    if (!sock || sock.readyState !== 1) return Promise.reject(new OneBotError(action, { message: '没连上 QQ 网关' }, { transport: true }))
     const echo = `ab-${Date.now()}-${++echoSeq}`
     return new Promise((resolve, reject) => {
       const t = setTimeout(() => {
@@ -136,7 +146,12 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
         reject(new OneBotError(action, { message: '超时' }, { uncertain: true }))
       }, timeoutMs)
       pending.set(echo, { resolve, reject, t, action })
-      ws.send(JSON.stringify({ action, params, echo }))
+      try { sock.send(JSON.stringify({ action, params, echo })) }
+      catch (error) {
+        clearTimeout(t)
+        pending.delete(echo)
+        reject(new OneBotError(action, { message: error.message }, { uncertain: true }))
+      }
     })
   }
 
@@ -161,11 +176,13 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
     }
     ws = sock
     sock.onopen = () => {
+      if (ws !== sock) return
       backoff = RECONNECT_MIN
       setState('connected')
       log.info('已连上 QQ 网关（WS）')
     }
     sock.onmessage = (ev) => {
+      if (ws !== sock) return
       let data
       try { data = JSON.parse(typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString('utf8')) } catch (error) { return }
       if (data && data.echo && pending.has(data.echo)) {
@@ -181,12 +198,9 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
       }
     }
     sock.onclose = (ev) => {
-      if (ws === sock) ws = null
-      for (const [k, p] of pending) {
-        clearTimeout(p.t)
-        p.reject(new OneBotError(p.action, { message: '连接断开' }, { uncertain: true }))
-        pending.delete(k)
-      }
+      if (ws !== sock) return
+      ws = null
+      clearPending('连接断开')
       if (!stopped) {
         setState('disconnected', `code ${ev?.code ?? ''}`)
         schedule()
@@ -217,9 +231,11 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
       stopGeneration++
       for (const done of [...retryWaits]) done()
       clearTimeout(timer)
-      setState('stopped')
-      try { ws?.close() } catch (error) {}
+      const sock = ws
       ws = null
+      clearPending('QQ 网关客户端已停止')
+      setState('stopped')
+      try { sock?.close() } catch (error) {}
     },
     restart() {
       this.stop()

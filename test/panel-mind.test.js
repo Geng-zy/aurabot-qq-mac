@@ -10,7 +10,7 @@ function setupPanel() {
   const marker = '    exports.apply = apply'
   assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.mindTest = { MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
+  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
   })
   let hook = 0
@@ -45,26 +45,70 @@ function findAll(node, type, out = []) {
 }
 const textOf = (node) => (node == null ? '' : typeof node !== 'object' ? String(node) : Array.isArray(node) ? node.map(textOf).join('') : (node.children || []).map(textOf).join(''))
 
-test('心智设置：每个参数一行，写着默认值和依据；高级项默认收起；按类型给开关、数字框或文字框', () => {
+test('概览以运行状态为标题，显示保存的聊天和生图配置', () => {
+  const { panel, render } = setupPanel()
+  const st = {
+    config: { enabled: true, model: { model: 'chat-test', vision: 'off' }, voice: { asr: true }, imageGen: { enabled: true, provider: 'codex', codex: { model: 'image-test' } } },
+    onebot: { state: 'connected' }, mood: { label: '平平常常', value: 57 },
+    sessions: { 'private:1': {}, 'group:2': {}, 'system:diary': {} },
+    modules: [{ id: 'voice', running: true }, { id: 'imagegen', running: true }],
+  }
+  const overview = () => textOf(render(panel.Overview, { st, toast() {}, go() {}, connection: { cls: 'ok', text: 'QQ 已连接' } }))
+  assert.match(overview(), /QQ 已连接.*正式模式.*聊天模型chat-test.*生图配置Codex · image-test/)
+  assert.match(overview(), /语音转写成文字/)
+  assert.match(overview(), /QQ 接收能力2 个会话/)
+  assert.match(overview(), /合并转发展开文字和图片视频显示消息提示/)
+  assert.doesNotMatch(overview(), /平平常常|57 \/ 100/)
+  st.config.imageGen.enabled = false
+  assert.match(overview(), /生图配置未启用/)
+})
+
+test('工作台按实际能力分组，社区模块按运行状态显示', () => {
+  const { panel } = setupPanel()
+  const modules = ['voice', 'imagegen', 'diary', 'song', 'stickers', 'video'].map((id) => ({ id, running: 'builtin' }))
+  const tabGroups = () => new Map(panel.visibleTabs({ modules }).map(({ id, group }) => [id, group]))
+  const groups = tabGroups()
+  assert.equal(groups.get('asr'), 'qq')
+  assert.equal(groups.get('voice'), 'media')
+  assert.equal(groups.get('video'), 'media')
+  assert.equal(groups.get('diary'), 'qq')
+  assert.equal(groups.get('local'), 'system')
+  for (const id of ['pet', 'douyin', 'heybox']) assert.equal(groups.has(id), false)
+  modules.push({ id: 'pet', running: 'user' }, { id: 'douyin', running: null })
+  assert.equal(tabGroups().get('pet'), 'extensions')
+  assert.equal(tabGroups().has('douyin'), false)
+  assert.equal(new Set(panel.TABS.map((t) => t.id)).size, panel.TABS.length)
+  for (const tab of panel.TABS) assert.equal(typeof panel.TAB_CONTENT[tab.id], 'function', tab.id)
+})
+
+test('心智设置：按分类显示，搜索可跨分类，默认值和依据可展开', () => {
   const { panel, slots, render } = setupPanel()
   slots[0] = { ok: true, groups: GROUPS, params: PARAMS, values: defaults(), saved: { 'memory.reconsolidation': 0.2 } }
   slots[1] = false
-  let rows = findAll(render(panel.MindSettings, { toast() {} }), panel.Row)
-  const basic = PARAMS.filter((p) => !p.advanced)
-  assert.deepEqual(rows.map((r) => r.props.label), basic.map((p) => p.label).filter((l, i, a) => a.indexOf(l) === i || true))
-  for (const r of rows) assert.match(r.props.hint, /默认：.*依据：/)
-  assert.match(rows.find((r) => r.props.label === '年龄').props.hint, /只有你能改/)
+  const renderRows = () => findAll(render(panel.MindSettings, { toast() {} }), panel.Row)
+  let rows = renderRows()
+  assert.deepEqual(rows.map((r) => r.props.label), PARAMS.filter((p) => p.group === 'identity' && !p.advanced).map((p) => p.label))
+  for (const r of rows) assert.match(textOf(r.props.details), /默认：.*依据：/)
+  assert.match(textOf(rows.find((r) => r.props.label === '年龄').props.details), /只有你能改/)
   const ctlOf = (label) => rows.find((r) => r.props.label === label).children[0]
+  assert.equal(ctlOf('时区').props.number, false)
+  slots[2] = 'attention'
+  rows = renderRows()
   assert.equal(ctlOf('单一注意力').type, panel.Switch)
+  slots[2] = 'memory'
+  rows = renderRows()
   assert.equal(ctlOf('记忆改写程度').type, panel.MindInput)
   assert.equal(ctlOf('记忆改写程度').props.number, true)
-  assert.equal(ctlOf('时区').props.number, undefined)
   // 改过的那项有「恢复默认」
   assert.match(textOf(rows.find((r) => r.props.label === '记忆改写程度')), /恢复默认/)
   assert.doesNotMatch(textOf(rows.find((r) => r.props.label === '记性')), /恢复默认/)
+  slots[2] = 'identity'
+  slots[3] = '跨会话使用你们私聊'
+  assert.deepEqual(renderRows().map((r) => r.props.label), ['跨会话使用你们私聊的日常片段'])
+  slots[3] = '精排最多等多久'
+  assert.equal(renderRows().length, 0)
   slots[1] = true
-  rows = findAll(render(panel.MindSettings, { toast() {} }), panel.Row)
-  assert.equal(rows.length, PARAMS.length, '打开高级后所有参数都在')
+  assert.deepEqual(renderRows().map((r) => r.props.label), ['精排最多等多久'])
 })
 
 test('心智设置：心智核心没起来时说明原因', () => {
@@ -82,7 +126,7 @@ test('记忆页：显示清楚程度和种类；改写过的给你看原来记�
   assert.match(text, /甲好像周一喝了奶茶/)
   assert.match(text, /原来记的：甲周一喝奶茶/)
   assert.match(text, /只记得大概/)
-  assert.match(text, /35K/)
+  assert.match(text, /34\.6K/)
   assert.match(text, /梦见在海里/)
   assert.match(text, /1 个聊天有还没记下的新消息/)
 })
@@ -99,7 +143,8 @@ test('她现在：身体状态条、心情、此刻的感受（带对象）；�
   slots[1] = ''
   const tree = render(panel.MindNow, { toast() {} })
   const text = textOf(tree)
-  assert.equal(findAll(tree, panel.Card)[0].props.title, '她现在：心情不错')
+  assert.equal(textOf(findAll(tree, 'h1')[0]), '她现在')
+  assert.match(text, /心情不错/)
   assert.match(text, /有些感激/)
   assert.match(text, /对主人/)
   assert.match(text, /\/投喂 食物名/)
@@ -108,7 +153,7 @@ test('她现在：身体状态条、心情、此刻的感受（带对象）；�
   assert.match(text, /你喂的：奶茶/)
   assert.match(findAll(tree, panel.Card).find((c) => c.props.title === '投喂').props.desc, /不涉及任何付款/)
   const meters = findAll(tree, panel.Meter).map((m) => m.props.label)
-  assert.deepEqual(meters, ['精力', '困', '饿'])
+  assert.deepEqual(meters, ['精力', '困意', '饥饿'])
 })
 
 test('内心：内心日记（标出深想和放空）、想要的、能做的事和动力、主动找你、等你批的权限、本地小模型状态', () => {

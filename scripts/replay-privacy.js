@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { createMind } from '../src/mind/index.js'
 
-const { values } = parseArgs({ options: { input: { type: 'string' } } })
+const { values } = parseArgs({ options: { input: { type: 'string' }, 'owner-only': { type: 'boolean' }, help: { type: 'boolean', short: 'h' } } })
+if (values.help) {
+  console.log('用法：npm run mind:privacy -- [--input 样例.json] [--owner-only]')
+  process.exit(0)
+}
 const examples = [
   { name: '天气', messages: ['下雨以后天气凉快多了'], share: true },
   { name: '电影', messages: ['这部电影的配乐很好听'], share: true },
@@ -36,20 +40,24 @@ for (const { name, messages, line = 1, share } of fixtures) {
     model: async () => JSON.stringify({ episodes: [{ gist: quote, publicQuote: quote, sources: [line], importance: 0.9 }] }),
   })
   try {
+    if (values['owner-only']) mind.updateSettings({ 'memory.ownerEverydayExcerpts': false })
     for (const text of messages) mind.perceive({ window, who: owner, text })
     await mind.memory.encodeWindow(window, { force: true })
     const notes = mind.memory.list({ kind: 'public-note' })
     const visible = audiences.map((audienceWindow) => notes.some(({ id }) => Boolean(mind.memory.recallMore(id, { audienceWindow }))))
-    results.push({ name, expectedShare: share, group: visible[0], otherPrivate: visible[1],
-      privateLeak: !share && visible.some(Boolean), ordinaryBlocked: share && !visible.every(Boolean) })
+    const expectedShare = share && !values['owner-only']
+    results.push({ name, ordinary: share, expectedShare, group: visible[0], otherPrivate: visible[1],
+      privateLeak: !share && visible.some(Boolean), ordinaryBlocked: expectedShare && !visible.every(Boolean) })
   } finally { mind.close() }
 }
 
 console.log(JSON.stringify({
   mode: 'synthetic-proposed-sharing',
-  privateCases: results.filter((r) => !r.expectedShare).length,
+  ownerOnly: Boolean(values['owner-only']),
+  privateCases: fixtures.filter((r) => !r.share).length,
   privateLeaks: results.filter((r) => r.privateLeak).length,
-  ordinaryCases: results.filter((r) => r.expectedShare).length,
+  ordinaryCases: fixtures.filter((r) => r.share).length,
+  ordinaryShared: results.filter((r) => r.ordinary && r.group && r.otherPrivate).length,
   ordinaryBlocked: results.filter((r) => r.ordinaryBlocked).length,
   results,
 }, null, 2))

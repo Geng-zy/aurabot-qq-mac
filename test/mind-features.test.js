@@ -12,6 +12,39 @@ function mk() {
   return { m, mem: m.memory, set: (v) => { t = v }, add: (ms) => { t += ms } }
 }
 
+test('每轮回忆数设为 0 时，默认检索不补回六条', async (t) => {
+  const { m, mem } = mk()
+  t.after(() => m.close())
+  mem.insert({ at: T0, window: 'qq:group:9', gist: '山路上的观景台', kind: 'event', importance: 0.9 })
+  assert.ok((await mem.recall({ cue: '观景台' })).length)
+  m.updateSettings({ 'memory.recallLimit': 0 })
+  assert.deepEqual(await mem.recall({ cue: '观景台' }), [])
+  assert.ok((await mem.recall({ cue: '观景台', limit: 1 })).length)
+})
+
+test('周回顾使用的每条经历都有来源限制，超过上限的素材不进提示词', async (t) => {
+  const { m, mem } = mk()
+  t.after(() => m.close())
+  const privateWindow = 'qq:private:1'
+  const week = Date.UTC(2026, 10, 2, 3)
+  const add = (gist, i, srcWindow = 'qq:group:9') => {
+    const at = week + i * 60_000
+    const source = mem.insert({ at, window: srcWindow, gist, kind: 'event' })
+    mem.insert({ at, gist, kind: 'day-summary', extra: { from: [source] } })
+  }
+  add('超出输入上限的经历', 0)
+  for (let i = 1; i <= 100; i++) add(`日常经历 ${i}`, i)
+  add('需要保护的私聊经历', 101, privateWindow)
+  mem.connect({ think: async ({ text }) => JSON.stringify({ summary: text.includes('需要保护的私聊经历') ? '需要保护的私聊经历' : '普通回顾' }) })
+  await m.sleeper.review()
+  const summary = mem.row(mem.list({ kind: 'week-summary' })[0].id)
+  assert.equal(summary.gist, '需要保护的私聊经历')
+  assert.equal(summary.data.from.length, 100)
+  assert.equal(mem.row(summary.data.from[0]).gist, '日常经历 2')
+  assert.equal(mem.visibleIn(summary, 'qq:group:9'), false)
+  assert.equal(mem.visibleIn(summary, privateWindow), true)
+})
+
 test('跟谁说过什么：想起来的事说出口了，下次在同一个人面前会提醒「说过了」', async () => {
   const { m, mem } = mk()
   m.perceive({ window: 'qq:private:2', who: 'qq:2', name: '小明', text: '最近有啥好玩的', msgId: 'a', at: T0 - 60000 })

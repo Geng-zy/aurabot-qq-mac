@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ownerAuthorizationRevision } from '../core/config.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { gifFrames } from '../core/image-info.js'
-import { parseReply, bubbleDelay, wantsVoice, itemsToLine, cleanOutboundText, cleanOutboundSegments, isSilence } from './reply.js'
+import { parseReply, bubbleDelay, wantsVoice, itemsToLine, cleanOutboundText, cleanOutboundSegments, capOutboundText, isSilence } from './reply.js'
 import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, topicRelevance } from './group-policy.js'
 import { guardReply, extractReply, CODE_INSTRUCTION, MARKER_INSTRUCTION } from './output-guard.js'
 import { checkAllowed, levelFor, presetFor, isOwner } from './access.js'
@@ -103,6 +103,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const mapFile = () => dataDir('sessions.json')
   const map = () => readJson(mapFile(), () => ({ chats: {} }))
   const saveMap = (m) => writeJson(mapFile(), m)
+  function audienceRevision(chatId) {
+    const target = parseChat(chatId)
+    if (!target || (target.kind === 'private' && isOwner(getConfig(), target.id, chatId))) return ''
+    return mind?.audienceRevision?.() || ''
+  }
 
   const mounted = new Map() // sessionKey → { agent, offs, chatId, toolsKey }  按会话记，agent 对象换了也能清掉旧工具（#90）
 
@@ -330,9 +335,15 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const ownerPrivate = target?.kind === 'private' && isOwner(getConfig(), target.id, chatId)
     let protectedGrams
     let protectedTokens
+    let shared
+    let restrictedShares
     function protectedText(text) {
       if (!mind?.protectedText || !text.trim()) return false
+      shared ??= mind.sharedText?.(chatId) || []
+      for (const excerpt of shared) text = text.replaceAll(excerpt, ' ')
       const chars = normalizeForMatch(text).chars
+      restrictedShares ??= (mind.restrictedShareText?.(chatId) || []).map((excerpt) => normalizeForMatch(excerpt).chars.join('')).filter(Boolean)
+      if (restrictedShares.some((excerpt) => chars.join('').includes(excerpt))) return true
       if (!protectedGrams) {
         protectedGrams = new Set()
         protectedTokens = new Set()
@@ -454,7 +465,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
       const dir = dataDir('chatlog')
       mkdirSync(dir, { recursive: true })
-      const row = { t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}) }
+      const target = parseChat(chatId)
+      const ownerPrivate = target?.kind === 'private' && isOwner(getConfig(), target.id, chatId)
+      const audienceShares = who === 'bot' ? mind?.shareIdsForChat?.(chatId) || [] : []
+      const row = { t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}),
+        ...(ownerPrivate ? { ownerPrivate: true } : {}), ...(audienceShares.length ? { audienceShares } : {}) }
       appendFileSync(join(dir, `${day}.jsonl`), JSON.stringify(row) + '\n', 'utf8')
       // 模块的 chat/log 通知：落盘成功后的只读快照（移植自原项目 5cdbcd4）
       try { hooks?.journal?.({ ...row, ...(originId ? { originId } : {}) }) } catch (error) { log.warn('流水通知失败：', error.message) }
@@ -510,6 +525,15 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     } catch (error) {
       return []
     }
+  }
+
+  function canReadChatLog(row, audience) {
+    const source = parseChat(row.chatId)
+    if (!source) return false
+    if (normChat(row.chatId) !== normChat(audience) && (row.ownerPrivate || mind?.isPrivateHistoryWindow?.(row.chatId) ||
+      (source.kind === 'private' && isOwner(getConfig(), source.id, row.chatId)))) return false
+    if (row.audienceShares?.length && !mind?.canReadShares?.(row.audienceShares, audience)) return false
+    return !cleaningFor(audience).protectedText?.(row.text)
   }
 
   // ---------- 工作区与会话 ----------
@@ -645,9 +669,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const mode = debug ? 'debug' : 'live'
     // 每种模式各记一条：切回调试 / 正式时能接上原来那条；档位（preset / level）变了就都作废（来自原项目 2a89b90）
     const sessions = prev.preset === preset && prev.level === level ? { ...(prev.sessions || {}) } : {}
+    const privacyRevision = { ...prev.privacyRevision, [mode]: audienceRevision(chat.chatId) }
     if (prev.sessionId && prev.preset === preset && prev.level === level && !sessions[prev.mode || 'live']) sessions[prev.mode || 'live'] = prev.sessionId
     sessions[mode] = sid
-    m.chats[chat.chatId] = { ...prev, sessionId: sid, mode, sessions, preset, level, createdAt: Date.now(), lastInput: 0, lastAt: 0, title }
+    m.chats[chat.chatId] = { ...prev, sessionId: sid, mode, sessions, privacyRevision, preset, level, createdAt: Date.now(), lastInput: 0, lastAt: 0, title }
     saveMap(m)
     log.info(`为 ${chat.chatId} 新建了 DSH 会话 ${sid.slice(-8)}（${preset}${debug ? '，调试' : ''}）`)
     return sid
@@ -674,7 +699,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const sameLevel = Boolean(entry && entry.preset === preset && entry.level === level)
     let sid = sameLevel ? ((entry.sessions && entry.sessions[mode]) || ((entry.mode || 'live') === mode ? entry.sessionId : '')) : ''
     let agent = null
-    if (sid && entry.privacyBlocked?.[mode] === sid) {
+    const revision = audienceRevision(chat.chatId)
+    if (sid && (entry.privacyBlocked?.[mode] === sid || (revision && entry.privacyRevision?.[mode] !== revision))) {
       archiveQuietly(sid)
       sessionToChat.delete(sessionKey(sid))
       turnState.delete(sessionKey(sid))
@@ -1027,6 +1053,15 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 钩子可能重新写入工具标记；最终网关出口仍使用同一份清洗。
     message = cleanOutboundSegments(message, cleaning)
     if (!message.length || disposed || (isCurrent && !isCurrent())) return null
+    const scope = outputScope.getStore()
+    const displayed = message.filter((seg) => seg.type === 'text').map((seg) => seg.data?.text || '').join('')
+    if (displayed && !(scope?.chatId === chatId && scope.checkedText?.includes(displayed))) {
+      const revision = audienceRevision(chatId)
+      if (await mind?.checkOutgoingPrivacy?.(chatId, displayed)) return null
+      if (disposed || audienceRevision(chatId) !== revision || (isCurrent && !isCurrent())) return null
+    }
+    message = capOutboundText(message, (seg) => seg.type === 'text' ? seg.data?.text : undefined,
+      (seg, text) => ({ ...seg, data: { ...seg.data, text } }))
     const cap = captureStore.getStore()
     if (cap) {
       cap.push({ chatId, note, message })
@@ -1051,7 +1086,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!channel) { log.warn(`发不出去：${chatId} 所在的平台没有连接`); return null }
     const sourceGroupId = tgt.kind === 'private' ? privateSources.get(normChat(chatId)) : ''
     try {
-      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive, note, system })
+      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive, note, system, privacyRevision: audienceRevision(chatId) })
       if (r?.queued) {
         log.warn(`发到 ${chatId} 时网关还没就绪，已排队补发：${note || r.error?.message || ''}`)
         return { queued: true, queuedId: r.queuedId }
@@ -1092,6 +1127,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   async function sendVoice(chatId, text, replyId, userId, opts = {}) {
     text = cleanOutboundText(text, cleaningFor(chatId))
     if (!text.trim()) return false
+    const revision = audienceRevision(chatId)
+    const scope = outputScope.getStore()
+    if (!(scope?.chatId === chatId && scope.checkedText?.includes(text)) && await mind?.checkOutgoingPrivacy?.(chatId, text)) return false
+    const originalIsCurrent = opts.isCurrent
+    const isCurrent = () => audienceRevision(chatId) === revision && (originalIsCurrent?.() ?? true)
+    if (!isCurrent()) return false
+    opts = { ...opts, isCurrent }
     let b64, engine, extras
     try {
       // 表情标签 / emoji 不念出来：TTS 只念能说的字（用户反馈：发语音时「呲牙」被读出来）
@@ -1365,7 +1407,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   async function deliverTurn(chatId, text, opts = {}) {
-    const current = () => !disposed && (opts.isCurrent?.() ?? true)
+    const revision = audienceRevision(chatId)
+    const current = () => !disposed && audienceRevision(chatId) === revision && (opts.isCurrent?.() ?? true)
     if (!current()) return
     const cfg = getConfig()
     text = cleanOutboundText(text, cleaningFor(chatId))
@@ -1422,6 +1465,17 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     })), { ...cleaningFor(chatId), allowPromptEcho: false, onPromptDecision: (allow) => { outputScope.getStore().allowPromptEcho = allow } })
       .map((seg) => seg.type === 'text' ? { ...seg.item, value: seg.data.text } : seg.item)
     if (!items.length) return silenceTurn(chatId)
+    const visible = items.filter((item) => ['text', 'voice'].includes(item.kind)).map((item) => item.value).join('\n')
+    const blocked = visible && await mind?.checkOutgoingPrivacy?.(chatId, visible, opts.userText)
+    if (!current()) return
+    if (blocked) {
+      log.warn(`${chatId}：回复可能转述了私密经历，已拦下`)
+      blockSessionPrivacy(chatId)
+      return silenceTurn(chatId)
+    }
+    items = capOutboundText(items, (item) => ['text', 'voice'].includes(item.kind) ? item.value : undefined,
+      (item, value) => ({ ...item, value }))
+    outputScope.getStore().checkedText = items.filter((item) => ['text', 'voice'].includes(item.kind)).map((item) => item.value)
     // 一段只有一个人明确 @ / 引用她时，第一条回复引用并 @ 那个人；多人同时叫她不猜。
     // 模型明确选了引用编号时尊重它，不再自动引用另一条。
     const refs = inGroup ? groupRefs.get(chatId.slice(6)) || {} : {}
@@ -1499,6 +1553,15 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   const completedTurn = (d) => Boolean(d?.reason && d.reason.kind === 'completed')
 
+  function blockSessionPrivacy(chatId, key) {
+    const sessions = map()
+    const entry = sessions.chats[chatId]
+    if (!entry || (key && sessionKey(entry.sessionId) !== key)) return
+    const mode = entry.mode || 'live'
+    entry.privacyBlocked = { ...entry.privacyBlocked, [mode]: entry.sessionId }
+    saveMap(sessions)
+  }
+
   function onSessionEvent(session, event) {
     const key = sessionKey(session && session.id)
     // 回合结束时内存映射可能已空（刚重启），退回持久化的映射，别把这一轮丢了（#159）。
@@ -1568,13 +1631,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       let raw = assistantReplyText(d.message)
       if (!chatId.startsWith('system:') && cleaningFor(chatId).protectedText?.(raw)) {
         // DSH 已保存原始回复。下次从安全的感知记录接着聊，别把这段原文再次交给模型。
-        const sessions = map()
-        const entry = sessions.chats[chatId]
-        if (entry && sessionKey(entry.sessionId) === key) {
-          const mode = entry.mode || 'live'
-          entry.privacyBlocked = { ...entry.privacyBlocked, [mode]: entry.sessionId }
-          saveMap(sessions)
-        }
+        blockSessionPrivacy(chatId, key)
         log.warn(`${chatId}：回复触及私密内容，已拦下并标记更换会话`)
         st.retry = null
         raw = '[沉默]'
@@ -1611,7 +1668,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (!chatId.startsWith('system:')) {
         const cur = map().chats[chatId]
         const mode = getConfig().debug ? 'debug' : 'live'
-        if (!cur || sessionKey(cur.sessionId) !== key || (cur.mode || 'live') !== mode) {
+        const revision = audienceRevision(chatId)
+        if (!cur || sessionKey(cur.sessionId) !== key || (cur.mode || 'live') !== mode || (revision && cur.privacyRevision?.[mode] !== revision)) {
           log.info(`${chatId} 的旧会话（${key.slice(0, 8)}…）这一轮不发：它不是当前模式在用的会话`)
           if (st.runToken !== undefined) release(chatId, st.runToken)
           return
@@ -2329,7 +2387,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 群聊这一段的提示词：之前的几句当背景，上次交给她之后群里新说的话全部列出来，让她看完整段再回。 */
   async function groupPrompt(chat, mode, imageRoom = 0, refOffset = 0) {
     const name = await groupName(chat.groupId)
-    const buf = groupBuf.get(chat.groupId) || []
+    const buf = (groupBuf.get(chat.groupId) || []).slice()
     // 时间戳可能同一毫秒：直接取上一轮之后的消息，避免紧接着到达的消息丢失。
     const fresh = buf.filter((x) => !x.fed).slice(-20)
     const older = buf.filter((x) => x.fed).slice(-8)
@@ -2411,7 +2469,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (disposed) return false
     if (chatId.startsWith('system:')) return true
     const entry = map().chats[chatId]
-    return Boolean(entry && sessionKey(entry.sessionId) === key && (entry.mode || 'live') === (getConfig().debug ? 'debug' : 'live'))
+    const mode = getConfig().debug ? 'debug' : 'live'
+    const revision = audienceRevision(chatId)
+    return Boolean(entry && sessionKey(entry.sessionId) === key && (entry.mode || 'live') === mode && (!revision || entry.privacyRevision?.[mode] === revision))
   }
   const turnCurrent = (chatId, key, token) => turnEpochs.get(chatId)?.token === token && turnSessionCurrent(chatId, key)
 
@@ -2815,7 +2875,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const cfg = getConfig()
       if (!cfg.enabled || cfg.dryRun) return content
       // 心智核心记得这个聊天之前说过什么：直接接上（换新会话、重启后都一样）
-      const carried = mind?.carryOver ? mind.carryOver(chat.chatId, { current: content.filter((c) => c?.type === 'text').map((c) => c.text).join('\n') }) : ''
+      const protectedText = cleaningFor(chat.chatId).protectedText
+      const carried = mind?.carryOver ? mind.carryOver(chat.chatId, { current: content.filter((c) => c?.type === 'text').map((c) => c.text).join('\n'), allowLine: (r) => !protectedText?.(r.text) }) : ''
       if (carried) {
         log.info(`${chat.chatId}：新会话，接上之前的聊天`)
         return [{ type: 'text', text: carried }, ...content]
@@ -2827,7 +2888,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const channel = channelOf(chat.chatId)
       if (!channel?.history || !channel.caps?.history) return content
       const list = await channel.history(chat.chatId, count)
-      const lines = flatHistory(list).slice(-count)
+      const lines = flatHistory(list).filter((line) => !protectedText?.(line)).slice(-count)
       if (!lines.length) return content
       log.info(`${chat.chatId}：新会话，补看最近 ${lines.length} 条历史`)
       const block = `【你刚上线，先补看最近 ${lines.length} 条${tgt.kind === 'group' ? '群' : '私聊'}记录】\n${lines.join('\n')}\n【补看结束，接着回下面这条】`
@@ -3499,6 +3560,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 给模块用的出站清洗（和 QQ 投递同一套：工具标记 + 提示词复读 + 格式变体）。
     cleanOutbound: (chatId, text) => cleanOutboundText(String(text ?? ''), cleaningFor(chatId)),
     containsProtectedText: (chatId, text) => Boolean(cleaningFor(chatId).protectedText?.(String(text ?? ''))),
+    checkOutgoingPrivacy: (chatId, text) => mind?.checkOutgoingPrivacy?.(chatId, text),
+    canReplayDelivery: (item) => {
+      const revision = audienceRevision(item.chatId)
+      if (!revision) return true
+      if (item.privacyRevision !== revision) return false
+      const message = item.params.message || []
+      return message.length > 0 && cleanOutboundSegments(message, cleaningFor(item.chatId)) === message
+    },
     // 仅关闭本中枢持有的短期媒体缓存，迟到的事件不能重新写入。
     disposeRecentMedia: () => recentMedia.dispose(),
     modelFor: targetModel,
@@ -3552,6 +3621,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     localTranscribe,
     ensureWorkspace,
     chatLogOf,
+    canReadChatLog,
     // 测试用：让下一次写流水时重新整理一遍
     _resetPruneForTest: () => { prunedDay = '' },
     noteSaid,

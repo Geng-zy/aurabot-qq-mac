@@ -43,6 +43,16 @@ test('只监听本机回环地址', async () => {
   }
 })
 
+test('打开下载口的同时关闭，旧请求和新请求都不能再登记', async () => {
+  const relay = createFileRelay()
+  const pending = relay.offer(join(dir, 'race.txt'))
+  relay.close()
+  await assert.rejects(pending, /下载口已关闭/)
+  await assert.rejects(relay.offer(join(dir, 'after.txt')), /下载口已关闭/)
+  assert.equal(relay.port, 0)
+  assert.equal(relay.size, 0)
+})
+
 test('收回或过期后取不到；默认地址是 host.docker.internal', async () => {
   const file = join(dir, 'b.txt')
   writeFileSync(file, 'hello')

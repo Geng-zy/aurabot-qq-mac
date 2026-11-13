@@ -1,4 +1,4 @@
-// 按日期想事、翻某天的原话（第 14 项）：时间认得出来；只想那段时间的事；原话按聊天隔开，只有主人能看别的聊天。
+// 按日期想事、翻某天的原话，跨会话时仍保护主人私聊。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parsePeriod, dayKey } from '../src/mind/clock.js'
@@ -48,13 +48,15 @@ test('mind_recall：只给时间就列那段时间的事，带线索就只在那
   assert.equal((await t.mind_recall.execute({})).ok, false)
 })
 
-test('mind_read_day：翻那天的原话；别的聊天只有主人私聊里能看，标明是资料', async () => {
+test('mind_read_day：群和其他私聊可跨会话查原话，主人私聊留在来源会话', async (testContext) => {
   let ownerTurn = true
   const { a, tools } = setup(() => ownerTurn)
+  testContext.after(() => a.close())
   const at = Date.UTC(2026, 10, 10, 2) // 上海 11-10 10:00
   a.mind.perceive({ window: 'qq:private:1', who: 'qq:1', text: '明天要考试', at, msgId: 'a' })
   a.mind.said({ window: 'qq:private:1', text: '加油！', at: at + 60000, msgId: 'b' })
   a.mind.perceive({ window: 'qq:group:5', who: 'qq:2', text: '群里聊游戏', at, msgId: 'c' })
+  a.mind.perceive({ window: 'qq:private:3', who: 'qq:3', text: '朋友说在看纪录片', at, msgId: 'd' })
   const t = tools(OWNER)
   const r = await t.mind_read_day.execute({ period: '昨天' })
   assert.match(r.message, /主人：明天要考试/)
@@ -66,13 +68,18 @@ test('mind_read_day：翻那天的原话；别的聊天只有主人私聊里能�
   assert.match((await t.mind_read_day.execute({ period: '昨天', query: '考试' })).message, /考试/)
   assert.match((await t.mind_read_day.execute({ period: '前天' })).message, /没有说过/)
   ownerTurn = false
-  assert.doesNotMatch((await t.mind_read_day.execute({ period: '昨天', chat: 'group:5' })).message, /游戏/)
-  // 群里（不是主人这一轮）：没有 chat 参数，只能翻这个群
-  const guest = setup(() => false)
-  guest.a.mind.perceive({ window: 'qq:private:1', who: 'qq:1', text: '私事', at, msgId: 'd' })
-  const gt = guest.tools(GROUP).mind_read_day
-  assert.equal('chat' in gt.parameters.properties, false)
-  assert.doesNotMatch((await gt.execute({ period: '昨天', chat: 'private:1' })).message, /私事/)
+  const gt = tools(GROUP).mind_read_day
+  assert.equal('chat' in gt.parameters.properties, true)
+  assert.match((await gt.execute({ period: '昨天', chat: 'private:3' })).message, /朋友说在看纪录片/)
+  const otherPrivate = tools({ chatId: 'private:4', kind: 'private', userId: '4' }).mind_read_day
+  assert.match((await otherPrivate.execute({ period: '昨天', chat: 'group:5' })).message, /群里聊游戏/)
+  for (const tool of [gt, otherPrivate]) {
+    const restricted = await tool.execute({ period: '昨天', chat: 'private:1' })
+    assert.equal(restricted.ok, false)
+    assert.doesNotMatch(restricted.message, /考试/)
+  }
   ownerTurn = true
-  assert.equal('chat' in tools({ ...GROUP, userId: '1' }).mind_read_day.parameters.properties, false)
+  assert.equal((await tools({ ...GROUP, userId: '1' }).mind_read_day.execute({ period: '昨天', chat: 'private:1' })).ok, false)
+  a.mind.setOwner('qq:7')
+  assert.deepEqual(a.mind.history('qq:private:1', { audienceWindow: 'qq:group:5' }), [])
 })

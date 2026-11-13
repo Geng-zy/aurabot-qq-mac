@@ -4,7 +4,7 @@
 // 地址和密钥由主人在面板里填；生成结果统一成 Buffer 交给 QQ 发出。
 
 import { lstatSync, readFileSync } from 'node:fs'
-import { fetchImage } from '../core/net.js'
+import { fetchImage, withTimeoutSignal } from '../core/net.js'
 import { resolvePainting } from './paintings.js'
 import { createCodexAuth } from './codex-auth.js'
 import { createCodexImage } from './codex-image.js'
@@ -130,11 +130,11 @@ export function customRequest (imageGen, prompt, image) {
 }
 
 /** 接口返回的「图片地址 / base64」变成 Buffer。 */
-async function valueToBuffer (v) {
+async function valueToBuffer (v, signal) {
   if (typeof v !== 'string' || !v) throw new Error('生图接口没有返回图片')
   const b64 = /^data:image\/[^;]+;base64,(.+)$/i.exec(v)
   if (b64) return Buffer.from(b64[1], 'base64')
-  if (/^https?:\/\//i.test(v)) return fetchImage(v, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000 })
+  if (/^https?:\/\//i.test(v)) return fetchImage(v, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
   throw new Error('生图接口返回的既不是图片地址也不是图片')
 }
 
@@ -145,7 +145,8 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
   /**
    * extra：除了 image 以外的参考图（比如她的形象图的其余几张）。能一次收好几张的服务（gpt-image 系列）都给，别的只用 image 那一张
    */
-  async function generate(prompt, { shape, image, size, extra = [] } = {}) {
+  async function generate(prompt, { shape, image, size, extra = [], signal } = {}) {
+    signal?.throwIfAborted()
     const config = getConfig().imageGen
     const requestedSize = size == null || size === '' ? '' : normalizeRequestedSize(size)
     if (size != null && size !== '' && !requestedSize) throw new Error('图片尺寸格式不对，应为 1024x1024 或 2048x2048 这类格式')
@@ -156,7 +157,8 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     if (local?.active('image')) {
       const { toImageBuffer } = await import('../local/local.js')
       const t = Date.now()
-      const buf = await toImageBuffer(await local.call('image', { prompt: [c.stylePrompt, prompt].filter(Boolean).join('，'), size: c.size, ...(image ? { image: image.toString('base64') } : {}) }))
+      const buf = await toImageBuffer(await local.call('image', { prompt: [c.stylePrompt, prompt].filter(Boolean).join('，'), size: c.size, ...(image ? { image: image.toString('base64') } : {}) }, { signal }), { signal })
+      signal?.throwIfAborted()
       log.info(`本地画好了一张图（${Math.round(buf.length / 1024)}KB，${Math.round((Date.now() - t) / 1000)}s）：${prompt.slice(0, 40)}`)
       return buf
     }
@@ -165,8 +167,9 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     const t = Date.now()
     const run = async (endpoint) => {
       const buf = endpoint.provider === 'codex'
-        ? await viaCodex(endpoint, full, { shape, image })
-        : endpoint.provider === 'custom' ? await viaCustom(endpoint, full, image) : await viaOpenAI(endpoint, full, image, extra)
+        ? await viaCodex(endpoint, full, { shape, image, signal })
+        : endpoint.provider === 'custom' ? await viaCustom(endpoint, full, image, signal) : await viaOpenAI(endpoint, full, image, extra, signal)
+      signal?.throwIfAborted()
       if (!buf?.length) throw serviceError(502, '生图接口没有返回图片', false)
       if (!String(mimeOf(buf)).startsWith('image/')) throw serviceError(502, '生图接口返回的不是图片', false)
       return buf
@@ -174,11 +177,13 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     let failure
     let buf
     for (const [index, endpoint] of [c, ...fallbacks(c)].entries()) {
+      signal?.throwIfAborted()
       try {
         buf = await run(endpoint)
         if (index) log.info('生图已用备用服务完成')
         break
       } catch (error) {
+        signal?.throwIfAborted()
         failure = error
         if (!error.fallbackable) throw error
       }
@@ -211,7 +216,7 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
   }
 
   /** OpenAI 兼容接口。 */
-  async function viaOpenAI (c, prompt, image, extra = []) {
+  async function viaOpenAI (c, prompt, image, extra, signal) {
     const base = String(c.baseUrl || '').replace(/\/+$/, '')
     if (!base || !c.model) throw serviceError(404, '还没填生图服务地址或模型', false)
     const headers = image ? {} : { 'content-type': 'application/json' }
@@ -229,7 +234,8 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     }
     let r, j
     for (;;) {
-      r = await request(`${base}/images/${image ? 'edits' : 'generations'}`, { method: 'POST', headers, body: requestBody || JSON.stringify(body), signal: AbortSignal.timeout(180000), ...(c.isFallback ? { redirect: 'error' } : {}) })
+      signal?.throwIfAborted()
+      r = await request(`${base}/images/${image ? 'edits' : 'generations'}`, { method: 'POST', headers, body: requestBody || JSON.stringify(body), signal: withTimeoutSignal(180000, signal), ...(c.isFallback ? { redirect: 'error' } : {}) })
       j = await r.json().catch(() => ({}))
       if (r.ok) break
       const message = j?.error?.message || j?.message || `HTTP ${r.status}`
@@ -241,13 +247,13 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     let buf
     if (item.b64_json) buf = Buffer.from(item.b64_json, 'base64')
     // 有的服务返回 CDN 链接，下载可能要几十秒（实测 22 秒），默认 20 秒会误判成失败
-    else if (item.url) buf = await fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000 })
+    else if (item.url) buf = await fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
     else throw serviceError(502, '生图服务没有返回图片', false)
     return buf
   }
 
   /** 自定义接口：GET 直接把参数拼在地址上，POST 放进 JSON / 表单。 */
-  async function viaCustom (c, prompt, image) {
+  async function viaCustom (c, prompt, image, signal) {
     const cp = c.custom || {}
     if (!cp.url) throw serviceError(404, '还没填自定义生图接口地址', false)
     const req = customRequest(c, prompt, image)
@@ -256,7 +262,7 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
       method: req.method,
       headers: req.headers,
       body: req.body,
-      signal: AbortSignal.timeout(180000),
+      signal: withTimeoutSignal(180000, signal),
     })
     const type = String(r.headers.get('content-type') || '')
     // 直接返回图片字节（pollinations 这类）
@@ -269,7 +275,7 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     if (!j) throw serviceError(502, '生图接口没有返回图片', false)
     const v = (cp.responsePath ? dotted(j, cp.responsePath) : null) || findImage(j)
     if (!v) throw serviceError(502, '生图接口没有返回图片地址', false)
-    return valueToBuffer(v)
+    return valueToBuffer(v, signal)
   }
 
   const enabled = () => {

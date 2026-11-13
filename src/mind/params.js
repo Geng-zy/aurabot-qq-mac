@@ -57,10 +57,11 @@ export const PARAMS = [
   { key: 'attention.inner', group: 'attention', label: '闲着时的内心活动', def: true, source: '设计决定', hint: '醒着、没人找时她一步一步地想；关掉就只在有人找她时才「醒」。' },
   { key: 'attention.thinkWithoutLocal', group: 'attention', label: '没装本地小模型时用聊天模型想', def: true, source: '设计决定', hint: '会花钱，所以间隔拉长到四倍；也受每天后台预算限制。关掉就只在装了本地小模型时才有内心活动。' },
   { key: 'attention.afterChatMinutes', group: 'attention', label: '聊完多久才开始走神', def: 2, min: 0, max: 30, step: 1, unit: '分钟', source: EXP, hint: '刚聊完注意力还在那段对话上。', advanced: true },
-  { key: 'attention.elsewhereMinutes', group: 'attention', label: '知道其他群的近况（多久以内）', def: 15, min: 0, max: 120, step: 5, unit: '分钟', source: '设计决定（一个心智：工作记忆里有「别的聊天里刚发生了什么」）；时长是经验值', hint: '可想起其他群最近整理好的可共享经历。0 = 不加入。' },
-  { key: 'attention.elsewhereLines', group: 'attention', label: '每个其他群最多几段近况', def: 4, min: 0, max: 20, step: 1, unit: '句', source: EXP, hint: '最多看 3 个别的聊天，每个最近这么多句。越多越清楚，也越占上下文。', advanced: true },
+  { key: 'attention.elsewhereMinutes', group: 'attention', label: '知道其他聊天的近况（多久以内）', def: 15, min: 0, max: 120, step: 5, unit: '分钟', source: '设计决定（一个心智：工作记忆里有「别的聊天里刚发生了什么」）；时长是经验值', hint: '可想起其他群和私聊最近整理好的可共享经历。0 = 不加入。' },
+  { key: 'attention.elsewhereLines', group: 'attention', label: '每个其他聊天最多几段近况', def: 4, min: 0, max: 20, step: 1, unit: '句', source: EXP, hint: '最多看 3 个别的聊天，每个最近这么多句。越多越清楚，也越占上下文。', advanced: true },
 
   // ---------- 记忆 ----------
+  { key: 'memory.ownerEverydayExcerpts', group: 'memory', label: '跨会话使用你们私聊的日常片段', def: true, ownerOnly: true, source: '设计决定', hint: '关掉后，她只在你们的私聊里使用这些日常片段。你在记忆面板明确允许的指定会话分享仍然有效。' },
   { key: 'memory.forgetting', group: 'memory', label: '记性', def: 1, min: 0.25, max: 4, step: 0.05, source: 'Rubin & Wenzel 1996；Wixted & Ebbesen 1997；Murre & Dros 2015', hint: '整体忘得快慢的倍数：1 是按研究的默认速度，大于 1 记得更久。遗忘按幂函数，先快后慢。' },
   { key: 'memory.spacingBonus', group: 'memory', label: '隔开想起的加强', def: 1, min: 0, max: 3, step: 0.1, source: 'Cepeda 等 2006；Cepeda 等 2008', hint: '隔开几天再想起比一天想很多次加强更多；这是那部分加成的倍数。', advanced: true },
   { key: 'memory.emotionBoost', group: 'memory', label: '情绪让记忆更牢', def: 1, min: 0, max: 3, step: 0.1, source: 'McGaugh 2004；Kensinger 2009 综述（情绪唤醒增强长期记忆，主要保住大意和核心细节）；倍数是经验值', hint: '越激动的事记得越牢，这是加成的倍数。', advanced: true },

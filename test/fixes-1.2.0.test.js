@@ -17,6 +17,7 @@ function searchBuilder() {
     ['2032-03-01', [
       { chatId: 'group:fictional-a', who: '虚构群友', text: '共同暗号：本群的旧记录', t: Date.parse('2032-03-01T10:00:00Z') },
       { chatId: 'private:fictional-b', who: '虚构朋友', text: '共同暗号：仅私聊的记录', t: Date.parse('2032-03-01T11:00:00Z') },
+      { chatId: 'private:fictional-owner', who: '主人', text: '共同暗号：主人私聊的原话', t: Date.parse('2032-03-01T12:00:00Z') },
     ]],
     ['2032-03-02', [
       { chatId: 'group:fictional-a', who: '虚构群友', text: '共同暗号：本群的新记录', t: Date.parse('2032-03-02T10:00:00Z') },
@@ -26,7 +27,7 @@ function searchBuilder() {
   const builders = []
   qqTools.setup({
     core: { hub: { chatLogDays: () => [...logs.keys()], chatLogOf: (day) => logs.get(day) || [] }, onebot: {} },
-    config: () => ({ files: { enabled: false } }),
+    config: () => ({ ownerQQ: 'fictional-owner', files: { enabled: false } }),
     tool: (builder) => builders.push(builder),
   })
   assert.equal(builders.length, 1)
@@ -57,16 +58,16 @@ test('聊天流水：full 可以指定私聊、其他群，也可以搜索全部
 
   const all = await tool.execute({ query: '共同暗号', days: 0 })
   assert.equal(all.ok, true)
-  assert.match(all.message, /找到 4 条/)
+  assert.match(all.message, /找到 5 条/)
   assert.match(all.message, /仅私聊的记录/)
   assert.match(all.message, /其他群的记录/)
 })
 
-test('聊天流水：群聊传入其他聊天也只能搜索当前群，不能读到私聊', async () => {
+test('聊天流水：群里和别人私聊可跨会话搜索，但看不到主人私聊', async () => {
   const builder = searchBuilder()
   const tool = searchTool(builder, { kind: 'group', groupId: 'fictional-a', chatId: 'group:fictional-a' }, 'social')
 
-  const current = await tool.execute({ query: '共同暗号', days: 0, chat: 'private:fictional-b' })
+  const current = await tool.execute({ query: '共同暗号', days: 0, chat: 'group:fictional-a' })
   assert.equal(current.ok, true)
   assert.match(current.message, /找到 2 条/)
   assert.match(current.message, /本群的旧记录/)
@@ -75,12 +76,19 @@ test('聊天流水：群聊传入其他聊天也只能搜索当前群，不能�
 
   const privateOnly = await tool.execute({ query: '仅私聊的记录', days: 0, chat: 'private:fictional-b' })
   assert.equal(privateOnly.ok, true)
-  assert.match(privateOnly.message, /没找到/)
-  assert.doesNotMatch(privateOnly.message, /private:fictional-b/)
+  assert.match(privateOnly.message, /仅私聊的记录/)
 
   const otherGroup = await tool.execute({ query: '其他群的记录', days: 0, chat: 'group:fictional-b' })
   assert.equal(otherGroup.ok, true)
-  assert.match(otherGroup.message, /没找到/)
+  assert.match(otherGroup.message, /其他群的记录/)
+  const friend = searchTool(builder, { kind: 'private', userId: 'fictional-b', chatId: 'private:fictional-b' }, 'social')
+  for (const reader of [tool, friend]) {
+    const all = await reader.execute({ query: '共同暗号', days: 0 })
+    assert.match(all.message, /找到 4 条/)
+    assert.doesNotMatch(all.message, /主人私聊的原话/)
+    const owner = await reader.execute({ query: '共同暗号', days: 0, chat: 'private:fictional-owner' })
+    assert.match(owner.message, /没找到/)
+  }
 })
 
 test('自动配表情：不随机的表情既不参与关键词匹配，也不参与随机兜底', (t) => {

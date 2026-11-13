@@ -20,6 +20,7 @@ import { createSelf } from './self/index.js'
 import { createRelations } from './relations/index.js'
 import { makePlace, shortId } from './place.js'
 import { createConversation } from './conversation.js'
+import { publicPersonaStyle } from './self/public-style.js'
 
 export { PARAMS, GROUPS } from './params.js'
 export { placeOf, shortId } from './place.js'
@@ -30,6 +31,7 @@ const noopLog = { debug() {}, info() {}, warn() {}, error() {} }
  * @param {{
  *   dir: string,                         // 数据目录，数据库放在 dir/mind.sqlite
  *   ownerId?: string,                    // 主人的稳定 id，例如 'qq:12345'（平台:账号）
+ *   publicName?: string,                 // 接入方明确可公开的角色名称
  *   place?: (window: string) => { kind: 'private'|'group'|'other', id?: string, platform?: string }, // 窗口是私聊还是群；不给就按「平台:private|group:id」认
  *   now?: () => number,                  // 取时间，默认系统时间
  *   log?: { debug: Function, info: Function, warn: Function, error: Function },
@@ -57,6 +59,13 @@ export function createMind(opts) {
     return (k && sameMap()[k]) || k
   }
   let ownerId = canon(opts.ownerId || '')
+  const privateOwners = new Set(store.get('identity.privateOwners', []))
+  function keepOwnerPrivate(id) {
+    if (!id || privateOwners.has(id)) return
+    privateOwners.add(id)
+    store.set('identity.privateOwners', [...privateOwners])
+  }
+  keepOwnerPrivate(ownerId)
 
   // ---------- 设置 ----------
   function savedSettings() {
@@ -74,6 +83,7 @@ export function createMind(opts) {
    */
   function updateSettings(patch, by = 'owner') {
     const saved = savedSettings()
+    const excerpts = setting('memory.ownerEverydayExcerpts')
     const changed = []
     for (const [key, value] of Object.entries(patch || {})) {
       const p = paramOf(key)
@@ -85,12 +95,15 @@ export function createMind(opts) {
       if (key === 'identity.age') store.set('identity.ageSetAt', now())
     }
     store.set('settings', saved)
+    if (setting('memory.ownerEverydayExcerpts') !== excerpts) memory.touchAudience()
     return changed
   }
   function resetSetting(key) {
     const saved = savedSettings()
+    const previous = setting(key)
     delete saved[key]
     store.set('settings', saved)
+    if (key === 'memory.ownerEverydayExcerpts' && setting(key) !== previous) memory.touchAudience()
   }
 
   const tz = () => setting('identity.timezone')
@@ -115,7 +128,11 @@ export function createMind(opts) {
     }
   }
   function setOwner(id) {
-    ownerId = canon(id)
+    const next = canon(id)
+    if (next === ownerId) return
+    ownerId = next
+    keepOwnerPrivate(ownerId)
+    memory.touchAudience()
   }
   function isOwner(personId) {
     return Boolean(ownerId) && canon(personId) === canon(ownerId)
@@ -130,11 +147,14 @@ export function createMind(opts) {
   function personaCard() {
     return store.get('self.persona', '')
   }
-  function publicPersona() {
+  function lastOwnerPersona() {
     const saved = store.get('self.publicPersona', null)
     if (saved) return saved
     const last = store.prep("SELECT json FROM versions WHERE kind = 'persona' AND by IN ('owner', 'migration') AND coalesce(json_extract(json, '$.published'), 1) = 1 ORDER BY id DESC LIMIT 1").get()
     return last ? JSON.parse(last.json) : { card: '', name: '', nickname: '' }
+  }
+  function publicPersona() {
+    return { card: publicPersonaStyle(lastOwnerPersona().card), name: String(opts.publicName || '').trim() }
   }
   /**
    * 写人格卡。by：'owner' 主人在面板里改；'self' 她自己改；'migration' 迁移。
@@ -147,11 +167,21 @@ export function createMind(opts) {
       if (name !== undefined) self.name = String(name || '').trim()
       if (nickname !== undefined) self.nickname = String(nickname || '').trim()
       const version = { card, name: self.name, nickname: self.nickname }
-      store.set('self.publicPersona', publish ? version : publicPersona())
+      store.set('self.publicPersona', publish ? version : lastOwnerPersona())
       store.set('self', self)
       store.set('self.persona', card)
       return addVersion('persona', { ...version, published: publish }, { by, reason })
     })
+  }
+  function isOwnerWindow(window) {
+    const audience = place(window)
+    return audience.kind === 'private' && isOwner(audience.platform ? `${audience.platform}:${audience.id}` : audience.id)
+  }
+  function isPrivateHistoryWindow(window) {
+    const source = place(window)
+    if (source.kind !== 'private') return false
+    const id = source.platform ? `${source.platform}:${source.id}` : source.id
+    return isOwner(id) || privateOwners.has(id) || privateOwners.has(canon(id))
   }
 
   // ---------- 版本 ----------
@@ -260,7 +290,7 @@ export function createMind(opts) {
       const q = JSON.stringify(from)
       store.prep('UPDATE episodes SET json = replace(json, ?, ?) WHERE instr(json, ?) > 0').run(q, JSON.stringify(main), q)
     })
-    if (isOwner(main)) ownerId = main
+    if (isOwner(main)) { ownerId = main; memory.touchAudience() }
     log.info(`${other} 和 ${main} 连成了同一个人`)
     return { ok: true, main }
   }
@@ -282,6 +312,7 @@ export function createMind(opts) {
     if (who) notePerson(who, { name: m.name })
     const r = store.prep('INSERT OR IGNORE INTO perception (at, window, who, dir, text, msg_id, json) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .run(at, String(m.window), who, 'in', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ name: m.name || '', seen: m.seen || 'pending' }))
+    if (r.changes && isOwner(who)) memory.notePrivacyContext(String(m.window), m.text)
     return r.changes > 0
   }
   /**
@@ -290,8 +321,9 @@ export function createMind(opts) {
    */
   function said(m) {
     const at = Number(m.at) || now()
+    const audienceShares = memory.sharesIn(String(m.window)).map((e) => e.id)
     const r = store.prep('INSERT OR IGNORE INTO perception (at, window, who, dir, text, msg_id, json) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(at, String(m.window), 'self', 'out', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ kind: m.kind || 'reply' }))
+      .run(at, String(m.window), 'self', 'out', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ kind: m.kind || 'reply', ...(audienceShares.length ? { audienceShares } : {}) }))
     // 她刚想起来的事说出口了：记下跟这里的人说过（在场 = 最近两小时在这里说过话的人）
     if (r.changes > 0) {
       try { memory.noteSaid({ window: String(m.window), text: String(m.text || ''), audience: audienceOf(String(m.window), at) }) } catch (error) { log.debug('记「说过」出错：', error.message) }
@@ -306,9 +338,14 @@ export function createMind(opts) {
     return q.all(window, at - 30 * 86400000).map((r) => r.who).slice(0, 1)
   }
   /** 「翻聊天记录」：按窗口和时间取原话。 */
-  function history(window, { since = 0, until = Infinity, limit = 200 } = {}) {
-    return store.prep('SELECT at, who, dir, text FROM perception WHERE window = ? AND at >= ? AND at <= ? ORDER BY at DESC, id DESC LIMIT ?')
+  function history(window, { since = 0, until = Infinity, limit = 200, audienceWindow } = {}) {
+    if (audienceWindow !== undefined && window !== audienceWindow && isPrivateHistoryWindow(window)) return []
+    const rows = store.prep('SELECT at, who, dir, text, json FROM perception WHERE window = ? AND at >= ? AND at <= ? ORDER BY at DESC, id DESC LIMIT ?')
       .all(String(window), since, Number.isFinite(until) ? until : 8.64e15, limit).reverse()
+    return rows.flatMap(({ json, ...line }) => {
+      const shares = audienceWindow === undefined ? [] : JSON.parse(json || '{}').audienceShares || []
+      return shares.every((id) => memory.visibleIn(memory.row(id), audienceWindow)) ? [line] : []
+    })
   }
 
   // ---------- 批量导入（迁移旧数据、从别的系统搬家） ----------
@@ -414,6 +451,7 @@ export function createMind(opts) {
     const pending = [...last].filter(([key, row]) => row.deleted && !recorded.has(key)).map(([, row]) => row)
     memory.applyDeletions(pending.filter((row) => row.kind === 'episode'))
     for (const row of last.values()) if (row.kind === 'private') memory.setPrivateOnly(row.id, row.deleted, { record: false })
+    for (const row of last.values()) if (row.kind === 'share-revoked') memory.revokeShare(row.id, { record: false })
     for (const row of pending.filter((item) => item.kind === 'person')) {
       const windows = [...new Set(historyOfPerson(row.id).filter((window) => place(window).kind === 'private'))]
       forgetPerson(row.id, { windows })
@@ -619,6 +657,7 @@ export function createMind(opts) {
     person: (id) => person(id),
     recordDeletion: (id, kind) => recordDeletion(id, kind),
     recordPrivacy: (id, enabled) => writeDeletion(id, 'private', enabled),
+    recordShareRevoked: (id) => writeDeletion(id, 'share-revoked', true),
     onDeleted: (episode) => {
       personality.forgetEvidence(episode)
       self.invalidateStory(episode.id)
@@ -628,6 +667,7 @@ export function createMind(opts) {
     },
     // 惦记别人的事问不问、问几次：她有多心疼人（同情心）和她跟这个人多亲近
     place,
+    isPrivateHistoryWindow,
     isOwner: (id) => isOwner(id),
     nameOf: (pid) => person(pid)?.name || shortId(pid),
     // 认识满一年、两年……：只算主人和挺熟的人
@@ -689,7 +729,7 @@ export function createMind(opts) {
   })
   if (opts.model) inner.connect({ ask: ({ scene, system, text, maxTokens }) => memory.ask(scene, system, text, maxTokens) })
   const conversation = createConversation({
-    memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, personaCard, goals: self.goals, canon,
+    memory, emotion, body, relations, feeling, setting, isOwner, isOwnerWindow, history, perceive, person, selfPrompt, personaCard, publicPersona, goals: self.goals, canon,
     now, random: opts.random || Math.random, speak: opts.model, log,
   })
   applyDeletionLog()
@@ -725,7 +765,7 @@ export function createMind(opts) {
     // 设置
     settings, setting, updateSettings, resetSetting, savedSettings,
     // 身份
-    identity, setOwner, isOwner, wakeWords,
+    identity, setOwner, isOwner, isPrivateHistoryWindow, wakeWords,
     // 同一个人在不同平台的 id；窗口是私聊还是群
     canon, linkPerson, idsOf, place,
     // 人格卡与版本

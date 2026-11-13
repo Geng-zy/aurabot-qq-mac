@@ -10,7 +10,7 @@ import { similar as textSimilar } from '../personality/index.js'
 const DAY = 86400000
 const clamp01 = (x) => Math.min(1, Math.max(0, Number(x) || 0))
 // 梦和整理出来的「知道的事」不能当新经历的依据（梦不当真；也不从结论里再推结论）
-const NOT_EVIDENCE = new Set(['public-note', 'dream', 'semantic', 'day-summary', 'week-summary', 'month-summary'])
+const NOT_EVIDENCE = new Set(['public-note', 'shared-note', 'dream', 'semantic', 'day-summary', 'week-summary', 'month-summary'])
 // 会过时的「知道的事」：情况变了（搬家、换工作、分手、口味变了）要更新
 const KNOWLEDGE = new Set(['semantic', 'fact', 'hearsay', 'belief', 'noted'])
 
@@ -62,7 +62,7 @@ export function createSleep(mem, deps) {
 
   /** 回放：近期经历 + 相关旧经历 → 提炼知道的事、建因果联系。 */
   async function replay(since) {
-    const recent = store.prep("SELECT * FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') NOT IN ('semantic', 'dream', 'public-note')").all(since)
+    const recent = store.prep("SELECT * FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') NOT IN ('semantic', 'dream', 'public-note', 'shared-note')").all(since)
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
       .sort((a, b) => (b.data.importance + (b.data.emotion?.intensity || 0)) - (a.data.importance + (a.data.emotion?.intensity || 0)))
       .slice(0, 60)
@@ -165,7 +165,7 @@ export function createSleep(mem, deps) {
     let n = 0
     for (const job of mem.takeJobs('reconsolidate', limit)) {
       const e = mem.row(job.ref)
-      if (!e || e.data.kind === 'public-note' || level <= 0) { mem.doneJob(job.id); continue }
+      if (!e || ['public-note', 'shared-note'].includes(e.data.kind) || level <= 0) { mem.doneJob(job.id); continue }
       // 干扰：程度够高时，偶尔带上一件很像的事
       let similar = null
       if (level >= 0.2 && random() < level) {
@@ -261,6 +261,8 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
         .slice(0, 80).sort((a, b) => a.at - b.at)
     }
     if (rows.length < 2) { store.set(`review.${R.kind}.${key}`, { at: now(), empty: true }); return null }
+    // 提示词和可见性检查使用同一批来源。
+    rows = rows.slice(-100)
     const text = rows.map((r) => `- ${dayKey(r.at, deps.tz())} ${r.gist}`).join('\n')
     const out = parseJson(await mem.ask('review', REVIEW_SYSTEM(R.what), text, 900))
     const summary = String(out?.summary || '').trim()
@@ -268,7 +270,7 @@ ${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。�
     const imp = Math.min(1, 0.6 + 0.1 * Math.log2(rows.length))
     return store.tx(() => {
       if (reviewed(R.kind, key) || !rows.every(sourceUnchanged)) return null
-      return mem.insert({ at: range.end - 1, window: '', gist: summary.slice(0, 600), kind: R.kind, importance: imp, speaker: 'self', attention: 1, extra: { day: key, period: { start: range.start, end: range.end }, from: rows.map((r) => r.id).slice(0, 100) } })
+      return mem.insert({ at: range.end - 1, window: '', gist: summary.slice(0, 600), kind: R.kind, importance: imp, speaker: 'self', attention: 1, extra: { day: key, period: { start: range.start, end: range.end }, from: rows.map((r) => r.id) } })
     })
   }
   /** 睡觉时：没写过回顾的前几天、上一周、上个月补上（今天还没过完，不写）。 */

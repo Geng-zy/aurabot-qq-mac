@@ -159,14 +159,22 @@ test('市场模块只记名字，会话带上并放回工作区目录，已有�
   delete process.env.DSH_HOME
 })
 
-test('心智核心：备份带一份完整的库（WAL 已并入），快照不带；恢复时旧库连同 WAL 一起挪开', async () => {
+test('心智核心：其他连接持有读快照时，备份仍包含最新提交；恢复时旧库连同 WAL 一起挪开', async () => {
   const { createMind } = await import('../src/mind/index.js')
+  const { DatabaseSync } = await import('node:sqlite')
   const mindDir = join(root, 'mind')
   let m = createMind({ dir: mindDir })
   m.perceive({ window: 'w', who: 'qq:2', text: '备份前的话', msgId: 'a' })
   m.snapshot({ keep: 3, trashDir: join(root, 'trash-test') })
   assert.ok(existsSync(join(mindDir, 'mind.sqlite-wal')), '开着时有 WAL')
-  const b = await api.createBackup({ captureMind: () => new Map([['mind/mind.sqlite', m.backupBytes()]]) })
+  const reader = new DatabaseSync(join(mindDir, 'mind.sqlite'), { readOnly: true })
+  let b
+  try {
+    reader.exec('BEGIN')
+    assert.equal(reader.prepare('SELECT count(*) AS count FROM perception').get().count, 1)
+    m.perceive({ window: 'w', who: 'qq:2', text: '仍在 WAL 的话', msgId: 'a2' })
+    b = await api.createBackup({ captureMind: () => new Map([['mind/mind.sqlite', m.backupBytes()]]) })
+  } finally { reader.close() }
   const r = await api.stageRestore(b.file)
   assert.equal(r.ok, true)
   const staged = readdirSync(join(root, '.restore', 'mind'))
@@ -177,7 +185,7 @@ test('心智核心：备份带一份完整的库（WAL 已并入），快照不�
   api.applyPendingRestore(789)
   m = createMind({ dir: mindDir })
   try {
-    assert.deepEqual(m.history('w').map((x) => x.text), ['备份前的话'])
+    assert.deepEqual(m.history('w').map((x) => x.text), ['备份前的话', '仍在 WAL 的话'])
     assert.equal(m.status().integrity, null)
     assert.ok(existsSync(join(root, 'backups', 'pre-restore-789', 'mind', 'mind.sqlite')), '恢复前的库留底')
   } finally {

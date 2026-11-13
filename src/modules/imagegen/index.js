@@ -158,7 +158,7 @@ export default {
           task?.checkpoint('生成图片')
           let buf
           try {
-            buf = await gen.generate(drawPrompt, { shape, image: reference, size, extra })
+            buf = await gen.generate(drawPrompt, { shape, image: reference, size, extra, signal: task?.signal })
           } catch (error) {
             // 生图服务不收参考图：形象图不用了，只靠形象描述再画一次（她自己要的参考图出错就照常报错）
             if (!(usedLooks && !image && /参考图|reference|edit/i.test(String(error.message)))) throw error
@@ -166,7 +166,7 @@ export default {
             reference = null
             usedLooks = false
             task?.checkpoint('生成图片')
-            buf = await gen.generate(drawPrompt, { shape, size })
+            buf = await gen.generate(drawPrompt, { shape, size, signal: task?.signal })
           }
           task?.checkpoint('准备发送')
           if (closed) return { ok: false, message: '生图模块已关闭' }

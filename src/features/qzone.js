@@ -41,7 +41,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
     let audience
     try { audience = resolveAudience(cfg, visibility) } catch (error) { return { ok: false, message: error.message } }
     const sharesPrivateText = () => audience.visibility !== 'self' && hub?.containsProtectedText?.('system:qzone', text)
-    if (sharesPrivateText()) return { ok: false, message: '说说包含私密内容，已拦下' }
+    if (sharesPrivateText() || (audience.visibility !== 'self' && await hub?.checkOutgoingPrivacy?.('system:qzone', text))) return { ok: false, message: '说说包含私密内容，已拦下' }
     if (!cfg.enabled) return { ok: false, message: '总开关关着' }
     if (cfg.dryRun) {
       log.info(`试运行：本来要发说说（${audience.label}）：${text.slice(0, 60)}`)

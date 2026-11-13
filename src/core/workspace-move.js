@@ -23,7 +23,16 @@ function tally(dir) {
 }
 
 const isLink = (p) => { try { return lstatSync(p).isSymbolicLink() } catch (error) { return false } }
-const inside = (parent, child) => { const r = relative(parent, child); return r === '' || (!r.startsWith('..') && !isAbsolute(r)) }
+const inside = (parent, child) => { const r = relative(parent, child); return r === '' || (r !== '..' && !r.startsWith('../') && !isAbsolute(r)) }
+
+// realpath 只能解析存在的路径。先解析最近的父目录，再接上尚未创建的路径。
+function realTarget(path) {
+  try { return realpathSync(path) } catch (error) {
+    const parent = dirname(path)
+    if (error.code !== 'ENOENT' || parent === path) throw error
+    return join(realTarget(parent), relative(parent, path))
+  }
+}
 
 /** 现在文件实际在哪（搬过就是新位置）。 */
 export function realWorkspace(dir) {
@@ -32,8 +41,10 @@ export function realWorkspace(dir) {
 
 /** 把工作区搬到 to，原路径 from 留联接。失败时一切恢复原样。 */
 export function moveWorkspace(from, to) {
-  const target = resolve(String(to || '').trim())
   if (!String(to || '').trim() || !isAbsolute(String(to).trim())) return { ok: false, message: `要填完整路径，比如 ${join(homedir(), 'Aurabot', 'qq-chats')}` }
+  let target
+  try { target = realTarget(resolve(String(to).trim())) }
+  catch (error) { return { ok: false, message: '无法读取新位置：' + error.message } }
   mkdirSync(from, { recursive: true })
   const real = realpathSync(from)
   if (inside(real, target) || inside(target, real)) return { ok: false, message: '新位置不能和现在的位置重叠' }

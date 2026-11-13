@@ -17,7 +17,7 @@ import { homedir } from 'node:os'
 import { loadConfig, saveConfig, publicConfig, mergeFromPanel, ownerAuthorizationRevision } from './core/config.js'
 import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
-import { createChannels, LEGACY_PLATFORM, parseChat, parsePerson, shortRef } from './channels/index.js'
+import { createChannels, LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createQqChannel } from './channels/qq/index.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
@@ -208,7 +208,7 @@ export function apply(ctx) {
   let dangerGuard = null // 危险命令确认（security.dangerConfirm 开着才生效）
   let approvalRelay = null // DSH 要授权时在 QQ 私聊问主人（approvalViaQQ 开着才生效）
   const channels = createChannels()
-  const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot') }))
+  const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
   // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
@@ -647,7 +647,10 @@ export function apply(ctx) {
     busy: (chatId) => Boolean(hub?.turnRunning?.(chatId)),
     pushNote: (note, chatId) => hub.pushToSession(chatOfId(chatId), [{ type: 'text', text: note }], '', { internal: true }),
     ask: ({ system, text }) => askModel(ctx, { system, text, maxTokens: 400, reasoningEffort: 'low', temperature: 0.8, cfg: getConfig(), module: 'notice' }),
-    persona: () => (mind && (() => { try { return mind.selfPrompt() } catch (error) { return '' } })()) || currentPersonaText(getConfig().persona.current),
+    persona: (chatId) => {
+      const owner = sameChat(chatId, ownerChatId())
+      return mind?.selfPrompt({ publicOnly: !owner }) || (owner ? currentPersonaText(getConfig().persona.current) : '你是大肥鱼。')
+    },
     context: (chatId) => { try { return mind?.contextFor?.({ chat: chatOfId(chatId) }) || '' } catch (error) { return '' } },
     send: (chatId, text) => hub.sendText(chatId, text),
     log,
@@ -1396,6 +1399,24 @@ export function apply(ctx) {
     if (ok) mind.invalidateMemory()
     return { ok, message: ok ? (b.enabled ? '仅在与你的私聊中使用' : '已取消手动限制') : '没有这条记忆' }
   })
+  route('/mind/memory/share', async (req) => {
+    if (!mind) return mindOff
+    if (req.method !== 'POST') return { ok: false, message: '请在记忆面板操作' }
+    const b = await readBody(req)
+    const target = parseChat(b.audience)
+    if (!target || (target.platform === LEGACY_PLATFORM && !/^\d+$/.test(target.id))) return { ok: false, message: '群号或账号格式不正确' }
+    const id = mind.mind.memory.shareEpisode(String(b.id || ''), { text: b.text, audience: normChat(b.audience) })
+    mind.invalidateMemory()
+    return { ok: true, id, message: '已保存。这段内容可以在指定会话里提起。' }
+  })
+  route('/mind/memory/share/revoke', async (req) => {
+    if (!mind) return mindOff
+    if (req.method !== 'POST') return { ok: false, message: '请在记忆面板操作' }
+    const b = await readBody(req)
+    const ok = mind.mind.memory.revokeShare(String(b.id || ''))
+    if (ok) mind.invalidateMemory()
+    return { ok, message: ok ? '已撤回分享' : '没有这个分享' }
+  })
   // 「获取可用模型」：面板填好地址和 Key 后问服务有哪些模型。Key 留空 = 用已经保存的那个（面板不回显已保存的 Key）
   const SAVED_KEYS = { imageGen: () => cfg.imageGen?.apiKey, asr: () => cfg.voice?.asrApi?.apiKey, mind: () => cfg.mind?.embedKey }
   route('/provider-models', async (req) => {
@@ -2089,6 +2110,11 @@ export function apply(ctx) {
     const p = join(ROOT, 'assets', 'dafeiyu.jpg')
     if (!existsSync(p)) return send(res, 404, '')
     send(res, 200, readFileSync(p), 'image/jpeg')
+  })
+  route('/panel/sea', (req, res) => {
+    const file = join(ROOT, 'assets', 'panel-sea.jpg')
+    if (!existsSync(file)) return send(res, 404, '')
+    send(res, 200, readFileSync(file), 'image/jpeg')
   })
   route('/avatar/upload', async (req) => {
     const b = await readBody(req)

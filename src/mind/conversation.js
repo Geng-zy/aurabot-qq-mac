@@ -103,7 +103,7 @@ export function speechScene(text, appraisal) {
   return 'casual'
 }
 
-export function createConversation({ memory, emotion, body, relations, feeling, setting, isOwner, history, perceive, person, selfPrompt, personaCard, goals, canon, now, random, speak, log }) {
+export function createConversation({ memory, emotion, body, relations, feeling, setting, isOwner, isOwnerWindow, history, perceive, person, selfPrompt, personaCard, publicPersona, goals, canon, now, random, speak, log }) {
   const assessing = new Set()
   const preparing = new Map()
   const responding = new Map()
@@ -130,7 +130,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     assessing.add(window)
     try {
       const earlier = state.emotions.filter((e) => e.window === window && e.eventId && people.includes(e.target)).slice(0, 3)
-      const recent = history(window, { limit: 12 })
+      const recent = history(window, { limit: 12, audienceWindow: window })
       const input = {
         event,
         recent: recentLines(recent.slice(-4)),
@@ -175,7 +175,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     let appraisal = null
     let timer
     try {
-      const context = contextCue(event, (options) => history(window, options), speakers, now(), (id) => person(id)?.noMemory)
+      const context = contextCue(event, (options) => history(window, { ...options, audienceWindow: window }), speakers, now(), (id) => person(id)?.noMemory)
       const recall = memory.workingMemory({ cue: event, contextCue: context, window, people: speakers, readOnly, isCurrent: current, limit, compact: compactRecall, embeddingTimeoutMs: Math.min(1800, Math.max(1, timeoutMs * 0.6)) })
         .then((value) => { if (current()) working = value })
         .catch((error) => log.debug('回复前回忆未完成：', error.message))
@@ -196,7 +196,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     if (closed || signal?.aborted || !window || !speaker || !String(text || '').trim()) return { status: 'skipped' }
     const who = canon(speaker)
     const remember = !person(who)?.noMemory
-    const recent = recentLines(history(window, { limit: 6 }))
+    const recent = recentLines(history(window, { limit: 6, audienceWindow: window }))
     if (remember && !perceive({ window, who, text, name, msgId })) return { status: 'duplicate' }
     const ticket = { speaker: who }
     responding.set(window, ticket)
@@ -210,9 +210,10 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       if (!turn.plan.speak) return { status: 'quiet', plan: turn.plan }
       if (!speak) return { status: 'unavailable', plan: turn.plan }
       const current = feeling()
+      const publicOnly = !isOwnerWindow(window) || !isOwner(who)
       const feelings = emotion.describe({ window, body: current.body, people: [who], name: (id) => person(id)?.name || '对方' })
       const system = [
-        selfPrompt(), feelings, describeSpeechPlan(turn.plan),
+        selfPrompt({ publicOnly }), feelings, describeSpeechPlan(turn.plan),
         '你是收消息的一方。接着「对方刚说」往下聊。站在自己的角度回复，不要复述对方的消息。',
         '对方还没确定的事可以先问一句或表示理解。不要凭空补充双方的行程或宣布结果。只输出 JSON：{"text":"你要回复的话"}。',
       ].filter(Boolean).join('\n')
@@ -250,7 +251,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       if (direct && response === null && isCurrent()) {
         const currentInput = `【对方刚说】\n${String(text).slice(-1800)}`
         const instructions = '接着对方的话简短回复。不要声称执行了任何操作。只输出 JSON：{"text":"正文"}。'
-        const minimal = String(personaCard()).slice(0, 4500) + '\n' + instructions
+        const minimal = (publicOnly ? publicPersona().card : personaCard()).slice(0, 4500) + '\n' + instructions
         response = await request(minimal + '\n' + feelings.slice(0, 400) + '\n' + describeSpeechPlan(turn.plan), currentInput, 400, 'low', Math.min(9000, wait))
         if (response === null && isCurrent()) response = await request(minimal, currentInput, 400, 'low', Math.min(9000, wait))
       }
