@@ -14,6 +14,7 @@ import { dataDir } from '../../core/store.js'
 import { mimeOf } from '../../core/image-info.js'
 import { isOwner } from '../../chat/access.js'
 import { PRIVATE_DRAW_LABEL } from '../../channels/qq/inbound.js'
+import { createLocalImage } from '../../features/local-image.js'
 
 export default {
   id: 'imagegen',
@@ -21,19 +22,20 @@ export default {
   version: '1.0.0',
   description: '画一张图发到聊天里（qq_draw_image）',
   tab: 'imagegen',
-  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js'],
+  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js', 'features/local-image.js'],
   setup(api) {
     const { hub, local } = api.core
-    const gen = createImageGen({ getConfig: api.config, log: api.log, local })
+    const localImage = createLocalImage({ log: api.log, mirror: () => api.config().song?.pypiMirror || 'auto' })
+    const gen = createImageGen({ getConfig: api.config, log: api.log, local, localImage })
     const auth = gen.codexAuth
     const lifetime = new AbortController()
-    api.onDispose?.(() => { lifetime.abort(); gen.dispose() })
+    api.onDispose?.(() => { lifetime.abort(); localImage.dispose(); gen.dispose() })
     const closed = () => lifetime.signal.aborted
 
     function queuePrivateDraw({ prompt, chatId, userId, authorized, reply }) {
       const enabled = () => {
         const cfg = api.config()
-        return !closed() && authorized() && cfg.enabled && !cfg.dryRun && !cfg.debug && local.active('image')
+        return !closed() && authorized() && cfg.enabled && !cfg.dryRun && !cfg.debug && gen.localReady()
       }
       return api.core.tasks.start({
         kind: '生图', chatId, requesters: [userId],
@@ -46,7 +48,7 @@ export default {
           try {
             buf = await gen.generatePrivate(prompt, { signal })
           } catch {
-            if (isCurrent()) await reply('本地生图未完成。请检查本地模型服务和生图脚本。')
+            if (isCurrent()) await reply('本地生图未完成。请在生图设置中检查环境或脚本。')
             return { ok: false }
           }
           if (!isCurrent()) return { ok: false }
@@ -74,6 +76,28 @@ export default {
     }))
     api.route('/image/codex/cancel', accountAction(async () => ({ ok: true, ...auth.cancelLogin('已取消') })))
     api.route('/image/codex/logout', accountAction(async () => ({ ok: true, ...auth.logout() })))
+
+    const localAction = (fn) => async (req) => {
+      if (req?.method !== 'POST' || !/^application\/json(?:\s*;|$)/i.test(String(req.headers?.['content-type'] || ''))) return { ok: false, message: '请从生图面板发起操作。' }
+      return fn()
+    }
+    const panelOnly = { access: 'panel' }
+    api.route('/image/local/status', async () => localImage.status(), panelOnly)
+    api.route('/image/local/install', localAction(async () => {
+      const status = localImage.status()
+      if (!status.supported || status.running || status.pending) return localImage.install()
+      void localImage.install()
+      return { ok: true, ...localImage.status() }
+    }), panelOnly)
+    api.route('/image/local/test', localAction(async () => {
+      try {
+        const buf = await localImage.generate('一条蓝色小鱼在水草间游动，柔和光线，水彩插画', { size: '512x512', steps: 8 })
+        return { ok: true, image: buf.toString('base64'), message: '本地试画成功。' }
+      } catch (error) { return { ok: false, message: error.message } }
+    }), panelOnly)
+    api.rule?.(() => api.config().imageGen.provider === 'local' && gen.enabled()
+      ? '你会画图，可以用 qq_draw_image 在当前聊天发图。是否能画由生图权限决定。'
+      : '')
 
     // ---------- 她的形象：主人导入的几张参考图，她画自己时照着画 ----------
     const looks = createAppearance({

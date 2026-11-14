@@ -99,11 +99,12 @@ export function createEmotion(deps) {
         window, importance, hidden: reg === 'suppress', distract: reg === 'distract' ? at + HOUR : 0, source, ...(eventId ? { eventId } : {}),
       }
       // 同一会话和事件里的同类情绪取更强的一份，保留不同事件各自的依据。
-      const same = s.active.find((x) => x.name === e.name && x.target === e.target && x.window === window && (x.eventId || '') === eventId)
+      const same = s.active.find((x) => x.name === e.name && x.target === e.target && x.window === window && (x.eventId || '') === eventId
+        && (x.source === 'attachment') === (source === 'attachment'))
       if (same && strength(same, at) >= e.i0) { same.why = e.why || same.why; continue }
       if (same) s.active.splice(s.active.indexOf(same), 1)
       s.active.push(e)
-      s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg, ...(eventId ? { source, eventId } : {}) })
+      s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg, ...(source ? { source } : {}), ...(eventId ? { eventId } : {}) })
       out.push(e)
     }
     s.active = s.active.filter((x) => strength(x, at) >= 0.05).slice(-Number(E('maxActive') || 12))
@@ -148,7 +149,7 @@ export function createEmotion(deps) {
     const s = load()
     const at = now()
     const mood = updateMood(s, at, body)
-    const active = s.active.map((e) => ({ name: e.name, intensity: strength(e, at), target: e.target, why: e.why, hidden: e.hidden, window: e.window, source: e.source, eventId: e.eventId, at: e.at, def: emotionOf(e.name) }))
+    const active = s.active.map((e) => ({ name: e.name, intensity: strength(e, at), target: e.target, why: e.why, hidden: e.hidden, window: e.window, source: e.source, eventId: e.eventId, at: e.startedAt ?? e.at, def: emotionOf(e.name) }))
       .filter((e) => e.intensity >= 0.05)
       .sort((a, b) => b.intensity - a.intensity)
     return { mood: { ...mood, label: moodLabel(mood.v, mood.a) }, active }
@@ -162,6 +163,7 @@ export function createEmotion(deps) {
     updateMood(s, at, deps.body?.())
     for (const e of s.active) {
       const i = strength(e, at) * (1 - k)
+      e.startedAt ??= e.at
       e.i0 = i
       e.at = at
     }
@@ -231,6 +233,16 @@ export function createEmotion(deps) {
     save({ ...s, active, history })
   }
 
+  /** 触发条件已经消失，结束仍在起作用的情绪，留下发生过的记录。 */
+  function resolveSource(source, target, contactAt) {
+    const s = load()
+    const active = s.active.filter((e) => e.source !== source || e.target !== target || (e.startedAt ?? e.at) > contactAt)
+    if (active.length === s.active.length) return false
+    updateMood(s, now(), deps.body?.())
+    save({ ...s, active })
+    return true
+  }
+
   function forgetAppraisals(person, windows) {
     const s = load()
     const keep = (e) => !['appraisal', 'observation'].includes(e.source) || (e.target !== person && !windows.includes(e.window))
@@ -241,5 +253,5 @@ export function createEmotion(deps) {
     save({ ...s, active, history })
   }
 
-  return { feel, rekindle, state, effects, describe, afterSleep, history, forgetAppraisals, forgetEvent, hasEvent, strength, EMOTIONS }
+  return { feel, rekindle, state, effects, describe, afterSleep, history, forgetAppraisals, forgetEvent, resolveSource, hasEvent, strength, EMOTIONS }
 }

@@ -143,3 +143,32 @@ test('enabled()：自定义模式看地址有没有填', () => {
   const off = createImageGen({ getConfig: () => ({ imageGen: { enabled: false, provider: 'custom', custom: { url: 'https://x.test/{prompt}' } } }), log, local: null })
   assert.equal(off.enabled(), false)
 })
+
+test('内置本地生图优先使用显式选择，失败时也不向云端发送描述', async () => {
+  const c = baseGen({}, { provider: 'local', localSteps: 12, stylePrompt: '水彩', fallbackEnabled: true, fallbacks: [{ provider: 'openai', baseUrl: 'https://example.com/v1', model: 'image' }] })
+  let ready = true
+  const calls = []
+  const gen = createImageGen({
+    getConfig: () => ({ imageGen: c }), log,
+    local: { active: () => true, call: () => assert.fail('不应走旧脚本') },
+    fetchImpl: () => assert.fail('不应走云端'),
+    localImage: {
+      status: () => ({ ready }),
+      generate: async (prompt, options) => { calls.push({ prompt, options }); if (!ready) throw new Error('缺权重'); return PNG },
+    },
+  })
+  assert.equal(gen.enabled(), true)
+  assert.deepEqual(await gen.generate('鲸鱼', { size: '512x512', image: PNG }), PNG)
+  assert.equal(calls[0].prompt, '水彩，鲸鱼')
+  assert.equal(calls[0].options.steps, 12)
+  assert.equal(calls[0].options.size, '512x512')
+  assert.equal(calls[0].options.image, PNG)
+  assert.deepEqual(await gen.generatePrivate('只用于私聊'), PNG)
+  assert.equal(calls[1].prompt, '只用于私聊')
+  ready = false
+  assert.equal(gen.enabled(), false)
+  assert.equal(gen.localReady(), false)
+  await assert.rejects(gen.generate('鲸鱼'), /缺权重/)
+  await assert.rejects(gen.generatePrivate('只用于私聊'), /尚未就绪/)
+  gen.dispose()
+})

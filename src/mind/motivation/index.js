@@ -117,13 +117,15 @@ export function createMotivation(deps) {
   }
 
   /** 她长出一个具体的想要（从念头、经历里来，或者她自己写下）。很像的旧想要会加强而不是重复。 */
-  function want(text, { need = '', strength = 0.5, action = '' } = {}) {
+  function want(text, { need = '', strength = 0.5, action = '', internal = false } = {}) {
     const t = String(text || '').trim().slice(0, 80)
     if (!t) return null
     const s = advance(load())
-    const same = s.wants.find((w) => w.text === t || (w.text.length > 4 && (t.includes(w.text) || w.text.includes(t))))
+    const same = s.wants.find((w) => Boolean(w.internal) === internal
+      && (w.text === t || (w.text.length > 4 && (t.includes(w.text) || w.text.includes(t)))))
     if (same) { same.strength = clamp(same.strength + strength * 0.5); save(s); return same }
     const w = { id: 'w' + now().toString(36) + Math.floor(Math.random() * 1e4), text: t, need: NEED.has(need) ? need : '', action: String(action || ''), strength: clamp(strength), at: now(), status: 'open' }
+    if (internal) w.internal = true
     s.wants.unshift(w)
     s.wants = s.wants.slice(0, 50)
     save(s)
@@ -201,7 +203,8 @@ export function createMotivation(deps) {
     s0.learned[id] = L
     save(s0)
     let r
-    const wants = s0.wants.filter((w) => w.action === id || (a.keywords || []).some((k) => w.text.includes(k))).map((w) => w.text)
+    // 内心活动看得到私密会话。它的打算可以影响动力，原文只供心智和面板查看。
+    const wants = s0.wants.filter((w) => !w.internal && (w.action === id || (a.keywords || []).some((k) => w.text.includes(k)))).map((w) => w.text)
     try { r = (await a.run({ ...context, wants })) || { ok: false } } catch (error) { r = { ok: false, summary: error.message } }
     if (context.signal?.aborted) return { ok: false, summary: '这件事已停止' }
     const lr = Number(M('rewardLearning')) || 0

@@ -5,13 +5,14 @@ import { readFileSync } from 'node:fs'
 import { Script } from 'node:vm'
 import { GROUPS, PARAMS, defaults } from '../src/mind/params.js'
 
-function setupPanel() {
+function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
   const source = readFileSync(new URL('../client/client.js', import.meta.url), 'utf8')
   const marker = '    exports.apply = apply'
   assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
+  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
+    ...globals,
   })
   let hook = 0
   const slots = []
@@ -28,7 +29,7 @@ function setupPanel() {
       if (!(i in slots)) slots[i] = { current: initial }
       return slots[i]
     },
-    useEffect() {}, useCallback: (fn) => fn, useMemo: (fn) => fn(),
+    useEffect: onEffect, useCallback: (fn) => fn, useMemo: (fn) => fn(),
   }
   const panel = loader.factory(() => React).mindTest
   const render = (component, props) => { hook = 0; return component(props) }
@@ -175,8 +176,60 @@ test('内心：内心日记（标出深想和放空）、想要的、能做的�
   slots[1] = ''
   const tree = render(panel.MindInner, { toast() {} })
   const text = textOf(tree)
-  for (const s of ['好想他', '深想（涉及主人和你们的关系）：他只是在忙', '在重复，放空了', '想找主人说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'qqAvatar ✕', '没装：没设本地小模型', '42K']) assert.ok(text.includes(s), '缺：' + s)
+  for (const s of ['好想他', '深想（涉及主人和你们的关系）：他只是在忙', '在重复，放空了', '想找主人说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'qqAvatar ✕']) assert.ok(text.includes(s), '缺：' + s)
   assert.ok(findAll(tree, panel.Meter).some((m) => m.props.label === '陪伴和归属'))
+  const local = findAll(tree, panel.MindLocalModel)[0]
+  assert.ok(local, '内心页保留本地模型入口')
+  const missing = setupPanel()
+  missing.slots[0] = { ok: true, local: { configured: false, reason: '没设本地小模型' } }
+  const missingTree = missing.render(missing.panel.MindLocalModel, local.props)
+  assert.match(textOf(missingTree), /没设本地小模型/)
+  assert.match(textOf(missingTree), /42K token/)
+  assert.match(textOf(missingTree), /一键下载安装/)
+  missing.slots[0] = { ok: true, local: { configured: true, running: true, modelDir: '/local/model', python: '/local/python' } }
+  const ready = textOf(missing.render(missing.panel.MindLocalModel, local.props))
+  assert.match(ready, /已就绪/)
+  assert.match(ready, /\/local\/model/)
+  assert.match(ready, /\/local\/python/)
+  assert.match(ready, /检查与修复/)
+})
+
+test('本地模型检查显示最终结果，启动回执和临时查询失败不会卡住进度', async () => {
+  const effects = []
+  const timers = []
+  const local = { configured: true }
+  const results = [
+    { ok: true, message: '正在检查本地环境，只会下载安装缺少的部分。' },
+    new Error('短暂掉线'),
+    { running: false, ok: true, local, message: '现有模型和 Python 环境可以直接使用，无需下载。' },
+  ]
+  const { panel, slots, render } = setupPanel({
+    globals: {
+      fetch: async () => {
+        const next = results.shift()
+        if (next instanceof Error) throw next
+        return { json: async () => next }
+      },
+      setTimeout: (fn) => timers.push(fn), clearTimeout() {},
+    },
+    onEffect: (fn) => effects.push(fn),
+  })
+  slots[0] = { running: false, local }
+  const show = () => { effects.length = 0; return render(panel.MindLocalModel, { toast() {} }) }
+  const install = findAll(show(), panel.Btn).find((b) => textOf(b) === '检查与修复')
+  await install.props.onClick()
+  // 点击处理器异步提交，等请求落到 React 状态。
+  await new Promise(setImmediate)
+  const progress = findAll(show(), panel.Row).find((row) => row.props.label === '安装进度')
+  assert.match(textOf(progress), /正在检查本地环境…/)
+  effects[1]()
+  await timers.shift()()
+  assert.equal(slots[0].running, true)
+  await timers.shift()()
+  const done = textOf(show())
+  assert.match(done, /无需下载/)
+  assert.doesNotMatch(done, /正在检查/)
+  assert.equal(timers.length, 0)
 })
 
 test('关系页：每个人的关系类型、亲近 / 喜欢 / 信任，称呼和印象；展开看老梗、别碰、心结；对群的了解', () => {

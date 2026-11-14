@@ -57,7 +57,7 @@ export const MOVED = {
   pet: () => existsSync(dataDir('modules-data', 'pet', 'app')), // 装过桌宠客户端才算在用
   douyin: (cfg) => cfg.douyin?.enabled === true,
   heybox: (cfg) => cfg.heybox?.enabled === true,
-  'group-admin': (cfg) => cfg.setupDone === true,
+  'group-admin': (cfg) => cfg.modules?.['group-admin']?.enabled === true,
 }
 
 /** 只比 x.y.z：1.2.0-beta.1 算满足 minPluginVersion 1.2.0，模块不用跟着测试版改版本要求。 */
@@ -170,13 +170,16 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
 
   function view(index, e) {
     const src = readSource(e.id)
+    const installedRegistry = src ? src.registry || 'upstream' : ''
+    const switchSource = Boolean(installedRegistry && installedRegistry !== e.registry)
     return {
       ...e,
       installed: src?.version || '',
+      installedRegistry,
       foreign: !src && hasFolder(e.id), // 同名文件夹是用户自己写的
       // 装着的是另一个库的同名模块（比如原项目的 tophub，而分叉库里有配合心智核心的版本）：也算有更新，换过来
-      update: Boolean(src && ((src.registry || 'upstream') !== e.registry || compareVersions(e.version, src.version) > 0)),
-      switchSource: Boolean(src && (src.registry || 'upstream') !== e.registry),
+      update: Boolean(src && (switchSource ? !index.partial : compareVersions(e.version, src.version) > 0)),
+      switchSource: switchSource && !index.partial,
       blocked: blocked(index, e),
       moved: e.id in MOVED,
     }
@@ -187,7 +190,10 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
     const entries = (index.modules || []).filter((e) => ID_RE.test(String(e.id))).map((e) => view(index, e))
     // 已安装但索引里没有了（下架）的也列出来，好让用户卸载
     const known = new Set(entries.map((e) => e.id))
-    const delisted = mods.status().filter((m) => !known.has(m.id) && readSource(m.id)).map((m) => ({ id: m.id, name: m.name, description: m.description, version: readSource(m.id).version, installed: readSource(m.id).version, delisted: true, capabilities: [], blocked: '' }))
+    const delisted = mods.status().filter((m) => !known.has(m.id) && readSource(m.id)).map((m) => {
+      const src = readSource(m.id)
+      return { id: m.id, name: m.name, description: m.description, version: src.version, installed: src.version, registry: src.registry || 'upstream', delisted: !index.partial, capabilities: [], blocked: '' }
+    })
     const regOf = (id) => readSource(id)?.registry || 'upstream'
     const revoked = entries.concat(delisted).filter((e) => e.installed && revokedReason(index, e.id, e.installed, regOf(e.id))).map((e) => ({ id: e.id, version: e.installed, reason: revokedReason(index, e.id, e.installed, regOf(e.id)) }))
     return { list: [...entries, ...delisted], revoked, generatedAt: index.generatedAt || '', partial: Boolean(index.partial) }
@@ -248,13 +254,16 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
   }
 
   /** 安装或更新。同名但不是社区装的文件夹不碰；替换内置模块要明确 confirmReplace。 */
-  const install = (id, { confirmReplace = false } = {}) => exclusive(async () => {
+  const install = (id, { confirmReplace = false, registry = '', version: expectedVersion = '' } = {}) => exclusive(async () => {
     // id 会拼进目录路径（modules/.<id>.installing → modules/<id>）：先白名单，防被篡改的索引/调用方越目录写
     if (typeof id !== 'string' || !ID_RE.test(id)) return { ok: false, message: 'id 不对' }
     progress = { id, name: id, stage: 'index', received: 0, total: 0 }
     const index = await loadIndex({ force: true })
     const e = (index.modules || []).find((x) => x.id === id)
     if (!e || e.id !== id) return { ok: false, message: `社区库里没有「${id}」` }
+    if ((registry && registry !== e.registry) || (expectedVersion && expectedVersion !== e.version)) {
+      return { ok: false, message: '模块来源或版本已变化，请刷新列表后重新确认。' }
+    }
     if (hasFolder(id) && !readSource(id)) return { ok: false, message: `modules/${id} 是你自己的文件夹，不会覆盖；先挪走它` }
     // 替换内置按真实文件判断：index 里的 replacesBuiltin 可能被篡改/漏填，不能只信它
     const replacesBuiltin = Boolean(e.replacesBuiltin) || existsSync(join(builtinDir(), id))

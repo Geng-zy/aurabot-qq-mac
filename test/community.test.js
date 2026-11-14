@@ -188,7 +188,7 @@ test('替换内置要确认；卸载默认保留设置，purge 才清', async ()
 
 test('迁移：只装在用的，只装一次，卸载后不再装；失败下次重试', async () => {
   const packs = [pack('douyin', '2.0.0'), pack('heybox', '1.0.0'), pack('group-admin', '1.0.0'), pack('pet', '1.0.0')]
-  const s = setup(packs, { cfg: { setupDone: true, douyin: { enabled: true }, heybox: { enabled: false }, modules: { 'group-admin': { enabled: false } } } })
+  const s = setup(packs, { cfg: { setupDone: true, douyin: { enabled: true }, heybox: { enabled: false } } })
   assert.deepEqual((await s.c.migrate()).map((x) => x.id), ['douyin'])
   assert.deepEqual(s.cfg().communityMigrated, { pet: 'skipped', douyin: 'installed', heybox: 'skipped', 'group-admin': 'skipped' })
   await s.c.remove('douyin')
@@ -197,6 +197,8 @@ test('迁移：只装在用的，只装一次，卸载后不再装；失败下�
   const fail = setup([], { cfg: { setupDone: true, douyin: { enabled: true } } })
   await fail.c.migrate()
   assert.equal(fail.cfg().communityMigrated.douyin, undefined)
+  const optedIn = setup(packs, { cfg: { setupDone: true, modules: { 'group-admin': { enabled: true } } } })
+  assert.deepEqual((await optedIn.c.migrate()).map(({ id }) => id), ['group-admin'])
 })
 
 test('迁移：插件卸载后旧实例不再安装、不写配置', async () => {
@@ -231,7 +233,9 @@ test('测试版：版本比较、更新通道、市场最低版本', async () =>
 test('提交教程随插件发布', () => {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   assert.ok(pkg.files.includes('docs/MODULE-TUTORIAL.md'))
-  assert.match(readFileSync(new URL('../docs/MODULE-TUTORIAL.md', import.meta.url), 'utf8'), /提交一个模块/)
+  const doc = readFileSync(new URL('../docs/MODULE-TUTORIAL.md', import.meta.url), 'utf8')
+  assert.match(doc, /Geng-zy\/aurabot-qq-mac-mods/)
+  assert.match(doc, /node scripts\/pack\.mjs --check/)
 })
 
 test('安装：id 必须是白名单（防被篡改索引/调用方越目录写）', async () => {
@@ -286,7 +290,15 @@ test('两个模块库：原项目的和分叉自己的合在一起；同 id 以�
   macDown = true
   const half = await c.list({ force: true })
   assert.equal(half.partial, true)
-  assert.equal(half.list.find((e) => e.id === 'both-mod').version, '1.0.0')
+  const both = half.list.find((e) => e.id === 'both-mod')
+  assert.equal(both.version, '1.0.0')
+  assert.equal(both.installedRegistry, 'mac')
+  assert.equal(both.update, false)
+  const n = downloads.length
+  assert.match((await c.install('both-mod', { registry: 'mac', version: '1.1.0' })).message, /来源或版本已变化/)
+  assert.match((await c.install('up-only', { registry: 'upstream', version: '1.0.1' })).message, /来源或版本已变化/)
+  assert.equal(downloads.length, n)
+  assert.equal(c.source('both-mod').registry, 'mac')
   assert.ok(warns.some((w) => /本分叉/.test(w)))
 })
 

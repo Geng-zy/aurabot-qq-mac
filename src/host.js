@@ -152,6 +152,8 @@ export function apply(ctx) {
   const setConfig = (next) => {
     const before = cfg
     cfg = saveConfig(next, before)
+    if (before.enabled !== cfg.enabled || before.dryRun !== cfg.dryRun || before.debug !== cfg.debug
+      || before.botQQ !== cfg.botQQ || ownerAuthorizationRevision(before) !== ownerAuthorizationRevision(cfg)) qq.resetInbox()
     // 改机器人号后旧连接的核对结果立刻失效，必须重新核对才能处理消息或完成向导。
     if (before.botQQ !== cfg.botQQ) {
       qq.resetAccount()
@@ -235,7 +237,7 @@ export function apply(ctx) {
     if (!prompt) return reply('用法：/画图 画面描述')
     const imagegen = privateDrawModule()
     if (!imagegen) return reply('请先启用内置生图模块。')
-    if (!local.active('image')) return reply('请先在「本地接口」里配置并开启生图。')
+    if (!imagegen.localReady()) return reply('请先在「生图」页部署并启用本地模型，或在「本地接口」配置并开启生图。')
     try {
       const result = imagegen.queuePrivateDraw({ prompt, chatId: msg.chatId, userId: msg.userId, authorized, reply })
       await reply(result.message)
@@ -261,7 +263,7 @@ export function apply(ctx) {
         }
       }
       // 危险命令确认：主人的「确认 / 取消」回复先在这里截住，不交给聊天中枢
-      if (dangerGuard && msg.kind === 'private') {
+      if (dangerGuard && msg.kind === 'private' && !msg.recovered) {
         const raw = msg.raw
         const text = Array.isArray(raw?.message)
           ? raw.message.filter((seg) => seg && seg.type === 'text').map((seg) => String(seg.data?.text || '')).join('')
@@ -1501,7 +1503,7 @@ export function apply(ctx) {
     if (!mind) return mindOff
     const f = mind.mind.feeling()
     const cfgNow = mind.mind.settings()
-    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '主人' : mind.mind.person(e.target)?.name || shortRef(e.target)) : '', why: e.why, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
+    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '主人' : mind.mind.person(e.target)?.name || shortRef(e.target)) : '', why: e.why, source: e.source, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
   })
   route('/mind/feed', async (req) => {
     if (!mind) return mindOff
@@ -1525,6 +1527,7 @@ export function apply(ctx) {
     return {
       ok: true,
       diary: m.inner.diary(80),
+      timezone: m.identity().timezone,
       boredom: m.inner.boredom(),
       motivation: m.motivation.state(f.body),
       motives: m.motivation.motives({ body: f.body, mood: f.mood }),
@@ -1553,12 +1556,24 @@ export function apply(ctx) {
   })
   // 本地小模型一键安装：全部装在 ~/Aurabot/mind，不依赖翻唱环境
   const localInstaller = createLocalInstaller({ trashDir, log: logger.child('mind'), mirror: () => getConfig().song?.pypiMirror || 'auto' })
-  route('/mind/local/install', async () => {
+  route('/mind/local/install', async (req) => {
+    if (req?.method !== 'POST') return { ok: false, message: '请从面板发起安装。' }
+    if (!mind) return mindOff
+    if (!localInstaller.supported) return { ok: false, message: '一键安装需要 Apple 芯片 Mac。' }
     if (localInstaller.status().running) return { ok: false, message: '已经在装了' }
-    localInstaller.install().catch(() => {})
-    return { ok: true, message: '开始安装了（要下载约 18 GB 的官方模型，可能要一两个小时；这个页面会显示进度）' }
+    const { python, modelDir } = mind.local.status()
+    const before = mind.mind.setting('models.localPython')
+    localInstaller.install({ python, model: modelDir }).then((result) => {
+      if (result.ok && result.python !== python && before === mind.mind.setting('models.localPython')) {
+        mind.mind.updateSettings({ 'models.localPython': '' }, 'owner')
+      }
+    }).catch((error) => log.warn('本地小模型安装状态更新失败：', error.message))
+    return { ok: true, message: '正在检查本地环境，只会下载安装缺少的部分。' }
   })
-  route('/mind/local/install/status', async () => ({ ok: true, ...localInstaller.status() }))
+  route('/mind/local/install/status', async () => ({
+    ...localInstaller.status(),
+    ...(mind ? { local: mind.local.status() } : {}),
+  }))
   route('/mind/local/test', async () => {
     if (!mind) return mindOff
     const c = mind.local.check()
@@ -1874,7 +1889,8 @@ export function apply(ctx) {
     } finally {
       scheduleRemoteBackup() // 打包+推送耗时不定，跑完重排到下一天
     }
-    return { ok: true, message: '推送流程跑完了，结果看状态' }
+    return pushJob.ok ? { ok: true, message: pushJob.result.message || '备份已推送' }
+      : { ok: false, message: '推送失败：' + pushJob.error }
   }
   route('/backup/push', backupAction(async () => doPush(false)))
   route('/backup/remote/list', backupAction(async () => {
@@ -1944,7 +1960,7 @@ export function apply(ctx) {
   route('/local/status', async () => ({ ok: true, dir: local.dir(), list: local.status() }))
   route('/local/template', async (req) => {
     const slot = String((await readBody(req)).slot || '')
-    if (!local.pathOf || !['tts', 'image', 'song', 'asr'].includes(slot)) return { ok: false, message: '没有这一项' }
+    if (!local.pathOf || !['tts', 'image', 'song', 'asr', 'video'].includes(slot)) return { ok: false, message: '没有这一项' }
     return local.template(slot)
   })
   route('/local/open', async () => openFolder(local.dir()))
@@ -1977,7 +1993,9 @@ export function apply(ctx) {
   route('/modules/community/progress', async () => ({ ok: true, progress: community.progress() }))
   route('/modules/community/install', async (req) => {
     const b = await readBody(req)
-    return { ...(await community.install(String(b.id || ''), { confirmReplace: b.confirmReplace === true })), modules: mods.status() }
+    return { ...(await community.install(String(b.id || ''), {
+      confirmReplace: b.confirmReplace === true, registry: String(b.registry || ''), version: String(b.version || ''),
+    })), modules: mods.status() }
   })
   route('/modules/community/remove', async (req) => {
     const b = await readBody(req)

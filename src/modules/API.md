@@ -355,7 +355,7 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 
 ## 社区模块
 
-插件能从社区库 `dsh-aurabot-qq-mods` 安装模块，装好后就是 `modules/<id>/` 里的一个普通模块，多一个记录来源的 `.aurabot-source.json`。想发布自己的模块，看那个仓库的贡献指南。桌宠、抖音、小黑盒、群管也在社区库里。
+市场读取 [macOS 分支模块库](https://github.com/Geng-zy/aurabot-qq-mac-mods) 和 [上游社区模块库](https://github.com/aureth-labs/dsh-aurabot-qq-mods)。同名条目优先显示 macOS 版本。安装后保存在 `modules/<id>/`，`.aurabot-source.json` 记录来源与版本。为本分支投稿请参见 [模块教程](../../docs/MODULE-TUTORIAL.md)。
 
 ## 替换内置模块
 

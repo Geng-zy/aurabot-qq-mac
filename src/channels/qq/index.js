@@ -9,6 +9,7 @@ import { isPrivateDrawMessage, parseMessageEvent } from './inbound.js'
 import { createFaces, textToSegments, stripFaceTags } from './faces.js'
 import { readForward } from './forward.js'
 import { noticeText } from './notices.js'
+import { createQqInbox } from './inbox.js'
 import { fetchImage } from '../../core/net.js'
 import { chatIdOf, parseChat } from '../ids.js'
 
@@ -45,6 +46,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   let gwState = 'stopped'
   // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
   let loginOk = false
+  let verifiedLogin = null
   let wrongAccount = ''
   // 核对期间收到的事件先攒着：核对通过就补处理，核对失败就丢掉。
   // 直接丢弃的话，刚连上那几百毫秒里主人发的消息就没了（登录核对要等一次 get_login_info 往返）。
@@ -52,32 +54,35 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   let pendingEvents = []
   let connectionRevision = 0
   let disposed = false
+  const inbox = createQqInbox({ getConfig, log })
 
   // outbox: false = 不要补发队列（测试、只读场合）
   const box = outbox === false ? null : (outbox || createOutbox({ log: log.child ? log.child('outbox') : log }))
 
-  async function checkLogin(revision) {
+  async function checkLogin(revision, connectedAt) {
     verifying = true
     pendingEvents = []
     try {
-      let uin = ''
+      let login = null
       try {
         // 核对事件来自哪一个连接，必须以当前 WebSocket 上的响应为准。
         const info = await gw.call('get_login_info', {}, { timeoutMs: 10000, wsOnly: true })
-        uin = String(info?.user_id ?? '')
+        login = { uin: String(info?.user_id ?? ''), nickname: info?.nickname || '' }
       } catch (error) {
         if (revision !== connectionRevision) return
         log.warn('核对登录的 QQ 号失败：', error.message)
       }
       if (revision !== connectionRevision) return
-      if (!uin) {
+      if (!login?.uin) {
         // 核对不了就别用，断开后由看门狗重试
         gw.stop()
         return
       }
-      if (uin === String(getConfig().botQQ)) {
+      if (login.uin === String(getConfig().botQQ)) {
         loginOk = true
+        verifiedLogin = login
         wrongAccount = ''
+        const recovery = inbox.prepare(connectedAt)
         // 把核对期间攒下的补上（按到达顺序）
         const queued = pendingEvents
         pendingEvents = []
@@ -85,8 +90,13 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
           if (revision !== connectionRevision) break
           dispatch(ev)
         }
+        void inbox.recover(recovery, {
+          call: (action, params, options) => gw.call(action, params, options),
+          isCurrent: () => !disposed && revision === connectionRevision && ready(),
+          onMessage: (ev) => emit({ type: 'message', msg: { ...channel.parse(ev), recovered: true } }),
+        })
       } else {
-        wrongAccount = uin
+        wrongAccount = login.uin
         pendingEvents = []
         gw.stop()
       }
@@ -105,8 +115,13 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   function onState(s, d) {
     const revision = ++connectionRevision
     gwState = s
-    if (s !== 'connected') { loginOk = false; verifying = false; pendingEvents = [] }
-    else checkLogin(revision).then(() => { if (revision === connectionRevision && loginOk) flushOutbox() }).catch((error) => log.warn('核对登录号出错：', error.message))
+    if (s !== 'connected') {
+      if (loginOk) inbox.disconnect()
+      loginOk = false
+      verifiedLogin = null
+      verifying = false
+      pendingEvents = []
+    } else checkLogin(revision, Date.now()).then(() => { if (revision === connectionRevision && loginOk) flushOutbox() }).catch((error) => log.warn('核对登录号出错：', error.message))
     log.info(`QQ 网关：${s}${d ? '（' + d + '）' : ''}`)
     emit({ type: 'state', state: s })
   }
@@ -125,6 +140,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   /** 核对通过后，普通事件先发给原始事件监听器，再拆成壳认识的几种。 */
   function dispatch(ev) {
+    if (ev.post_type === 'message' && !inbox.accept(ev)) return
     const privateDraw = isPrivateDrawMessage(ev.message ?? ev.raw_message)
     if (!privateDraw) emit({ type: 'raw', event: ev })
     if (ev.post_type === 'message') emit({ type: 'message', msg: channel.parse(ev) })
@@ -216,6 +232,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     wrongAccount: () => wrongAccount,
     /** 机器人号改了、连接设置改了：旧的核对结果作废。 */
     resetAccount() { wrongAccount = '' },
+    resetInbox() { inbox.suspend() },
     start() { if (!disposed) gw.start() },
     stop() { gw.stop() },
     restart() { if (!disposed) gw.restart() },
@@ -236,10 +253,8 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       return { uin: String(info?.user_id ?? ''), nickname: info?.nickname || '' }
     },
     async status() {
-      let login = null
-      if (gwState === 'connected') { try { login = await channel.login(5000) } catch {} }
       const ep = endpoint()
-      return { state: gwState, login, endpoint: { httpUrl: ep.httpUrl, wsUrl: ep.wsUrl }, problem: ready() ? '' : connectionProblem() }
+      return { state: gwState, login: ready() ? verifiedLogin : null, endpoint: { httpUrl: ep.httpUrl, wsUrl: ep.wsUrl }, problem: ready() ? '' : connectionProblem() }
     },
     /** 一键诊断：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 一项项看 */
     diagnose: () => diagnoseOneBot({ cfg: getConfig(), state: gwState, wrongAccount, call: (a, p, o) => gw.call(a, p, o) }),
@@ -248,7 +263,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       if (!getConfig().enabled) return { ok: false, message: connectionProblem() }
       wrongAccount = ''
       gw.restart()
-      for (let i = 0; i < 16 && !ready(); i++) await new Promise((r) => setTimeout(r, 500))
+      for (let i = 0; i < 24 && !ready() && !wrongAccount; i++) await new Promise((r) => setTimeout(r, 500))
       if (ready()) return { ok: true, message: '连上了' }
       return { ok: false, message: '没连上：' + connectionProblem() }
     },
@@ -438,6 +453,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     isDefiniteFailure,
     dispose() {
       disposed = true
+      inbox.flush()
       if (flushTimer) clearInterval(flushTimer)
       listeners.clear()
       gw.stop()

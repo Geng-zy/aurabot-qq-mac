@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { normalize, publicConfig, mergeFromPanel } from '../src/core/config.js'
 import { asrConfigured, asrSettings, transcribeAudio, ASR_PRESETS } from '../src/voice/asr.js'
 import { buildWav } from '../src/voice/wav.js'
+import voiceModule from '../src/modules/voice/index.js'
 
 const log = { info() {}, warn() {}, debug() {} }
 const wav = () => buildWav(new Int16Array(24000), 24000)
@@ -103,4 +104,28 @@ test('没配置或空音频时给人话，不发请求', async () => {
   const cfg = normalize({ voice: { asrApi: { provider: 'siliconflow', apiKey: 'k' } } })
   await assert.rejects(transcribeAudio(Buffer.alloc(0), cfg.voice, log, { fetchImpl: fake }), /没有音频/)
   assert.equal(calls, 0)
+})
+
+test('DSH 识别只展示并下载实际选中的服务，历史语音按时间取最近一条', async () => {
+  const routes = new Map()
+  const providers = [{ id: 'sense', preparation: { phase: 'idle' } }]
+  let providerId = 'missing'
+  let prepared
+  const stt = { snapshot: () => ({ providers, selection: { providerId } }), prepare: (id) => { prepared = id } }
+  const rec = (file) => ({ type: 'record', data: { file } })
+  const rows = [{ user_id: 1, time: 90, message: [rec('new')] }, { user_id: 1, time: 30, message: [rec('old')] }, { user_id: 1, time: 60, message: 'CQ string' }]
+  voiceModule.setup({
+    config: () => normalize({ ownerQQ: '1' }),
+    core: { hub: { localTranscribe: async (seg) => seg.data.file }, local: {}, http: { body: async () => ({}) }, onebot: { call: async () => ({ messages: rows }) } },
+    dsh: { get: () => stt }, log, route: (path, fn) => routes.set(path, fn), rule() {}, tool() {}, on() {}, onDispose() {}, every() {},
+  })
+  const call = (path) => routes.get('/voice/' + path)({})
+  assert.equal((await call('asr-status')).ok, false)
+  assert.equal((await call('asr-prepare')).ok, false)
+  assert.equal(prepared, undefined)
+  providerId = 'sense'
+  assert.equal((await call('asr-status')).phase, 'idle')
+  assert.equal((await call('asr-prepare')).ok, true)
+  assert.equal(prepared, 'sense')
+  assert.equal((await call('asr-last')).heard, 'new')
 })

@@ -71,7 +71,8 @@ export const DEFAULTS = {
   merge: { enabled: true, waitSec: 2.5, maxSec: 8, groupWaitSec: 5, groupMaxSec: 15 }, // 连发合并：对方停顿 waitSec 秒再一起回，最多等 maxSec 秒；群里等得久一点，把一段话攒齐
   imageGen: {
     enabled: false,
-    provider: 'openai', // openai / custom；codex = 实验性订阅接法（需单独登录）
+    provider: 'openai', // openai / custom / codex / local
+    localSteps: 20,
     baseUrl: '',
     apiKey: '',
     model: '',
@@ -654,8 +655,8 @@ export function normalize(raw) {
   c.imageGen.galleryShown = Math.min(50, Math.max(1, Math.round(Number(c.imageGen.galleryShown) || 20)))
   c.imageGen.shape = ['her', 'square', 'portrait', 'landscape', 'wide'].includes(c.imageGen.shape) ? c.imageGen.shape : 'her'
 
-  // provider：custom = 自己填接口（GET/POST + 自定义参数），其它按 OpenAI 兼容
-  c.imageGen.provider = ['custom', 'codex'].includes(c.imageGen.provider) ? c.imageGen.provider : 'openai'
+  c.imageGen.provider = ['custom', 'codex', 'local'].includes(c.imageGen.provider) ? c.imageGen.provider : 'openai'
+  c.imageGen.localSteps = Math.max(4, Math.min(50, Math.round(Number(c.imageGen.localSteps) || 20)))
   if (!isObj(c.imageGen.codex)) c.imageGen.codex = { ...DEFAULTS.imageGen.codex }
   const igx = c.imageGen.codex
   const codexImageModels = [

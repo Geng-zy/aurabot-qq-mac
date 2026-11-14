@@ -1,7 +1,10 @@
 # 第三方组件署名与许可（THIRD-PARTY NOTICES）
 
-本仓库是我们的原创作品（MIT，见 LICENSE），但部分文件从下列第三方项目移植/借鉴而来。
-按各许可要求，在此逐文件署名并附许可原文。
+本仓库是 [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq) 的 macOS 分支。插件代码沿用 [MIT](LICENSE)，保留原作者及贡献者的版权声明。下列素材和第三方组件适用各自的许可。
+
+## 大肥鱼默认头像
+
+`assets/dafeiyu.jpg` 沿用 [上游的原图](https://github.com/aureth-labs/dsh-aurabot-qq/blob/a138d14/assets/dafeiyu.jpg)。上游面板将「大肥鱼」形象标为 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)。
 
 ## 桌宠
 
@@ -51,6 +54,10 @@ SOFTWARE.
 ## Microsoft ONNX Runtime Web（MIT）
 
 - `models/onnxruntime/` 中的 JavaScript 和 WebAssembly 文件取自 [onnxruntime-web 1.31.1](https://www.npmjs.com/package/onnxruntime-web/v/1.31.1) 的官方 npm 包。运行时的 `LICENSE` 和 `ThirdPartyNotices.txt` 一同分发。
+
+## 内置本地生图
+
+- 推理环境按需安装 [MFLUX](https://github.com/mflux-community/mflux)（MIT）。[OsaurusAI 的四位权重](https://huggingface.co/OsaurusAI/Qwen-Image-2.1-mflux-4bit) 由部署器单独下载，适用该模型仓库的 Qwen Research License Agreement。
 
 ## 其他
 

@@ -86,7 +86,7 @@ No Python, Xcode command line tools, uv, Node or Git to install, no PATH or envi
    "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" plugin --profile desktop add github:Geng-zy/aurabot-qq-mac
    ```
 3. Follow the setup wizard: QQ numbers, then the OneBot forward WebSocket URL (usually `ws://127.0.0.1:3001`) and token.
-4. As needed in the panel: one-click song install and import a voice, install edge-tts, scan in to Qzone, add an image API.
+4. As needed in the panel: one-click song install and import a voice, install edge-tts, scan in to Qzone, and choose an online image service or deploy a local model.
 
 Upgrade by running the same command again and restarting DSH; settings, personas and memories are kept. Old memories, mood and impressions of people are moved into the mind core on first start; afterwards confirm her starting personality once in the panel.
 
@@ -98,7 +98,7 @@ Only these three places, all in your home folder:
 |---|---|
 | `~/.dsh/profiles/desktop/node_modules/dsh-aurabot-qq` | plugin code (managed by DSH, replaced on upgrade) |
 | `~/.dsh/plugins-data/aurabot/` | settings, personas, memory, stickers, diaries, logs, cover cache, installed modules |
-| `~/Aurabot/` | `mind/` shared uv and Python + local model, `rvc/` song environment, `pyenv/` voice component, `qq-chats/` QQ workspace |
+| `~/Aurabot/` | `mind/` shared uv and Python + local model, `rvc/` song environment, `pyenv/` voice component, `imagegen/` local image generation, `qq-chats/` QQ workspace |
 
 Shared Python `~/Aurabot/mind`: every Python feature shares one uv 0.13.7 (`bin/`) and Python 3.13.18 (`python/`), each with its own environment; the local model's environment is `env/` (mlx 0.32.4, mlx-lm 0.32.2) and the model is official Qwen/Qwen3.5-9B converted to 4-bit on your Mac (`models/Qwen3.5-9B-mlx4`; the original weights go to the Trash afterwards).
 

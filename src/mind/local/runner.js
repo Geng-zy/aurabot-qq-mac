@@ -3,10 +3,20 @@
 // 不联网、不花钱。路径都由设置给，这里不写死任何人的目录。
 
 import { spawn as nodeSpawn } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
+export function hasLocalModel(dir) {
+  if (!dir || !existsSync(join(dir, 'config.json'))) return false
+  if (existsSync(join(dir, 'model.safetensors'))) return true
+  try {
+    const index = JSON.parse(readFileSync(join(dir, 'model.safetensors.index.json'), 'utf8'))
+    const shards = new Set(Object.values(index.weight_map || {}))
+    return shards.size > 0 && [...shards].every((name) => typeof name === 'string' && /^[\w.-]+\.safetensors$/.test(name) && existsSync(join(dir, name)))
+  } catch { return false }
+}
 
 /**
  * @param {{
@@ -29,6 +39,7 @@ export function createLocalModel(o) {
   const base = `http://127.0.0.1:${port}`
   let proc = null
   let starting = null
+  let generation = 0
   let lastUse = 0
   let lastError = ''
   let calls = 0
@@ -38,8 +49,9 @@ export function createLocalModel(o) {
     const py = String(o.python() || '').trim()
     const dir = String(o.modelDir() || '').trim()
     if (!py || !dir) return { ok: false, reason: '没设本地小模型（Python 和模型文件夹）' }
-    if (!existsSync(py)) return { ok: false, reason: '找不到 Python：' + py }
-    if (!existsSync(join(dir, 'config.json'))) return { ok: false, reason: '模型文件夹里没有 config.json：' + dir }
+    if (!existsSync(py)) return { ok: false, py, dir, reason: '找不到 Python：' + py }
+    if (!existsSync(join(dir, 'config.json'))) return { ok: false, py, dir, reason: '模型文件夹里没有 config.json：' + dir }
+    if (!hasLocalModel(dir)) return { ok: false, py, dir, reason: '模型文件夹里缺少权重：' + dir }
     return { ok: true, py, dir }
   }
 
@@ -58,25 +70,49 @@ export function createLocalModel(o) {
 
   /** 确保服务在跑（没跑就启动，等它加载完模型，最多 3 分钟）。 */
   async function ensure() {
-    if (proc && await healthy()) return true
     if (starting) return starting
     const c = check()
     if (!c.ok) { lastError = c.reason; return false }
+    const revision = generation
     starting = (async () => {
       try {
-        if (await healthy()) return true // 上次没停干净的还在跑
+        const running = proc
+        const available = await healthy()
+        if (revision !== generation) return false
+        if (running && running === proc && available && running.modelDir === c.dir && running.python === c.py) return true
+        if (running && running === proc) {
+          await new Promise((resolve) => {
+            const timer = setTimeout(resolve, 1500)
+            running.child.once('close', () => { clearTimeout(timer); resolve() })
+            stopProcess()
+          })
+          if (revision !== generation) return false
+        }
+        if ((!running && available) || (running && await healthy())) {
+          lastError = `本地小模型端口 ${port} 已被其他进程占用`
+          return false
+        }
+        if (revision !== generation) return false
         log.info('启动本地小模型…')
-        proc = spawn(c.py, ['-m', 'mlx_lm', 'server', '--model', c.dir, '--host', '127.0.0.1', '--port', String(port), '--chat-template-args', '{"enable_thinking":false}', '--log-level', 'WARNING'], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, HF_HUB_OFFLINE: '1' } })
+        const child = spawn(c.py, ['-m', 'mlx_lm', 'server', '--model', c.dir, '--host', '127.0.0.1', '--port', String(port), '--chat-template-args', '{"enable_thinking":false}', '--log-level', 'WARNING'], { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, HF_HUB_OFFLINE: '1' } })
+        const current = { child, modelDir: c.dir, python: c.py }
+        proc = current
         let err = ''
-        proc.stderr?.on('data', (d) => { err = (err + d).slice(-2000) })
-        proc.on('exit', (code) => { if (proc) log.info(`本地小模型停了（${code}）`); proc = null })
+        child.stderr?.on('data', (d) => { err = (err + d).slice(-2000) })
+        child.on('error', (error) => { err = error.message; if (proc === current) proc = null })
+        child.on('exit', (code) => { if (proc === current) { log.info(`本地小模型停了（${code}）`); proc = null } })
         for (let i = 0; i < 180; i++) {
-          if (!proc) { lastError = '本地小模型没起来：' + err.trim().split('\n').pop(); return false }
-          if (await healthy()) { lastError = ''; log.info('本地小模型就绪'); return true }
+          if (revision !== generation) return false
+          if (proc !== current) { lastError = '本地小模型没起来：' + err.trim().split('\n').pop(); return false }
+          if (await healthy() && proc === current && revision === generation) { lastError = ''; log.info('本地小模型就绪'); return true }
           await sleep(1000)
         }
         lastError = '本地小模型启动超时'
-        stop()
+        stopProcess()
+        return false
+      } catch (error) {
+        lastError = '本地小模型启动失败：' + error.message
+        stopProcess()
         return false
       } finally {
         starting = null
@@ -102,6 +138,7 @@ export function createLocalModel(o) {
       if (!r.ok) throw new Error('本地小模型返回 ' + r.status)
       const j = await r.json()
       calls++
+      lastError = ''
       return String(j?.choices?.[0]?.message?.content || '').replace(/<think>[\s\S]*?<\/think>/g, '').trim()
     } catch (error) {
       lastError = error.message
@@ -112,11 +149,13 @@ export function createLocalModel(o) {
     }
   }
 
-  function stop() {
+  function stopProcess() {
     const p = proc
     proc = null
-    if (p) { try { p.kill('SIGTERM') } catch {} }
+    if (p) { try { p.child.kill('SIGTERM') } catch {} }
   }
+
+  function stop() { generation++; stopProcess() }
 
   /** 闲置太久就停，省内存。外面定时调用。 */
   function idleCheck() {
@@ -126,7 +165,7 @@ export function createLocalModel(o) {
 
   function status() {
     const c = check()
-    return { configured: c.ok, reason: c.ok ? '' : c.reason, running: Boolean(proc), lastError, calls, lastUse }
+    return { configured: c.ok, python: c.py || '', modelDir: c.dir || '', reason: c.ok ? '' : c.reason, running: Boolean(proc), lastError, calls, lastUse }
   }
 
   return { chat, ensure, stop, idleCheck, status, check }

@@ -1,7 +1,7 @@
 // 翻唱：截取位置、音色列表、网易云加密和 Cookie 解析、点歌的前置检查、/sing 命令。
 import { test, before } from 'node:test'
 import assert from 'node:assert/strict'
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -42,6 +42,22 @@ test('清唱：不带伴奏输入，翻唱照常混音', () => {
   const full = studio.mixArgs({ vocals: 'v.wav', inst: 'i.wav', vol: 1, iv: 0.8, out: 'o.mp3' })
   assert.equal(full.filter((a) => a === '-i').length, 2)
   assert.ok(full.join(' ').includes('amix'))
+})
+
+test('并行语音变声各用自己的输出文件，后完成的任务不会覆盖先完成的音频', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'aurabot-rvc-parallel-'))
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(join(root, 'models'))
+  writeFileSync(join(root, 'models', 'voice.pth'), '')
+  const inputs = ['first.wav', 'second.wav'].map((name) => join(root, name))
+  for (const input of inputs) writeFileSync(input, input)
+  const studioUnderTest = studio.createSongStudio({
+    getConfig: () => normalize({ song: { root } }),
+    local: { active: () => true, call: async (_, { input, output }) => { writeFileSync(output, readFileSync(input)); return { file: output } } },
+  })
+  const outputs = await Promise.all(inputs.map((input) => studioUnderTest.convertSpeech(input, { outDir: join(root, 'cache') })))
+  assert.notEqual(outputs[0], outputs[1])
+  assert.deepEqual(outputs.map((path) => readFileSync(path, 'utf8')), inputs)
 })
 
 test('音色列表：models 目录里的 .pth，配同名 .index', () => {

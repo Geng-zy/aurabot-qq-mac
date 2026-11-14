@@ -46,6 +46,7 @@ test('本地小模型：没设或文件不对就说清楚原因；设好了要�
     model = join(dir, 'model'); mkdirSync(model)
     assert.match(m.check().reason, /config\.json/)
     writeFileSync(join(model, 'config.json'), '{}')
+    writeFileSync(join(model, 'model.safetensors'), '')
     assert.equal(m.status().configured, true)
     assert.equal(spawned.length, 0, '没用之前不启动')
     assert.equal(await m.chat([{ role: 'user', content: '你好' }]), '今天有点无聊')
@@ -58,6 +59,38 @@ test('本地小模型：没设或文件不对就说清楚原因；设好了要�
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('本地小模型不会向占用端口的服务发送私聊内容，启动失败也会正常返回', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'local-occupied-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const python = join(dir, 'python')
+  writeFileSync(python, '')
+  writeFileSync(join(dir, 'config.json'), '{}')
+  writeFileSync(join(dir, 'model.safetensors'), '')
+  let occupied = true
+  let posted = 0
+  let spawned = 0
+  const local = createLocalModel({
+    python: () => python, modelDir: () => dir,
+    fetch: async (url) => {
+      if (url.endsWith('/chat/completions')) posted++
+      return { ok: occupied }
+    },
+    spawn: () => {
+      spawned++
+      const child = new EventEmitter()
+      queueMicrotask(() => child.emit('error', new Error('不能执行 Python')))
+      return child
+    },
+  })
+  assert.equal(await local.chat([{ role: 'user', content: '测试材料' }]), null)
+  assert.match(local.status().lastError, /端口.*占用/)
+  assert.equal(spawned, 0)
+  assert.equal(posted, 0)
+  occupied = false
+  assert.equal(await local.ensure(), false)
+  assert.match(local.status().lastError, /不能执行 Python/)
 })
 
 test('解析一步念头：四行格式；没写格式也取第一句；认不出的情绪不要', () => {
@@ -152,12 +185,78 @@ test('想一步：材料里有身体、心情和刚才的事（标明是谁说�
   assert.equal(st.thought, '主人刚才说要加班，他会不会很累')
   const prompt = calls[0][1].content
   assert.match(prompt, /【身体】/)
-  assert.match(prompt, /私聊里 主人说：今天要加班到很晚/)
+  assert.match(prompt, /私聊里（qq:private:1） 主人说：今天要加班到很晚/)
   assert.equal(m.memory.list().length, before, '小模型的念头不进记忆')
   assert.ok(m.emotion.state().active.some((e) => e.name === '心疼'))
   const w = m.motivation.state().wants[0]
   assert.equal(w.action, 'reach_owner', '想找主人 → 对上「找主人说话」')
   assert.equal(m.inner.diary()[0].thought, st.thought)
+})
+
+test('本地念头和深想都拿到当前时区、多个会话及完整的近期主人来信计数', async (t) => {
+  const deep = []
+  const { m, set, calls } = innerMind({
+    reply: (n) => n === 1 ? '念头：他是不是没回我\n深想：是' : '念头：想到明天的事',
+    ask: async (args) => { deep.push(args); return '{"thought":"已经聊过了，想点别的吧。"}' },
+  })
+  t.after(() => m.close())
+  const at = Date.UTC(2026, 10, 13, 18, 30)
+  set(at)
+  for (let i = 0; i < 16; i++) {
+    m.perceive({ window: 'qq:private:1', who: 'qq:1', text: `私聊第 ${i + 1} 条`, at: at - 300_000 + i * 1000 })
+  }
+  m.perceive({ window: 'wechat:private:pal', who: 'wechat:pal', name: '好友', text: '好友的近况', at: at - 200_000 })
+  for (let i = 0; i < 30; i++) {
+    m.perceive({ window: 'qq:group:7', who: 'qq:2', name: '群友', text: `群聊第 ${i + 1} 条`, at: at - 100_000 + i * 1000, addressed: i === 29 })
+  }
+  m.perceive({ window: 'qq:group:7', who: 'qq:2', text: '未来的记录', at: at + 60_000 })
+  await m.inner.step()
+  assert.equal(deep.length, 1)
+  await m.inner.step()
+  for (const input of [calls[0][1].content, deep[0].text, calls[1][1].content]) {
+    assert.match(input, /【当前时间】2026年11月14日 周六 02:30（Asia\/Shanghai，24 小时制）/)
+    assert.match(input, /共收到主人 16 条消息，最新一条在 11-14 02:25/)
+    assert.match(input, /私聊里（qq:private:1） 主人说：私聊第 16 条/)
+    assert.match(input, /私聊里（wechat:private:pal） 好友说：好友的近况/)
+    assert.match(input, /群里（qq:group:7） 群友说：群聊第 30 条/)
+    assert.doesNotMatch(input, /群聊第 20 条|未来的记录/)
+  }
+  assert.match(calls[1][1].content, /已经聊过了，想点别的吧/)
+  assert.doesNotMatch(calls[1][1].content, /他是不是没回我/)
+})
+
+test('主动念头保留较早的主人互动和大量短消息，群里旁听仍可按会话查看', async (t) => {
+  const { m, calls } = innerMind({ reply: '念头：想起刚才约好的事' })
+  t.after(() => m.close())
+  m.perceive({ window: 'qq:private:1', who: 'qq:1', text: '约好明天一起听歌', at: T0 - 45 * 60000 })
+  for (let i = 0; i < 48; i++) {
+    m.perceive({ window: 'qq:private:2', who: 'qq:2', text: `短消息-${i + 1}。`, at: T0 - 60_000 + i })
+  }
+  m.perceive({ window: 'qq:group:7', who: 'qq:3', text: '无关群聊旁听', at: T0 - 5000 })
+  m.perceive({ window: 'qq:group:7', who: 'qq:3', text: '直接问她的事情', msgId: 'ask', at: T0 - 4000 })
+  m.noteAddressed('qq:group:7', 'ask')
+  m.said({ window: 'qq:group:7', text: '她在群里的回答', at: T0 - 3000 })
+  await m.inner.step()
+  const prompt = calls[0][1].content
+  assert.match(prompt, /约好明天一起听歌/)
+  assert.equal((prompt.match(/短消息-\d+。/g) || []).length, 48)
+  assert.match(prompt, /直接问她的事情/)
+  assert.match(prompt, /她在群里的回答/)
+  assert.doesNotMatch(prompt, /无关群聊旁听/)
+  assert.ok(m.history('qq:group:7').some((row) => row.text === '无关群聊旁听'))
+})
+
+test('从内心近况长出的打算参与动力，但行动接口只得到允许传递的打算文字', async (t) => {
+  const { m } = innerMind({ reply: '念头：刚才听到一件事\n打算：画出私聊里的事情\n深想：是',
+    ask: async () => '{"thought":"想画一画","want":"画下私聊里的另一个细节"}' })
+  t.after(() => m.close())
+  let input
+  m.motivation.offer({ id: 'draw', label: '画画', keywords: ['画'], run: async ({ wants }) => { input = wants; return { ok: true } } })
+  await m.inner.step()
+  m.motivation.want('画一片云')
+  assert.equal(m.motivation.motives()[0].wants.length, 3)
+  await m.motivation.act('draw')
+  assert.deepEqual(input, ['画一片云'])
 })
 
 test('想不出新东西：连着重复就放空，无聊感上升，不再产生感受', async () => {

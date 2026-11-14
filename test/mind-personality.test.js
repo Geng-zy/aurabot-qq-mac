@@ -533,6 +533,33 @@ test('对接层：你很久没理她，她会想你（一天一次）；依恋�
   assert.ok(anx && anx.some((x) => x.name === '焦虑'), '黏人的更早想、还会不安')
 })
 
+test('想念按实际私聊来信计时，重启和重新联系会结束已经过时的离线感受', async (t) => {
+  const { a, set } = adapter()
+  t.after(() => a.close())
+  const owner = 'qq:1'
+  a.mind.relations.touch(owner, T0 - 197 * H)
+  a.mind.perceive({ window: 'qq:private:1', who: owner, text: '今天聊过', at: T0 - 6 * H })
+  assert.equal(a.missOwner(), null)
+
+  a.mind.emotion.feel([{ name: '思念', intensity: 0.8, target: owner, why: '旧触发' }], { source: 'attachment' })
+  a.mind.emotion.feel([{ name: '焦虑', intensity: 0.7, why: '另外一件事' }], { source: 'thought' })
+  a.mind.perceive({ window: 'qq:private:1', who: owner, text: '我回来了', at: T0 + 1000 })
+  set(T0 + 2000)
+  await a.start()
+  assert.ok(!a.mind.emotion.state().active.some((e) => e.source === 'attachment'))
+  assert.ok(a.mind.emotion.history().some((e) => e.why === '旧触发'))
+  assert.ok(a.mind.emotion.state().active.some((e) => e.why === '另外一件事'))
+
+  a.mind.emotion.feel([{ name: '思念', intensity: 0.8, target: owner, why: '当前触发' }], { source: 'attachment' })
+  set(T0 + 4000)
+  a.mind.emotion.afterSleep()
+  assert.equal(a.mind.emotion.state().active.find((e) => e.source === 'attachment').at, T0 + 2000)
+  a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', text: '补到一条旧消息', recovered: true, time: T0 / 1000, messageId: 'old' })
+  assert.ok(a.mind.emotion.state().active.some((e) => e.why === '当前触发'))
+  a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', text: '现在回复', time: (T0 + 3000) / 1000, messageId: 'new' })
+  assert.ok(!a.mind.emotion.state().active.some((e) => e.source === 'attachment'))
+})
+
 test('对接层：不想搭理的人、名字跟着她变', () => {
   const env = adapter()
   env.a.mind.relations.edit('qq:2', { liking: 0.05 })

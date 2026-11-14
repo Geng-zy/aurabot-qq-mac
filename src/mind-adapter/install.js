@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LOCAL_DEFAULT } from './index.js'
+import { hasLocalModel } from '../mind/local/runner.js'
 import { ensurePinnedUv, shouldUseCnMirror, CN_PYPI, uvBaseEnv, sharedUvDir, sharedPythonDir, PY_VERSION } from '../core/python.js'
 
 export const LOCAL_STACK = {
@@ -63,12 +64,19 @@ export function createLocalInstaller(o) {
   })
 
   /** 已经装好了没有。 */
-  function installed() {
-    const p = paths()
-    return existsSync(p.python) && existsSync(join(p.model, 'config.json'))
+  function installed() { return existsSync(paths().python) && hasLocalModel(paths().model) }
+
+  const supported = process.platform === 'darwin' && process.arch === 'arm64'
+
+  async function checkPython(python) {
+    if (!existsSync(python)) return false
+    try {
+      await runImpl(python, ['-c', 'import mlx_lm'], { timeoutMs: 20_000 })
+      return true
+    } catch { return false }
   }
 
-  async function install() {
+  async function install({ python, model } = {}) {
     if (job.running) return { ok: false, message: '已经在装了' }
     const p = paths()
     job = { running: true, step: '', stepIndex: -1, steps: LOCAL_STEPS, log: [], ok: null, message: '', startedAt: Date.now() }
@@ -79,30 +87,44 @@ export function createLocalInstaller(o) {
       log.info('本地小模型安装：' + name)
       await fn()
     }
-    const cn = await cnCheck(o.mirror?.() || 'auto').catch(() => false)
-    if (cn) note('官方源连得慢，改用国内镜像下载')
-    // uv 和 Python 用所有功能共用的那份（core/python.js：就在心智核心目录里）
-    const uvEnv = uvBaseEnv({ cache: p.cache, cn })
-    const hfEnv = { HF_HOME: p.hfHome, HF_HUB_DISABLE_TELEMETRY: '1', ...(cn ? { HF_ENDPOINT: 'https://hf-mirror.com' } : {}) }
-    let uv = 'uv'
+    let reusedPython = ''
     try {
+      const requestedPython = python || p.python
+      const usablePython = await checkPython(requestedPython)
+      if (usablePython) reusedPython = requestedPython
+      else if (requestedPython !== p.python && await checkPython(p.python)) reusedPython = p.python
+      const modelReady = hasLocalModel(model || p.model) || hasLocalModel(p.model)
+      if (reusedPython && modelReady) {
+        Object.assign(job, { running: false, ok: true, message: '现有模型和 Python 环境可以直接使用，无需下载。' })
+        return { ok: true, message: job.message, python: reusedPython }
+      }
+      const cn = await cnCheck(o.mirror?.() || 'auto').catch(() => false)
+      if (cn) note('官方源连得慢，改用国内镜像下载')
+      const uvEnv = uvBaseEnv({ cache: p.cache, cn })
+      const hfEnv = { HF_HOME: p.hfHome, HF_HUB_DISABLE_TELEMETRY: '1', ...(cn ? { HF_ENDPOINT: 'https://hf-mirror.com' } : {}) }
+      let uv = 'uv'
       mkdirSync(p.models, { recursive: true })
-      await step('准备安装工具', async () => { uv = await ensureUv(p.bin, { note, log }) })
-      await step('创建 Python 环境', async () => {
-        if (existsSync(p.python)) return note('  已经有了，跳过')
-        await runImpl(uv, ['venv', '-q', p.env, '--python', LOCAL_STACK.python], { env: { ...uvEnv, UV_PYTHON_DOWNLOADS: 'automatic' }, onLine: note })
-      })
-      await step('安装 MLX', async () => {
-        await runImpl(uv, ['pip', 'install', '-q', '--python', p.python, '-r', LOCAL_STACK.requirements, ...(cn ? ['--default-index', CN_PYPI] : [])], { env: { ...uvEnv, UV_PYTHON_DOWNLOADS: 'never' }, onLine: note })
-      })
+      if (!reusedPython) {
+        await step('准备安装工具', async () => { uv = await ensureUv(p.bin, { note, log }) })
+        await step('创建 Python 环境', async () => {
+          if (existsSync(p.python)) {
+            try { await runImpl(p.python, ['-c', 'pass'], { timeoutMs: 10_000 }); return note('  复用现有 Python') } catch {}
+          }
+          await runImpl(uv, ['venv', '-q', p.env, '--python', LOCAL_STACK.python, ...(existsSync(p.env) ? ['--clear'] : [])], { env: { ...uvEnv, UV_PYTHON_DOWNLOADS: 'automatic' }, onLine: note })
+        })
+        await step('安装 MLX', async () => {
+          await runImpl(uv, ['pip', 'install', '-q', '--python', p.python, '-r', LOCAL_STACK.requirements, ...(cn ? ['--default-index', CN_PYPI] : [])], { env: { ...uvEnv, UV_PYTHON_DOWNLOADS: 'never' }, onLine: note })
+        })
+      }
       await step('下载官方模型', async () => {
-        if (existsSync(join(p.model, 'config.json'))) return note('  已经转好了，跳过')
+        if (modelReady) return note('  已有可复用的模型，跳过下载')
         note(`  从 Hugging Face 下载官方 ${LOCAL_STACK.repo}（约 18 GB，断了重新点安装会接着下）`)
-        await runImpl(join(p.env, 'bin', 'hf'), ['download', LOCAL_STACK.repo, '--local-dir', p.official], { env: hfEnv, onLine: note, timeoutMs: 12 * 60 * 60_000 })
+        await runImpl(reusedPython || p.python, ['-c', 'from huggingface_hub import snapshot_download; import sys; snapshot_download(repo_id=sys.argv[1], local_dir=sys.argv[2])', LOCAL_STACK.repo, p.official], { env: hfEnv, onLine: note, timeoutMs: 12 * 60 * 60_000 })
       })
       await step('转成 4 位', async () => {
-        if (existsSync(join(p.model, 'config.json'))) return note('  已经转好了，跳过')
-        await runImpl(p.python, ['-m', 'mlx_lm', 'convert', '--hf-path', p.official, '--mlx-path', p.model, '-q', '--q-bits', '4'], { env: hfEnv, onLine: note, timeoutMs: 2 * 60 * 60_000 })
+        if (modelReady) return note('  已有可复用的模型，跳过转换')
+        await runImpl(reusedPython || p.python, ['-m', 'mlx_lm', 'convert', '--hf-path', p.official, '--mlx-path', p.model, '-q', '--q-bits', '4'], { env: hfEnv, onLine: note, timeoutMs: 2 * 60 * 60_000 })
+        if (!hasLocalModel(p.model)) throw new Error('转换结束后没有找到模型权重')
         // 官方原版权重用完了：移到废纸篓（不直接删），约 18 GB
         if (existsSync(p.official) && o.trashDir) {
           mkdirSync(o.trashDir, { recursive: true })
@@ -110,13 +132,14 @@ export function createLocalInstaller(o) {
           note('  官方原版权重已移到废纸篓（约 18 GB），确认能用后可以自己清空')
         }
       })
+      if (!reusedPython && !await checkPython(p.python)) throw new Error('Python 环境未能加载 MLX，请重新安装')
       Object.assign(job, { running: false, ok: true, message: '装好了' })
     } catch (error) {
       log.warn('本地小模型安装失败：', error.message)
       Object.assign(job, { running: false, ok: false, message: '没装成：' + error.message.slice(0, 300) })
     }
-    return { ok: job.ok, message: job.message }
+    return { ok: job.ok, message: job.message, ...(job.ok ? { python: reusedPython || p.python } : {}) }
   }
 
-  return { install, installed, status: () => ({ ...job, installed: installed(), root, paths: paths() }), paths, pinned: () => readFileSync(LOCAL_STACK.requirements, 'utf8') }
+  return { install, installed, supported, status: () => ({ ...job, installed: installed(), supported, root, paths: paths() }), paths, pinned: () => readFileSync(LOCAL_STACK.requirements, 'utf8') }
 }

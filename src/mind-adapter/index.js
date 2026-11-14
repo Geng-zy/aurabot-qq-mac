@@ -15,7 +15,7 @@ import { effortForScene, speechScene } from '../mind/conversation.js'
 import { createEmbedClient, createRerankClient } from '../mind/memory/vectors.js'
 import { parseJson } from '../mind/memory/index.js'
 import { dayKey, inRange, minuteOfDay, parsePeriod, parseRange, shortTime } from '../mind/clock.js'
-import { createLocalModel } from '../mind/local/runner.js'
+import { createLocalModel, hasLocalModel } from '../mind/local/runner.js'
 import { defineTool, str, int } from '../tools/tools.js'
 import { deliveryChat, personIn, windowOf, personOf } from './ids.js'
 import { LEGACY_PLATFORM, parseChat, parsePerson, privateChatOf, refOfChat } from '../channels/ids.js'
@@ -43,6 +43,15 @@ export const LOCAL_DEFAULT = {
   root: () => join(homedir(), 'Aurabot', 'mind'),
   python: () => join(homedir(), 'Aurabot', 'mind', 'env', 'bin', 'python'),
   modelDir: () => join(homedir(), 'Aurabot', 'mind', 'models', 'Qwen3.5-9B-mlx4'),
+}
+
+export function localModelPaths(setting) {
+  const python = String(setting('models.localPython') || '').trim()
+  const model = String(setting('models.localModelDir') || '').trim()
+  return {
+    python: python && existsSync(python) ? python : LOCAL_DEFAULT.python(),
+    model: hasLocalModel(model) ? model : LOCAL_DEFAULT.modelDir(),
+  }
 }
 
 export const EFFORT = { record: 'low', appraisal: 'low', reconsolidate: 'low', think: 'low', consolidate: 'high', dream: 'high', deep: 'high', outreach: 'high', reminder: 'low', permission: 'high', traits: 'high', selfstory: 'high' }
@@ -145,8 +154,8 @@ export function createMindAdapter(opts) {
 
   // 本地小模型（内心活动用）：路径来自心智设置；留空就用 Aurabot 的安装位置 ~/Aurabot/mind（和翻唱的 ~/Aurabot/rvc 一样）
   const local = opts.localModel || createLocalModel({
-    python: () => String(mind.setting('models.localPython') || '').trim() || LOCAL_DEFAULT.python(),
-    modelDir: () => String(mind.setting('models.localModelDir') || '').trim() || LOCAL_DEFAULT.modelDir(),
+    python: () => localModelPaths(mind.setting).python,
+    modelDir: () => localModelPaths(mind.setting).model,
     idleMinutes: Number(mind.setting('models.localIdleMinutes')) || 30,
     log,
   })
@@ -179,21 +188,37 @@ export function createMindAdapter(opts) {
       const who = personIn(msg.chatId, msg.userId)
       if (notRemembered(who)) return false
       syncOwner()
-      // 只有找她的（私聊）才把注意力拉过来；群里别人在聊不算，她自己插话时由 noteTurn / said 算
-      if (msg.kind === 'private') noteChatActivity()
-      if (isOwnerChat(msg.chatId) && who === ownerOf()) { lastOwnerAt = now(); checkOutreach(true); checkApproval(msg) }
-      return mind.perceive({
+      // 私聊或群里明确 @ 她会拉过注意力，群里旁听不算。
+      if (msg.kind === 'private' || msg.mentioned) noteChatActivity()
+      const receivedAt = now()
+      const eventAt = Number(msg.time) * 1000
+      const at = Number.isFinite(eventAt) && eventAt > 0 ? Math.min(receivedAt, eventAt) : receivedAt
+      const recorded = mind.perceive({
         window: windowOf(msg.chatId),
         who,
         name: msg.nickname || '',
         text: String(msg.text || '').trim() || (msg.images?.length ? '[图片]' : msg.stickers?.length ? '[表情包]' : ''),
         msgId: msg.messageId || undefined,
-        at: msg.time ? Number(msg.time) * 1000 : undefined,
+        at,
+        addressed: msg.mentioned || msg.addressed,
       })
+      if (isOwnerChat(msg.chatId) && mind.isOwner(who) && recorded) {
+        lastOwnerAt = Math.max(lastOwnerAt, at)
+        resolveOwnerAbsence(msg.recovered ? lastOwnerAt : receivedAt)
+        checkOutreach(lastOwnerAt, !msg.recovered)
+        if (!msg.recovered) checkApproval(msg)
+      }
+      return recorded
     } catch (error) {
       log.warn('心智没记下这条消息：', error.message)
       return false
     }
+  }
+
+  function noteAddressed(msg) {
+    if (debug() || !msg?.messageId) return
+    const window = windowOf(msg.chatId)
+    if (window) mind.noteAddressed(window, msg.messageId)
   }
 
   /** 她真发出去的一条消息。 */
@@ -906,11 +931,12 @@ export function createMindAdapter(opts) {
     return { ok: true, summary: why, outcome: 0.5 }
   }
   /** 你回了：开心，下次更愿意找你；一直没回：有点失落，不再追着发。 */
-  function checkOutreach(ownerSpoke = false) {
+  function checkOutreach(contactAt = 0, live = false) {
     const o = outreachState()
     if (!o.pending) return
     const wait = (Number(mind.setting('motivation.outreachWaitHours')) || 2) * 3600000
-    if (ownerSpoke) {
+    // 网关只给到秒。实时来信与主动联系在同一秒时按到达顺序处理。
+    if (contactAt > 0 && contactAt >= (live ? Math.floor(o.pending.at / 1000) * 1000 : o.pending.at)) {
       if (o.pending.kind !== 'permission') {
         mind.motivation.feedback('reach_owner', 0.9)
         mind.emotion.feel([{ name: '快乐', intensity: 0.4, target: ownerOf(), why: '找他，他回了', importance: 0.4 }], { source: 'outreach' })
@@ -1390,14 +1416,22 @@ export function createMindAdapter(opts) {
     return mind.wakeWords(extra)
   }
 
+  function resolveOwnerAbsence(at) {
+    const owner = mind.identity().ownerId
+    if (!owner || !at || !mind.emotion.resolveSource('attachment', owner, at)) return
+    for (const want of mind.motivation.state().wants) {
+      if (want.action === 'reach_owner' && want.text === '想主人了，想找他说说话' && want.at <= at) mind.motivation.closeWant(want.id)
+    }
+  }
+
   /**
    * 想主人（依恋）：你很久没理她，她会想你；依恋焦虑越高想得越早、越不安。一天最多一次。
    */
   function missOwner() {
     const owner = ownerOf()
     if (!owner) return null
-    const p = mind.relations.get(owner)
-    const last = Math.max(p.rel.lastContact || 0, lastOwnerAt || 0, mind.person(owner)?.lastSeen || 0)
+    const p = mind.relations.get(mind.canon(owner))
+    const last = Math.max(p.rel.lastContact || 0, lastOwnerAt || 0, mind.person(owner)?.lastSeen || 0, mind.lastOwnerMessageAt())
     if (!last) return null
     const anx = mind.personality.value('attachAnxiety')
     const hours = (Number(mind.setting('relations.missOwnerHours')) || 24) * (1.3 - 0.6 * anx)
@@ -1406,8 +1440,8 @@ export function createMindAdapter(opts) {
     if (mind._store.get('relations.missedDay') === day) return null
     mind._store.set('relations.missedDay', day)
     const h = Math.round((now() - last) / 3600000)
-    const items = [{ name: '思念', intensity: Math.min(0.9, 0.3 + 0.5 * anx), target: personOf(owner), why: `${h} 小时没见主人`, importance: 0.5 }]
-    if (anx >= 0.57) items.push({ name: '焦虑', intensity: 0.2 + 0.4 * anx, target: personOf(owner), why: '主人好久没理我', importance: 0.4 })
+    const items = [{ name: '思念', intensity: Math.min(0.9, 0.3 + 0.5 * anx), target: p.id, why: `当时距离上次联系约 ${h} 小时`, importance: 0.5 }]
+    if (anx >= 0.57) items.push({ name: '焦虑', intensity: 0.2 + 0.4 * anx, target: p.id, why: '有一阵没联系，心里有些惦记', importance: 0.4 })
     mind.emotion.feel(items, { source: 'attachment' })
     mind.motivation.want('想主人了，想找他说说话', { strength: 0.3 + 0.4 * anx, action: 'reach_owner' })
     return items
@@ -1468,6 +1502,9 @@ export function createMindAdapter(opts) {
     }
     if (closed) return
     await replayDeletionsAfterRestore()
+    if (closed) return
+    lastOwnerAt = Math.max(lastOwnerAt, mind.lastOwnerMessageAt())
+    resolveOwnerAbsence(lastOwnerAt)
     syncPersona('migration')
     try { importLegacySocial() } catch (error) { log.warn('旧的人物印象没并进关系：', error.message) }
     inferTraits().catch((error) => log.warn('从人格卡推特质失败（下次启动再试）：', error.message))
@@ -1498,7 +1535,7 @@ export function createMindAdapter(opts) {
     mind.close()
   }
 
-  return { mind, perceive, recentUserMessages, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, endTurn, invalidateMemory, checkOutgoingPrivacy, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reserveActionModel, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, embeddingStatus, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
+  return { mind, perceive, noteAddressed, recentUserMessages, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, endTurn, invalidateMemory, checkOutgoingPrivacy, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reserveActionModel, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, embeddingStatus, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
     selfPrompt: (options) => mind.selfPrompt(options),
     protectedText: (chatId) => mem.protectedText(privateChatOf(ownerOf()), windowOf(chatId)),
     sharedText: (chatId) => mem.sharedText(windowOf(chatId)),

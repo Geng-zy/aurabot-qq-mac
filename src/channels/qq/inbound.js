@@ -145,6 +145,7 @@ export function parseMessageEvent(event, selfId, { faceName } = {}) {
     nickname: String(sender.card || sender.nickname || userId),
     role: String(sender.role || ''),
     messageId: String(event.message_id ?? ''),
+    time: Number(event.time) || undefined,
     text,
     wakeText,
     mentioned,

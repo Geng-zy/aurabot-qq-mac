@@ -13,6 +13,9 @@ window.__ModuleLoader__.load({
     const inject = ['slots']
     const PANEL_ID = 'aurabot'
     const API = '/aurabot/api'
+    const PROJECT_REPO = 'https://github.com/Geng-zy/aurabot-qq-mac'
+    const UPSTREAM_REPO = 'https://github.com/aureth-labs/dsh-aurabot-qq'
+    const MODULE_REPOS = { mac: 'Geng-zy/aurabot-qq-mac-mods', upstream: 'aureth-labs/dsh-aurabot-qq-mods' }
 
     // ---------------- 小工具 ----------------
     const get = (p) => fetch(API + p, { cache: 'no-store' }).then((r) => r.json()).catch((e) => ({ ok: false, message: '连不上插件：' + e.message }))
@@ -197,29 +200,14 @@ body[data-ds-dark-theme] .ab-root{
 .ab-card{background:var(--ab-card);border:1px solid var(--ab-line);border-radius:14px;padding:16px 18px}
 .ab-card h3{margin:0 0 4px;font-size:14px;font-weight:620;display:flex;align-items:center;gap:8px}
 .ab-card .ab-desc{color:var(--ab-sub);font-size:12.5px;margin:0 0 12px}
-/* 「关于」页：三张通栏大卡 + 两张可折叠门帘 */
-.ab-about-lead{grid-column:1/-1;padding:20px 22px;border-radius:16px;box-shadow:var(--ab-shadow)}
-.ab-about-lead h3{font-size:16px;margin-bottom:6px}
-.ab-about-lead p{line-height:1.65;font-size:13.5px;margin:0}
-.ab-about-sum{grid-column:1/-1;border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-card);padding:0 20px;box-shadow:var(--ab-shadow)}
-.ab-about-sum summary{cursor:pointer;padding:14px 0;font-weight:600;font-size:14px;color:var(--ab-text);list-style:none;display:flex;align-items:center;gap:10px;user-select:none}
-.ab-about-sum summary::-webkit-details-marker{display:none}
-.ab-about-sum summary .chev{margin-left:auto;color:var(--ab-dim);font-size:12px;transition:transform .15s}
-.ab-about-sum[open] summary .chev{transform:rotate(90deg)}
-.ab-about-sum .inner{padding:14px 0 18px;border-top:1px solid var(--ab-line)}
-.ab-about-chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--ab-line-2);border-radius:999px;padding:6px 14px;font-size:13px;background:var(--ab-foam);font-weight:560}
-.ab-about-chip b{color:var(--ab-deep);font-variant-numeric:tabular-nums}
-/* 核心开发者：上头像、下名字，竖排居中。头像拉不到时露出首字母，不留破图 */
-.ab-devs{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-top:16px}
-.ab-dev{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:18px 12px 14px;border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-card-2);min-width:0}
-.ab-dev .av{position:relative;width:64px;height:64px;border-radius:50%;overflow:hidden;flex:none;display:flex;align-items:center;justify-content:center;background:var(--ab-foam);border:1px solid var(--ab-line-2);font-weight:650;font-size:22px;color:var(--ab-deep)}
-.ab-dev .av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.ab-dev .who{min-width:0;width:100%}
-.ab-dev .nm{display:block;font-weight:600;font-size:13.5px;color:var(--ab-text);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ab-dev .nm:hover{color:var(--ab-sea);text-decoration:underline}
-/* contrib.rocks 自动更新的贡献者头像墙 */
-.ab-contrib{display:block;margin:0 0 14px}
-.ab-contrib img{display:block;max-width:100%;height:auto}
+.ab-about-project h3{font-size:clamp(17px,3cqi,23px)}
+.ab-about-project .ab-desc{margin-top:6px}
+.ab-about-project p{margin:0 0 16px}
+.ab-about-links{display:flex;flex-wrap:wrap;gap:8px}
+.ab-about-origin{display:grid;gap:12px;margin:0}
+.ab-about-origin div+div{border-top:1px solid var(--ab-line);padding-top:12px}
+.ab-about-origin dt{font-weight:600}
+.ab-about-origin dd{margin:3px 0 0;color:var(--ab-sub);overflow-wrap:anywhere}
 .ab-stat{padding:14px 16px}
 .ab-stat .n{font-size:24px;font-weight:650;color:var(--ab-deep);font-variant-numeric:tabular-nums}
 .ab-stat .l{color:var(--ab-sub);font-size:12px}
@@ -297,8 +285,8 @@ body[data-ds-dark-theme] .ab-root{
 .ab-log .a{flex:none;color:var(--ab-sea);min-width:62px}
 .ab-log .m{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
 .ab-log.warn .m{color:var(--ab-warn)}.ab-log.error .m{color:var(--ab-err)}.ab-log.debug .m{color:var(--ab-dim)}
-.ab-persona{display:grid;grid-template-columns:240px 1fr;gap:12px}
-@media (max-width:760px){.ab-persona{grid-template-columns:1fr}}
+.ab-persona{display:grid;grid-template-columns:240px minmax(0,1fr);gap:12px}
+.ab-persona>*{min-width:0}
 .ab-pm{display:grid;gap:12px;min-width:0;overflow-wrap:anywhere}
 .ab-pm-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .ab-pm-count{color:var(--ab-sub);font-size:12.5px}
@@ -539,7 +527,7 @@ body[data-ds-dark-theme] .ab-root{
 
 .ab-logs{border-radius:12px;border:1px solid var(--ab-line)}
 .ab-savebar{border-radius:14px;backdrop-filter:blur(8px)}
-.ab-overview,.ab-now{display:grid;gap:16px;min-width:0}
+.ab-overview,.ab-now{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
 .ab-cover{
   min-height:226px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;overflow:hidden;
   padding:24px clamp(22px,4.6cqi,56px);border-radius:22px;color:#f9fcf2;
@@ -665,6 +653,7 @@ body[data-ds-dark-theme] .ab-root{
   .ab-topbar{min-height:56px}
   .ab-settings-layout{grid-template-columns:minmax(0,1fr)}
   .ab-settings-nav{flex-direction:row;flex-wrap:wrap}
+  .ab-persona{grid-template-columns:minmax(0,1fr)}
 }
 @container (max-width:520px){
   .ab-rail{padding-inline:8px}
@@ -977,7 +966,7 @@ body[data-ds-dark-theme] .ab-root{
         { id: 'inner', label: '念头与行动', search: '内心 念头 日记 欲望 动力 犯懒 主动找 权限 申请 本地小模型' },
         { id: 'character', label: '人格卡', search: '人设 人格 性格 设定 头像' },
         { id: 'selfmind', label: '人格与自我', search: '性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 名字 小名 影子模式' },
-        { id: 'mindsettings', label: '心智设置', search: '参数 记性 遗忘 改写 情绪 预算 时区 年龄 生日' },
+        { id: 'mindsettings', label: '心智设置', search: '参数 记性 遗忘 改写 情绪 预算 时区 年龄 生日 本地小模型 一键安装' },
       ] },
       { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
         { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
@@ -1220,9 +1209,9 @@ body[data-ds-dark-theme] .ab-root{
       const vision = cfg.model.vision === 'off' ? '仅文字提示' : cfg.model.vision === 'on' ? '按视觉模式发送' : model?.vision === true ? '默认模型支持看图' : model?.vision === false ? '默认模型仅接收提示' : '随会话模型'
       const voice = modOn(st, 'voice')
       const image = cfg.imageGen
-      const imageModel = image.provider === 'codex' ? image.codex?.model : image.provider === 'custom' ? '自定义接口' : image.model
+      const imageModel = image.provider === 'local' ? '本地部署 · Qwen Image 2.1' : image.provider === 'codex' ? image.codex?.model : image.provider === 'custom' ? '自定义接口' : image.model
       const imageLabel = !modOn(st, 'imagegen') ? '模块已停用'
-        : cfg.local?.image ? '优先使用本地接口'
+        : cfg.local?.image && image.provider !== 'local' ? '优先使用本地接口'
           : !image.enabled ? '未启用'
             : imageModel ? (image.provider === 'codex' ? 'Codex · ' : '') + imageModel : '尚未选择模型'
       const chatModel = cfg.model.model || '跟随 DSH 默认'
@@ -1359,78 +1348,24 @@ body[data-ds-dark-theme] .ab-root{
         h(RecentLogs, { go }))
     }
 
-    /** 「关于」页：三张通栏大卡（这是谁 / 加入我们 / 核心开发者），贡献者与许可默认折叠。
-     *  只读展示，没有设置项。「核心开发者」写死三个人；「贡献者」里的头像墙走 contrib.rocks 自动更新，
-     *  文字名单取自 GitHub contributors 与版本说明（含没有 commit 的反馈者）。
-     *  仓库已从个人账号迁到 aureth-labs 组织：主仓 + 模块仓（模块市场/桌宠素材都在模块仓）。 */
     function About({ st }) {
-      const repo = 'https://github.com/aureth-labs/dsh-aurabot-qq'
-      const mods = 'https://github.com/aureth-labs/dsh-aurabot-qq-mods'
-      const gh = (name) => h('a', { key: 'gh-' + name, href: 'https://github.com/' + name, target: '_blank', rel: 'noreferrer' }, '@' + name)
-      // GitHub contributors API（按提交数排序）+ 版本说明里记录的 issue 报告 / 反馈者（没有 commit，单列）
-      const coders = ['accomplish07zrh-eng', 'baihengaead', 'RookieApe-tao', 'GitNekopedia', 'Chsw-CC', 'chsw', 'Emotionana', 'Nightc-c', 'Fallen-plum-blossom']
-      const reporters = ['cxin21', 'zhuyi314', '38213063', 'HuaGyuu', 'CYyare', 'yunxirumo', 'XiongYachao']
-      const kv = (rows) => h('div', { className: 'ab-kv' }, rows.flatMap(([k, v]) => [h('span', { key: k }, k), h('span', { key: k + '-v' }, v)]))
-      const copyGroup = (e) => { try { navigator.clipboard.writeText('1130575035'); e.target.textContent = '已复制'; setTimeout(() => { e.target.textContent = '复制' }, 1500) } catch (error) {} }
-      // 核心开发者：仓库创建者 + 两位主要贡献者（只展示头像与名字，不标具体模块）
-      const devs = ['accomplish07zrh-eng', 'baihengaead', 'RookieApe-tao']
-      const dev = (n) => h('div', { key: 'dev-' + n, className: 'ab-dev' },
-        h('div', { className: 'av' }, n.slice(0, 1).toUpperCase(),
-          h('img', { src: 'https://github.com/' + n + '.png?size=96', alt: n, loading: 'lazy', referrerPolicy: 'no-referrer', onError: (e) => { e.currentTarget.style.display = 'none' } })),
-        h('div', { className: 'who' },
-          h('a', { className: 'nm', href: 'https://github.com/' + n, target: '_blank', rel: 'noreferrer', title: n }, '@' + n)))
-      const fold = (title, open, children) => h('details', { key: title, className: 'ab-about-sum' },
-        h('summary', null, title, h('i', { className: 'chev', 'aria-hidden': true }, '▶')),
-        h('div', { className: 'inner' }, children))
+      const link = (label, href, button = false) => h('a', { href, className: button ? 'ab-btn sm' : undefined, target: '_blank', rel: 'noreferrer' }, label)
+      const entry = (title, ...content) => h('div', { key: title }, h('dt', null, title), h('dd', null, ...content))
       return h('div', { className: 'ab-grid' },
-        h(Card, { className: 'ab-about-lead', title: 'Aurabot · 住在 QQ 里的 AI 伙伴「大肥鱼」🐟', desc: 'v' + st.version + ' · 面板 API v' + (st.apiVersion || '?') },
-          h('p', null, '一个 DeepSeek Harness 插件，由 aureth-labs 组织维护，经 SnowLuma（OneBot v11 网关）接入 QQ。聊天、语音、表情包、日记这些是插件自带的本事；桌宠、抖音、小黑盒、群管这些本事在「模块市场」一键安装，模块本体都在模块仓库里，也可以自己写。'),
-          h('div', { className: 'ab-flex', style: { marginTop: 14 } },
-            h('a', { key: 'repo', className: 'ab-btn sm', href: repo, target: '_blank', rel: 'noreferrer' }, 'GitHub 主仓库'),
-            h('a', { key: 'mods', className: 'ab-btn sm', href: mods, target: '_blank', rel: 'noreferrer' }, '模块仓库'),
-            h('a', { key: 'doc', className: 'ab-btn sm', href: repo + '/blob/main/docs/USER-MANUAL.md', target: '_blank', rel: 'noreferrer' }, '用户手册'),
-          ),
-          h('p', { className: 'ab-muted ab-small', style: { marginTop: 10, marginBottom: 0 } }, '项目分两个仓库：主仓 dsh-aurabot-qq 放插件本体；模块仓 dsh-aurabot-qq-mods 放模块市场的社区模块和桌宠素材包。'),
-        ),
-        h(Card, { className: 'ab-about-lead', title: '加入我们', desc: '交流、报 bug、提代码都在这儿。' },
-          h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 12 } },
-            h('span', { key: 'qq', className: 'ab-about-chip' }, 'QQ 交流群 ', h('b', null, '1130575035'),
-              h('button', { key: 'cp', type: 'button', className: 'ab-btn sm', onClick: copyGroup }, '复制')),
-            h('a', { key: 'issue', className: 'ab-btn sm', href: repo + '/issues', target: '_blank', rel: 'noreferrer' }, '报 bug / 提需求'),
-            h('a', { key: 'pr', className: 'ab-btn sm', href: repo + '/pulls', target: '_blank', rel: 'noreferrer' }, '提代码（PR）'),
-            h('a', { key: 'modpr', className: 'ab-btn sm', href: mods + '/pulls', target: '_blank', rel: 'noreferrer' }, '提交模块（模块仓库 PR）'),
-          ),
-          h('p', { className: 'ab-muted ab-small', style: { marginTop: 12 } }, '提 issue / PR 前先翻一下有没有重复；群里问问题时尽量带上「日志」页的报错和版本号。'),
-        ),
-        h(Card, { className: 'ab-about-lead', title: '核心开发者', desc: '从第一行代码到现在，主要靠这三位在写。' },
-          h('div', { className: 'ab-devs' }, devs.map(dev)),
-          h('p', { className: 'ab-muted ab-small', style: { marginTop: 12, marginBottom: 0 } }, '仓库现由 aureth-labs 组织维护，由 @accomplish07zrh-eng 创建；点名字进 GitHub 主页，其余帮忙的见下面「贡献者」。'),
-        ),
-        fold('贡献者（' + (coders.length + reporters.length) + ' 人）', false,
-          h('div', null,
-            // 头像墙由 contrib.rocks 按仓库提交记录自动生成，有新人提交就会自己更新，不用改代码
-            h('a', { key: 'wall', className: 'ab-contrib', href: repo + '/graphs/contributors', target: '_blank', rel: 'noreferrer', title: '在 GitHub 上查看贡献者列表' },
-              h('img', { src: 'https://contrib.rocks/image?repo=aureth-labs/dsh-aurabot-qq', alt: '贡献者头像墙', loading: 'lazy', referrerPolicy: 'no-referrer', onError: (e) => { e.currentTarget.style.display = 'none' } })),
-            h('p', { className: 'ab-muted ab-small', style: { marginTop: 0, marginBottom: 12 } }, '上面这排头像由 contrib.rocks 按提交记录自动更新，有新人提交就会自己变（加载不出来就点它，跳 GitHub 看）。下面按「写代码的 / 报问题提建议的」分开列。'),
-            h('div', { style: { marginBottom: 8 } }, h('b', { style: { fontSize: 13 } }, '写代码的')),
-            h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 8 } },
-              coders.map((n) => h('span', { key: n, className: 'ab-pill' }, gh(n)))),
-            h('div', { style: { margin: '12px 0 8px' } }, h('b', { style: { fontSize: 13 } }, '报问题、提建议的')),
-            h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 8 } },
-              reporters.map((n) => h('span', { key: n, className: 'ab-pill' }, gh(n)))),
-            h('p', { className: 'ab-muted ab-small', style: { marginTop: 12, marginBottom: 0 } }, '名单来自 GitHub contributors 与版本说明（CHANGELOG.md）；「导航布局」「群头衔回复过滤」两个社区扩展的思路也做进了面板和聊天中枢，一并谢过。'),
-          )),
-        fold('许可与鸣谢', false,
-          h('div', null,
-            kv([
-              ['插件代码', h('span', { key: 'mit' }, 'MIT License（见仓库 LICENSE）')],
-              ['「大肥鱼」形象', h('span', { key: 'cc' }, 'CC BY-NC-SA 4.0（署名 · 非商业 · 相同方式共享）')],
-              ['参考插件', h('span', { key: 'yuu' }, gh('Yuuyuko-uu'), ' 的 dsh-qq-bridge / speak-up / mood / memory（MIT，只借鉴踩坑经验）')],
-              ['其他署名', h('span', { key: 'tp' }, 'qq-bridge / QSH 等，见 THIRD-PARTY-NOTICES.md')],
-            ]),
-            h('p', { className: 'ab-muted ab-small', style: { marginTop: 12, marginBottom: 0 } }, '素材包体积大（50MB+），不进本仓库：放独立模块仓 ', h('a', { href: mods, target: '_blank', rel: 'noreferrer' }, 'aureth-labs/dsh-aurabot-qq-mods'), ' 的 pet-pack/，插件缺包时会按设置里的地址自动下载落位。'),
-          )),
-      )
+        h(Card, { className: 'ab-about-project', title: 'AuraBot for macOS', desc: 'v' + st.version + ' · 面板 API v' + (st.apiVersion || '?') },
+          h('p', null, '由 Geng-zy 维护的 DeepSeek Harness 插件。心智核心管理大肥鱼的记忆、情绪和关系。Apple 芯片 Mac 上可通过 OneBot v11 接入 QQ，也可部署本地念头模型和生图模型。'),
+          h('div', { className: 'ab-about-links' },
+            link('项目仓库', PROJECT_REPO, true),
+            link('用户手册', PROJECT_REPO + '/blob/main/docs/USER-MANUAL.md', true),
+            link('发布记录', PROJECT_REPO + '/releases', true),
+            link('提交改动', PROJECT_REPO + '/pulls', true))),
+        h('div', { className: 'ab-grid ab-g2' },
+          h(Card, { title: '模块来源' }, h('dl', { className: 'ab-about-origin' },
+            entry('macOS 分支模块库', link(MODULE_REPOS.mac, 'https://github.com/' + MODULE_REPOS.mac)),
+            entry('上游社区模块库', link(MODULE_REPOS.upstream, 'https://github.com/' + MODULE_REPOS.upstream)))),
+          h(Card, { title: '来源与许可' }, h('dl', { className: 'ab-about-origin' },
+            entry('上游项目', link('aureth-labs/dsh-aurabot-qq', UPSTREAM_REPO), ' · ', link('上游贡献者', UPSTREAM_REPO + '/graphs/contributors')),
+            entry('许可证', link('MIT（插件代码）', PROJECT_REPO + '/blob/main/LICENSE'), ' · ', link('素材和第三方署名', PROJECT_REPO + '/blob/main/THIRD-PARTY-NOTICES.md'))))))
     }
 
     function RecentLogs({ go }) {
@@ -2356,11 +2291,13 @@ body[data-ds-dark-theme] .ab-root{
       const [s, setS] = useState(null)
       const load = () => get('/voice/asr-status').then(setS)
       useEffect(() => { load(); const t = setInterval(load, 5000); return () => clearInterval(t) }, [])
-      const phase = s && s.enabled ? ({ ready: '已就绪', standby: '已就绪（休眠中）', idle: '还没下载模型', preparing: '正在下载模型…', downloading: '正在下载模型…', failed: '下载失败' }[s.phase] || s.phase) : null
+      const active = s?.enabled && s.provider
+      const downloading = ['preparing', 'downloading'].includes(s?.phase)
+      const phase = active ? ({ ready: '已就绪', standby: '已就绪（休眠中）', idle: '还没下载模型', preparing: '正在下载模型…', downloading: '正在下载模型…', failed: '下载失败', error: '下载失败' }[s.phase] || s.phase) : null
       return h('div', { className: 'ab-flex' },
-        h('span', { className: 'ab-pill' }, h('i', { className: cx('ab-dot', s && s.enabled && ['ready', 'standby'].includes(s.phase) ? 'ok' : s && s.enabled ? 'warn' : '') }), s === null ? '查询中…' : s.enabled ? 'DSH 识别：' + phase : 'DSH 识别：没开启（DSH「插件」→「语音输入」）'),
-        s && s.enabled && !['ready', 'standby'].includes(s.phase) ? h(Btn, { small: true, onClick: async () => { const r = await post('/voice/asr-prepare'); toast(r.message); load() } }, '下载识别模型') : null,
-        s && s.enabled && ['ready', 'standby'].includes(s.phase) ? h(Btn, { small: true, onClick: async () => { toast('正在测试…'); const r = await post('/voice/asr-test', { text: '今天想吃白米饭' }); toast(r.ok ? '念的是「' + r.said + '」，听成了「' + r.heard + '」' : r.message) } }, '测试一下') : null)
+        h('span', { className: 'ab-pill' }, h('i', { className: cx('ab-dot', active && ['ready', 'standby'].includes(s.phase) ? 'ok' : s ? 'warn' : '') }), s === null ? '查询中…' : 'DSH 识别：' + (phase || s.message || '读取状态失败')),
+        active && !['ready', 'standby'].includes(s.phase) ? h(Btn, { small: true, disabled: downloading, onClick: async () => { const r = await post('/voice/asr-prepare'); toast(r.message); load() } }, '下载识别模型') : null,
+        active && ['ready', 'standby'].includes(s.phase) ? h(Btn, { small: true, onClick: async () => { toast('正在测试…'); const r = await post('/voice/asr-test', { text: '今天想吃白米饭' }); toast(r.ok ? '念的是「' + r.said + '」，听成了「' + r.heard + '」' : r.message) } }, '测试一下') : null)
     }
 
     function Stickers({ draft, setDraft, toast }) {
@@ -2773,10 +2710,11 @@ body[data-ds-dark-theme] .ab-root{
       const m = d.motivation
       const pending = (d.grants.requests || []).filter((r) => r.status === 'pending')
       const grantedKeys = Object.keys(d.grants.granted || {})
+      const diaryTime = new Intl.DateTimeFormat('zh-CN', { timeZone: d.timezone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
       return h(Fragment, null,
-        h(Card, { title: '内心日记', desc: '她醒着、没人找时一步一步地想（闲着时大约四成时间在想，其余在发呆）。念头本身只记在这里，不进记忆；只有感受和打算会留下。越想越难受、或者涉及你们的关系时，会交给 DeepSeek 认真想一次（标着「深想」）。' + (d.boredom >= 0.5 ? '　现在有点无聊。' : '') },
+        h(Card, { title: '内心日记', desc: '她醒着、空闲时，会结合各会话近况和回忆想一会儿。每条左侧是实际生成时间，正文是她的念头。标有「深想」的是她进一步思考后的结果。' + (d.boredom >= 0.5 ? '　现在有点无聊。' : '') },
           (d.diary || []).length ? h('div', { className: 'ab-list' }, d.diary.slice(0, 40).map((x, i) => h('div', { key: i, className: 'ab-li' },
-            h('div', { className: 'meta' }, timeAgo(x.at) + (x.by === 'local' ? ' · 本地' : ' · 聊天模型') + (x.repeated ? ' · 在重复，放空了' : '')),
+            h('div', { className: 'meta' }, diaryTime.format(x.at) + ' · ' + timeAgo(x.at) + (x.by === 'local' ? ' · 本地' : ' · 聊天模型') + (x.repeated ? ' · 在重复，放空了' : '')),
             h('div', { className: 'body' }, x.thought,
               x.feel ? h('span', { className: 'ab-muted ab-small' }, '  （' + x.feel.name + '）') : null,
               x.plan ? h('div', { className: 'ab-small' }, '想去：' + x.plan) : null,
@@ -2806,13 +2744,67 @@ body[data-ds-dark-theme] .ab-root{
               h(Btn, { small: true, kind: 'primary', onClick: () => act('/mind/permission/decide', { n: r.n, yes: true }) }, '批准'),
               h(Btn, { small: true, onClick: () => act('/mind/permission/decide', { n: r.n, yes: false }) }, '不批'))))) : h('p', { className: 'ab-muted' }, '没有等你批的'),
           grantedKeys.length ? h('div', { style: { marginTop: 10 } }, h('b', null, '已经批过的'), h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 6, marginTop: 6 } }, grantedKeys.map((k) => h(Btn, { key: k, small: true, onClick: () => { if (confirm('收回「' + k + '」？')) act('/mind/permission/revoke', { key: k }) } }, k + ' ✕')))) : null),
-        h(Card, { title: '本地小模型', desc: '日常念头用跑在这台电脑上的小模型（只耗电不耗钱；用时约占 6 GB 内存，闲置一段时间自动停，翻唱时先让路）。默认装在 ~/Aurabot/mind（Python 环境在 env，模型在 models/Qwen3.5-9B-mlx4）；放在别处的话在「心智设置 → 模型和预算」里填路径。没装时用 DeepSeek 想，但想得慢得多，也受每天预算限制。' },
-          h(Row, { label: '状态' }, h('span', null, !d.local.configured ? '没装：' + d.local.reason : d.local.running ? '在跑' : '装好了，没在跑（要用时自动启动）', d.local.lastError ? h('span', { className: 'ab-muted ab-small' }, '  上次出错：' + d.local.lastError) : null)),
-          h(Row, { label: '今天后台用的 token', hint: '记经历、睡觉整理、深想、没本地模型时的念头都算在里面' }, h('span', null, Math.round((d.usage?.tokens || 0) / 1000) + 'K')),
-          d.local.install && (d.local.install.running || d.local.install.ok === false) ? h(Row, { label: '安装', hint: (d.local.install.log || []).slice(-1)[0] || '' }, h('span', null, d.local.install.running ? '正在：' + d.local.install.step + '（' + (d.local.install.stepIndex + 1) + ' / ' + d.local.install.steps.length + '）' : d.local.install.message)) : null,
-          h('div', { className: 'ab-flex', style: { gap: 8 } },
-            !d.local.configured ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(d.local.install?.running) || Boolean(busy), onClick: () => { if (confirm('一键安装本地小模型？\n\n全部装在 ~/Aurabot/mind：Python 3.13.18、MLX，以及从 Hugging Face 下载官方 Qwen3.5-9B（约 18 GB）在本机转成 4 位（约 4.7 GB）。转完官方原版移到废纸篓。需要稳定的网络，可能要一两个小时。')) act('/mind/local/install', {}, 'install') } }, d.local.install?.running ? '安装中…' : '一键安装') : null,
-            h(Btn, { small: true, disabled: !d.local.configured || Boolean(busy), onClick: () => act('/mind/local/test', {}, 'local') }, busy === 'local' ? '启动中（第一次要等一会儿）…' : '试一下'))))
+        h(MindLocalModel, { toast, usage: d.usage }))
+    }
+
+    function MindLocalModel({ toast, usage, settings }) {
+      const [status, setStatus] = useState(null)
+      const [busy, setBusy] = useState('')
+      const [result, setResult] = useState(null)
+      const load = () => get('/mind/local/install/status').then(setStatus)
+      useEffect(() => { load() }, [settings])
+      useEffect(() => {
+        if (!status?.running) return
+        let cancelled = false
+        let timer
+        const poll = async () => {
+          const next = await get('/mind/local/install/status')
+          if (cancelled) return
+          // 读状态失败时保留最后一步进度，下次再试。
+          if (typeof next.running === 'boolean') setStatus(next)
+          if (next.running !== false) timer = setTimeout(poll, 1000)
+        }
+        timer = setTimeout(poll, 1000)
+        return () => { cancelled = true; clearTimeout(timer) }
+      }, [status?.running])
+      const act = async (action) => {
+        setBusy(action)
+        setResult(null)
+        try {
+          const response = await post('/mind/local/' + action)
+          // 安装请求只确认任务已启动，完成结果来自安装状态接口。
+          if (action === 'install' && response.ok) {
+            setStatus((current) => ({ ...current, running: true, step: '', log: [], message: '' }))
+            return
+          }
+          setResult(response)
+          toast(response.message, response.ok ? 'ok' : 'err')
+          await load()
+        } finally {
+          setBusy('')
+        }
+      }
+      const local = status?.local
+      const canInstall = status?.supported !== false
+      const notice = status?.running ? '' : result?.message || status?.message || local?.lastError
+      const pathRow = (label, path) => path
+        ? h(Row, { label }, h('code', { className: 'ab-small', style: { wordBreak: 'break-all' } }, path))
+        : null
+      return h(Card, { title: '本地小模型', desc: '处理日常念头。已有模型和 Python 环境会直接复用，约占 6 GB 内存，闲置后自动停止。' },
+        h(Row, { label: '状态' }, !status ? '读取中…' : !local ? status.message || '心智核心未就绪'
+          : local.configured ? (local.running ? '已就绪 · 运行中' : '已就绪 · 用时启动') : local.reason || '尚未安装'),
+        pathRow('实际模型路径', local?.modelDir || status?.paths?.model),
+        pathRow('实际 Python 路径', local?.python || status?.paths?.python),
+        usage ? h(Row, { label: '今日后台用量' }, Math.round((usage.tokens || 0) / 1000) + 'K token') : null,
+        status?.running || busy === 'install' ? h(Row, { label: '安装进度', hint: (status?.log || []).at(-1) || '' },
+          status?.step || '正在检查本地环境…') : null,
+        notice && busy !== 'install' ? h('div', { className: 'ab-small', role: 'status' }, notice) : null,
+        local ? h('div', { className: 'ab-flex', style: { gap: 8 } },
+          h(Btn, { small: true, kind: local.configured ? undefined : 'primary', disabled: !canInstall || status.running || Boolean(busy), onClick: () => {
+            if (local.configured || confirm('安装到 ~/Aurabot/mind？已有文件会复用。缺少模型时会下载约 18 GB 的原版权重并在本机转换。')) act('install')
+          } }, status.running ? '正在检查或安装…' : local.configured ? '检查与修复' : '一键下载安装'),
+          h(Btn, { small: true, disabled: !local.configured || status.running || Boolean(busy), onClick: () => act('test') }, busy === 'test' ? '正在测试…' : '试一下')) : null,
+        local && !canInstall ? h('p', { className: 'ab-muted ab-small' }, '一键安装需要 Apple 芯片 Mac。') : null)
     }
 
     function parseBehaviorReceipt(line) {
@@ -3400,8 +3392,8 @@ body[data-ds-dark-theme] .ab-root{
             emotions.length ? h('ul', { className: 'ab-feeling-list' }, emotions.map((e, i) => h('li', { key: i },
               h('span', { className: 'ab-feeling-mark' }, navIcon('pulse')),
               h('div', null, h('b', null, deg(e.intensity) + e.name),
-                h('div', { className: 'ab-muted ab-small' }, timeAgo(e.at) + (e.targetName ? ' · 对' + e.targetName : '') + (e.hidden ? ' · 没表现出来' : '')),
-                e.why ? h('p', null, e.why) : null))))
+                h('div', { className: 'ab-muted ab-small' }, '起于 ' + timeAgo(e.at) + (e.targetName ? ' · 对' + e.targetName : '') + (e.source === 'thought' ? ' · 源自念头' : e.source === 'deep' ? ' · 源自深想' : '') + (e.hidden ? ' · 没表现出来' : '')),
+                e.why && !(e.source === 'thought' && e.why === '想着想着') ? h('p', null, e.why) : null))))
               : h('div', { className: 'ab-quiet' }, navIcon('pulse'), h('span', null, '此刻没有明显的情绪'))),
           h(Card, { title: '投喂', desc: '虚拟投喂，不涉及任何付款。', className: 'ab-feed' },
             h('div', { className: 'ab-feed-form' },
@@ -3941,7 +3933,9 @@ body[data-ds-dark-theme] .ab-root{
         h('div', { className: 'ab-settings-layout' },
           h('nav', { className: 'ab-card ab-settings-nav', 'aria-label': '心智设置分类' }, groups.map((g) =>
             h('button', { key: g.id, type: 'button', 'aria-current': !words.length && current?.id === g.id ? 'true' : undefined, onClick: () => { setSearch(''); setGroup(g.id) } }, g.label))),
-          h('div', { className: 'ab-grid ab-settings-body' }, panels.length ? panels : h(Card, null, h(Empty, { text: '没有找到匹配的设置' })))))
+          h('div', { className: 'ab-grid ab-settings-body' },
+            !words.length && current?.id === 'models' ? h(MindLocalModel, { toast, settings: d.values }) : null,
+            panels.length ? panels : h(Card, null, h(Empty, { text: '没有找到匹配的设置' })))))
     }
 
     function VoiceImport({ s, toast, onChange }) {
@@ -4061,11 +4055,11 @@ body[data-ds-dark-theme] .ab-root{
       // 安装中 / 正在唱的时候每 3 秒刷新一次进度
       useEffect(() => {
         load()
-        const busy = s && (s.install.running || s.current || s.queue.length)
+        const busy = s && (s.install.running || s.profileJob?.running || s.current || s.queue.length)
         if (!busy) return
         const t = setInterval(load, 3000)
         return () => clearInterval(t)
-      }, [s && s.install.running, s && Boolean(s.current), s && s.queue.length])
+      }, [s && s.install.running, s?.profileJob?.running, s && Boolean(s.current), s && s.queue.length])
       if (!s) return h(Empty, { icon: '⏳', text: '加载中…' })
       const search = async () => { if (!q.trim()) return; setFound(null); const r = await get('/song/search?q=' + encodeURIComponent(q)); setFound(r.list || []); if (!r.ok) toast(r.message, 'err') }
       const sing = async (song) => { const r = await post('/song/request', { songId: song.id, song: song.name, pitch }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
@@ -4157,7 +4151,7 @@ body[data-ds-dark-theme] .ab-root{
       useEffect(() => { load() }, [])
       const act = async (path, slot, label) => { setBusy(slot + label); const r = await post(path, { slot }); setBusy(''); toast(r.message, r.ok ? 'ok' : 'err'); if (r.image) setImg(r.image); load() }
       return h('div', { className: 'ab-grid' },
-        slot ? h(Card, { title: '本地视频脚本', desc: '在 QQ 会话中发起视频生成。需要本机的视频脚本与后端服务，生成完成后会自动发回发起的会话。' }) : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH 的话」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
+        slot === 'video' ? h(Card, { title: '本地视频脚本', desc: '生成视频需要可用的本机服务和接入脚本。' }) : slot ? null : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH 的话」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
           h('div', { className: 'ab-flex' },
             h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, st ? st.dir : '…'),
             h(Btn, { small: true, onClick: () => post('/local/open').then((r) => toast(r.message)) }, '打开文件夹')),
@@ -4272,7 +4266,7 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     /** 写模块的教程：随插件带着，连不上 GitHub 也能看；复制后可以直接粘给 DSH。 */
-    const TUTORIAL_URL = 'https://github.com/aureth-labs/dsh-aurabot-qq-mods/blob/main/docs/TUTORIAL.md'
+    const TUTORIAL_URL = PROJECT_REPO + '/blob/main/docs/MODULE-TUTORIAL.md'
     function ModuleTutorial({ toast }) {
       const [text, setText] = useState('')
       const [err, setErr] = useState('')
@@ -4336,11 +4330,11 @@ body[data-ds-dark-theme] .ab-root{
       }
       const install = async (m) => {
         const caps = capText(m).join('、') || '无'
-        const why = '来源：社区模块库 dsh-aurabot-qq-mods\n版本：' + m.version + '\n作者：' + m.author + '\n能力：' + caps + '\n\n能力声明不是沙箱：模块和插件在同一进程运行。继续吗？'
+        const why = '来源：' + MODULE_REPOS[m.registry] + '\n版本：' + m.version + '\n作者：' + m.author + '\n能力：' + caps + '\n\n能力声明不是沙箱：模块和插件在同一进程运行。继续吗？'
         if (!confirm((m.installed ? '更新' : '安装') + '「' + m.name + '」？\n\n' + why)) return
         if (m.replacesBuiltin && !confirm('「' + m.name + '」会替换同名内置模块，确定吗？')) return
         setBusy(m.id)
-        try { await done(await post('/modules/community/install', { id: m.id, confirmReplace: Boolean(m.replacesBuiltin) })) } finally { setBusy('') }
+        try { await done(await post('/modules/community/install', { id: m.id, registry: m.registry, version: m.version, confirmReplace: Boolean(m.replacesBuiltin) })) } finally { setBusy('') }
       }
       const remove = async (m) => {
         if (!confirm('卸载「' + m.name + '」？')) return
@@ -4360,9 +4354,11 @@ body[data-ds-dark-theme] .ab-root{
       const chip = (id, label) => h('button', { key: id, type: 'button', className: cx('ab-chip', show === id && 'on'), onClick: () => setShow(id) }, label, h('span', { className: 'n' }, counts[id]))
       const card = (m) => {
         const settings = m.installed ? openSettings(m) : null
-        const note = [m.delisted ? '已从市场下架' : '', m.foreign ? '有同名的自己写的文件夹，不会覆盖' : '', m.switchSource ? '现在装的是原项目的版本；这里有配合心智核心的 Mac 版，点「更新」换过来' : '', m.blocked].filter(Boolean).join(' · ')
+        const otherSource = m.installedRegistry && m.installedRegistry !== m.registry
+        const originNote = otherSource ? `当前安装来自 ${MODULE_REPOS[m.installedRegistry]}。` + (m.switchSource ? `更新将切换到 ${MODULE_REPOS[m.registry]}。` : '') : ''
+        const note = [m.delisted ? '已从市场下架' : '', m.foreign ? '有同名的自己写的文件夹，不会覆盖' : '', originNote, m.blocked].filter(Boolean).join(' · ')
         return h('div', { key: m.id, className: 'ab-card', style: { display: 'flex', flexDirection: 'column' } },
-          h('h3', null, m.name, m.registry === 'mac' ? h('span', { className: 'ab-badge', title: '来自 Geng-zy/aurabot-qq-mac-mods：只有这个 Mac 分叉看得到，已经配合心智核心' }, 'Mac 版') : null, m.update ? h('span', { className: 'ab-badge' }, '可更新') : null),
+          h('h3', null, m.name, MODULE_REPOS[m.registry] ? h('span', { className: 'ab-badge', title: MODULE_REPOS[m.registry] }, m.registry === 'mac' ? 'macOS 模块库' : '上游模块库') : null, m.update ? h('span', { className: 'ab-badge' }, '可更新') : null),
           h('div', { className: 'ab-small ab-muted' }, 'v' + (m.installed || m.version) + (m.update ? ' → v' + m.version : '') + (CATEGORY_LABEL[m.category] ? ' · ' + CATEGORY_LABEL[m.category] : '') + (m.author ? ' · ' + m.author : '') + (m.license ? ' · ' + m.license : '')),
           h('p', { className: 'ab-desc', style: { margin: '8px 0' } }, m.description),
           capText(m).length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 10 } }, '会用到：' + capText(m).join('、')) : null,
@@ -4375,7 +4371,7 @@ body[data-ds-dark-theme] .ab-root{
       }
       return h('div', { className: 'ab-grid' },
         progBar,
-        h(Card, { title: '模块市场', desc: '给ta装更多本事。模块由社区提供、维护者审核后上架；它们和插件在同一进程运行，能接触账号配置，装之前看清下面列的能力。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
+        h(Card, { title: '模块市场', desc: '市场读取 macOS 分支和上游两个模块库。同名条目优先显示 macOS 版本。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
           h('div', { className: 'ab-flex' },
             h('input', { className: 'ab-input', placeholder: '搜模块', value: q, onChange: (e) => setQ(e.target.value) }),
             chip('all', '全部'), chip('installed', '已安装'), chip('update', '可更新')),
@@ -4383,6 +4379,7 @@ body[data-ds-dark-theme] .ab-root{
           ((data && data.revoked) || []).map((r) => h('div', { key: r.id, className: 'ab-note err', style: { marginTop: 10 } }, '「' + r.id + '」' + r.version + ' 已撤回：' + r.reason + '。建议关闭或卸载。'))),
         !data ? h(Empty, { icon: '⏳', text: '加载中…' }) : null,
         data && data.ok === false ? h('div', { className: 'ab-note warn' }, '市场打不开：' + data.message) : null,
+        data?.partial ? h('div', { className: 'ab-note warn' }, '部分模块库暂时无法访问，当前列表可能不完整。') : null,
         data && data.ok !== false && !shown.length ? h(Empty, { icon: '🐟', text: list.length ? '没有符合条件的模块' : '市场里还没有模块' }) : null,
         shown.length ? h('div', { className: 'ab-grid', style: { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } }, shown.map(card)) : null,
         h(ModuleTutorial, { toast }))
@@ -5285,25 +5282,76 @@ body[data-ds-dark-theme] .ab-root{
         }]) }, '添加备用服务') : null)
     }
 
+    function BuiltinLocalImage({ draft, setDraft, toast }) {
+      const f = useField(draft, setDraft)
+      const [status, setStatus] = useState(null)
+      const [busy, setBusy] = useState('')
+      const [preview, setPreview] = useState('')
+      const [notice, setNotice] = useState('')
+      useEffect(() => {
+        let live = true
+        let timer
+        let active = busy === 'install' || status?.running || status?.pending > 0
+        const poll = async () => {
+          const next = await get('/image/local/status')
+          if (!live) return
+          if (typeof next.supported === 'boolean') {
+            setStatus(next)
+            active = next.running || next.pending > 0
+          } else if (!active) setStatus(next)
+          if (active) timer = setTimeout(poll, 1500)
+        }
+        poll()
+        return () => { live = false; clearTimeout(timer) }
+      }, [busy, status?.running, status?.pending])
+      const act = async (action) => {
+        setNotice('')
+        setBusy(action)
+        const result = await post('/image/local/' + action)
+        if (action === 'install' && result.running) setStatus(result)
+        setBusy('')
+        if (result.image) setPreview(result.image)
+        if (result.message) { setNotice(result.message); toast(result.message, result.ok ? 'ok' : 'err') }
+      }
+      const download = status?.remainingBytes ? `约 ${(status.remainingBytes / 1024 ** 3).toFixed(1)} GiB 权重` : ''
+      const label = status?.running ? status.step : !status ? '正在检查…' : status.supported === false ? '此设备不支持' : status.ready ? '已就绪' : status.supported ? '尚未部署' : '状态读取失败'
+      return h('div', { className: 'ab-grid', style: { gap: 0 } },
+        h(Row, { label: '本地模型', hint: 'Apple 芯片 · macOS 26 或更新版本 · 建议至少 16 GB 内存' },
+          h('b', null, 'Qwen Image 2.1 · 4 位'), h('a', { href: 'https://huggingface.co/OsaurusAI/Qwen-Image-2.1-mflux-4bit/blob/235fd28de40d745382e9d7a33f008c7735ec21c2/LICENSE', target: '_blank', rel: 'noreferrer' }, '模型许可（非商业研究与评估）')),
+        h(Row, { label: '部署状态' },
+          h('span', { role: 'status' }, label),
+          status?.reusedModel || status?.reusedPython ? h('span', { className: 'ab-muted ab-small' }, status.reusedModel && status.reusedPython ? '复用已有模型和环境' : status.reusedModel ? '复用已有模型' : '复用已有环境') : null,
+          download && !status.running ? h('span', { className: 'ab-muted ab-small' }, '待下载 ' + download) : null),
+        h(Row, { label: '运行环境', hint: '已有文件会复用。新环境装在 ~/Aurabot/imagegen，安装后可离线生成。' },
+          h(Btn, { small: true, kind: status?.ready ? undefined : 'primary', disabled: !status?.supported || status.running || status.pending > 0 || Boolean(busy), onClick: () => {
+            if (status.ready || confirm((download ? '将下载' + download + '并安装缺少的依赖。' : '将安装缺少的依赖。') + '继续表示你已查看并同意模型许可。')) act('install')
+          } }, status?.running || busy === 'install' ? '正在部署…' : status?.ready ? '检查与修复' : '一键部署'),
+          h(Btn, { small: true, disabled: !status?.ready || status.running || status.pending > 0 || Boolean(busy), onClick: () => act('test') }, busy === 'test' ? '正在试画…' : '试画一张')),
+        (notice || status?.message) && !status?.running ? h('p', { className: 'ab-small', role: 'status' }, notice || status.message) : null,
+        preview ? h('img', { src: 'data:image/png;base64,' + preview, alt: '本地生图试画结果', style: { width: 240, maxWidth: '100%', borderRadius: 8, margin: '8px 0' } }) : null,
+        h(Row, { label: '生成步数', hint: '步数越多，生成越慢。保存后应用到聊天里的新任务。' }, f.num('imageGen.localSteps', { min: 4, max: 50 })))
+    }
+
     function ImageGen({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const c = draft.imageGen
       const custom = c.custom || {}
       const isCustom = c.provider === 'custom'
       const isCodex = c.provider === 'codex'
+      const isLocal = c.provider === 'local'
       const isPost = custom.method === 'POST'
       const params = Array.isArray(custom.params) ? custom.params : []
       const setParams = (next) => setDraft(setPath(draft, 'imageGen.custom.params', next))
       const setP = (i, k, v) => setParams(params.map((p, j) => (j === i ? { ...p, [k]: v } : p)))
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '让ta画图', right: f.sw('imageGen.enabled'), desc: '接上生图服务后，让ta「画一张……」就会画好发出来。可选 OpenAI 兼容接口、自定义接口，或登录 ChatGPT 使用实验性 Codex 订阅接法。本机 SD WebUI / ComfyUI 可在「本地接口」页接「生图」。也可以让ta照着最近发的图、引用消息里的图或自己的画作来改；服务不支持参考图时会明确告诉你。' },
-          h(Row, { label: '接口格式', hint: '第二个适合 pollinations 这类「GET 一个地址就出图」的服务' },
-            h(Seg, {
-              value: isCodex ? 'codex' : isCustom ? 'custom' : 'openai',
+        h(Card, { title: '让ta画图', right: f.sw('imageGen.enabled'), desc: '选择生图方式。自定义生图脚本可在「系统 → 本地接口」管理。' },
+          h(Row, { label: '生图方式' },
+            h(Select, {
+              value: c.provider || 'openai', width: 270,
               onChange: (v) => setDraft(setPath(draft, 'imageGen.provider', v)),
-              options: [{ value: 'openai', label: 'OpenAI 格式' }, { value: 'custom', label: '自定义接口' }, { value: 'codex', label: 'Codex 订阅（实验性）' }],
+              options: [{ value: 'openai', label: 'OpenAI 格式' }, { value: 'custom', label: '自定义接口' }, { value: 'codex', label: 'Codex 订阅（实验性）' }, { value: 'local', label: '本地部署' }],
             })),
-          isCodex ? h(CodexSub, { draft, setDraft, toast }) : isCustom ? h('div', null,
+          isLocal ? h(BuiltinLocalImage, { draft, setDraft, toast }) : isCodex ? h(CodexSub, { draft, setDraft, toast }) : isCustom ? h('div', null,
             h(Row, { label: '请求方式', hint: 'GET 把参数都拼在地址上；POST 放进请求体' },
               h(Seg, {
                 value: isPost ? 'POST' : 'GET',
@@ -5340,7 +5388,7 @@ body[data-ds-dark-theme] .ab-root{
               f.text('imageGen.model', { size: 'wide', placeholder: '例如 Kwai-Kolors/Kolors' }),
               h(ModelPicker, { kind: 'image', keyFrom: 'imageGen', toast, baseUrl: (draft.imageGen || {}).baseUrl, apiKey: (draft.imageGen || {}).apiKey, value: (draft.imageGen || {}).model, onPick: (m) => setDraft(setPath(draft, 'imageGen.model', m)) }))),
           ),
-          h(Row, { label: '默认构图', hint: isCodex ? '通过构图提示引导，实际尺寸由服务端选择，不保证严格比例' : '聊天工具可指定本次构图。服务不支持所选尺寸时会报告失败，请换一种构图；自定义接口需使用尺寸占位符' },
+          h(Row, { label: '默认构图', hint: isLocal ? '本地模型最长边为 1024 像素，按构图比例缩放。' : isCodex ? '通过构图提示引导，实际尺寸由服务端选择，不保证严格比例' : '聊天工具可指定本次构图。服务不支持所选尺寸时会报告失败，请换一种构图；自定义接口需使用尺寸占位符' },
             f.select('imageGen.shape', [
               { value: 'her', label: '让ta选择', desc: isCodex ? '未指定时由服务端选择' : '未指定时沿用图片尺寸' },
               { value: 'square', label: isCodex ? '方图 1:1' : '方图 1:1（1024 × 1024）' },
@@ -5349,15 +5397,15 @@ body[data-ds-dark-theme] .ab-root{
               { value: 'wide', label: isCodex ? '宽幅 16:9' : '宽幅 16:9（1536 × 864）' },
             ], { width: 260 })),
           !isCodex && (!c.shape || c.shape === 'her') ? h(Row, { label: '图片尺寸', hint: isCustom ? '接口地址 / 参数里可以用 {size} 或 {width}/{height}' : '未指定构图时沿用这个尺寸' },
-            f.select('imageGen.size', [{ value: '1024x1024', label: '1024 × 1024', desc: '方图' }, { value: '768x1024', label: '768 × 1024', desc: '竖图' }, { value: '1024x768', label: '1024 × 768', desc: '横图' }, { value: '512x512', label: '512 × 512', desc: '小图，更快' }, { value: '2048x2048', label: '2K · 2048 × 2048', desc: '2K 方图' }, { value: '4096x4096', label: '4K · 4096 × 4096', desc: '4K 方图' }], { width: 230 })) : null,
+            f.select('imageGen.size', [{ value: '1024x1024', label: '1024 × 1024', desc: '方图' }, { value: '768x1024', label: '768 × 1024', desc: '竖图' }, { value: '1024x768', label: '1024 × 768', desc: '横图' }, { value: '512x512', label: '512 × 512', desc: '小图，更快' }, { value: '2048x2048', label: '2K · 2048 × 2048', desc: '2K 方图' }, { value: '4096x4096', label: '4K · 4096 × 4096', desc: '4K 方图' }].filter((size) => !isLocal || Number(size.value.split('x')[0]) <= 1024), { width: 230 })) : null,
           h(Row, { label: '固定风格', hint: '每次画都会加在描述前面' }, f.text('imageGen.stylePrompt', { size: 'wide', placeholder: '例如：日系二次元，柔和光线，蓝白配色' })),
-          h(Row, { label: '只给主人画', hint: '关掉后群友也能让ta画（会花你的额度）' }, f.sw('imageGen.ownerOnly')),
+          h(Row, { label: '只给主人画', hint: isLocal ? '关闭后，白名单内的其他会话也能请求本机生图。' : '关掉后群友也能让ta画（会花你的额度）' }, f.sw('imageGen.ownerOnly')),
           h(Row, { label: '允许参考图改画', hint: '默认开启，只接受当前聊天收到的图、引用图或图库文件名；Codex 订阅暂不支持' }, f.sw('imageGen.img2img')),
           h(Row, { label: '让ta画完自己看一眼', hint: '开着才把画好的图传给ta看（模型不支持看图时自动不传）；关掉就只回一句「画好了」，不传图' }, f.sw('imageGen.seeOwn')),
           isCustom ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, '例子：地址填 https://image.pollinations.ai/prompt/{prompt}，再加 model=flux-anime、width=1080、height=1920、nologo=true 四个参数，GET 就会请求 …/prompt/<提示词>?model=flux-anime&width=1080&…') : null,
-          !c.enabled ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, '还没开启。填好接口信息、打开右上角开关并保存后，ta就会多一个「画图」能力。') : null,
+          !c.enabled ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, isLocal ? '部署完成后，打开右上角开关并保存。' : '填好接口信息后，打开右上角开关并保存。') : null,
         ),
-        h(ImageFallbacks, { draft, setDraft }),
+        isLocal ? null : h(ImageFallbacks, { draft, setDraft }),
         h(AppearanceCard, { draft, toast }),
         h(PaintGallery, { draft, setDraft, toast }),
       )
@@ -5367,9 +5415,11 @@ body[data-ds-dark-theme] .ab-root{
     function RemoteBackup({ toast }) {
       const [s, setS] = useState(null)
       const [form, setForm] = useState(null)
-      const set = (k) => (e) => setForm({ ...form, [k]: k === 'keep' ? Math.max(1, Math.round(Number(e.target.value) || 1)) : (k === 'enabled' || k === 'autoCreate' || k === 'forceOverwrite' || k === 'webdavConfigOnly' ? e.target.checked : e.target.value) })
-      const load = () => get('/backup/remote/state').then((st) => {
+      const set = (k) => (e) => setForm((old) => ({ ...old, [k]: k === 'keep' ? Math.max(1, Math.round(Number(e.target.value) || 1)) : (k === 'enabled' || k === 'autoCreate' || k === 'forceOverwrite' || k === 'webdavConfigOnly' ? e.target.checked : e.target.value) }))
+      const load = (refreshForm = false) => get('/backup/remote/state').then((st) => {
+        if (!st.ok) { if (refreshForm) toast(st.message || '读不到云备份设置', 'err'); return }
         setS(st)
+        if (!refreshForm) return
         const v = st.remote || {}
         setForm({
           provider: v.provider === 'webdav' ? 'webdav' : 'gitee',
@@ -5378,11 +5428,11 @@ body[data-ds-dark-theme] .ab-root{
           webdavUrl: v.webdav?.url || '', webdavUsername: v.webdav?.username || '', webdavPassword: '', webdavConfigOnly: v.webdav?.configOnly === true,
         })
       })
-      useEffect(() => { load() }, [])
+      useEffect(() => { load(true) }, [])
       const running = Boolean(s && s.job && s.job.running)
       useEffect(() => { if (!running) return; const t = setInterval(load, 1000); return () => clearInterval(t) }, [running])
-      const call = (p, body) => fetch(API + p, { method: 'POST', headers: { 'x-aurabot-backup': '1', 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }).then((r) => r.json())
-      const after = (r2) => { toast(r2.ok ? (r2.message || '好了') : r2.message, r2.ok ? 'ok' : 'err'); load() }
+      const call = (p, body) => fetch(API + p, { method: 'POST', headers: { 'x-aurabot-backup': '1', 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }).then((r) => r.json()).catch((error) => ({ ok: false, message: '备份请求失败：' + error.message }))
+      const after = (r2, refreshForm = false) => { toast(r2.ok ? (r2.message || '好了') : r2.message, r2.ok ? 'ok' : 'err'); load(r2.ok && refreshForm) }
       if (!form) return null
       const job = s && s.job
       const webdav = form.provider === 'webdav'
@@ -5439,7 +5489,7 @@ body[data-ds-dark-theme] .ab-root{
           Field('远端留几份', 'keep', '如 7')),
         h('div', { className: 'ab-flex', style: { marginTop: 10, alignItems: 'center' } },
           h('span', { className: 'ab-flex' },
-            h(Btn, { small: true, kind: 'primary', disabled: running, onClick: async () => after(await call('/backup/remote/config', saveBody())) }, '保存设置'),
+            h(Btn, { small: true, kind: 'primary', disabled: running, onClick: async () => after(await call('/backup/remote/config', saveBody()), true) }, '保存设置'),
             h(Btn, { small: true, disabled: running, onClick: async () => { if (!confirm('现在就把最新备份推到 ' + (webdav ? 'WebDAV' : 'Gitee') + '？（不会重新打包，推 backups 里最新的一份）')) return; after(await call('/backup/push')) } }, running ? '推送中…' : '立即推送'))),
         job && job.error ? h('div', { className: 'ab-note err', style: { marginTop: 10 } }, '推送失败：' + job.error) : null,
         job && job.result ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 10 } }, '上次推送：' + job.result.message) : null,
@@ -5477,7 +5527,7 @@ body[data-ds-dark-theme] .ab-root{
         const t = setInterval(load, 1000)
         return () => clearInterval(t)
       }, [running])
-      const call = (p, body) => fetch(API + p, { method: 'POST', headers: { 'x-aurabot-backup': '1', 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }).then((r) => r.json())
+      const call = (p, body) => fetch(API + p, { method: 'POST', headers: { 'x-aurabot-backup': '1', 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }).then((r) => r.json()).catch((error) => ({ ok: false, message: '备份请求失败：' + error.message }))
       const after = (r) => { toast(r.ok ? (r.message || ('备份已导入（' + r.files + ' 个文件），重启 DSH 后换上')) : r.message, r.ok ? 'ok' : 'err'); load() }
       const upload = async (file) => {
         if (!file) return
@@ -5508,7 +5558,8 @@ body[data-ds-dark-theme] .ab-root{
             h(Btn, { small: true, onClick: async () => { const r = await call('/backup/open'); if (!r.ok) toast(r.message) } }, '打开备份文件夹')),
           job && job.error ? h('div', { className: 'ab-note err', style: { marginTop: 10 } }, '备份失败：' + job.error) : null,
           job && job.result ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 10 } }, '刚生成：' + job.result.name + '，' + job.result.files + ' 个文件' + (job.result.skipped.length ? '；有 ' + job.result.skipped.length + ' 个文件没能带上：' + job.result.skipped.slice(0, 5).join('、') : '')) : null,
-          s && s.list.length ? h('div', { style: { marginTop: 10 } }, s.list.slice(0, 8).map((b) => h('div', { key: b.name, className: 'ab-small' }, b.name + ' · ' + size(b.bytes)))) : null),
+          s?.ok === false ? h('div', { className: 'ab-note err', role: 'status' }, s.message || '读不到备份状态') : null,
+          s?.list?.length ? h('div', { style: { marginTop: 10 } }, s.list.slice(0, 8).map((b) => h('div', { key: b.name, className: 'ab-small' }, b.name + ' · ' + size(b.bytes)))) : null),
         h(RemoteBackup, { toast }),
         h(Card, { title: '恢复', desc: '在新电脑上先装好 DSH 和 Aurabot，再把备份拖进来。重启 DSH 后自动换上设置和数据、重新下载市场模块、放回 QQ 会话，原来的文件留在 backups 文件夹。' },
           s && s.modules && s.modules.length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 8 } }, '还没装回来的模块：' + s.modules.join('、') + '（下次启动再试）') : null,
@@ -5711,7 +5762,7 @@ body[data-ds-dark-theme] .ab-root{
     const TAB_KEYS = {
       connect: ['snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'subagentBackground'],
       group: ['group', 'merge', 'titleFilter', 'chat', 'files'], model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice'], stickers: ['stickers'],
-      imagegen: ['imageGen'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'], douyin: ['douyin'], heybox: ['heybox'],
+      imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'], douyin: ['douyin'], heybox: ['heybox'],
       local: ['local'], video: ['local'], browser: ['browser'], security: ['security', 'update'], modules: ['modules', 'safeMode'],
     }
 

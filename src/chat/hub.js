@@ -2012,7 +2012,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     selfId = String(msg.selfId || selfId || getConfig().botQQ)
     const cfg = getConfig()
     if (msg.userId === selfId) return
-    const fromOwner = onCommand && isOwner(cfg, msg.userId, msg.chatId)
+    const fromOwner = !msg.recovered && onCommand && isOwner(cfg, msg.userId, msg.chatId)
     const ownerRevision = fromOwner ? ownerAuthorizationRevision(cfg) : ''
     // 按群头衔过滤：这条当没看见（不进群聊上下文、不触发回复，@ 她、主人命令也一样）
     if (msg.kind === 'group' && parseChat(msg.chatId)?.platform === LEGACY_PLATFORM && await titleFilter.shouldIgnore(msg.raw || { group_id: msg.groupId, user_id: msg.userId })) return
@@ -2081,7 +2081,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (groupEntry) groupEntry.voicePromise = voicePromise
     }
     // 心智核心：白名单里的每条消息都记进她的感知记录（回不回都记）；语音等转出字再记，她才知道说了什么
-    const perceive = (text) => { try { mind?.perceive?.(text === undefined ? msg : { ...msg, text }) } catch (error) { log.debug('心智感知失败：', error.message) } }
+    let addressed = false
+    const perceive = (text) => { try { mind?.perceive?.(text === undefined ? msg : { ...msg, text, addressed }) } catch (error) { log.debug('心智感知失败：', error.message) } }
     if (!msg.records.length) perceive()
     else if (!voicePromise) perceive([msg.text, '[发来一条语音]'].filter(Boolean).join(' '))
     else voicePromise.then((t) => { if (!disposed) perceive([msg.text, t || '[发来一条语音，没听清]'].filter(Boolean).join(' ')) })
@@ -2148,7 +2149,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
 
     // 扩展模块可以先接管这条消息（关键词回复、转给自己的服务……）
-    if (hooks?.message) {
+    if (hooks?.message && !msg.recovered) {
       try {
         if (await hooks.message(msg)) {
           if (disposed) return
@@ -2224,6 +2225,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         botReplyTimes: groupSaid.get(msg.groupId) || [],
         mustTimes: groupMusts.get(msg.groupId) || [],
       })
+      if (decision.mode === 'must') {
+        addressed = true
+        try { mind?.noteAddressed?.(msg) } catch (error) { log.debug('心智记录群聊互动失败：', error.message) }
+      }
       if (hooks?.groupDecide) {
         try {
           const next = await hooks.groupDecide(decision, { msg, policy: pol, recentTexts, memScore })

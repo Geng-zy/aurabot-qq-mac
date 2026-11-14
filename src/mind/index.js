@@ -303,7 +303,7 @@ export function createMind(opts) {
   // ---------- 感知记录 ----------
   /**
    * 记一条收到的消息。
-   * @param {{ window: string, who: string, name?: string, text: string, msgId?: string, at?: number, seen?: 'replied'|'ignored'|'pending' }} m
+   * @param {{ window: string, who: string, name?: string, text: string, msgId?: string, at?: number, addressed?: boolean, seen?: 'replied'|'ignored'|'pending' }} m
    * @returns {boolean} 是否新记下（重复投递返回 false）
    */
   function perceive(m) {
@@ -311,9 +311,22 @@ export function createMind(opts) {
     const who = canon(m.who)
     if (who) notePerson(who, { name: m.name })
     const r = store.prep('INSERT OR IGNORE INTO perception (at, window, who, dir, text, msg_id, json) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run(at, String(m.window), who, 'in', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ name: m.name || '', seen: m.seen || 'pending' }))
+      .run(at, String(m.window), who, 'in', String(m.text || ''), m.msgId ? String(m.msgId) : null, JSON.stringify({ name: m.name || '', seen: m.seen || 'pending', ...(m.addressed ? { addressed: true } : {}) }))
     if (r.changes && isOwner(who)) memory.notePrivacyContext(String(m.window), m.text)
     return r.changes > 0
+  }
+  function noteAddressed(window, msgId) {
+    if (!msgId) return
+    store.prep("UPDATE perception SET json = json_set(COALESCE(json, '{}'), '$.addressed', json('true')) WHERE window = ? AND msg_id = ? AND dir = 'in'")
+      .run(String(window), String(msgId))
+  }
+
+  /** 主人的私聊来信，以感知原话的时间为准。 */
+  function lastOwnerMessageAt() {
+    if (!ownerId) return 0
+    const rows = store.prep("SELECT window, MAX(at) AS at FROM perception WHERE who = ? AND dir = 'in' AND at <= ? GROUP BY window")
+      .all(ownerId, now())
+    return Math.max(0, ...rows.filter((row) => isOwnerWindow(row.window)).map((row) => row.at))
   }
   /**
    * 记一条她发出去的话。所有出口（回复、命令回复、发文件、主动找人、模块代发）都要走这里。
@@ -724,7 +737,7 @@ export function createMind(opts) {
   const motivation = createMotivation({ store, now, setting, log, distractScale: () => 1.5 - personality.value('productiveness'), trait: (id) => personality.value(id) })
   const inner = createInner({
     store, now, setting, tz, log, random: opts.random, memory, emotion, body, motivation, budget, place,
-    ownerCall: () => self.ownerCall(),
+    ownerCall: () => self.ownerCall(), isOwnerWindow,
     identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id),
   })
   if (opts.model) inner.connect({ ask: ({ scene, system, text, maxTokens }) => memory.ask(scene, system, text, maxTokens) })
@@ -774,7 +787,7 @@ export function createMind(opts) {
     person, notePerson, listPeople,
     forgetPerson, setNoMemory, forgottenList, restorePerson, peopleGraph,
     // 感知
-    perceive, said, history, conversation,
+    perceive, noteAddressed, lastOwnerMessageAt, said, history, conversation,
     // 导入
     importBatch, imported, importDone, vectorOf, episode,
     // 删除、备份

@@ -141,14 +141,20 @@ async function valueToBuffer (v, signal) {
   throw new Error('生图接口返回的既不是图片地址也不是图片')
 }
 
-export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) {
+export function createImageGen({ getConfig, log, local, localImage, fetchImpl, codexAuth }) {
   const fetch = fetchImpl || ((...args) => globalThis.fetch(...args))
   const auth = codexAuth || createCodexAuth({ log, fetchImpl: fetch })
   const viaCodex = createCodexImage({ auth, fetchImpl: fetch, log })
+  const localReady = () => {
+    const c = getConfig().imageGen
+    if (c.provider === 'local') return Boolean(c.enabled && localImage?.status().ready)
+    return Boolean(local?.active('image'))
+  }
   async function generatePrivate(prompt, { signal } = {}) {
     signal?.throwIfAborted()
-    if (!local?.active('image')) throw new Error('本地生图未启用')
     const config = getConfig().imageGen
+    if (!localReady()) throw new Error('本地生图未启用或尚未就绪')
+    if (config.provider === 'local') return localImage.generate(prompt, { signal, size: imageSizeFor(undefined, config), steps: config.localSteps })
     const outDir = await mkdtemp(join(tmpdir(), 'aurabot-private-image-'))
     const cleanup = () => rm(outDir, { recursive: true, force: true })
     try {
@@ -176,17 +182,22 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
     const c = { ...config, size: requestedSize || imageSizeFor(shape, config) }
     if (image != null && (!Buffer.isBuffer(image) || !String(mimeOf(image)).startsWith('image/'))) throw new Error('参考图不是可用的图片')
     if (image && c.img2img === false) throw new Error('参考图功能已关闭')
+    const full = [c.stylePrompt, prompt].filter(Boolean).join('，')
+    if (c.provider === 'local') {
+      if (!c.enabled) throw new Error('生图还没开启')
+      if (!localImage) throw new Error('内置本地生图不可用')
+      return localImage.generate(full, { size: c.size, image, steps: c.localSteps, signal })
+    }
     // 本地接口接管：用用户自己电脑上的画图服务
     if (local?.active('image')) {
       const { toImageBuffer } = await import('../local/local.js')
       const t = Date.now()
-      const buf = await toImageBuffer(await local.call('image', { prompt: [c.stylePrompt, prompt].filter(Boolean).join('，'), size: c.size, ...(image ? { image: image.toString('base64') } : {}) }, { signal }), { signal })
+      const buf = await toImageBuffer(await local.call('image', { prompt: full, size: c.size, ...(image ? { image: image.toString('base64') } : {}) }, { signal }), { signal })
       signal?.throwIfAborted()
       log.info(`本地画好了一张图（${Math.round(buf.length / 1024)}KB，${Math.round((Date.now() - t) / 1000)}s）：${prompt.slice(0, 40)}`)
       return buf
     }
     if (!c.enabled) throw new Error('生图还没开启')
-    const full = [c.stylePrompt, prompt].filter(Boolean).join('，')
     const t = Date.now()
     const run = async (endpoint) => {
       const buf = endpoint.provider === 'codex'
@@ -302,15 +313,15 @@ export function createImageGen({ getConfig, log, local, fetchImpl, codexAuth }) 
   }
 
   const enabled = () => {
-    if (local?.active('image')) return true
     const c = getConfig().imageGen
+    if (c.provider === 'local' || local?.active('image')) return localReady()
     if (!c.enabled) return false
     if (fallbacks(c).length) return true
     if (c.provider === 'codex') return auth.status().loggedIn
     return c.provider === 'custom' ? Boolean(c.custom && c.custom.url) : Boolean(c.baseUrl && c.model)
   }
 
-  return { generate, generatePrivate, enabled, codexAuth: auth, dispose: () => auth.dispose?.() }
+  return { generate, generatePrivate, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
 }
 
 /**

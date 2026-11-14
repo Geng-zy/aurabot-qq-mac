@@ -10,6 +10,7 @@ import { toMono16k } from '../../voice/wav.js'
 import { fileOf } from '../../local/local.js'
 import { asrConfigured, transcribeAudio } from '../../voice/asr.js'
 import { mergeFromPanel, normalize } from '../../core/config.js'
+import { segmentsOf } from '../../channels/qq/inbound.js'
 
 export default {
   id: 'voice',
@@ -91,17 +92,23 @@ export default {
 
     // DSH 自带语音识别：看状态 / 下载模型
     const stt = () => api.dsh.get('speechToText')
+    const sttProvider = (service) => {
+      const s = service.snapshot()
+      return s.providers.find((x) => x.id === s.selection.providerId)
+    }
     api.route('/voice/asr-status', async () => {
       const s0 = stt()
       if (!s0 || typeof s0.snapshot !== 'function') return { ok: false, enabled: false, message: 'DSH 里没有开启「语音输入」插件' }
-      const s = s0.snapshot()
-      const p = s.providers.find((x) => x.id === s.selection.providerId) || s.providers[0]
+      const p = sttProvider(s0)
+      if (!p) return { ok: false, enabled: true, message: 'DSH 语音输入没有可用的识别提供方，请在 DSH 里选一个。' }
       return { ok: true, enabled: true, provider: p?.id, phase: p?.preparation?.phase || 'ready', detail: p?.preparation }
     })
     api.route('/voice/asr-prepare', async () => {
       const s0 = stt()
       if (!s0 || typeof s0.snapshot !== 'function') return { ok: false, message: 'DSH 里没有开启「语音输入」插件' }
-      s0.prepare(s0.snapshot().selection.providerId)
+      const p = sttProvider(s0)
+      if (!p || typeof s0.prepare !== 'function') return { ok: false, message: 'DSH 语音输入没有可用的识别提供方。' }
+      await s0.prepare(p.id)
       return { ok: true, message: '开始下载识别模型（约 200MB，下好后常驻本机）' }
     })
     // 自检「听语音」（真 QQ）：拿和某人私聊里最近一条语音，走一遍 get_record → 16k → DSH 识别
@@ -109,12 +116,13 @@ export default {
       const b = await http.body(req)
       const uid = Number(b.userId || api.config().ownerQQ)
       const h = await onebot.call('get_friend_msg_history', { user_id: uid, count: 30 })
-      const recs = (h?.messages || []).filter((m) => String(m.user_id) === String(uid)).flatMap((m) => (m.message || []).filter((s) => s.type === 'record').map((s) => ({ seg: s, time: m.time })))
-      const last = recs.at(-1)
+      const rows = Array.isArray(h) ? h : h?.messages || []
+      const recs = rows.filter((m) => String(m.user_id) === String(uid)).flatMap((m) => segmentsOf(m).filter((s) => s.type === 'record').map((s) => ({ seg: s, time: Number(m.time) || 0 })))
+      const last = recs.sort((a, b) => a.time - b.time).at(-1)
       if (!last) return { ok: false, message: '最近的聊天里没有对方发的语音' }
       const t = Date.now()
       const text = await hub.localTranscribe(last.seg)
-      return { ok: Boolean(text), heard: text, at: new Date(last.time * 1000).toLocaleString(), ms: Date.now() - t }
+      return { ok: Boolean(text), heard: text, at: last.time ? new Date(last.time * 1000).toLocaleString() : '', ms: Date.now() - t, ...(text ? {} : { message: '没有识别出文字' }) }
     })
     // 自检「听语音」：macOS 自带语音念一句 → 转 16k 单声道 → DSH 自带识别 → 看能不能认回来
     api.route('/voice/asr-test', async (req) => {
@@ -126,8 +134,8 @@ export default {
       const t = Date.now()
       const spec = s0.resolve({ audio: new Uint8Array(toMono16k(readFileSync(file))) })
       const r = await s0.transcribe(spec, AbortSignal.timeout(120000))
-      const heard = typeof r === 'string' ? r : r?.text || r?.transcript || JSON.stringify(r)
-      return { ok: Boolean(heard), said: text, heard, ms: Date.now() - t }
+      const heard = String(typeof r === 'string' ? r : r?.text || r?.transcript || '').trim()
+      return { ok: Boolean(heard), said: text, heard, ms: Date.now() - t, ...(heard ? {} : { message: '没有识别出文字' }) }
     })
 
     // ── Breeze 云端额度：查余额 / 领每日额度 ─────────────────────────────

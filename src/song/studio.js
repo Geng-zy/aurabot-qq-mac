@@ -2,7 +2,7 @@
 // 推理引擎用 Applio（MIT，固定版本），人声分离用 audio-separator，分别装在安装目录里的两套 Python 环境里（见 MAC_STACK），不碰系统环境。
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync, chmodSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync, chmodSync } from 'node:fs'
 import { join, basename, dirname, isAbsolute, delimiter, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
@@ -880,8 +880,15 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     const voices = listVoices(p.models)
     if (!voices.length) throw new Error('翻唱里还没有导入音色模型：面板「翻唱」页导入 .pth / zip')
     const v = (voice ? voices.find((x) => x.id === voice) : voices.find((x) => x.id === cfg().voice)) || voices[0]
-    const dir = outDir || join(work(), 'speech-rvc')
-    mkdirSync(dir, { recursive: true })
+    const root = outDir || join(work(), 'speech-rvc')
+    mkdirSync(root, { recursive: true })
+    const expired = Date.now() - 86400_000
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory() || !/^speech-[\w-]{6}$/.test(entry.name)) continue
+      const path = join(root, entry.name)
+      try { if (statSync(path).mtimeMs < expired) rmSync(path, { recursive: true, force: true }) } catch {}
+    }
+    const dir = mkdtempSync(join(root, 'speech-'))
     let source = input
     if (!local?.active('song')) {
       if (!existsSync(p.python) || !existsSync(join(p.applio, 'core.py')) || !existsSync(p.rmvpe) || !existsSync(p.contentvec)) {
