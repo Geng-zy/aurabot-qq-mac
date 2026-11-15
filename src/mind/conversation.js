@@ -67,7 +67,7 @@ function emotionFrom(appraisal) {
 
 /** 交际意图与措辞分开，参考 Levelt 对语言生成阶段的区分。 */
 function planSpeech({ direct, appraisal, state, people }) {
-  const brief = state.body.energy < 0.3 || state.body.groggy
+  const brief = state.body.energy < 0.3 || state.body.groggy || state.body.sleepiness >= 0.85
   const speak = direct || !appraisal || appraisal.relevance >= 0.25 || appraisal.novelty >= 0.7
   let intent = 'respond'
   if (appraisal?.corrects) intent = 'acknowledge'
@@ -109,7 +109,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
   const responding = new Map()
   let closed = false
 
-  function attend({ speaker, direct = true }) {
+  function attend({ speaker, direct = true, explicitlyAddressed = false }) {
     const who = canon(speaker)
     const b = body.state({ persist: false })
     const owner = isOwner(who)
@@ -120,7 +120,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     }
     if (owner) return { reply: true }
     if (!direct && (b.energy < 0.2 || b.sleepiness >= 0.8)) return { reply: false, reason: '太累了，不插话' }
-    if (direct && (b.energy < 0.15 || b.sleepiness >= 0.85) && random() < 0.4) return { reply: false, reason: '太累了，懒得理' }
+    if (direct && !explicitlyAddressed && (b.energy < 0.15 || b.sleepiness >= 0.85) && random() < 0.4) return { reply: false, reason: '太累了，懒得理' }
     return { reply: true }
   }
 
@@ -215,7 +215,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       const system = [
         selfPrompt({ publicOnly }), feelings, describeSpeechPlan(turn.plan),
         '你是收消息的一方。接着「对方刚说」往下聊。站在自己的角度回复，不要复述对方的消息。',
-        '对方还没确定的事可以先问一句或表示理解。不要凭空补充双方的行程或宣布结果。只输出 JSON：{"text":"你要回复的话"}。',
+        '对方还没确定的事按未确认处理。历史消息的日期是说话日期，不能直接当事件日期。对方质疑时以带日期的原话为准，找不到依据就说拿不准。只输出 JSON：{"text":"你要回复的话"}。',
       ].filter(Boolean).join('\n')
       const input = [
         turn.memory.text,

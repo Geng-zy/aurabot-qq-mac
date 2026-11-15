@@ -213,7 +213,7 @@ export interface MindApi {
   /** 把一件她能做的事交给她，由她自己决定什么时候做。返回撤销函数（模块停了会自动撤）。 */
   offer(a: {
     id: string; label: string; needs: Record<string, number>; effort?: number; delayHours?: number; cooldownMinutes?: number
-    payoff?: number; keywords?: string[]; available?: () => true | string | false
+    payoff?: number; keywords?: string[]; matchWant?: (text: string) => boolean; available?: () => true | string | false
     run: (ctx: { checkpoint: () => Promise<void>; signal: AbortSignal; wants: string[] }) => Promise<{ ok: boolean; summary?: string; outcome?: number }>
   }): () => void
   /** 主人有没有批准她这项权限。 */

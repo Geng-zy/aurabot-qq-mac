@@ -1,35 +1,26 @@
-// QQ 空间：发说说 + 空间日记（每天 N 次，时间窗里随机，结合当天聊天）。
+// QQ 空间：按配置写日记、发说说和核对发布记录。
 
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { fetchImage } from '../core/net.js'
 import { resolveAudience } from './qzone-audience.js'
 import { cleanOutboundText } from '../chat/reply.js'
+import { dayKey, inRange, minuteOfDay, parseRange } from '../mind/clock.js'
 
-const toMin = (hhmm) => {
-  const [h, m] = String(hhmm).split(':').map(Number)
-  return h * 60 + m
-}
-const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-/** 给某一天排日记时间：窗口内随机 n 个时刻，两两间隔 ≥ gap 分钟。纯函数（rand 可注入）。 */
-export function planDiaryTimes({ timesPerDay, windowStart, windowEnd, minGapMinutes }, rand = Math.random) {
-  const a = toMin(windowStart)
-  const b = toMin(windowEnd)
-  const n = Math.max(0, Math.round(timesPerDay))
-  if (n === 0 || b <= a) return []
-  const span = b - a
-  const gap = Math.min(minGapMinutes, Math.floor(span / Math.max(n, 1)))
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const pts = Array.from({ length: n }, () => a + Math.floor(rand() * span)).sort((x, y) => x - y)
-    if (pts.every((p, i) => i === 0 || p - pts[i - 1] >= gap)) return pts
-  }
-  // 实在排不开就均分
-  return Array.from({ length: n }, (_, i) => a + Math.floor((span / n) * (i + 0.5)))
+/** 写和发是同一件事；浏览、评论及发送翻唱各有自己的能力。 */
+export function wantsQzonePost(text) {
+  const plan = String(text)
+  if (/(?:翻唱|音频|视频|仅自己|只给自己|只自己看|写给自己|好友可见|不公开|别公开)/u.test(plan)) return false
+  const post = /(?:发布|发(?![现生挥觉展明])|写|更新).{0,12}(?:动态|说说|日记|空间)|(?:空间|说说).{0,8}(?:写|发)(?:一[条篇]|个|点)/u
+  return plan.split(/[。！？；，、]/u).some((part) => {
+    const match = part.match(post)
+    if (!match || /(?:不|别|没|取消|推迟|放弃|看看|要不要).{0,6}(?:发布|发|写|更)/u.test(part)) return false
+    return !/(?:看看?|刷|读|评论|点赞|回复|别人|好友|之前|已经)/u.test(part.slice(0, match.index))
+  })
 }
 
-export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperiences, pickImage, composeDiary }) {
+export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperiences, pickImage, composeDiary, timezone = () => undefined, actionBudget }) {
   const file = () => dataDir('diary.json')
-  const state = () => readJson(file(), () => ({ plan: { day: '', times: [], done: [] }, history: [] }))
+  const state = () => readJson(file(), () => ({ history: [] }))
   const save = (s) => writeJson(file(), s)
   let busy = false
 
@@ -141,10 +132,16 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
   }
 
   /** 写一篇并发出去。 */
-  async function writeDiary({ visibility, preview = false, checkpoint } = {}) {
+  async function writeDiary({ visibility, preview = false, checkpoint, automatic = false } = {}) {
     if (busy) return { ok: false, message: '上一篇还在写' }
+    const checkBeforeSend = ({ checkBudget = false } = {}) => {
+      if (!automatic) return
+      const status = automaticStatus(Date.now(), { checkBudget })
+      if (!status.available) throw new Error(status.reason)
+    }
     busy = true
     try {
+      checkBeforeSend({ checkBudget: true })
       const cfg = getConfig().diary
       // 名单/范围不合法就别让模型白写一篇再失败
       try { resolveAudience(getConfig(), visibility) } catch (error) { return { ok: false, message: error.message } }
@@ -154,8 +151,12 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
         const details = { text: draft.text, media: draft.media, warnings: draft.warnings, visibility: audience.visibility, label: audience.label }
         if (preview) return { ok: true, preview: true, ...details }
         await checkpoint?.()
+        checkBeforeSend()
         draft.beforeSend?.()
-        const r = await post(draft.text, { images: draft.images, visibility, beforeSend: draft.beforeSend })
+        const r = await post(draft.text, { images: draft.images, visibility, beforeSend: () => {
+          checkBeforeSend()
+          draft.beforeSend?.()
+        } })
         const s = state()
         s.history.unshift({
           at: Date.now(), text: draft.text, ok: r.ok, tid: r.tid || '', dryRun: Boolean(r.dryRun),
@@ -193,13 +194,14 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
         return { ok: true, preview: true, text, media: [], visibility: audience.visibility, label: audience.label, warnings: ['当前为原有日记流程；预览展示正文，原有配图发布时仍按原规则挑选。'] }
       }
       await checkpoint?.()
-      let r = await post(text, { visibility: images.length ? 'self' : visibility, images })
+      checkBeforeSend()
+      let r = await post(text, { visibility: images.length ? 'self' : visibility, images, beforeSend: checkBeforeSend })
       // 配图发不出去（比如空间不认这张图）不能把整篇日记憋回去：退回只发文字，日记照发
       if (!r.ok && images.length) {
         log.warn('日记配图没发成，改成只发文字：', r.message)
         images.length = 0
         await checkpoint?.()
-        r = await post(text, { visibility })
+        r = await post(text, { visibility, beforeSend: checkBeforeSend })
       }
       const s = state()
       s.history.unshift({ at: Date.now(), text, ok: r.ok, tid: r.tid || '', dryRun: Boolean(r.dryRun), visibility: r.visibility || visibility || cfg.visibility, target_uins: r.target_uins || [], error: r.ok ? '' : r.message })
@@ -214,33 +216,32 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
     }
   }
 
-  /** 每分钟调一次。 */
-  async function tick() {
+  function automaticStatus(at = Date.now(), { checkBudget = true } = {}) {
     const cfg = getConfig()
-    if (!cfg.enabled || !cfg.diary.enabled) return
-    const s = state()
-    const today = dayKey()
-    if (s.plan.day !== today) {
-      s.plan = { day: today, times: planDiaryTimes(cfg.diary), done: [] }
-      save(s)
-      log.info(`今天的日记时间：${s.plan.times.map((m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`).join('、') || '（不写）'}`)
+    const { timesPerDay: limit, windowStart, windowEnd, minGapMinutes } = cfg.diary
+    const tz = timezone()
+    const today = dayKey(at, tz)
+    const published = state().history.filter((entry) => entry.ok && !entry.dryRun && entry.at <= at)
+    const count = published.filter((entry) => dayKey(entry.at, tz) === today).length
+    const waitUntil = Math.max(0, ...published.map((entry) => entry.at)) + (minGapMinutes ?? 180) * 60000
+    const range = parseRange(`${windowStart}-${windowEnd}`)
+    let reason = ''
+    if (!cfg.enabled || !cfg.diary.enabled) reason = '空间日记没打开'
+    else if (cfg.dryRun || cfg.debug) reason = '试运行中，暂停自动发布'
+    else if (!limit) reason = '自动发布次数设为 0'
+    else if (count >= limit) reason = '已到今天的发布上限'
+    else if (!range || range.start === range.end) reason = '发布时段设置无效'
+    else if (!inRange(minuteOfDay(at, tz), range)) reason = `等待发布时段 ${windowStart}–${windowEnd}`
+    else if (at < waitUntil) reason = `距离上次发布还差 ${Math.ceil((waitUntil - at) / 60000)} 分钟`
+    else {
+      try { resolveAudience(cfg) } catch (error) { reason = error.message }
+      if (!reason && checkBudget && actionBudget) {
+        const budget = actionBudget()
+        if (budget !== true) reason = budget
+      }
     }
-    const now = new Date()
-    const nowMin = now.getHours() * 60 + now.getMinutes()
-    const due = s.plan.times.find((m) => m <= nowMin && !s.plan.done.includes(m))
-    if (due === undefined) return
-    s.plan.done.push(due)
-    save(s)
-    log.info('到点了，写一篇空间日记')
-    await writeDiary()
+    return { available: !reason, reason, count, limit }
   }
 
-  function nextTime() {
-    const s = state()
-    const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
-    const m = s.plan.day === dayKey() ? s.plan.times.find((x) => !s.plan.done.includes(x) && x >= nowMin) : undefined
-    return m === undefined ? '' : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
-  }
-
-  return { post, remove, writeDiary, tick, syncHistory, history: () => state().history, nextTime }
+  return { post, remove, writeDiary, syncHistory, history: () => state().history, nextTime: () => '', automaticStatus }
 }

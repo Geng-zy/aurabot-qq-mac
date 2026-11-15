@@ -13,6 +13,19 @@ import { keywords } from './words.js'
 const DAY = 86400000
 const hash = (s) => createHash('sha1').update(String(s)).digest('hex').slice(0, 16)
 const clamp01 = (x) => Math.min(1, Math.max(0, Number(x) || 0))
+const relativeDays = { 大前天: -3, 前天: -2, 昨天: -1, 昨晚: -1, 昨夜: -1, 今天: 0, 今日: 0, 今晚: 0, 明天: 1, 明晚: 1, 后天: 2, 大后天: 3 }
+const relativeDayWords = /大前天|大后天|前天|后天|昨天|昨晚|昨夜|今天|今日|今晚|明天|明晚/
+const relativeDayWordsGlobal = new RegExp(relativeDayWords, 'g')
+const quotedText = /([「『“《][^」』”》]*[」』”》]|"[^"]*")/
+
+function anchorDates(text, day) {
+  if (!day) return text
+  const midnight = Date.parse(day + 'T00:00:00Z')
+  return text.split(quotedText).map((part, i) => i % 2 ? part : part.replaceAll(relativeDayWordsGlobal, (word) =>
+    new Date(midnight + relativeDays[word] * DAY).toISOString().slice(0, 10) + (/[晚夜]$/.test(word) ? '晚' : ''))).join('')
+}
+
+const pendingLabel = (e) => e.data.followup?.done ? '（已停止跟进，结果以原话为准）' : '（当时提到，结果待确认）'
 
 /** 从模型的回答里取出第一个 JSON 对象。 */
 export function parseJson(text) {
@@ -144,6 +157,29 @@ export function createMemory(deps) {
     return store.prep("SELECT id FROM episodes WHERE EXISTS (SELECT 1 FROM json_each(episodes.json, '$.sources') WHERE value = ?)").all(source)
       .every(({ id }) => visibleIn(row(id), window))
   }
+
+  function originalLines(e) {
+    const ids = Array.isArray(e.data.sources) ? e.data.sources : []
+    if (!e.window || !ids.length) return []
+    const get = store.prep('SELECT id, at, who, dir, text, json FROM perception WHERE window = ? AND id = ?')
+    return [...new Set(ids)].map((id) => get.get(e.window, id)).filter(Boolean).sort((a, b) => a.at - b.at || a.id - b.id)
+  }
+
+  function visibleOriginalLines(e, audienceWindow) {
+    return originalLines(e).filter((line) => sourceVisible(line.id, audienceWindow)
+      && (JSON.parse(line.json || '{}').audienceShares || []).every((id) => visibleIn(row(id), audienceWindow)))
+  }
+
+  /** 只在来源确实落在同一天时，才给摘要里的相对日期定锚。 */
+  function sourceDay(lines) {
+    if (!lines.length) return ''
+    const tz = deps.tz()
+    const first = dayKey(lines[0].at, tz)
+    return lines.every((line) => dayKey(line.at, tz) === first) ? first : ''
+  }
+
+  const memorySummary = (e, text) => !text || ['public-note', 'shared-note'].includes(e.data.kind) || !relativeDayWords.test(text)
+    ? text : anchorDates(text, sourceDay(originalLines(e)))
 
   function protectedText(ownerWindow, audience) {
     const rows = store.prep("SELECT * FROM episodes WHERE kind = 'shared-note' OR (kind = 'public-note' AND ?) OR json_extract(json, '$.privateOnly') = 1 OR json_extract(json, '$.secret') = 1 ORDER BY at DESC LIMIT 250").all(Number(S('ownerEverydayExcerpts') === false))
@@ -328,11 +364,12 @@ export function createMemory(deps) {
 - 别人说的关于他自己的事，才算 fact（about 和 speaker 是同一个人）；A 说 B 的事，记成 hearsay。
 - 你自己的猜测、看法记成 belief，gist 用“我觉得……”开头，不要当成事实。
 - 你答应要做、或者打算做的事记成 intention，能看出时间就填 due（格式 YYYY-MM-DD HH:mm，按聊天里的时间），看不出就填 null。
-- 别人说到他自己一件还没结果、他在意的事（面试、考试、体检、等录取或通知、比赛、看病、搬家……）记成 pending，about 和 speaker 都是他，due 填结果大概出来的时间（看不出就填 null）。
+- 别人亲口说到他自己一件还没结果、他在意的事（面试、考试、体检、等录取或通知、比赛、看病、搬家……）记成 pending，about 和 speaker 都是他，due 填结果大概出来的时间（看不出就填 null）。区分担心、打算、已经提交和已有结果，对方问「能退吗」只说明在问可不可以，不能记成已经申请或有一笔退款在处理。
 - 别人说到的生日、纪念日这类每年都会再来的日子，记成 date：yearly 填 MM-DD，about 是谁的（你自己的填 self），gist 写清是什么日子。
 - 其他经历记成 event。
 - 只记聊天里真有的内容，不要补充、不要编。
 - gist 一句话大意；detail 补充细节（谁、说了什么、怎么回事），可以空。
+- 摘要里的今天、昨天、明天等按对应原话的日期换成 YYYY-MM-DD。日期无法核对时省略，别把说话日期直接当事件日期。引用原话则保留原措辞。
 - importance 0~1：对你来说多重要（和你在乎的人和事越相关越高）。
 - emotion：你当时的感受，name 用一个词，intensity 0~1，valence -1~1（负面到正面）；没什么感觉就 null。
 - who：涉及的人的 id 列表（行首方括号里的 id）。about：这件事主要关于谁（id），speaker：这件事是谁说的（id，你自己是 self）。
@@ -357,13 +394,16 @@ export function createMemory(deps) {
     return active
   }
 
-  async function encodeBatch(window, { force = false } = {}) {
+  async function encodeBatch(window, { force = false, recovery = null, through = Number.MAX_SAFE_INTEGER } = {}) {
     const tz = deps.tz()
-    const cursor = cursorOf(window)
-    const batch = Number(S('encodeBatch')) || 60
-    const select = store.prep('SELECT id, at, who, dir, text, json FROM perception WHERE window = ? AND id > ? ORDER BY id LIMIT ?')
-    const rows = select.all(window, cursor, batch)
-    if (!rows.length) return { encoded: 0 }
+    const cursor = recovery ? recovery.after : cursorOf(window)
+    const batch = recovery ? recovery.batch || 30 : Number(S('encodeBatch')) || 60
+    const select = store.prep('SELECT id, at, who, dir, text, json FROM perception WHERE window = ? AND id > ? AND id <= ? ORDER BY id LIMIT ?')
+    const rows = select.all(window, cursor, through, batch)
+    if (!rows.length) {
+      if (recovery) store.set('encode.recovery', store.get('encode.recovery', []).slice(1))
+      return { encoded: 0 }
+    }
     const last = rows[rows.length - 1]
     const idle = now() - last.at >= (Number(S('encodeIdleMinutes')) || 5) * 60000
     // 一直没停下来的聊天（热闹的群）：最早那条没记的等太久了也先记一段，别处才能及时想起这里聊过什么
@@ -380,7 +420,7 @@ export function createMemory(deps) {
     let parsed
     try {
       let extra = ''
-      try { extra = String(encodeExtra() || '') } catch {}
+      if (!recovery) try { extra = String(encodeExtra() || '') } catch {}
       const system = ENCODE_SYSTEM(name) + (extra ? '\n\n' + extra + '\n这几项和 episodes 放在同一个 JSON 对象里。' : '')
       parsed = parseJson(await ask('record', system, `聊天：${window}\n${lines.join('\n')}`, extra ? 2500 : 1500))
     } catch (error) {
@@ -388,10 +428,23 @@ export function createMemory(deps) {
       throw error
     }
     // 等模型时原话可能被删除、合并身份或修改，提交前检查同一批原话仍然有效。
-    const unchanged = () => cursorOf(window) === cursor && JSON.stringify(select.all(window, cursor, rows.length)) === JSON.stringify(rows)
+    const unchanged = () => (recovery || cursorOf(window) === cursor) && JSON.stringify(select.all(window, cursor, through, rows.length)) === JSON.stringify(rows)
     // 模型没按格式回（不是 JSON、没有 episodes）：这段先不算记过，下次再记；连着三次都不行才跳过，免得卡死
     if (!parsed || typeof parsed !== 'object' || (parsed.episodes !== undefined && !Array.isArray(parsed.episodes)) || (!Array.isArray(parsed.episodes) && !('self' in parsed) && !('rel' in parsed) && !('habit' in parsed) && !('knowledge' in parsed))) return store.tx(() => {
       if (!unchanged()) return { encoded: 0, changed: true }
+      if (recovery) {
+        const tasks = store.get('encode.recovery', [])
+        const [, ...rest] = tasks
+        if (batch > 10 || !recovery.retried) {
+          store.set('encode.recovery', [{ ...recovery, batch: Math.max(10, Math.floor(batch / 2)), retried: batch === 10 }, ...rest])
+        } else {
+          const failed = { window, after: cursor, through: last.id }
+          store.set('encode.recovery.failed', [...store.get('encode.recovery.failed', []), failed])
+          store.set('encode.recovery', last.id < through ? [{ window, after: last.id, through }, ...rest] : rest)
+          log.warn('补记旧经历时模型连续没按格式回，本批保留待补：', rows.length, '条')
+        }
+        return { encoded: 0, failed: true }
+      }
       const failKey = 'encode.fail.' + window
       const n = Number(store.get(failKey, 0)) + 1
       if (n < 3) {
@@ -400,6 +453,11 @@ export function createMemory(deps) {
         return { encoded: 0, failed: true }
       }
       store.del(failKey)
+      const skipped = { window, after: cursor, through: last.id }
+      store.set('encode.skipped', [...store.get('encode.skipped', []), skipped])
+      if (store.get('budget.unlimitedDay') === dayKey(now(), tz)) {
+        store.set('encode.recovery', [...store.get('encode.recovery', []), skipped])
+      }
       log.warn(`记 ${window} 时模型连着 ${n} 次没按格式回，这 ${rows.length} 条先跳过（原话还在，翻聊天记录能看到）`)
       store.set('encode.cursor.' + window, last.id)
       return { encoded: 0, failed: true, skipped: rows.length }
@@ -410,13 +468,14 @@ export function createMemory(deps) {
     const evidence = []
     const committed = store.tx(() => {
       if (!unchanged()) return false
-      store.del('encode.fail.' + window)
+      if (!recovery) store.del('encode.fail.' + window)
       // 已在指定群聊提过的分享仍只属于那个群，不能靠重新整理变成别处的经历。
       const audienceShares = [...new Set(rows.flatMap((r) => JSON.parse(r.json || '{}').audienceShares || []))]
       for (const ep of Array.isArray(parsed?.episodes) ? parsed.episodes : []) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue
-        const src = (Array.isArray(ep.sources) ? ep.sources : []).map((n) => rows[Number(n) - 1]).filter(Boolean)
+        const src = (Array.isArray(ep.sources) ? ep.sources : []).map((n) => rows[Number(n) - 1]).filter(Boolean).sort((a, b) => a.at - b.at || a.id - b.id)
+        if (recovery && !src.length) continue
         let type = ['event', 'fact', 'hearsay', 'belief', 'intention', 'pending', 'date'].includes(ep.type) ? ep.type : 'event'
         // 每年的日子：认不出月日就当普通的事
         const yb = type === 'date' ? parseBirthday(ep.yearly) : null
@@ -426,7 +485,9 @@ export function createMemory(deps) {
         // 别人说的事实只认他自己的原话
         if (type === 'fact' && about && speaker && about !== speaker && speaker !== 'self') type = 'hearsay'
         // 惦记的事只认本人说的自己的事；不是的话当普通的事 / 听说的事
-        if (type === 'pending' && (!about || about === 'self' || (speaker && speaker !== about))) type = about && about !== 'self' && speaker && speaker !== about ? 'hearsay' : 'fact'
+        if (type === 'pending' && (!about || about === 'self' || speaker !== about || !src.some((line) => line.dir === 'in' && line.who === about))) {
+          type = about && about !== 'self' && speaker && speaker !== about ? 'hearsay' : 'event'
+        }
         const emo = ep.emotion && typeof ep.emotion === 'object' && ep.emotion.name
           ? { name: String(ep.emotion.name), intensity: clamp01(ep.emotion.intensity), valence: Math.max(-1, Math.min(1, Number(ep.emotion.valence) || 0)) }
           : null
@@ -435,10 +496,11 @@ export function createMemory(deps) {
           due = zonedToEpoch(ep.due, tz)
         }
         const at = src.length ? src[0].at : rows[0].at
+        const sourceDate = sourceDay(src)
         // 惦记的事：结果出来的时候再问（看不出来、或者说的时间不靠谱，就两天后）
         const follow = type === 'pending' ? { followup: { asks: 0, nextAt: due && due > at && due < at + 60 * DAY ? due : at + 2 * DAY } } : {}
         const id = insert({
-          at, window, gist, detail: String(ep.detail || '').trim(), kind: type,
+          at, window, gist: anchorDates(gist, sourceDate), detail: anchorDates(String(ep.detail || '').trim(), sourceDate), kind: type,
           importance: ep.importance ?? 0.5, emotion: emo, about, speaker,
           who: Array.isArray(ep.who) ? ep.who.map(String) : [],
           sources: src.map((r) => r.id), due, attention,
@@ -452,11 +514,21 @@ export function createMemory(deps) {
         })
         evidence.push({ id, sources: src.map((r) => r.id), emotion: emo, importance: ep.importance, secret: ep.secret === true })
       }
-      store.set('encode.cursor.' + window, last.id)
+      if (!recovery) store.set('encode.cursor.' + window, last.id)
+      else {
+        const tasks = store.get('encode.recovery', [])
+        const [current, ...rest] = tasks
+        if (current?.window === window && current.after === cursor && current.through === through) {
+          const remaining = last.id < through ? [{ window, after: last.id, through }, ...rest] : rest
+          store.set('encode.recovery', remaining)
+          const progress = store.get('encode.recovery.progress', { rows: 0, episodes: 0 })
+          store.set('encode.recovery.progress', { rows: progress.rows + rows.length, episodes: progress.episodes + ids.length })
+        }
+      }
       return true
     })
     if (!committed) return { encoded: 0, changed: true }
-    if (onEncoded) {
+    if (onEncoded && !recovery) {
       try { onEncoded({ window, rows, parsed, evidence }) } catch (error) { log.warn('记经历后的状态记录出错：', error.message) }
     }
     await embedEpisodes(ids)
@@ -476,6 +548,17 @@ export function createMemory(deps) {
       } catch (error) {
         log.warn(`记 ${w.window} 失败：`, error.message)
       }
+    }
+    for (let i = 0; i < 20; i++) {
+      if (store.get('budget.unlimitedDay') !== dayKey(now(), deps.tz())) break
+      const recovery = store.get('encode.recovery', [])[0]
+      if (!recovery) break
+      const r = await encodeWindow(recovery.window, { recovery, through: recovery.through, force: true })
+      n += r.encoded || 0
+      if (r.budget || r.changed) break
+      if (r.failed) continue
+      const next = store.get('encode.recovery', [])[0]
+      if (next?.window === recovery.window && next.after === recovery.after && next.through === recovery.through) break
     }
     return n
   }
@@ -545,11 +628,13 @@ export function createMemory(deps) {
     const qv = query.trim() ? await embedText(query, embeddingTimeoutMs) : null
     if (qv) for (const h of vectors.search(qv, { model: embedModel(), limit: period ? 200 : 80, min: cueMatch * 0.8 })) cand.set(h.id, h.sim)
     // 关键词：命中的词越多（按分量算）越像想到了；全中的能单独把记忆勾起来，向量服务慢或连不上时也想得起
-    for (const [id, cov] of keywordHits(cue)) {
+    const cueHits = keywordHits(cue, audienceWindow)
+    const contextHits = keywordHits(contextCue, audienceWindow)
+    for (const [id, cov] of cueHits) {
       const sim = cueMatch * ((deliberate ? 0.9 : 0.85) + 0.3 * cov)
       cand.set(id, Math.max(cand.get(id) || 0, sim))
     }
-    if (contextCue) for (const [id, cov] of keywordHits(contextCue)) {
+    for (const [id, cov] of contextHits) {
       const sim = cueMatch * (0.82 + 0.26 * cov)
       cand.set(id, Math.max(cand.get(id) || 0, sim))
     }
@@ -565,6 +650,7 @@ export function createMemory(deps) {
       if (!e || e.status !== 'live' || !visibleIn(e, audienceWindow)) continue
       if (!inPeriod(e)) continue
       if (e.data.kind === 'intention' && e.data.done) continue
+      if (!deliberate && !period && e.data.kind === 'pending' && !cueHits.has(id) && !contextHits.has(id)) continue
       const r = rOf(e, at)
       const level = levelOf(r, sim, levels())
       if (!level) continue
@@ -594,7 +680,12 @@ export function createMemory(deps) {
         log.debug('精排没成，按原来的顺序：', error.message)
       }
     }
-    const top = scored.filter(({ e }) => visibleIn(row(e.id), audienceWindow)).slice(0, limit)
+    const eligible = scored.filter(({ e }) => visibleIn(row(e.id), audienceWindow))
+    if (!deliberate && !period) {
+      // 对方明确提到待跟进事项时，让有直接词证的事项排在仅因人物关系而想起的记忆前面。
+      eligible.sort((a, b) => Number(b.e.data.kind === 'pending' && cueHits.has(b.e.id)) - Number(a.e.data.kind === 'pending' && cueHits.has(a.e.id)))
+    }
+    const top = eligible.slice(0, limit)
     // 联想（扩散激活）：从最相关的两条出发，顺着联系往下想几步；离得越远越淡，太淡的想不起来。
     // 对话的联想沿用会话可见范围，按日期查时不联想。
     if (top.length && S('assoc') !== false && !period && !compact) {
@@ -614,6 +705,7 @@ export function createMemory(deps) {
             if (act < 0.2) continue
             const e = row(l.id)
             if (!e || e.status !== 'live' || !visibleIn(e, audienceWindow) || (e.data.kind === 'intention' && e.data.done)) continue
+            if (!deliberate && e.data.kind === 'pending' && !cueHits.has(e.id) && !contextHits.has(e.id)) continue
             seen.add(l.id)
             const r = rOf(e, at)
             let level = levelOf(r, 1, levels())
@@ -634,13 +726,14 @@ export function createMemory(deps) {
 
   /** 按想起的清楚程度给出她脑子里的样子。 */
   function render(e, level, compact = false) {
-    const tag = KINDS[e.data.kind] && e.data.kind !== 'event' && e.data.kind !== 'experience' ? `（${KINDS[e.data.kind]}）` : ''
+    const tag = e.data.kind === 'pending' ? pendingLabel(e) : KINDS[e.data.kind] && e.data.kind !== 'event' && e.data.kind !== 'experience' ? `（${KINDS[e.data.kind]}）` : ''
+    const gist = memorySummary(e, e.gist)
     // 过时了的：知道那是以前的情况
-    if (e.data.outdated && level !== 'tip') return `以前：${e.gist}${tag}——后来变了：${e.data.outdated.now}`
-    if (level === 'clear') return `${e.gist}${!compact && e.detail ? '——' + e.detail : ''}${tag}`
-    if (level === 'vague') return `好像有这么回事：${e.gist}${tag}`
+    if (e.data.outdated && level !== 'tip') return `以前：${gist}${tag}——后来变了：${e.data.outdated.now}`
+    if (level === 'clear') return `${gist}${!compact && e.detail ? '——' + memorySummary(e, e.detail) : ''}${tag}`
+    if (level === 'vague' || e.data.kind === 'pending') return `好像有这么回事：${gist}${tag}`
     // 话到嘴边：只想起前一半
-    const chars = [...e.gist]
+    const chars = [...gist]
     return `${chars.slice(0, Math.max(4, Math.ceil(chars.length * 0.4))).join('')}……（一下想不全）`
   }
 
@@ -657,7 +750,7 @@ export function createMemory(deps) {
         e.data.hits = (e.data.hits || 0) + 1
         save(e)
         const p = Number(S('reconsolidation')) || 0
-        if (p > 0 && random() < p && !['intention', 'dream', 'public-note', 'shared-note'].includes(e.data.kind)) {
+        if (p > 0 && random() < p && !['intention', 'pending', 'dream', 'public-note', 'shared-note'].includes(e.data.kind)) {
           queueJob('reconsolidate', id, { mood: (state() || {}).valence || 0, at })
         }
       }
@@ -673,13 +766,15 @@ export function createMemory(deps) {
     return store.prep(`SELECT * FROM episodes WHERE kind = 'pending' AND status = 'live'${open ? " AND json_extract(json, '$.followup.done') IS NULL" : ''} ORDER BY at DESC LIMIT 200`).all()
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
   }
-  function dueFollowups({ people = [], audienceWindow, limit = 2 } = {}) {
+  function dueFollowups({ people = [], audienceWindow, cue = '', contextCue = '', limit = 2 } = {}) {
     if (S('followup') === false || !people.length) return []
+    const related = new Set([...keywordHits(cue, audienceWindow).keys(), ...keywordHits(contextCue, audienceWindow).keys()])
+    if (!related.size) return []
     const at = now()
     const out = []
     for (const e of pendingRows({ open: true })) {
       const f = e.data.followup
-      if (!f || f.done || !people.includes(e.data.about) || !visibleIn(e, audienceWindow)) continue
+      if (!f || f.done || !people.includes(e.data.about) || !related.has(e.id) || !visibleIn(e, audienceWindow)) continue
       const care = Math.max(0, Math.min(1, Number(deps.care?.(e.data.about) ?? 0.5)))
       if (care < 0.3) continue // 不熟、她又不特别心疼人的：不追问
       const max = Math.max(1, Math.round((Number(S('followupMaxAsks')) || 3) * (0.4 + 0.6 * care)))
@@ -837,7 +932,7 @@ export function createMemory(deps) {
       // 跟眼前的人说过这件事了：别当新鲜事再讲一遍
       const told = people.filter((p) => m.toldTo?.[p]).map((p) => `${nameOf(p)}（${shortTime(m.toldTo[p], deps.tz()).slice(0, 5)}）`)
       const toldNote = told.length ? `（这事你已经跟${told.join('、')}说过了）` : ''
-      const ref = compact && m.level !== 'tip' ? ` [${m.id}]` : ''
+      const ref = compact && (m.level !== 'tip' || m.kind === 'pending') ? ` [${m.id}]` : ''
       const line = `- ${when} ${m.associated ? '（由此想到）' : ''}${m.text}${note}${toldNote}${ref}`
       if (total + line.length > max) break
       total += line.length
@@ -846,9 +941,9 @@ export function createMemory(deps) {
     }
     const todo = dueIntentions({ window, audienceWindow: window || '' }).map((e) => `- ${e.gist}${e.data.due ? `（${shortTime(e.data.due, deps.tz())} 前）` : ''}`)
     // 在场的人有到了该问的事：提一句，问过就往后推（调试模式只看不推）
-    const follow = dueFollowups({ people, audienceWindow: window || '' })
+    const follow = dueFollowups({ people, audienceWindow: window || '', cue, contextCue })
     if (!readOnly) for (const { e, care } of follow) markAsked(e, care)
-    const asks = follow.map(({ e }) => `- ${dayKey(e.at, deps.tz())} ${nameOf(e.data.about)}：${e.gist}`)
+    const asks = follow.map(({ e }) => `- ${dayKey(e.at, deps.tz())} ${nameOf(e.data.about)}当时提到：${memorySummary(e, e.gist)} [${e.id}]`)
     // 记下这一轮想起了什么：她接下来说出口的，算「跟这里的人说过了」
     if (!readOnly && window) lastRecalled.set(window, got.filter((m) => used.includes(m.id) && m.level !== 'tip').map((m) => ({ id: m.id, at: now() })))
     // 今天和快到的日子（生日、纪念日、认识几周年）：眼前的人的、主人的、她自己的
@@ -861,10 +956,22 @@ export function createMemory(deps) {
     }
     const parts = []
     if (lines.length) parts.push('【你想起来的】\n' + lines.join('\n'))
+    // 对方主动提到未决事项时，给她少量原话对照，避免只照摘要转述。
+    const pending = got.find((m) => m.kind === 'pending' && used.includes(m.id))
+    if (pending && window) {
+      const entry = row(pending.id)
+      const evidence = visibleOriginalLines(entry, window).filter((line) => line.dir === 'in' && line.who === entry.data.about
+        && line.text && !/^\[[^\]]+\]$/.test(line.text.trim())).slice(0, 8)
+      if (evidence.length) {
+        const tz = deps.tz()
+        const excerpts = evidence.map((line) => `- ${dayKey(line.at, tz)} ${shortTime(line.at, tz).slice(6)} ${nameOf(line.who)}：${line.text.replace(/\s+/g, ' ').slice(0, 100)}`)
+        parts.push(`【待跟进事项原话 · ${pending.id}】\n` + excerpts.join('\n'))
+      }
+    }
     if (days.length) parts.push('【日子】\n' + days.map((d) => '- ' + d.text).join('\n'))
     if (todo.length) parts.push('【你惦记着要做的事】\n' + todo.join('\n'))
-    if (asks.length) parts.push('【你惦记着别人的事，还不知道结果】\n' + asks.join('\n') + '\n（聊到合适的时候自然地问一句，不合适就别硬问；知道结果了或者对方说别问了，就用 mind_followup_done 放下）')
-    return { text: parts.join('\n'), recalled: used }
+    if (asks.length) parts.push('【你惦记着别人的事，还不知道结果】\n' + asks.join('\n') + '\n（这些是当时提过的问题。只有这轮确实在聊同一件事时才跟进；被问到日期或进度，先用 mind_recall_more 核对原话。不确定就先澄清。知道结果或对方说别问了，就用 mind_followup_done 放下。）')
+    return { text: parts.join('\n'), recalled: [...new Set([...used, ...follow.map(({ e }) => e.id)])] }
   }
 
   // ---------- 她特意记下来 ----------
@@ -1083,14 +1190,16 @@ export function createMemory(deps) {
     const canRecall = (e) => e && e.status === 'live' && visibleIn(e, audienceWindow)
     if (!canRecall(entry)) return null
     const level = levelOf(rOf(entry), 1, levels())
-    if (!level || level === 'tip') return null
+    if (!level || (level === 'tip' && entry.data.kind !== 'pending')) return null
     const neighbors = related(entry.id, { canRead: canRecall }).flatMap(({ id }) => {
       const e = row(id)
       if (!canRecall(e)) return []
       const clarity = levelOf(rOf(e), 1, levels())
       return !clarity || clarity === 'tip' ? [] : [{ id, at: e.at, text: render(e, clarity, true).slice(0, 180) }]
     }).slice(0, 4)
-    return { id: entry.id, at: entry.at, text: render(entry, level).slice(0, 600), related: neighbors }
+    const evidence = visibleOriginalLines(entry, audienceWindow)
+      .slice(0, 10).map(({ at, who, dir, text }) => ({ at, who, dir, text: text.slice(0, 200) }))
+    return { id: entry.id, at: entry.at, text: render(entry, level).slice(0, 600), related: neighbors, evidence }
   }
 
   function counts() {

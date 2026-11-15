@@ -11,7 +11,7 @@ function setup({ cfg = {} } = {}) {
   const a = createMindAdapter({
     memoryDb: true, getConfig: () => ({ ownerQQ: '1', ...cfg }), now: () => t, random: () => 0.5,
     ask: async () => '{"episodes":[]}',
-    reachOut: async (o) => { notes.push(o) },
+    reachOut: async (o) => { notes.push(o); return { delivered: true, tokens: 200 } },
   })
   a.mind.updateSettings({ 'identity.age': 18, 'motivation.quietHours': '' })
   return { a, notes, set: (v) => { t = v } }

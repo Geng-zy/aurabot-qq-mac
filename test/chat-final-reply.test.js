@@ -47,3 +47,17 @@ test('严格标记只取最后一组完整正文，代码里的示例不是标�
   assert.equal(extractReply('⟦REPLY⟧这句没有结尾'), null)
   assert.equal(extractReply('```txt\n⟦REPLY⟧示例⟦/REPLY⟧\n```'), null)
 })
+
+test('中文回复去掉自言自语开头，保留给对方的话和语音标签', () => {
+  const planning = '主人在问我为什么不理他，得赶紧回。他那条我以为只是个梗。'
+  const reply = '没不理你，那句我当成玩梗了 😳'
+  assert.equal(guardReply(`${planning}\n${reply}`), reply)
+  assert.equal(guardReply(`${planning}|||${planning}\n${reply}`), reply)
+  assert.equal(guardReply(planning), '')
+  const voice = guardReply(`<reply:3><voice>${planning}\n${reply}</voice>`)
+  assert.equal(voice, `<reply:3><voice>${reply}</voice>`)
+  assert.deepEqual(parseReply(voice).items, [{ kind: 'voice', value: reply, replyTo: '3' }])
+  for (const normal of ['主人在问我哪天出门，我回答周六。', '你问我为什么不理你，我在找上一条消息。', '他问我借了本书，我得回家找找。']) {
+    assert.equal(guardReply(normal), normal)
+  }
+})

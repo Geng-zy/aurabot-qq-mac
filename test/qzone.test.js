@@ -186,3 +186,34 @@ test('syncHistory：并发调用共用同一次对账', async () => {
   await Promise.all([a, b])
   assert.equal(calls.length, 1)
 })
+
+test('主动发布按心智时区、上限和间隔判断，旧随机排期不参与', () => {
+  const cfg = { ...config, diary: { ...config.diary, enabled: true, timesPerDay: 2, windowStart: '10:00', windowEnd: '23:30', minGapMinutes: 180 } }
+  const at = Date.parse('2026-11-14T11:55:00+08:00')
+  const qzone = createQzone({ getConfig: () => cfg, hub, log: noopLog, timezone: () => 'Asia/Shanghai' })
+  seed([entry('sent', { at: at - 3600000 }), entry('', { at, ok: false }), entry('', { at, dryRun: true })])
+  assert.match(qzone.automaticStatus(at - 2 * 3600000).reason, /等待发布时段/)
+  assert.match(qzone.automaticStatus(at).reason, /还差 120 分钟/)
+  assert.deepEqual(qzone.automaticStatus(at + 2 * 3600000), { available: true, reason: '', count: 1, limit: 2 })
+  cfg.diary.timesPerDay = 1
+  assert.match(qzone.automaticStatus(at).reason, /发布上限/)
+  cfg.diary.timesPerDay = 0
+  assert.match(qzone.automaticStatus(at).reason, /设为 0/)
+  assert.equal(qzone.nextTime(), '')
+})
+
+test('主动日记在发布前复查设置，成功时才留下实际发布记录', async (t) => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-11-14T11:55:00+08:00'))
+  const cfg = { ...config, diary: { ...config.diary, enabled: true, timesPerDay: 2, windowStart: '10:00', windowEnd: '23:30', minGapMinutes: 180 } }
+  const onebot = mockOnebot([{ tid: 'mock-post' }])
+  const qzone = createQzone({ getConfig: () => cfg, onebot, hub: { runSystemTurn: async () => '今天想留一点空白给自己。' }, log: noopLog, timezone: () => 'Asia/Shanghai' })
+  seed([])
+  const blocked = await qzone.writeDiary({ automatic: true, checkpoint: () => { cfg.diary.timesPerDay = 0 } })
+  assert.match(blocked.message, /设为 0/)
+  assert.equal(onebot.calls.length, 0)
+  cfg.diary.timesPerDay = 2
+  assert.equal((await qzone.writeDiary({ automatic: true })).tid, 'mock-post')
+  assert.deepEqual(onebot.calls.map((x) => x.action), ['send_qzone_msg'])
+  assert.equal(qzone.automaticStatus().count, 1)
+  assert.match(qzone.automaticStatus().reason, /距离上次发布/)
+})

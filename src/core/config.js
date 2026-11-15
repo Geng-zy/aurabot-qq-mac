@@ -82,6 +82,7 @@ export const DEFAULTS = {
     shape: 'her', // 工具可选构图；her 时未指定就沿用 size
     stylePrompt: '', // 每次生图自动加在前面的风格描述
     ownerOnly: true, // 只有主人能让她画
+    localDraw: { private: [], groups: [] }, // /画图 与 /色图的额外 QQ 会话。管理员好友私聊默认可用。
     seeOwn: true, // 「让她画完自己看一眼」：开着才把画好的图交给她看
     img2img: true, // 允许参考聊天图片 / 自己的画作来改画
     galleryShown: 20, // 面板「她的画作」显示最近几张（1~50；只影响显示，不删文件）
@@ -649,6 +650,12 @@ export function normalize(raw) {
   }).slice(0, 5)
   c.imageGen.enabled = bool(c.imageGen.enabled, false)
   c.imageGen.ownerOnly = bool(c.imageGen.ownerOnly, true)
+  const localDraw = c.imageGen.localDraw
+  c.imageGen.localDraw = Object.fromEntries(['private', 'groups'].map((kind) => {
+    const selected = new Set((Array.isArray(localDraw?.[kind]) ? localDraw[kind] : []).map(String))
+    const available = c.allow[kind].filter((id) => kind === 'groups' || (id !== c.ownerQQ && id !== c.botQQ))
+    return [kind, available.filter((id) => selected.has(id))]
+  }))
   c.imageGen.seeOwn = bool(c.imageGen.seeOwn, true)
   c.imageGen.img2img = bool(c.imageGen.img2img, true)
   if (!/^\d{3,4}x\d{3,4}$/.test(String(c.imageGen.size))) c.imageGen.size = '1024x1024'

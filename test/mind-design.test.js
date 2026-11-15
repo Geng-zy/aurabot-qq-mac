@@ -295,7 +295,9 @@ test('深想额度不足时跨日排队，和主人的关系优先于普通念�
   t.after(() => { mind.close(); rmSync(dir, { recursive: true, force: true }) })
   mind.updateSettings({ 'models.deepThinkDaily': 0 })
   await mind.inner.step()
-  thought = '念头：主人是不是已经不在乎我们之间的关系了\n感受：难过 0.7\n深想：是'
+  mind.perceive({ window: 'qq:private:' + ownerId.split(':').at(-1), who: ownerId, text: '我们聊聊最近相处的问题吧', at: T0 - 1000 })
+  const evidence = mind._store.prep('SELECT max(id) AS id FROM perception').get().id
+  thought = '念头：主人提到了我们之间的关系，我有点难过\n感受：难过 0.7\n依据：' + evidence + '\n深想：是'
   await mind.inner.step()
   assert.equal(mind.inner.deferredCount(), 2)
   mind.updateSettings({ 'models.deepThinkDaily': 1 })

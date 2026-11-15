@@ -19,7 +19,7 @@ import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
 import { createChannels, LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createQqChannel } from './channels/qq/index.js'
-import { PRIVATE_DRAW_NAME, PRIVATE_DRAW_LABEL, isPrivateDrawMessage, privateDrawPrompt } from './channels/qq/inbound.js'
+import { LOCAL_DRAW_NAMES, localDrawLabel, isLocalDrawMessage, localDrawPrompt } from './channels/qq/inbound.js'
 import { isOwner } from './chat/access.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
@@ -205,6 +205,7 @@ export function apply(ctx) {
   // QQ 是第一个：macOS 上 QQ 网关是你自己跑的 OneBot v11（比如 OrbStack / Docker 里的 SnowLuma），插件只按面板填的地址去连
   let hub = null
   const tasks = createTasks({ log: logger.child('后台任务') })
+  const mutes = createMutes()
   function taskRequesters({ chat, sessionId }) {
     const senders = hub?.turnSenders(sessionId) || []
     return senders.length ? senders : chat?.kind === 'private' && chat.userId ? [String(chat.userId)] : []
@@ -215,31 +216,45 @@ export function apply(ctx) {
   const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
-  const privateDrawCommand = { name: PRIVATE_DRAW_NAME, desc: '仅主人好友私聊：/画图 画面描述（直达本地生图）', module: 'imagegen' }
-  const privateDrawModule = () => mods?.running('imagegen') === 'builtin' ? mods.use('imagegen') : null
-  const listedCommands = () => [...mods.commands(), ...(privateDrawModule() ? [privateDrawCommand] : [])]
+  const localDrawCommands = LOCAL_DRAW_NAMES.map((name) => ({ name, desc: `/${name} 画面描述（管理员好友私聊与已授权的 QQ 会话，本机生成）`, module: 'imagegen' }))
+  const localDrawModule = () => mods?.running('imagegen') === 'builtin' ? mods.use('imagegen') : null
+  const listedCommands = () => [...mods.commands(), ...(localDrawModule() ? localDrawCommands : [])]
 
-  async function onPrivateDraw(msg, prompt) {
+  async function onLocalDraw(msg, prompt) {
     const chat = parseChat(msg.chatId)
+    const raw = msg.raw
     const before = getConfig()
-    if (msg.kind !== 'private' || msg.subType !== 'friend' || msg.sourceGroupId || chat?.kind !== 'private' ||
-        chat.platform !== 'qq' || chat.id !== msg.userId || msg.userId === msg.selfId || !isOwner(before, msg.userId, msg.chatId)) return
+    const validId = (id) => /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
+    if (!raw || msg.recovered || chat?.platform !== 'qq' || chat.kind !== msg.kind || !validId(chat.id) ||
+        !validId(msg.userId) || msg.userId === before.botQQ || msg.selfId !== before.botQQ ||
+        (raw.sender?.user_id != null && String(raw.sender.user_id) !== msg.userId)) return
+    if (chat.kind === 'private' && (chat.id !== msg.userId || msg.subType !== 'friend' || msg.sourceGroupId ||
+        Number(raw.group_id || raw.sender?.group_id || 0) || (raw.target_id != null && String(raw.target_id) !== before.botQQ))) return
+    if (chat.kind === 'group' && (chat.id !== msg.groupId || msg.subType !== 'normal' || raw.anonymous || msg.atOthers)) return
+    const list = chat.kind === 'private' ? 'private' : 'groups'
+    const permits = (current) => (chat.kind === 'private' && isOwner(current, msg.userId, msg.chatId)) ||
+      (current.allow[list].includes(chat.id) && current.imageGen.localDraw[list].includes(chat.id))
     const revision = ownerAuthorizationRevision(before)
     const authorized = () => {
       const current = getConfig()
-      return current.botQQ === before.botQQ && ownerAuthorizationRevision(current) === revision && isOwner(current, msg.userId, msg.chatId)
+      return current.botQQ === before.botQQ && ownerAuthorizationRevision(current) === revision && permits(current) && !mutes.muted(msg.chatId)
     }
-    const reply = (status) => hub.sendSegments(msg.chatId, [{ type: 'text', data: { text: PRIVATE_DRAW_LABEL + ' ' + status } }], PRIVATE_DRAW_LABEL, {
-      force: true, privateDelivery: true, isCurrent: authorized,
+    if (!authorized() || before.debug) return
+    if (chat.kind === 'group' && await hub.titleFilter.shouldIgnore(raw)) return
+    if (!authorized()) return
+    const cfg = getConfig()
+    const label = localDrawLabel(chat.kind)
+    const reply = (status) => hub.sendSegments(msg.chatId, [{ type: 'text', data: { text: label + ' ' + status } }], label, {
+      force: true, directDelivery: true, isCurrent: authorized,
     })
-    if (before.debug) return
-    if (!before.enabled || before.dryRun) return reply('请先打开总开关并关闭试运行。')
-    if (!prompt) return reply('用法：/画图 画面描述')
-    const imagegen = privateDrawModule()
+    if (cfg.debug) return
+    if (!cfg.enabled || cfg.dryRun) return reply('请先打开总开关并关闭试运行。')
+    if (!prompt) return reply('请附上画面描述，例如「/色图 画面描述」。')
+    const imagegen = localDrawModule()
     if (!imagegen) return reply('请先启用内置生图模块。')
     if (!imagegen.localReady()) return reply('请先在「生图」页部署并启用本地模型，或在「本地接口」配置并开启生图。')
     try {
-      const result = imagegen.queuePrivateDraw({ prompt, chatId: msg.chatId, userId: msg.userId, authorized, reply })
+      const result = imagegen.queueLocalDraw({ prompt, chatId: msg.chatId, kind: chat.kind, userId: msg.userId, authorized, reply })
       await reply(result.message)
     } catch {
       await reply('生图任务未能启动。')
@@ -256,9 +271,9 @@ export function apply(ctx) {
       const msg = e.msg
       if (e.platform === 'qq') {
         const message = msg.raw?.message ?? msg.raw?.raw_message
-        if (isPrivateDrawMessage(message)) {
-          const prompt = privateDrawPrompt(message)
-          if (prompt !== null) onPrivateDraw(msg, prompt).catch(() => log.warn('私聊生图命令处理失败'))
+        if (isLocalDrawMessage(message)) {
+          const prompt = localDrawPrompt(message, { natural: msg.kind === 'private' || msg.mentioned })
+          if (prompt !== null) onLocalDraw(msg, prompt).catch(() => log.warn('本地生图命令处理失败'))
           return
         }
       }
@@ -283,7 +298,6 @@ export function apply(ctx) {
   const outbox = qq.outbox
   const groupRoles = createGroupRoles({ onebot, getConfig, log: logger.child('chat') })
   const local = createLocal({ getConfig, log: logger })
-  const mutes = createMutes()
 
   /**
    * DSH 里能用的所有模型：[{provider, model, name, reasoning}]。
@@ -348,8 +362,8 @@ export function apply(ctx) {
       embedKey: () => getConfig().mind?.embedKey || '',
       // 她想主动找人：把心里的由头交给那个私聊，话由她自己说
       reachOut: async ({ chatId, userId, note }) => {
-        if (!hub) return
-        await hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '', { internal: true })
+        if (!hub) return false
+        return hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '', { internal: true, confirmDelivery: true })
       },
       deliverReminder: async ({ chatId, text, isCurrent }) => {
         const result = await hub?.sendText(chatId, text, undefined, undefined, undefined, { isCurrent, allowQueue: false, throwOnError: true })
@@ -907,7 +921,7 @@ export function apply(ctx) {
       // 概览上的心情（心智核心）：value 把 -1～1 的愉快度换成 0～100 显示
       mood: (() => { try { const f = mind.mind.feeling(); return { value: Math.round((f.mood.v + 1) * 50), label: f.body.asleep ? '睡着了' : f.mood.label, reason: f.emotions[0] ? f.emotions[0].name : '', history: [] } } catch (error) { return { value: 0, label: '心智核心没起来', reason: '', history: [] } } })(),
       stickers: { count: stickers.library().items.length },
-      diary: diary ? { next: diary.nextTime(), last: diary.history()[0] || null } : { next: 0, last: null },
+      diary: { next: '', last: diary?.history()[0] || null },
       qzoneSocial: use('qzone-social')?.state?.() ?? null,
       pet: petStatus(),
       // 心智核心：上次睡觉整理的时间和结果、今天花了多少
@@ -1317,6 +1331,27 @@ export function apply(ctx) {
   })
 
   route('/commands', async () => ({ ok: true, list: commandList(listedCommands()) }))
+  route('/image/local/chats', async () => {
+    const namesOf = async (action, idKey, nameKey, kind) => {
+      if (!cfg.allow[kind].length || !qq.ready()) return {}
+      const bot = cfg.botQQ
+      try {
+        const rows = await onebot.call(action, {}, { wsOnly: true, timeoutMs: 2500 })
+        if (cfg.botQQ !== bot || !qq.ready()) return {}
+        const allowed = new Set(cfg.allow[kind])
+        return Object.fromEntries((Array.isArray(rows) ? rows : []).flatMap((row) => {
+          const id = String(row?.[idKey] ?? '')
+          const name = String(row?.[nameKey] ?? '').trim().slice(0, 100)
+          return name && allowed.has(id) ? [[id, name]] : []
+        }))
+      } catch { return {} }
+    }
+    const [privates, groups] = await Promise.all([
+      namesOf('get_friend_list', 'user_id', 'nickname', 'private'),
+      namesOf('get_group_list', 'group_id', 'group_name', 'groups'),
+    ])
+    return { ok: true, private: privates, groups }
+  })
   // 更新：检查 GitHub 上有没有新版本；这次更新了什么
   const checkUpdate = createUpdateChecker({ pkg: PKG, log, unstable: () => getConfig().update.unstable })
   // 宿主环境（macOS + 桌面版/网页版）决定更新命令怎么写；检查的是 package.json 里的仓库（你自己的），只认发布过的 Release
@@ -1530,7 +1565,8 @@ export function apply(ctx) {
       timezone: m.identity().timezone,
       boredom: m.inner.boredom(),
       motivation: m.motivation.state(f.body),
-      motives: m.motivation.motives({ body: f.body, mood: f.mood }),
+      motives: m.motivation.motives({ body: f.body, mood: f.mood, boredom: m.inner.boredom() }),
+      actThreshold: m.setting('motivation.actThreshold'),
       outreach: m._store.get('outreach', { pending: null, log: [] }),
       grants: m._store.get('grants', { requests: [], granted: {} }),
       local: { ...mind.local.status(), install: localInstaller.status() },
@@ -2042,8 +2078,8 @@ export function apply(ctx) {
     const steps = []
     const msg = { ...chat, nickname: owner ? cfg.ownerName || '主人' : '路人', role: '', messageId: 'sim', text, mentioned: Boolean(b.mentioned), replyId: '', images: [], stickers: [], records: [], forwards: [], raw: { simulated: true } }
     const { sent } = await hub.capture(async () => {
-      if (privateDrawPrompt(text) !== null) {
-        steps.push('这是主人好友私聊的本地生图命令，面板模拟不会执行。')
+      if (isLocalDrawMessage(text)) {
+        steps.push('这是本地生图直出请求，面板模拟不会执行。')
       } else if (text) {
         const cmd = owner && /^\s*[/／]/.test(text) ? parseCommand(text, mods.commands()) : null
         if (cmd && cmd.ext) {

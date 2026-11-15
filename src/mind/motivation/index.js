@@ -30,6 +30,29 @@ export const NEEDS = [
   { id: 'meaning', name: '意义', rise: 0.003 },
 ]
 const NEED = new Map(NEEDS.map((n) => [n.id, n]))
+function matchesWant(action, want) {
+  const target = explicitAction(want)
+  return target ? target === action.id : action.matchWant ? action.matchWant(want.text) : (action.keywords || []).some((keyword) => want.text.includes(keyword))
+}
+const availability = (action) => {
+  try { return action.available ? action.available() : true } catch { return false }
+}
+
+export function hasActionPhrase(text, pattern) {
+  return String(text || '').split(/[，、；。！？\n]/u).some((clause) => {
+    const match = clause.match(pattern)
+    return match && !/(?:不|别|没|算了|放弃|要不要).{0,6}$/u.test(clause.slice(0, match.index))
+  })
+}
+
+export const wantsMeal = (text) => hasActionPhrase(text, /点.{0,8}外卖|吃(?:饭|点东西|点吃的|些东西|一顿)|找点吃的|填饱肚子|去吃|给自己弄点吃的/u)
+export const wantsOwnerChat = (text) => hasActionPhrase(text, /(?:去|想|主动)?找(?:主人|他|你)(?![画唱买做])|(?:跟|和|对)(?:主人|他|你)(?:说|聊)|(?:私聊|联系|问候)(?:主人|他|你)|给主人发(?:消息|一句话)/u)
+
+function explicitAction(want) {
+  // 旧版见到「主人」就填 reach_owner。只有能核对出联系意图的旧条目保留指定动作。
+  if (want.action === 'reach_owner' && !wantsOwnerChat(want.text)) return ''
+  return want.action || ''
+}
 
 /**
  * 每项需要有多强，由性格定（0.5 = 一般人）：爱社交、依恋焦虑高的更需要陪伴，好奇的更想知道新东西……
@@ -121,7 +144,7 @@ export function createMotivation(deps) {
     const t = String(text || '').trim().slice(0, 80)
     if (!t) return null
     const s = advance(load())
-    const same = s.wants.find((w) => Boolean(w.internal) === internal
+    const same = s.wants.find((w) => Boolean(w.internal) === internal && explicitAction(w) === explicitAction({ text: t, action })
       && (w.text === t || (w.text.length > 4 && (t.includes(w.text) || w.text.includes(t)))))
     if (same) { same.strength = clamp(same.strength + strength * 0.5); save(s); return same }
     const w = { id: 'w' + now().toString(36) + Math.floor(Math.random() * 1e4), text: t, need: NEED.has(need) ? need : '', action: String(action || ''), strength: clamp(strength), at: now(), status: 'open' }
@@ -140,10 +163,18 @@ export function createMotivation(deps) {
     return Boolean(w)
   }
 
+  function satisfyWants(id, at = now()) {
+    const a = actions.get(id)
+    if (!a) return
+    const s = load()
+    const remaining = s.wants.filter((w) => w.at > at || !matchesWant(a, w))
+    if (remaining.length !== s.wants.length) save({ ...s, wants: remaining })
+  }
+
   /**
    * 登记一件她能做的事。模块用它把自己的能力交给她，由她决定什么时候做。
    * @param {{ id: string, label: string, needs: Record<string, number>, effort?: number, delayHours?: number,
-   *   cooldownMinutes?: number, payoff?: number, keywords?: string[], available?: () => (true|string|false),
+   *   cooldownMinutes?: number, payoff?: number, keywords?: string[], matchWant?: (text: string) => boolean, available?: () => (true|string|false),
    *   run: () => Promise<{ ok: boolean, summary?: string, outcome?: number }> }} a
    */
   function offer(a) {
@@ -165,10 +196,10 @@ export function createMotivation(deps) {
     const gamma = (Number(M('distractibility')) || 1) * (Number(deps.distractScale?.()) || 1)
     const out = []
     for (const a of actions.values()) {
-      let avail = true
-      try { avail = a.available ? a.available() : true } catch { avail = false }
+      const avail = availability(a)
       const L = s.learned[a.id] || { expect: a.payoff, success: 0.8, runs: 0, lastAt: 0 }
-      const cooling = L.lastAt && at - L.lastAt < a.cooldownMinutes * 60000
+      const waitingForBudget = Boolean(L.budgetDay && L.budgetDay === deps.today?.())
+      const cooling = waitingForBudget || Boolean(L.lastAt && at - L.lastAt < a.cooldownMinutes * 60000)
       let value = 0
       for (const [id, w] of Object.entries(a.needs || {})) {
         const n = s.needs[id]
@@ -176,13 +207,14 @@ export function createMotivation(deps) {
         const deficit = id === 'fun' ? Math.max(n?.deficit || 0, Number(st.boredom) || 0) : n?.deficit || 0
         if (n) value += deficit * (0.5 + n.strength) * w
       }
-      const wants = s.wants.filter((w) => w.action === a.id || (a.keywords || []).some((k) => w.text.includes(k)))
+      const wants = s.wants.filter((w) => matchesWant(a, w))
       value += wants.reduce((x, w) => x + w.strength, 0)
       value *= 0.5 + L.expect // 以前做这件事有多开心（预想的满意度 0.5 时不加不减）
       let m = (L.success * value) / (1 + gamma * a.delayHours)
       m = m * (0.3 + 0.7 * energy) - a.effort * (1 - energy) * 0.5
       m *= 1 + 0.3 * valence
-      out.push({ id: a.id, label: a.label, motive: Math.max(0, m), available: avail === true, why: avail === true ? (cooling ? '刚做过' : '') : (typeof avail === 'string' ? avail : '现在做不了'), cooling, wants: wants.map((w) => w.text) })
+      const why = avail === true ? (waitingForBudget ? '等待次日的后台模型预算' : cooling ? '刚做过' : '') : (typeof avail === 'string' ? avail : '现在做不了')
+      out.push({ id: a.id, label: a.label, motive: Math.max(0, m), available: avail === true, why, cooling, wants: wants.map((w) => w.text), wantIds: wants.map((w) => w.id) })
     }
     return out.sort((x, y) => y.motive - x.motive)
   }
@@ -197,27 +229,41 @@ export function createMotivation(deps) {
   async function act(id, context = {}) {
     const a = actions.get(id)
     if (!a) return { ok: false, summary: '没有这件事' }
+    const avail = availability(a)
+    if (avail !== true) return { ok: false, summary: typeof avail === 'string' ? avail : '现在做不了' }
     const s0 = load()
     const L = s0.learned[id] || { expect: a.payoff, success: 0.8, runs: 0, lastAt: 0 }
+    const lastAt = L.lastAt
     L.lastAt = now()
     s0.learned[id] = L
     save(s0)
     let r
     // 内心活动看得到私密会话。它的打算可以影响动力，原文只供心智和面板查看。
-    const wants = s0.wants.filter((w) => !w.internal && (w.action === id || (a.keywords || []).some((k) => w.text.includes(k)))).map((w) => w.text)
-    try { r = (await a.run({ ...context, wants })) || { ok: false } } catch (error) { r = { ok: false, summary: error.message } }
+    const matched = s0.wants.filter((w) => matchesWant(a, w))
+    const wants = matched.filter((w) => !w.internal).map((w) => w.text)
+    try { r = (await a.run({ ...context, wants })) || { ok: false } } catch (error) { r = { ok: false, summary: error.message, deferred: error.code === 'BUDGET' } }
     if (context.signal?.aborted) return { ok: false, summary: '这件事已停止' }
     const lr = Number(M('rewardLearning')) || 0
     const s = load()
     const l = s.learned[id] || L
+    if (!r.ok && (r.deferred || context.budgetBlocked)) {
+      l.lastAt = lastAt
+      l.budgetDay = deps.today?.()
+      s.learned[id] = l
+      save(s)
+      return { ...r, deferred: true }
+    }
+    delete l.budgetDay
     const outcome = r.ok ? clamp(r.outcome ?? 0.6) : 0
     l.expect = clamp(l.expect + lr * (outcome - l.expect), 0.05, 1)
     l.success = clamp(l.success + lr * ((r.ok ? 1 : 0) - l.success), 0.05, 1)
     l.runs = (l.runs || 0) + 1
     s.learned[id] = l
     if (r.ok) for (const [need, w] of Object.entries(a.needs || {})) if (s.needs[need]) s.needs[need].deficit = clamp(s.needs[need].deficit - 0.5 * w * outcome)
-    for (const w of s.wants) if (w.action === id || (a.keywords || []).some((k) => w.text.includes(k))) w.status = r.ok ? 'done' : w.status
-    s.wants = s.wants.filter((w) => w.status === 'open')
+    if (r.ok) {
+      const handled = new Set(matched.map((w) => w.id))
+      s.wants = s.wants.filter((w) => !handled.has(w.id))
+    }
     s.log.unshift({ at: now(), id, label: a.label, ok: Boolean(r.ok), summary: String(r.summary || '').slice(0, 120), outcome })
     s.log = s.log.slice(0, 100)
     save(s)
@@ -246,5 +292,5 @@ export function createMotivation(deps) {
     }
   }
 
-  return { offer, motives, choose, act, feedback, satisfy, want, closeWant, state, NEEDS }
+  return { offer, motives, choose, act, feedback, satisfy, want, closeWant, satisfyWants, state, NEEDS }
 }

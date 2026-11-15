@@ -189,7 +189,7 @@ test('想一步：材料里有身体、心情和刚才的事（标明是谁说�
   assert.equal(m.memory.list().length, before, '小模型的念头不进记忆')
   assert.ok(m.emotion.state().active.some((e) => e.name === '心疼'))
   const w = m.motivation.state().wants[0]
-  assert.equal(w.action, 'reach_owner', '想找主人 → 对上「找主人说话」')
+  assert.equal(w.action, '', '独立核心保留原话，由注册动作判断归属')
   assert.equal(m.inner.diary()[0].thought, st.thought)
 })
 
@@ -282,6 +282,37 @@ test('越想越难受：交给 DeepSeek 深想一次；想明白的「我觉得�
   assert.equal(st.deep.reason, '越想越难受')
   assert.ok(m.memory.list({ kind: 'belief' }).some((x) => x.gist.startsWith('我觉得他忙的时候')))
   assert.ok(m.emotion.state().active.some((e) => e.name === '安心'))
+  assert.ok(m.emotion.state().active.filter((e) => e.source === 'thought').every((e) => e.intensity < 0.06))
+})
+
+test('群里的普通纠正只产生轻微情绪，既有的满足仍进入念头材料', async (t) => {
+  let source
+  const { m, calls } = innerMind({
+    reply: '念头：把游戏时长看串了\n感受：失落 0.8\n依据：1\n深想：是',
+    ask: async (request) => { source = request.scene; return '{}' },
+  })
+  t.after(() => m.close())
+  m.perceive({ window: 'qq:group:7', who: 'qq:3', text: '笨蛋鱼你看错了', at: T0 - 1000, addressed: true })
+  m.emotion.feel([{ name: '满足', intensity: 0.4, why: '吃饱了' }], { source: 'body' })
+  m.emotion.feel([{ name: '委屈', intensity: 0.8, why: '旧联想' }], { source: 'thought' })
+  const st = await m.inner.step()
+  assert.equal(st.evidence, 1)
+  assert.equal(st.feel.intensity, 0.25)
+  assert.equal(source, undefined)
+  assert.match(calls[0][1].content, /刚经历过的感受.*满足/)
+  assert.doesNotMatch(calls[0][1].content, /旧联想/)
+})
+
+test('没有新依据时，换个说法不会再次把低落写进情绪', async (t) => {
+  const replies = ['念头：没收到主人消息，他不会不在线吧\n感受：孤独 0.8', '念头：刚才看着窗口，心里空落落的\n感受：委屈 0.8']
+  const { m, calls, set } = innerMind({ reply: (n) => replies[n - 1] })
+  t.after(() => m.close())
+  const first = await m.inner.step()
+  assert.equal(first.feel.intensity, 0.18)
+  set(T0 + 60000)
+  await m.inner.step()
+  assert.equal(m.emotion.history().filter((x) => x.source === 'thought').length, 1)
+  assert.doesNotMatch(calls[1][1].content, /他不会不在线吧/)
 })
 
 test('没装本地小模型：用聊天模型想（受预算限制）；关掉这个选项就不想', async () => {
@@ -293,13 +324,13 @@ test('没装本地小模型：用聊天模型想（受预算限制）；关掉�
 
 // ---------- 对接层：想、做、发呆；主动找你；权限 ----------
 
-function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：思念 0.5\n打算：想找主人说话\n深想：否' } = {}) {
+function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：思念 0.5\n打算：想找主人说话\n深想：否', deliver = () => true } = {}) {
   let t = T0
   const sent = []
   const a = createMindAdapter({
     memoryDb: true, getConfig: () => ({ ownerQQ: '1', freedom: false }), now: () => t, random,
     localModel: { chat: async () => reply, status: () => ({ configured: true }), idleCheck() {}, stop() {}, check: () => ({ ok: true }) },
-    reachOut: async (o) => { sent.push(o) },
+    reachOut: async (o) => { sent.push(o); return deliver(o) },
     ask: async () => '{}',
   })
   return { a, sent, set: (v) => { t = v }, get: () => t }
@@ -356,6 +387,60 @@ test('你回了她开心、下次更愿意找你；一直不回她有点失落',
   set(T0 + 6 * H)
   await a.innerTick()
   assert.ok(a.mind.emotion.state().active.some((e) => e.name === '失落' && e.why === '找他，他没回'))
+})
+
+test('主动联系未收到投递确认时不等待回复，失败的权限通知可以重新申请', async (t) => {
+  let delivered = false
+  const { a } = adapter({ deliver: () => delivered })
+  t.after(() => a.close())
+  assert.equal((await a.reachOwner('想聊两句')).ok, false)
+  assert.equal(a.mind._store.get('outreach')?.pending, undefined)
+  assert.equal((await a.requestPermission('signature', '改签名', '想记录心情')).ok, false)
+  assert.deepEqual(a.mind._store.get('grants').requests, [])
+  delivered = true
+  assert.equal((await a.requestPermission('signature', '改签名', '想记录心情')).ok, true)
+  assert.equal(a.mind._store.get('outreach').count, 1)
+})
+
+test('给主人画画不等于找主人聊天；虚拟投喂会清除已经满足的吃饭念头', async (t) => {
+  const { a } = adapter({ reply: '念头：想画点好看的\n打算：给主人画一幅画\n深想：否' })
+  t.after(() => a.close())
+  await a.mind.inner.step()
+  const meal = a.mind.motivation.want('先点份热乎乎的外卖')
+  const chat = a.mind.motivation.want('找主人说话')
+  const oldSong = a.mind.motivation.want('给主人翻唱一首歌', { action: 'reach_owner' })
+  a.mind.motivation.offer({ id: 'cover', label: '翻唱', keywords: ['翻唱'], run: async () => ({ ok: true }) })
+  const get = (id) => a.mind.motivation.motives().find((x) => x.id === id)
+  assert.deepEqual(get('reach_owner').wantIds, [chat.id])
+  assert.deepEqual(get('cover').wantIds, [oldSong.id])
+  assert.deepEqual(get('eat').wantIds, [meal.id])
+  a.mind.updateSettings({ 'body.feedOnlyByOwner': true })
+  assert.match((await a.runAction('eat')).summary, /等主人投喂/)
+  a.feed('奶茶', '1', 'private:1')
+  assert.deepEqual(get('eat').wantIds, [])
+  assert.deepEqual(get('reach_owner').wantIds, [chat.id])
+})
+
+test('动作执行时复查可用性，预算耗尽推迟到第二天并保留念头', async (t) => {
+  const { a, set } = adapter()
+  t.after(() => a.close())
+  let blocked = true
+  let attempts = 0
+  a.mind.motivation.offer({ id: 'fixture', label: '写短文', keywords: ['短文'], available: () => blocked ? '等待条件' : true, run: async () => {
+    attempts++
+    throw Object.assign(new Error('今天的后台模型预算已用完'), { code: 'BUDGET' })
+  } })
+  a.mind.motivation.want('写一篇短文')
+  assert.equal((await a.runAction('fixture')).summary, '等待条件')
+  assert.equal(attempts, 0)
+  blocked = false
+  assert.equal((await a.runAction('fixture')).deferred, true)
+  assert.equal(a.mind.motivation.state().learned.fixture.runs, 0)
+  const motive = () => a.mind.motivation.motives().find((x) => x.id === 'fixture')
+  assert.match(motive().why, /次日/)
+  assert.equal(motive().wants.length, 1)
+  set(T0 + 24 * H)
+  assert.equal(motive().cooling, false)
 })
 
 test('勿扰时段和每天上限是你的要求，她遵守', async () => {

@@ -266,7 +266,7 @@ test('睡着时：主人叫才醒（按人不按地方）；别人的消息等�
   const { a, replays } = adapter()
   a.mind.body.sleepNow()
   const ev = (id) => ({ id })
-  assert.deepEqual(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true, event: ev('g2') }), { reply: false, reason: '她睡着了' })
+  assert.deepEqual(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true, explicitlyAddressed: true, event: ev('g2') }), { reply: false, reason: '她睡着了' })
   assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '1', direct: false, event: ev('g1') }).reply, false, '主人在群里没叫她，不会被吵醒')
   assert.equal(a.gate({ chatId: 'private:3', kind: 'private', userId: '3', direct: true, event: ev('p3') }).reply, false)
   const g = a.gate({ chatId: 'group:9', kind: 'group', userId: '1', direct: true, event: ev('g1b') })
@@ -276,11 +276,12 @@ test('睡着时：主人叫才醒（按人不按地方）；别人的消息等�
   assert.equal(a.mind.body.state().groggy, true)
 })
 
-test('醒着但累坏了：不插话；不熟的人找她可能懒得理；主人一定回', () => {
+test('醒着但累坏了：明确 @ 或引用仍交给她，普通搭话可以不回', () => {
   const { a } = adapter({ random: () => 0 })
   a.mind.body.spend(1)
   assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: false }).reply, false)
   assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true }).reply, false)
+  assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true, explicitlyAddressed: true }).reply, true)
   assert.equal(a.gate({ chatId: 'private:1', kind: 'private', userId: '1', direct: true }).reply, true)
 })
 

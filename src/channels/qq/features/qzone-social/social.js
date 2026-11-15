@@ -74,10 +74,14 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
 
   async function sendComment(tid, content, targetUin) {
     const cfg = getConfig()
+    if (!cfg.enabled || !cfg.qzoneSocial.enabled || cfg.debug) return false
     if (cfg.dryRun) {
       log.info(`试运行：本来要在空间评论（${targetUin || '自己'} / ${tid}）：${content}`)
       return true
     }
+    if (hub.containsProtectedText?.('system:qzone-social', content) || await hub.checkOutgoingPrivacy?.('system:qzone-social', content)) return false
+    const latest = getConfig()
+    if (!latest.enabled || !latest.qzoneSocial.enabled || latest.debug || latest.dryRun) return false
     await onebot.call('comment_qzone', { tid, content, ...(targetUin ? { target_uin: Number(targetUin) } : {}) }, { timeoutMs: 30000 })
     log.info(`空间评论（${targetUin || '自己的说说'}）：${content}`)
     return true
@@ -107,8 +111,8 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
           (others.length ? `这条说说下面大家的评论：\n${others.join('\n')}\n\n` : '') +
           `你要回的是这一串：\n${thread}\n\n${last.name} 刚刚说了新的话，结合说说内容和上面的评论，用你的口气接着回 TA 一句。`)
         if (!text) continue
-        await sendComment(m.tid, `回复 ${last.name}：${text}`)
-        mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: true, tags: ['空间'], importance: 0.35 })
+        if (!(await sendComment(m.tid, `回复 ${last.name}：${text}`))) continue
+        if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: true, tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
         done++
       }
@@ -146,18 +150,18 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         content = String(f.html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
       }
       images = (String(f.html || '').match(/<img/g) || []).length
-      if (c.like && !getConfig().dryRun) {
-        try { await onebot.call('like_qzone', { tid: f.key, target_uin: Number(f.uin), abstime: Number(f.time) || 0 }, { timeoutMs: 20000 }) } catch (error) { log.debug('点赞失败：', error.message) }
+      const latest = getConfig()
+      if (latest.enabled && latest.qzoneSocial.enabled && latest.qzoneSocial.like && !latest.dryRun) {
+        try {
+          await onebot.call('like_qzone', { tid: f.key, target_uin: Number(f.uin), abstime: Number(f.time) || 0 }, { timeoutMs: 20000 })
+          record(s, { kind: 'like', who: f.nickname, post: content.slice(0, 30), text: '' }, false)
+        } catch (error) { log.debug('点赞失败：', error.message) }
       }
       const text = await write(`你在刷 QQ 空间，看到${isOwner ? `你的${owner()}` : `好友 ${f.nickname}`}发的说说：「${content.slice(0, 300) || '（只有图片）'}」${images ? `（配了图）` : ''}\n` +
         (existing.length ? `下面已经有这些评论：\n${existing.join('\n')}\n\n` : '') +
         `想评论的话，结合说说内容${existing.length ? '和下面大家在聊的（别重复别人说过的话，可以接大家的梗）' : ''}，用你的口气评一句（像朋友之间随手评论那样）。`)
-      if (!text) {
-        if (c.like) record(s, { kind: 'like', who: f.nickname, post: content.slice(0, 30), text: '' }, false)
-        continue
-      }
-      await sendComment(f.key, text, f.uin)
-      mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: true, tags: ['空间'] })
+      if (!text || !(await sendComment(f.key, text, f.uin))) continue
+      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: true, tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++
     }
@@ -195,7 +199,11 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     const cfg = getConfig()
     const c = cfg.qzoneSocial
     if (!cfg.enabled || !c.enabled) return '逛空间没打开'
-    if (Date.now() - load().lastRun < c.intervalMin * 60_000) return '刚逛过'
+    if (cfg.dryRun || cfg.debug) return '当前模式暂停自动空间互动'
+    if (!c.replyOwn && !c.commentFriends) return '空间评论和好友互动都已关闭'
+    const current = load()
+    if (c.maxPerDay <= (current.day === dayKey() ? current.count : 0)) return '今天的空间互动次数已用完'
+    if (Date.now() - current.lastRun < c.intervalMin * 60_000) return '刚逛过'
     return true
   }
 

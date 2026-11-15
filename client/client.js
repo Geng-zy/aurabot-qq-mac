@@ -120,19 +120,22 @@ window.__ModuleLoader__.load({
     const CSS = `
 /* AuraBot workspace */
 .ab-root{
-  --ab-bg:#f3f4ee;--ab-card:#fffdf7;--ab-card-2:#eef1e8;--ab-text:#202c28;--ab-sub:#4f6057;--ab-dim:#59695f;
-  --ab-deep:#244c42;--ab-sea:#326e60;--ab-sky:#76a292;--ab-foam:#e8efe7;--ab-foam-2:#d9e9df;
-  --ab-line:#e0e5db;--ab-line-2:#cbd7ca;--ab-hover:#e9eee6;--ab-ok:#277a5c;--ab-warn:#99651e;--ab-err:#af4440;
-  --ab-rail:#1a302b;--ab-rail-label:#bbcfc5;--ab-rail-active:#314b43;
-  --ab-shadow:0 2px 3px #213c2705,0 12px 28px #213c2707;--ab-radius:17px;
+  --ab-bg:#f2f3ee;--ab-card:#fffefa;--ab-card-2:#eef2eb;--ab-text:#212c27;--ab-sub:#4e6057;--ab-dim:#596b60;
+  --ab-deep:#205b4a;--ab-sea:#2e7763;--ab-sky:#588b78;--ab-foam:#e9f2eb;--ab-foam-2:#dbece1;
+  --ab-line:#e0e6dd;--ab-line-2:#c9d6cc;--ab-hover:#edf3ed;--ab-ok:#277a5c;--ab-warn:#99651e;--ab-err:#af4440;
+  --ab-rail:#e8eee6;--ab-rail-label:#465b50;--ab-rail-active:#d8e8df;
+  --ab-rail-ink:#243e34;--ab-rail-border:#cddbd1;--ab-rail-mark:#306a57;--ab-rail-mark-bg:#dce9df;--ab-rail-accent:#2e7763;
+  --ab-shadow:0 1px 2px #18382a06,0 8px 26px #18382a06;--ab-radius:18px;
   width:100%;height:100%;overflow:auto;box-sizing:border-box;container-type:inline-size;overscroll-behavior:contain;
-  background:var(--ab-bg);color:var(--ab-text);font:13px/1.6 "Instrument Sans","PingFang SC",system-ui,sans-serif
+  background:var(--ab-bg);color:var(--ab-text);font:13px/1.6 "Inter","PingFang SC",system-ui,sans-serif
 }
 body[data-ds-dark-theme] .ab-root{
-  --ab-bg:#131c1a;--ab-card:#1c2824;--ab-card-2:#24332d;--ab-text:#ebf1e8;--ab-sub:#b3c6b9;--ab-dim:#a3b9ac;
-  --ab-deep:#abdbc7;--ab-sea:#4c9b85;--ab-sky:#75b6a0;--ab-foam:#263b34;--ab-foam-2:#344e43;
-  --ab-line:#303e37;--ab-line-2:#43584c;--ab-hover:#263731;--ab-ok:#8cd5ad;--ab-warn:#e4b477;--ab-err:#f29790;
-  --ab-rail:#172720;--ab-rail-active:#314b41;--ab-shadow:0 12px 28px #00000018;color-scheme:dark
+  --ab-bg:#141b19;--ab-card:#1c2522;--ab-card-2:#242f2a;--ab-text:#edf2ec;--ab-sub:#b1c2b8;--ab-dim:#a0b4a9;
+  --ab-deep:#afdec8;--ab-sea:#68b89e;--ab-sky:#82c6ae;--ab-foam:#263a32;--ab-foam-2:#304940;
+  --ab-line:#303b35;--ab-line-2:#46564e;--ab-hover:#2a3630;--ab-ok:#91d9b2;--ab-warn:#ecc289;--ab-err:#f3a09b;
+  --ab-rail:#191f1d;--ab-rail-label:#aebfb5;--ab-rail-active:#2a4037;
+  --ab-rail-ink:#edf4ed;--ab-rail-border:#334039;--ab-rail-mark:#b6e5ce;--ab-rail-mark-bg:#29463b;--ab-rail-accent:#85c8ac;
+  --ab-shadow:0 10px 28px #00000013;color-scheme:dark
 }
 .ab-root :focus-visible{outline:2px solid var(--ab-sky);outline-offset:3px}
 .ab-root h1,.ab-root h2{letter-spacing:-.025em;color:inherit}
@@ -141,37 +144,39 @@ body[data-ds-dark-theme] .ab-root{
 .ab-rail{
   position:sticky;top:0;height:100vh;height:100dvh;max-height:100dvh;box-sizing:border-box;
   padding:calc(23px + var(--dsh-frame-top-clearance,0px)) 12px 18px;display:flex;flex-direction:column;gap:29px;
-  background:var(--ab-rail);color:#f4f4e9;overflow:auto
+  background:var(--ab-rail);color:var(--ab-rail-ink);border-inline-end:1px solid var(--ab-rail-border);overflow:auto
 }
 .ab-wordmark,.ab-rail-item,.ab-build{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
 .ab-wordmark{display:flex;align-items:center;gap:9px;padding:0 4px;min-height:39px;text-align:left}
 .ab-wordmark b{font-size:17px;letter-spacing:-.045em}
-.ab-brand-mark{width:32px;height:32px;border:1px solid #9dd7b56b;border-radius:11px;display:grid;place-items:center;color:#c3e8d1;background:#4a7a643d}
+.ab-brand-mark{width:32px;height:32px;border:1px solid var(--ab-rail-border);border-radius:11px;display:grid;place-items:center;color:var(--ab-rail-mark);background:var(--ab-rail-mark-bg)}
 .ab-work-nav{display:grid;gap:5px}
 .ab-rail-item{display:flex;align-items:center;gap:9px;width:100%;min-height:41px;padding:7px 9px;border-radius:9px;text-align:left;color:var(--ab-rail-label);font-weight:530;white-space:nowrap}
 .ab-rail-item .ab-icon{width:16px;height:16px}
-.ab-rail-item:hover,.ab-rail-item.on{background:var(--ab-rail-active);color:#fffdf2}
-.ab-rail-item.on{font-weight:650;box-shadow:inset 2px 0 #9bd4b5}
-.ab-build{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding:10px 6px 0;border-top:1px solid #d4ebd129;font-size:11px;color:var(--ab-rail-label)}
+.ab-rail-item:hover,.ab-rail-item.on{background:var(--ab-rail-active);color:var(--ab-rail-ink)}
+.ab-rail-item.on{font-weight:650;box-shadow:inset 2px 0 var(--ab-rail-accent)}
+.ab-build{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding:10px 6px 0;border-top:1px solid var(--ab-rail-border);font-size:11px;color:var(--ab-rail-label)}
 .ab-build .ab-icon{width:13px;height:13px}
-.ab-build:hover{color:#fffdf2}
+.ab-build:hover{color:var(--ab-rail-ink)}
 .ab-stage{width:100%;max-width:1320px;margin:0 auto;padding:var(--dsh-frame-top-clearance,0px) clamp(20px,3.2cqi,48px) 36px;box-sizing:border-box;min-width:0}
 .ab-standalone{max-width:800px;margin:0 auto;padding:calc(20px + var(--dsh-frame-top-clearance,0px)) 20px 28px}
-.ab-topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:70px}
+.ab-topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:64px}
 .ab-breadcrumb,.ab-top-actions{display:flex;align-items:center;gap:9px;min-width:0}
 .ab-breadcrumb{color:var(--ab-sub);font-size:12px}
 .ab-breadcrumb b{color:var(--ab-text);overflow-wrap:anywhere}
 .ab-breadcrumb .ab-icon{width:15px;height:15px;color:var(--ab-deep)}
 .ab-top-actions{flex:none}
-.ab-page-nav{display:flex;gap:6px 16px;flex-wrap:wrap;padding:2px 0 11px;margin-bottom:19px;border-bottom:1px solid var(--ab-line-2)}
-.ab-page-nav button{position:relative;display:flex;align-items:center;gap:5px;min-height:34px;padding:4px 2px;border:0;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
-.ab-page-nav button:hover{color:var(--ab-text)}
-.ab-page-nav button[aria-current]{font-weight:700;color:var(--ab-deep)}
-.ab-page-nav button[aria-current]:after{content:"";position:absolute;inset:auto 0 -12px;height:2px;border-radius:2px;background:var(--ab-sea)}
+.ab-page-nav{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 9px;margin-bottom:18px;border-bottom:1px solid var(--ab-line)}
+.ab-page-nav button{display:flex;align-items:center;gap:5px;min-height:35px;padding:4px 12px;border:0;border-radius:8px;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
+.ab-page-nav button:hover{color:var(--ab-text);background:var(--ab-hover)}
+.ab-page-nav button[aria-current]{font-weight:680;color:var(--ab-deep);background:var(--ab-foam-2)}
 .ab-unsaved-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:#e0a75b;flex:none}
 .ab-content{display:grid;gap:16px;min-width:0}
 .ab-content>*{min-width:0}
-.ab-page-title{font-size:clamp(26px,3.1cqi,34px);margin:0 0 3px;font-weight:720;line-height:1.25}
+.ab-page-title{font-size:clamp(25px,2.9cqi,34px);margin:0;font-weight:720;line-height:1.23}
+.ab-card-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;margin-bottom:10px}
+.ab-card-head.with-desc{margin-bottom:4px}
+.ab-card-head>*{min-width:0}
 .ab-find,.ab-run{position:relative}
 .ab-find-btn,.ab-run-btn{display:flex;align-items:center;gap:7px;min-height:34px;padding:5px 10px;border:1px solid var(--ab-line-2);border-radius:9px;background:var(--ab-card);color:var(--ab-text);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
 .ab-find-btn:hover,.ab-run-btn:hover{background:var(--ab-hover)}
@@ -274,10 +279,11 @@ body[data-ds-dark-theme] .ab-root{
 .ab-sticker .x{position:absolute;top:4px;right:4px;opacity:0;transition:opacity .15s}
 .ab-sticker:hover .x{opacity:1}
 .ab-list{display:flex;flex-direction:column}
-.ab-li{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--ab-line)}
+.ab-li{display:flex;flex-wrap:wrap;gap:7px 16px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--ab-line)}
 .ab-li:first-child{border-top:0}
-.ab-li .meta{color:var(--ab-dim);font-size:11.5px;white-space:nowrap}
-.ab-li .body{flex:1;min-width:0;white-space:pre-wrap;word-break:break-word}
+.ab-li .meta{flex:0 1 12em;color:var(--ab-dim);font-size:11.5px;overflow-wrap:anywhere}
+.ab-li .body{flex:1 1 16rem;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.ab-li>.ab-flex{flex:0 1 auto;flex-wrap:wrap;max-width:100%}
 .ab-logs{font-family:var(--dsh-font-family-code,ui-monospace,monospace);font-size:12px;max-height:520px;overflow:auto;border-radius:10px;background:var(--ab-card-2);padding:8px 0}
 .ab-log{display:flex;gap:10px;padding:2px 12px;align-items:baseline}
 .ab-log:hover{background:var(--ab-hover)}
@@ -496,8 +502,8 @@ body[data-ds-dark-theme] .ab-root{
 .ab-pill{background:var(--ab-card);box-shadow:0 1px 1px rgba(15,40,80,.04)}
 .ab-grid{gap:14px}
 .ab-card{border-radius:var(--ab-radius);padding:18px 20px;box-shadow:var(--ab-shadow);transition:box-shadow .15s}
-.ab-card h3{font-size:15px;font-weight:650;color:var(--ab-text)}
-.ab-card .ab-desc{margin:4px 0 14px;line-height:1.65}
+.ab-card h3{margin:0;font-size:16px;font-weight:670;color:var(--ab-text);overflow-wrap:anywhere}
+.ab-card .ab-desc{max-width:78ch;margin:0 0 14px;line-height:1.65;overflow-wrap:anywhere}
 .ab-stat{position:relative;overflow:hidden;padding:13px 15px;background:var(--ab-card-2);box-shadow:none}
 .ab-stat .ic{position:absolute;right:14px;top:12px;font-size:22px;opacity:.9}
 .ab-stat .n{font-size:28px;line-height:1.2}
@@ -518,8 +524,7 @@ body[data-ds-dark-theme] .ab-root{
 .ab-note{border-radius:12px;padding:11px 14px;line-height:1.6}
 .ab-choice{border-radius:14px;padding:12px 14px}
 .ab-choice.on b{color:var(--ab-deep)}
-.ab-li{padding:11px 4px;border-radius:8px}
-.ab-li:hover{background:var(--ab-hover)}
+.ab-li{padding:12px 0}
 .ab-sticker{border-radius:14px;transition:transform .12s,box-shadow .12s}
 .ab-sticker:hover{transform:translateY(-2px);box-shadow:var(--ab-shadow)}
 .ab-pitem{border-radius:12px;transition:border-color .12s,box-shadow .12s}
@@ -621,7 +626,7 @@ body[data-ds-dark-theme] .ab-root{
 @container (max-width:820px){.ab-memory-head{grid-template-columns:minmax(0,1fr)}}
 .ab-privacy{border-left:3px solid var(--ab-sea)}
 .ab-settings-layout{display:grid;grid-template-columns:164px minmax(0,1fr);gap:14px;align-items:start}
-.ab-settings-nav{display:flex;flex-direction:column;gap:3px;padding:8px}
+.ab-settings-nav{position:sticky;top:14px;display:flex;flex-direction:column;gap:3px;padding:8px;background:var(--ab-card-2);box-shadow:none}
 .ab-settings-nav button{display:flex;align-items:center;justify-content:space-between;text-align:left;gap:6px;min-height:34px;padding:6px 9px;border:0;border-radius:8px;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
 .ab-settings-nav button:hover{background:var(--ab-hover);color:var(--ab-text)}
 .ab-settings-nav button[aria-current=true]{background:var(--ab-foam-2);color:var(--ab-deep);font-weight:650}
@@ -636,6 +641,50 @@ body[data-ds-dark-theme] .ab-root{
 .ab-param-details p{margin:3px 0 0}
 .ab-privacy .ab-row{border-top:0;padding:2px 0}
 .ab-privacy .ab-param-row .ab-ctl{flex:0 0 auto}
+.ab-people{display:grid;gap:16px}
+.ab-people-tools,.ab-people-search,.ab-person-head,.ab-person-meta,.ab-person-actions{display:flex;align-items:center}
+.ab-people-tools{gap:12px;flex-wrap:wrap}
+.ab-people-search{flex:1 1 240px;gap:9px;min-width:0;color:var(--ab-sub)}
+.ab-people-search .ab-input{width:100%}
+.ab-people-tools .ab-seg{flex:none}
+.ab-people-grid,.ab-people-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:13px;align-items:start}
+.ab-person{display:grid;gap:13px;align-content:start;min-width:0;border:1px solid var(--ab-line);border-radius:16px;background:var(--ab-card);padding:clamp(14px,2cqi,22px);box-shadow:var(--ab-shadow)}
+.ab-person.owner,.ab-person.expanded{grid-column:1/-1}
+.ab-person.owner{border-color:color-mix(in srgb,var(--ab-sea) 39%,var(--ab-line));background:linear-gradient(120deg,var(--ab-foam),var(--ab-card) 72%)}
+.ab-person-head{gap:12px;min-width:0}
+.ab-person-head h2{margin:0;font-size:17px;line-height:1.25;overflow-wrap:anywhere}
+.ab-person.owner h2{font-size:clamp(19px,2.55cqi,26px)}
+.ab-person-id{flex:1;min-width:0}
+.ab-person-mark{display:grid;place-items:center;width:39px;height:39px;flex:none;border:1px solid var(--ab-line-2);border-radius:12px;background:var(--ab-card-2);color:var(--ab-deep);font-weight:650}
+.ab-person.owner .ab-person-mark{width:48px;height:48px;background:var(--ab-foam-2);border-color:transparent;font-size:20px}
+.ab-person-meta{gap:4px 9px;flex-wrap:wrap;color:var(--ab-sub);font-size:11.5px;overflow-wrap:anywhere}
+.ab-person-meta>span{min-width:0}
+.ab-person-tag{display:inline-flex;align-items:center;min-height:18px;padding:1px 7px;border-radius:6px;background:var(--ab-card-2);color:var(--ab-sub);font-size:11px;font-weight:620}
+.ab-person.owner .ab-person-tag{background:var(--ab-foam-2);color:var(--ab-deep)}
+.ab-person-scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,70px),1fr));gap:6px;margin:0}
+.ab-person-scores>div{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:5px;align-items:center;padding:6px 8px;border-radius:8px;background:color-mix(in srgb,var(--ab-card-2) 76%,var(--ab-card))}
+.ab-person-scores dt{color:var(--ab-sub);font-size:11.5px}
+.ab-person-scores dd{margin:0;color:var(--ab-deep);font-variant-numeric:tabular-nums;font-weight:670}
+.ab-person-scores .track{grid-column:1/-1;height:3px;border-radius:4px;background:var(--ab-line-2);overflow:hidden}
+.ab-person-scores .track>i{display:block;height:100%;border-radius:inherit;background:var(--ab-sea)}
+.ab-person-note,.ab-person-field dd{margin:0;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.ab-person:not(.expanded) .ab-person-note{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.ab-person-actions{justify-content:flex-end;flex-wrap:wrap;gap:6px;border-top:1px solid var(--ab-line);padding-top:10px}
+.ab-person-details{display:grid;gap:12px;border-top:1px solid var(--ab-line);padding-top:12px}
+.ab-person-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:10px 18px;margin:0}
+.ab-person-field dt{color:var(--ab-sub);font-size:11.5px;font-weight:600;margin-bottom:2px}
+.ab-person-follow{display:flex;justify-content:space-between;align-items:flex-start;gap:7px;flex-wrap:wrap;padding:5px 0;overflow-wrap:anywhere}
+.ab-person-follow+ .ab-person-follow{border-top:1px solid var(--ab-line)}
+.ab-person-edit{display:grid;gap:7px}
+.ab-person-edit .ab-person-actions{border:0;padding:0}
+.ab-people-group{min-width:0;padding:11px 13px;background:var(--ab-card-2);border-radius:10px;overflow-wrap:anywhere}
+.ab-people-group p{margin:3px 0 0}
+.ab-starmap{max-width:640px;margin:auto}
+.ab-starmap svg{width:100%;height:auto;display:block}
+.ab-starmap .orbit{fill:none;stroke:var(--ab-line-2);stroke-dasharray:2 6}
+.ab-starmap .person-node:focus-visible{outline:none;opacity:1}
+.ab-starmap .person-node:focus-visible circle{stroke:var(--ab-deep);stroke-width:3}
+.ab-starmap-caption{margin:12px 0 0;text-align:center;color:var(--ab-sub);font-size:12px}
 @container (max-width:930px){
   .ab-workspace{grid-template-columns:146px minmax(0,1fr)}
   .ab-stage{padding-inline:22px}
@@ -643,7 +692,7 @@ body[data-ds-dark-theme] .ab-root{
 }
 @container (max-width:760px){
   .ab-workspace{display:block}
-  .ab-rail{position:static;height:auto;max-height:none;padding:calc(8px + var(--dsh-frame-top-clearance,0px)) 15px 8px;gap:7px;overflow:visible}
+  .ab-rail{position:static;height:auto;max-height:none;padding:calc(8px + var(--dsh-frame-top-clearance,0px)) 15px 8px;gap:7px;overflow:visible;border-inline-end:0;border-bottom:1px solid var(--ab-rail-border)}
   .ab-wordmark{padding:0;min-height:32px}
   .ab-brand-mark{width:27px;height:27px;border-radius:8px}
   .ab-work-nav{grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
@@ -652,7 +701,7 @@ body[data-ds-dark-theme] .ab-root{
   .ab-stage{padding:0 16px 24px}
   .ab-topbar{min-height:56px}
   .ab-settings-layout{grid-template-columns:minmax(0,1fr)}
-  .ab-settings-nav{flex-direction:row;flex-wrap:wrap}
+  .ab-settings-nav{position:static;flex-direction:row;flex-wrap:wrap}
   .ab-persona{grid-template-columns:minmax(0,1fr)}
 }
 @container (max-width:520px){
@@ -665,9 +714,8 @@ body[data-ds-dark-theme] .ab-root{
   .ab-find-btn,.ab-run-btn{padding-inline:7px}
   .ab-find-btn span,.ab-find-btn kbd{display:none}
   .ab-finder{right:-70px}
-  .ab-page-nav{gap:4px 11px}
-  .ab-page-nav button{font-size:12px}
-  .ab-page-nav button[aria-current]:after{bottom:0}
+  .ab-page-nav{gap:3px}
+  .ab-page-nav button{font-size:12px;padding-inline:8px}
   .ab-cover{min-height:175px;gap:9px;padding:16px}
   .ab-cover-meta{font-size:11px}
   .ab-cover h1{font-size:34px}
@@ -682,7 +730,12 @@ body[data-ds-dark-theme] .ab-root{
   .ab-activity .ab-metric:nth-child(4){border-inline-start:0;padding-inline-start:0}
   .ab-param-row .ab-ctl,.ab-privacy .ab-param-row .ab-ctl{flex:0 1 auto;justify-content:flex-start}
   .ab-row{flex-direction:column;gap:6px}
-  .ab-row .ab-label{flex:none}
+  .ab-row .ab-label,.ab-row .ab-ctl{flex:none;max-width:100%}
+  .ab-li .meta{flex-basis:100%}
+  .ab-li .body{flex-basis:100%}
+  .ab-people-grid,.ab-people-groups{gap:10px}
+  .ab-person-scores{grid-template-columns:repeat(auto-fit,minmax(min(100%,72px),1fr))}
+  .ab-person-actions .ab-btn{flex:0 1 auto}
   .ab-savebar{flex-wrap:wrap;gap:6px}
   .ab-savebar .msg{flex-basis:100%}
 }
@@ -763,14 +816,15 @@ body[data-ds-dark-theme] .ab-root{
     }
     function Card({ title, desc, icon, right, children, className }) {
       return h('div', { className: cx('ab-card', className) },
-        title ? h('div', { className: 'ab-flex', style: { marginBottom: desc ? 0 : 10 } }, h('h3', null, icon || null, title), h('div', { className: 'ab-spacer' }), right || null) : null,
+        title ? h('div', { className: cx('ab-card-head', desc && 'with-desc') }, h('h3', null, icon || null, title), right || null) : null,
         desc ? h('p', { className: 'ab-desc' }, desc) : null,
         children)
     }
-    function Btn({ kind, small, onClick, disabled, children, title }) {
+    function Btn({ kind, small, onClick, disabled, children, title, expanded, controls }) {
       const [busy, setBusy] = useState(false)
       return h('button', {
         type: 'button', title, className: cx('ab-btn', kind, small && 'sm'), disabled: disabled || busy,
+        'aria-expanded': expanded, 'aria-controls': controls,
         onClick: async () => { if (!onClick) return; setBusy(true); try { await onClick() } finally { setBusy(false) } },
       }, busy ? [h('i', { key: 's', className: 'ab-spin' }), ' 处理中'] : children)
     }
@@ -911,7 +965,7 @@ body[data-ds-dark-theme] .ab-root{
         h('span', { className: 'val' }, fmt ? fmt(value) : value))
     }
     function Seg({ value, options, onChange, disabled }) {
-      return h('div', { className: 'ab-seg' + (disabled ? ' off' : '') }, options.map((o) => h('button', { key: o.value, type: 'button', className: value === o.value ? 'on' : '', disabled: !!disabled, onClick: () => { if (!disabled) onChange(o.value) } }, o.label)))
+      return h('div', { className: 'ab-seg' + (disabled ? ' off' : '') }, options.map((o) => h('button', { key: o.value, type: 'button', className: value === o.value ? 'on' : '', 'aria-pressed': value === o.value, disabled: !!disabled, onClick: () => { if (!disabled) onChange(o.value) } }, o.label)))
     }
     function Empty({ icon, text }) {
       return h('div', { className: 'ab-empty' }, h('div', { className: 'big' }, icon || '🐋'), text)
@@ -962,7 +1016,7 @@ body[data-ds-dark-theme] .ab-root{
       { id: 'mind', label: '心智', icon: 'mind', pages: [
         { id: 'now', label: '她现在', search: '心情 情绪 精力 困 饿 投喂 睡觉 叫醒 身体' },
         { id: 'mood', label: '记忆', search: '梦 遗忘 隐私 私聊 保密 跨会话 分享 向量' },
-        { id: 'persona', label: '关系', search: '人物 亲近 信任 喜欢 老梗 群 关系星图' },
+        { id: 'persona', label: '关系', search: '人物 亲近 信任 喜欢 亲密 激情 承诺 老梗 群 关系星图' },
         { id: 'inner', label: '念头与行动', search: '内心 念头 日记 欲望 动力 犯懒 主动找 权限 申请 本地小模型' },
         { id: 'character', label: '人格卡', search: '人设 人格 性格 设定 头像' },
         { id: 'selfmind', label: '人格与自我', search: '性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 名字 小名 影子模式' },
@@ -2640,16 +2694,16 @@ body[data-ds-dark-theme] .ab-root{
       if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记' }), social)
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '空间日记', right: f.sw('diary.enabled'), desc: '她用可公开的经历和当前心情写说说。普通日记只在「仅自己可见」时自动从当天的画作或表情包里配图。' },
-          h(Row, { label: '每天写几次' }, f.num('diary.timesPerDay', { min: 0, max: 6 })),
-          h(Row, { label: '时间段', hint: '在这段时间里随机挑时间' }, f.text('diary.windowStart', { size: 'sm' }), h('span', { className: 'ab-muted' }, '到'), f.text('diary.windowEnd', { size: 'sm' })),
-          h(Row, { label: '两篇至少隔' }, f.num('diary.minGapMinutes', { min: 0 }), h('span', { className: 'ab-muted' }, '分钟')),
+          h(Row, { label: '每天自动发布上限', hint: '设为 0 可暂停自动发布' }, f.num('diary.timesPerDay', { min: 0, max: 6 })),
+          h(Row, { label: '自动发布时段', hint: '按心智时区，空闲且有动力时才写' }, f.text('diary.windowStart', { size: 'sm' }), h('span', { className: 'ab-muted' }, '到'), f.text('diary.windowEnd', { size: 'sm' })),
+          h(Row, { label: '自动发布最短间隔' }, f.num('diary.minGapMinutes', { min: 0 }), h('span', { className: 'ab-muted' }, '分钟')),
           h(Row, { label: '字数' }, f.num('diary.minChars', { min: 10 }), h('span', { className: 'ab-muted' }, '到'), f.num('diary.maxChars', { min: 20 }), h('span', { className: 'ab-muted' }, '字')),
           h(DiaryAudience, { draft, setDraft, toast }),
         ),
         h(DiaryMedia, { st, draft, setDraft, toast }),
         h(DiaryArchive, { st, draft, setDraft, toast }),
         h(Card, { title: '写过的日记', right: h('div', { className: 'ab-flex' },
-          data && data.next ? h('span', { className: 'ab-muted ab-small' }, '下一篇大约 ' + data.next) : null,
+          data?.automatic ? h('span', { className: 'ab-muted ab-small' }, '今天 ' + data.automatic.count + '/' + data.automatic.limit + ' · ' + (data.automatic.reason || '等她空闲时决定')) : null,
           h(Btn, { small: true, kind: 'ghost', title: '刷新空间状态', onClick: load }, h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, 'aria-hidden': true }, h('path', { d: 'M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17' }))),
           h(Btn, { small: true, kind: 'primary', onClick: async () => {
             toast('ta在写了…')
@@ -2708,6 +2762,13 @@ body[data-ds-dark-theme] .ab-root{
       if (!d.ok) return h(Card, { title: '内心' }, h(Empty, { text: d.message || '心智核心没起来' }))
       const act = async (path, body, label) => { setBusy(label || path); try { const r = await post(path, body || {}); toast(r.message || (r.ok ? '好了' : '没成功')); load() } finally { setBusy('') } }
       const m = d.motivation
+      const motivesByWant = new Map()
+      for (const motive of d.motives || []) {
+        for (const id of motive.wantIds || []) {
+          const previous = motivesByWant.get(id)
+          if (!previous || (!previous.available && motive.available)) motivesByWant.set(id, motive)
+        }
+      }
       const pending = (d.grants.requests || []).filter((r) => r.status === 'pending')
       const grantedKeys = Object.keys(d.grants.granted || {})
       const diaryTime = new Intl.DateTimeFormat('zh-CN', { timeZone: d.timezone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
@@ -2719,11 +2780,15 @@ body[data-ds-dark-theme] .ab-root{
               x.feel ? h('span', { className: 'ab-muted ab-small' }, '  （' + x.feel.name + '）') : null,
               x.plan ? h('div', { className: 'ab-small' }, '想去：' + x.plan) : null,
               x.deep ? h('div', { className: 'ab-note', style: { marginTop: 4 } }, '深想（' + x.deep.reason + '）：' + x.deep.thought) : null)))) : h(Empty, { text: '还没想过什么' })),
-        h(Card, { title: '她想要的', desc: '从念头、经历里长出来的具体想要；实现了、放弃了就消失，一周没动静会慢慢淡掉。下面是 16 项基本需要现在有多缺（缺得越多越想去满足）。' },
-          (m.wants || []).length ? h('div', { className: 'ab-list', style: { marginBottom: 12 } }, m.wants.map((w) => h('div', { key: w.id, className: 'ab-li' },
-            h('div', { className: 'meta' }, timeAgo(w.at)),
-            h('div', { className: 'body' }, w.text),
-            h(Btn, { small: true, onClick: () => act('/mind/want/close', { id: w.id }) }, '帮她放下')))) : h('p', { className: 'ab-muted' }, '现在没什么特别想要的'),
+        h(Card, { title: '她想要的', desc: '这些念头会影响她的动力。醒着、空闲时，她会从能做的事里选一件。' },
+          (m.wants || []).length ? h('div', { className: 'ab-list', style: { marginBottom: 12 } }, m.wants.map((w) => {
+            const motive = motivesByWant.get(w.id)
+            const status = motive?.why || (motive ? (motive.motive < d.actThreshold ? '动力还不够' : '等她空闲时决定') : '没有对应的动作')
+            return h('div', { key: w.id, className: 'ab-li' },
+              h('div', { className: 'meta' }, timeAgo(w.at)),
+              h('div', { className: 'body' }, w.text, h('div', { className: 'ab-muted ab-small' }, motive ? motive.label + ' · ' + status : status)),
+              h(Btn, { small: true, onClick: () => act('/mind/want/close', { id: w.id }) }, '帮她放下'))
+          })) : h('p', { className: 'ab-muted' }, '现在没什么特别想要的'),
           m.needs.filter((n) => n.deficit >= 0.05).sort((a, b) => b.deficit - a.deficit).slice(0, 8).map((n) => h(Meter, { key: n.id, label: n.name, value: n.deficit, warn: n.deficit >= 0.7 }))),
         h(Card, { title: '能做的事', desc: '模块交给她的事，什么时候做由她决定：动力 ≈ 觉得能做成 × 有多想要 ÷（1 + 容易分心 × 回报要等多久），再看费不费力、精力和心情。动力没过门槛就犯懒不做。做完按结果学：比预想的开心，下次更想做。' },
           (d.motives || []).length ? h('div', { className: 'ab-list' }, d.motives.map((x) => h('div', { key: x.id, className: 'ab-li' },
@@ -2805,6 +2870,29 @@ body[data-ds-dark-theme] .ab-root{
           } }, status.running ? '正在检查或安装…' : local.configured ? '检查与修复' : '一键下载安装'),
           h(Btn, { small: true, disabled: !local.configured || status.running || Boolean(busy), onClick: () => act('test') }, busy === 'test' ? '正在测试…' : '试一下')) : null,
         local && !canInstall ? h('p', { className: 'ab-muted ab-small' }, '一键安装需要 Apple 芯片 Mac。') : null)
+    }
+
+    const PET_MOODS = [{ key: 'idle', label: '😐 平常' }, { key: 'happy', label: '😄 开心' }, { key: 'shy', label: '😳 害羞' }, { key: 'sad', label: '😢 委屈' }, { key: 'angry', label: '😠 生气' }, { key: 'sleepy', label: '😴 困了' }, { key: 'think', label: '🤔 想事' }, { key: 'love', label: '🥰 喜欢你' }]
+    // 行为动作全表（面板「试一下」）：与社区模块 pet 的 index.mjs 里的 BEHAVIOR_ACTIONS / BEHAVIOR_DEFERRED 一一对应。
+    // tier：1 = 第一批已开放；2 = 第二批图标动作（服务端隔离区，可一键归还）；3 = 第三批暂未实现（点了客户端回执 refused:not-implemented）。
+    const PET_BEHAVIOR_ACTIONS = [
+      { action: 'chase_cursor', name: '追鼠标', effect: '扑过去追着你的鼠标跑，追到后按住指针 5 秒再松开', tier: 1 },
+      { action: 'wander', name: '溜达', effect: '自己溜达到屏幕另一头', tier: 1 },
+      { action: 'idle_anim', name: '小动作', effect: '随便播一段小动作（摇尾巴、眨眼这类），不移动', tier: 1 },
+      { action: 'steal_cursor', name: '叼鼠标', effect: '冲到鼠标位置叼住，带着鼠标同步跑到一个随机位置（也可由 AI 指定坐标）再松口', tier: 1 },
+      { action: 'say', name: '说一句', effect: '只冒个气泡说句话，不做动作', tier: 1 },
+      { action: 'drag_icon', name: '叼图标', effect: '叼起桌面图标搬到另一个位置放下（默认随机落点，不填图标名就随机挑一个）', tier: 2 },
+      { action: 'hide_icon', name: '收图标', effect: '把桌面图标收进隔离区，随时可以放回去', tier: 2 },
+      { action: 'nudge_window', name: '推窗口', effect: '把窗口一路推到屏幕边界外（只剩一条边），人和窗口一起走，5 秒后再一起拉回原位', tier: 3 },
+      { action: 'close_window', name: '关窗口', effect: '跑到窗口右上角，优雅关掉（等于点右上角 X，另有独立安全开关）', tier: 3 },
+    ]
+    // 回执展示口径：played / refused / failed 是客户端 /playback 回的三种终态，pending 是刚下发还没回。
+    const PET_RECEIPT_VIEW = {
+      played: { icon: '✅', word: '演完了', color: 'var(--ab-ok)' },
+      refused: { icon: '🚫', word: '被拦下', color: 'var(--ab-warn)' },
+      failed: { icon: '❌', word: '没演成', color: 'var(--ab-err)' },
+      pending: { icon: '⏳', word: '等回执', color: 'var(--ab-sub)' },
+      other: { icon: '·', word: '', color: 'var(--ab-sub)' },
     }
 
     function parseBehaviorReceipt(line) {
@@ -3587,28 +3675,33 @@ body[data-ds-dark-theme] .ab-root{
         return [p.id, { x: C + r * Math.cos(a), y: C + r * Math.sin(a), p }]
       }))
       const maxN = Math.max(1, ...(g.edges || []).map((e) => e.n))
-      const match = (p) => q && [p.name, p.id, p.typeLabel].join(' ').includes(q)
+      const match = (p) => q && [p.name, p.id, p.typeLabel].join(' ').toLowerCase().includes(q.toLowerCase())
       const focus = hover || ''
-      return h('div', { style: { width: '100%', maxWidth: 640, margin: '0 auto' } },
-        h('svg', { viewBox: `0 0 ${S} ${S}`, style: { width: '100%', height: 'auto', display: 'block' }, role: 'img', 'aria-label': '关系星图' },
-          [0.33, 0.66, 1].map((k) => h('circle', { key: k, cx: C, cy: C, r: 60 + k * (R - 60), fill: 'none', stroke: 'var(--ab-line)', strokeDasharray: '3 5' })),
+      return h('figure', { className: 'ab-starmap' },
+        h('svg', { viewBox: `0 0 ${S} ${S}`, role: 'group', 'aria-label': '关系星图' },
+          [0.33, 0.66, 1].map((k) => h('circle', { key: k, className: 'orbit', cx: C, cy: C, r: 60 + k * (R - 60) })),
           (g.edges || []).filter((e) => pos.has(e.a) && pos.has(e.b)).map((e) => {
             const a = pos.get(e.a), b = pos.get(e.b)
             const on = focus && (e.a === focus || e.b === focus)
             return h('line', { key: e.a + e.b, x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: on ? 'var(--ab-sea)' : 'var(--ab-sub)', strokeOpacity: on ? 0.9 : focus ? 0.08 : 0.25, strokeWidth: 0.8 + 2.5 * (e.n / maxN) })
           }),
-          h('circle', { cx: C, cy: C, r: 18, fill: 'var(--ab-sea)' }),
+          h('circle', { cx: C, cy: C, r: 24, fill: 'var(--ab-foam-2)' }),
+          h('circle', { cx: C, cy: C, r: 15, fill: 'var(--ab-sea)' }),
           h('text', { x: C, y: C + 34, textAnchor: 'middle', fontSize: 13, fill: 'var(--ab-text)', fontWeight: 700 }, g.self || '她'),
           order.map((p) => {
             const { x, y } = pos.get(p.id)
             const size = 4 + 12 * Math.max(0, Math.min(1, p.owner ? 1 : p.closeness))
             const dim = (q && !match(p)) || (focus && focus !== p.id && !w.get(focus + '|' + p.id))
-            return h('g', { key: p.id, style: { cursor: 'pointer' }, opacity: dim ? 0.25 : 1, onClick: () => onPick(p.id), onMouseEnter: () => setHover(p.id), onMouseLeave: () => setHover('') },
+            const personLabel = [p.name || p.id, p.typeLabel, '亲近 ' + Math.round(p.closeness * 100)].filter(Boolean).join(' · ')
+            return h('g', { key: p.id, className: 'person-node', tabIndex: 0, role: 'button', 'aria-label': personLabel,
+              style: { cursor: 'pointer' }, opacity: dim ? 0.25 : 1, onClick: () => onPick(p.id),
+              onKeyDown: (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onPick(p.id) } },
+              onFocus: () => setHover(p.id), onBlur: () => setHover(''), onMouseEnter: () => setHover(p.id), onMouseLeave: () => setHover('') },
               h('circle', { cx: x, cy: y, r: size, fill: p.owner ? 'var(--ab-warn)' : p.noMemory ? 'var(--ab-dim)' : 'var(--ab-sky)', stroke: match(p) ? 'var(--ab-err)' : 'var(--ab-card)', strokeWidth: match(p) ? 3 : 1.5 }),
               (size >= 8 || match(p) || focus === p.id) ? h('text', { x, y: y - size - 4, textAnchor: 'middle', fontSize: 11, fill: 'var(--ab-text)' }, (p.name || p.id.replace(/^qq:/, '')).slice(0, 8)) : null,
-              h('title', null, (p.name || '') + ' · ' + p.typeLabel + ' · 亲近 ' + Math.round(p.closeness * 100)))
+              h('title', null, personLabel))
           })),
-        h('div', { className: 'ab-muted ab-small', style: { textAlign: 'center', marginTop: 4 } }, '越亲近点越大、离她越近；线是在她的记忆里一起出现过。橙色是你，灰色是「以后不记」的人。点一个人看详情。'))
+        h('figcaption', { className: 'ab-starmap-caption' }, '距离表示亲近程度，连线表示同一段记忆。选择人物查看详情。'))
     }
 
     function MindPeople({ toast }) {
@@ -3618,8 +3711,19 @@ body[data-ds-dark-theme] .ab-root{
       const [gone, setGone] = useState([])
       const [view, setView] = useState(() => { try { return localStorage.getItem('aurabot.peopleView') || 'list' } catch (e) { return 'list' } })
       const switchView = (v) => { setView(v); try { localStorage.setItem('aurabot.peopleView', v) } catch (e) {} }
-      const pick = (id) => { switchView('list'); setOpen(id); setQ(''); setTimeout(() => { const el = document.getElementById('person-' + id.replace(/\W/g, '')); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }, 50) }
+      const pick = (id) => {
+        switchView('list')
+        setOpen(id)
+        setQ('')
+        setTimeout(() => {
+          const el = document.getElementById('person-' + id.replace(/\W/g, ''))
+          if (!el) return
+          el.focus({ preventScroll: true })
+          el.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+        }, 50)
+      }
       const [follows, setFollows] = useState([])
+      const [impression, setImpression] = useState(null)
       const load = () => {
         get('/mind/people').then(setD)
         get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {})
@@ -3644,59 +3748,112 @@ body[data-ds-dark-theme] .ab-root{
         toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err'); load()
       }
       const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
-      const list = (d && d.list) || []
-      const shown = list.filter((p) => !q || [p.name, p.id, ...(p.aliases || []), p.typeLabel, p.tom && p.tom.note].join(' ').includes(q))
-      const edit = async (id, patch) => { const r = await post('/mind/people/edit', { id, patch }); toast(r.message || (r.ok ? '改好了' : '没成功')); load() }
-      const pct = (x) => Math.round((Number(x) || 0) * 100)
+
+      const list = d?.list || []
+      const needle = q.trim().toLowerCase()
+      const shown = list.filter((p) => !needle || [p.name, p.id, ...(p.aliases || []), p.typeLabel, p.tom?.note].join(' ').toLowerCase().includes(needle)).slice(0, 300)
+      const edit = async (id, patch) => {
+        const r = await post('/mind/people/edit', { id, patch })
+        toast(r.message || (r.ok ? '已保存' : '没有保存成功'), r.ok ? 'ok' : 'err')
+        if (r.ok) load()
+        return r.ok
+      }
       const texts = (arr) => (arr || []).map((x) => x.text || x).join('、')
-      return h(Fragment, null,
-        h(Card, { title: '关系', desc: '她对每个认识的人有一份「我们俩是什么关系」和「这个人是什么样」。每段聊天记成经历时顺带更新（比性格变得快）：信任掉得比涨得快，第一印象要好几次相反的经历才改得过来，很久不联系会慢慢变淡。' + (d && d.exclusive ? '「专一」开着：亲密、激情、承诺只对你，别人最高到好朋友。' : '「专一」关着：她也可能慢慢喜欢上别人。') },
-          h('div', { className: 'ab-flex', style: { marginBottom: 10, gap: 8 } },
-            h('input', { className: 'ab-input', style: { flex: 1 }, placeholder: '找人（名字、QQ 号、关系）', value: q, onChange: (e) => setQ(e.target.value) }),
-            h(Btn, { small: true, kind: view === 'list' ? 'primary' : 'ghost', onClick: () => switchView('list') }, '列表'),
-            h(Btn, { small: true, kind: view === 'map' ? 'primary' : 'ghost', onClick: () => switchView('map') }, '星图')),
-          view === 'map' ? h(StarMap, { onPick: pick, q }) : !d ? h('p', { className: 'ab-muted' }, '读取中…') : !shown.length ? h(Empty, { text: '还没认识谁' }) : h('div', { className: 'ab-list' }, shown.slice(0, 300).map((p) => {
-            const r = p.rel || {}
-            const t = p.tom || {}
-            const isOpen = open === p.id
-            return h('div', { key: p.id, id: 'person-' + p.id.replace(/\W/g, ''), className: 'ab-li' },
-              h('div', { className: 'meta' }, (follows.some((f) => f.about === p.id) ? '惦记着 ' + follows.filter((f) => f.about === p.id).length + ' 件事 · ' : '') + p.typeLabel + ' · ' + p.id.replace(/^qq:/, 'QQ ') + (r.lastContact ? ' · ' + timeAgo(r.lastContact) + '联系过' : p.lastSeen ? ' · ' + mindDay(p.lastSeen) + ' 来过' : '') + (r.n ? ' · 聊过 ' + r.n + ' 段' : '') + (p.noMemory ? ' · 以后不记他' : '')),
-              h('div', { className: 'body' },
-                h('b', null, p.name || '（没名字）'), (p.aliases || []).length ? h('span', { className: 'ab-muted ab-small' }, '  曾用名：' + p.aliases.join('、')) : null,
-                h('div', { className: 'ab-small' }, `亲近 ${pct(r.closeness)} · 喜欢 ${pct(r.liking)} · 尊重 ${pct(r.respect)} · 信任 ${pct(r.trust)}` + (p.owner || r.intimacy ? ` · 亲密 ${pct(r.intimacy)} · 承诺 ${pct(r.commitment)}` + (r.passion ? ` · 激情 ${pct(r.passion)}` : '') : '') + (r.debt ? ` · 人情 ${r.debt > 0 ? '她欠 ' + r.debt : '对方欠 ' + -r.debt}` : '')),
-                r.call || r.callMe ? h('div', { className: 'ab-muted ab-small' }, (r.call ? '她叫对方「' + r.call + '」' : '') + (r.callMe ? '  对方叫她「' + r.callMe + '」' : '')) : null,
-                t.note ? h('div', { className: 'ab-small' }, t.note) : null,
-                isOpen ? h('div', { className: 'ab-small', style: { marginTop: 6 } },
-                  (t.likes || []).length ? h('div', null, '喜欢 / 在意：' + texts(t.likes)) : null,
-                  (t.habits || []).length ? h('div', null, '习惯：' + texts(t.habits)) : null,
-                  (t.knowledge || []).length ? h('div', null, '她理解对方知道什么：' + t.knowledge.slice(-6).map((e) => (e.state === 'known' ? '知道' : '还不知道') + '「' + e.topic + '」').join('；')) : null,
-                  t.mood ? h('div', null, '最近：' + t.mood.text + '（' + timeAgo(t.mood.at) + '）') : null,
-                  (r.topics || []).length ? h('div', null, '老梗：' + texts(r.topics)) : null,
-                  (r.limits || []).length ? h('div', null, '别碰：' + texts(r.limits)) : null,
-                  (r.moments || []).length ? h('div', null, '重要时刻：' + r.moments.map((m) => mindDay(m.at).slice(0, 10) + ' ' + m.text).join('；')) : null,
-                  (r.knots || []).length ? h('div', null, '没解开的结：' + texts(r.knots)) : null,
-                  follows.filter((f) => f.about === p.id).length ? h('div', null, '惦记着他的事：', follows.filter((f) => f.about === p.id).map((f) => h('div', { key: f.id, className: 'ab-flex', style: { gap: 6, marginLeft: 8 } },
-                    h('span', null, mindDay(f.at).slice(0, 10) + ' ' + f.gist + (f.asks ? '（问过 ' + f.asks + ' 次）' : f.nextAt > Date.now() ? '（' + mindDay(f.nextAt).slice(0, 10) + ' 以后会问）' : '（下次聊天时会问）')),
-                    h(Btn, { small: true, kind: 'ghost', onClick: () => stopAsking(f) }, '不用问了')))) : null,
-                  r.rivalry >= 0.3 ? h('div', null, '有点暗暗较劲') : null,
-                  (r.flirts || []).length >= 3 ? h('div', { style: { color: 'var(--ab-warn)' } }, '最近老撩她、纠缠她') : null) : null),
-              h('div', { className: 'ab-flex', style: { gap: 6 } },
-                h(Btn, { small: true, onClick: () => setOpen(isOpen ? '' : p.id) }, isOpen ? '收起' : '详细'),
-                h(Btn, { small: true, onClick: async () => { const v = prompt('你对这个人的补充说明（她会当成自己的印象，留空清掉）', t.note || ''); if (v !== null) await edit(p.id, { note: v }) } }, '写印象'),
-                (r.knots || []).length ? h(Btn, { small: true, onClick: () => { if (confirm('把她对这个人的心结都清掉？')) edit(p.id, { knots: [] }) } }, '清掉心结') : null,
-                p.owner ? null : p.noMemory
-                  ? h(Btn, { small: true, onClick: async () => { const r = await post('/mind/people/forget', { id: p.id, mode: 'resume' }); toast(r.message); load() } }, '重新记他')
-                  : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'stop') }, '以后不记他'),
-                p.owner ? null : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'delete') }, '忘掉这个人')))
-          }))),
-        gone.length ? h(Card, { title: '恢复区', desc: '忘掉的人先放在这里，30 天内能整份放回来；过了 30 天就真的没了。' },
+      const personCard = (p) => {
+        const r = p.rel || {}
+        const t = p.tom || {}
+        const isOpen = open === p.id
+        const id = 'person-' + p.id.replace(/\W/g, '')
+        const detailId = id + '-details'
+        const name = p.name || '未命名'
+        const pending = follows.filter((f) => f.about === p.id)
+        const editing = isOpen && impression?.id === p.id
+        const scoreFields = [['亲近', r.closeness], ['喜欢', r.liking], ['尊重', r.respect], ['信任', r.trust]]
+        if (p.owner || r.intimacy) scoreFields.push(['亲密', r.intimacy], ['承诺', r.commitment])
+        if (r.passion) scoreFields.push(['激情', r.passion])
+        const detailFields = [
+          ['她叫对方', r.call && '「' + r.call + '」'],
+          ['对方叫她', r.callMe && '「' + r.callMe + '」'],
+          ['曾用名', (p.aliases || []).join('、')],
+          ['喜欢 / 在意', texts(t.likes)],
+          ['习惯', texts(t.habits)],
+          ['她理解对方知道什么', (t.knowledge || []).slice(-6).map((e) => (e.state === 'known' ? '知道' : '还不知道') + '「' + e.topic + '」').join('；')],
+          ['最近', t.mood && (t.mood.text + '（' + timeAgo(t.mood.at) + '）')],
+          ['老梗', texts(r.topics)],
+          ['别碰', texts(r.limits)],
+          ['重要时刻', (r.moments || []).map((m) => mindDay(m.at).slice(0, 10) + ' ' + m.text).join('；')],
+          ['没解开的结', texts(r.knots)],
+          ['其他印象', [r.rivalry >= 0.3 && '有点暗暗较劲', (r.flirts || []).length >= 3 && '最近老撩她、纠缠她'].filter(Boolean).join(' · ')],
+        ].filter(([, value]) => value)
+        return h('article', { key: p.id, id, tabIndex: -1, className: cx('ab-person', p.owner && 'owner', isOpen && 'expanded') },
+          h('header', { className: 'ab-person-head' },
+            h('span', { className: 'ab-person-mark', 'aria-hidden': true }, p.name ? Array.from(p.name.trim())[0] || navIcon('mind') : navIcon('mind')),
+            h('div', { className: 'ab-person-id' },
+              h('h2', null, name),
+              h('div', { className: 'ab-person-meta' },
+                p.typeLabel ? h('span', { className: 'ab-person-tag' }, p.typeLabel) : null,
+                h('span', null, p.id.replace(/^qq:/, 'QQ ')),
+                r.lastContact ? h('span', null, timeAgo(r.lastContact) + '联系过') : p.lastSeen ? h('span', null, mindDay(p.lastSeen) + ' 来过') : null,
+                r.n ? h('span', null, '聊过 ' + r.n + ' 段') : null,
+                pending.length ? h('span', null, '惦记着 ' + pending.length + ' 件事') : null,
+                p.noMemory ? h('span', null, '已停止记录') : null))),
+          h('dl', { className: 'ab-person-scores', 'aria-label': '关系指标（满分 100）' }, scoreFields.map(([label, score]) => {
+            const value = Math.round(Math.max(0, Math.min(1, Number(score) || 0)) * 100)
+            return h('div', { key: label }, h('dt', null, label), h('dd', null, value),
+              h('span', { className: 'track', 'aria-hidden': true }, h('i', { style: { width: value + '%' } })))
+          })),
+          r.debt ? h('div', { className: 'ab-person-meta' }, '人情 · ' + (r.debt > 0 ? '她欠 ' + r.debt : '对方欠 ' + -r.debt)) : null,
+          t.note && !editing ? h('p', { className: 'ab-person-note' }, t.note) : null,
+          isOpen ? h('div', { id: detailId, className: 'ab-person-details' },
+            detailFields.length ? h('dl', { className: 'ab-person-fields' }, detailFields.map(([label, value]) =>
+              h('div', { className: 'ab-person-field', key: label }, h('dt', null, label), h('dd', null, value)))) : null,
+            pending.length ? h('div', { className: 'ab-person-field' }, h('b', null, '惦记着的事'), pending.map((f) =>
+              h('div', { className: 'ab-person-follow', key: f.id },
+                h('span', null, f.gist + (f.asks ? '（问过 ' + f.asks + ' 次）' : f.nextAt > Date.now() ? '（' + mindDay(f.nextAt).slice(0, 10) + ' 以后会问）' : '（下次聊天时会问）')),
+                h(Btn, { small: true, kind: 'ghost', onClick: () => stopAsking(f) }, '不用问了')))) : null,
+            editing ? h('div', { className: 'ab-person-edit' },
+              h('label', { htmlFor: id + '-impression' }, '对这个人的印象'),
+              h('textarea', { id: id + '-impression', className: 'ab-textarea', rows: 4, autoFocus: true, value: impression.text, onChange: (e) => setImpression({ id: p.id, text: e.target.value }) }),
+              h('div', { className: 'ab-person-actions' },
+                h(Btn, { small: true, kind: 'ghost', onClick: () => setImpression(null) }, '取消'),
+                h(Btn, { small: true, kind: 'primary', onClick: async () => {
+                  if (await edit(p.id, { note: impression.text })) setImpression((current) => current?.id === p.id ? null : current)
+                } }, '保存印象'))) : null) : null,
+          h('footer', { className: 'ab-person-actions' },
+            isOpen && (r.knots || []).length ? h(Btn, { small: true, kind: 'ghost', onClick: () => { if (confirm('把她对这个人的心结都清掉？')) return edit(p.id, { knots: [] }) } }, '清掉心结') : null,
+            isOpen && !p.owner ? (p.noMemory
+              ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/mind/people/forget', { id: p.id, mode: 'resume' }); toast(r.message); load() } }, '恢复记录')
+              : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'stop') }, '停止记录')) : null,
+            isOpen && !p.owner ? h(Btn, { small: true, kind: 'danger', onClick: () => forget(p, 'delete') }, '忘掉这个人') : null,
+            editing ? null : h(Btn, { small: true, kind: 'ghost', onClick: () => {
+              setOpen(p.id)
+              setImpression((current) => current?.id === p.id ? current : { id: p.id, text: t.note || '' })
+            } }, '写印象'),
+            h(Btn, { small: true, expanded: isOpen, controls: isOpen ? detailId : undefined, onClick: () => setOpen(isOpen ? '' : p.id) }, isOpen ? '收起' : '详细')))
+      }
+      return h('div', { className: 'ab-people' },
+        h(Card, { desc: d && (d.exclusive ? '「专一」已开启，亲密、激情和承诺只对主人。' : '「专一」已关闭，她也可能慢慢喜欢上别人。') },
+          h('div', { className: 'ab-people-tools' },
+            h('label', { className: 'ab-people-search' }, navIcon('find'), h('input', {
+              className: 'ab-input', type: 'search', 'aria-label': '查找人物', placeholder: '查找姓名、账号或关系', value: q, onChange: (e) => setQ(e.target.value),
+            })),
+            h(Seg, { value: view, options: [{ value: 'list', label: '列表' }, { value: 'map', label: '星图' }], onChange: switchView }))),
+        view === 'map' ? h(Card, null, h(StarMap, { onPick: pick, q: q.trim() }))
+          : !d ? h('p', { className: 'ab-muted', role: 'status' }, '读取中…')
+          : !shown.length ? h(Card, null, h(Empty, { text: needle ? '没有找到匹配的人' : '还没认识谁' }))
+          : h('div', { className: 'ab-people-grid' }, shown.map(personCard)),
+        gone.length ? h(Card, { title: '恢复区', desc: '忘掉的人可以在 30 天内恢复。' },
           h('div', { className: 'ab-list' }, gone.map((g) => h('div', { key: g.id, className: 'ab-li' },
-            h('div', { className: 'meta' }, mindDay(g.at) + ' 忘掉的 · ' + g.id.replace(/^qq:/, 'QQ ') + ' · 保留到 ' + mindDay(g.until).slice(0, 10)),
-            h('div', { className: 'body' }, h('b', null, g.name || '（没名字）'), h('span', { className: 'ab-muted ab-small' }, '  ' + g.episodes + ' 件事、' + g.perception + ' 句原话' + (g.keepPerson ? '（人还在，以后不记他）' : ''))),
+            h('div', { className: 'meta' }, '保留到 ' + mindDay(g.until).slice(0, 10)),
+            h('div', { className: 'body' }, h('b', null, g.name || '未命名'), h('div', { className: 'ab-muted ab-small' }, [
+              g.id.replace(/^qq:/, 'QQ '), g.episodes + ' 件事、' + g.perception + ' 句原话', g.keepPerson && '已停止记录',
+            ].filter(Boolean).join(' · '))),
             h(Btn, { small: true, onClick: () => restorePerson(g) }, '放回来'))))) : null,
-        d && (d.groups || []).length ? h(Card, { title: '她对群的了解', desc: '每个群的风格和规矩，她慢慢摸清楚的。' }, h('div', { className: 'ab-list' }, d.groups.map((g) => h('div', { key: g.id, className: 'ab-li' },
-          h('div', { className: 'meta' }, (g.name || '群') + ' · ' + g.id + (g.at ? ' · ' + timeAgo(g.at) : '')),
-          h('div', { className: 'body' }, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null)
+        d?.groups?.length ? h(Card, { title: '她对群的了解' }, h('div', { className: 'ab-people-groups' }, d.groups.map((g) =>
+          h('article', { key: g.id, className: 'ab-people-group' },
+            h('b', null, g.name || '群'),
+            h('div', { className: 'ab-person-meta' }, g.id + (g.at ? ' · ' + timeAgo(g.at) : '')),
+            h('p', null, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null)
     }
 
     /** 人格与自我：她本来的样子（特质，等你确认）、现在的样子、不知不觉的变化和提醒、她自己改过的、自我故事、各种版本可以退回。 */
@@ -4521,6 +4678,7 @@ body[data-ds-dark-theme] .ab-root{
           acct.loggedIn ? '已登录：' + (acct.nickname || '') : (acct.message || acct.error || '还没登录'),
           acct.at ? h('span', { className: 'ab-muted' }, ' · ' + timeAgo(acct.at) + '查的') : null)
       const caps = (s && s.caps) || {}
+      const history = Array.isArray(s?.history) ? s.history : []
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '刷抖音', right: f.sw('douyin.enabled'), desc: 'ta用一个专用浏览器（独立的登录资料，不碰你平时用的浏览器）刷抖音：定时打开推荐，一个个点开看，读标题、分类、抖音给的内容摘要和热评，再按自己的性格决定点不点赞、评不评论（特别想让你看的会在评论里 @你）、要不要在 QQ 上分享给你、记住什么。你在 QQ 里发抖音链接，ta也能点开看完再聊。浏览器窗口放在屏幕外，不抢前台。总开关默认关：先扫码登录，再打开。' },
           h(Row, { label: '抖音账号', hint: '建议用小号。扫一次码就行，登录状态存在专用浏览器里' },
@@ -4583,13 +4741,15 @@ body[data-ds-dark-theme] .ab-root{
           h(Btn, { small: true, onClick: load }, '刷新'),
           h(Btn, { small: true, kind: 'primary', onClick: act('/douyin/run', 'run'), disabled: !!busy || Boolean(s && s.busy) }, s && s.busy ? h(Fragment, null, h('i', { className: 'ab-spin' }), ' 正在刷…') : '现在刷一轮')) },
           s && s.pauseReason ? h('div', { className: 'ab-note warn', style: { marginBottom: 8 } }, '今天先不点赞评论了：' + s.pauseReason + '。要验证的话点上面「显示浏览器窗口」处理，明天自动恢复。') : null,
-          s ? h('div', { className: 'ab-muted ab-small', style: { marginBottom: 8 } },
+          s && s.ok !== false ? h('div', { className: 'ab-muted ab-small', style: { marginBottom: 8 } },
             '今天自动刷了 ' + s.runs + ' 轮 · 看了 ' + s.watched + ' · 赞 ' + s.like + '/' + caps.like + ' · 评 ' + s.comment + '/' + caps.comment + ' · 分享 ' + s.share + '/' + caps.share + (s.atOwner ? ' · @你 ' + s.atOwner + '/' + caps.atOwner : '') +
             (s.newAccount ? '（新号，上限减半）' : '') +
             (s.lastRun ? ' · 上次 ' + timeAgo(s.lastRun) : '') +
             (s.lastSkipReason ? ' · 上次没刷成：' + s.lastSkipReason : '')) : null,
-          !s ? h(Empty, { icon: '⏳', text: '加载中…' }) : s.history.length === 0 ? h(Empty, { icon: '📱', text: '还没刷过。先扫码登录、打开开关，再点「现在刷一轮」。' }) :
-            h('div', { className: 'ab-list' }, s.history.map((x, i) => h('div', { key: i, className: 'ab-li' },
+          !s ? h(Empty, { icon: '⏳', text: '加载中…' })
+            : s.ok === false ? h('div', { className: 'ab-note warn', role: 'status' }, s.message || '暂时读不到抖音状态。')
+            : !history.length ? h(Empty, { icon: '📱', text: '还没刷过。先扫码登录、打开开关，再点「现在刷一轮」。' }) :
+            h('div', { className: 'ab-list' }, history.map((x, i) => h('div', { key: i, className: 'ab-li' },
               h('div', { className: 'meta' }, timeAgo(x.at), h('br'), DOUYIN_KIND[x.kind] || x.kind),
               h('div', { className: 'body' },
                 x.awemeId ? h('a', { href: 'https://www.douyin.com/video/' + x.awemeId, target: '_blank', rel: 'noreferrer' }, x.title || (x.author ? x.author + ' 的视频' : x.awemeId)) : null,
@@ -5332,6 +5492,37 @@ body[data-ds-dark-theme] .ab-root{
         h(Row, { label: '生成步数', hint: '步数越多，生成越慢。保存后应用到聊天里的新任务。' }, f.num('imageGen.localSteps', { min: 4, max: 50 })))
     }
 
+    function LocalDrawChats({ draft, setDraft }) {
+      const selected = draft.imageGen.localDraw || {}
+      const owner = String(draft.ownerQQ || '')
+      const bot = String(draft.botQQ || '')
+      const [names, setNames] = useState({})
+      useEffect(() => {
+        let active = true
+        get('/image/local/chats').then((result) => { if (active && result.ok) setNames(result) })
+        return () => { active = false }
+      }, [])
+
+      const row = (kind, label, ids, hint) => {
+        const checked = selected[kind] || []
+        return h(Row, { label, hint }, ids.length
+          ? ids.map((id) => h('button', {
+            className: cx('ab-chip', checked.includes(id) && 'on'), key: id, type: 'button', 'aria-pressed': checked.includes(id),
+            onClick: () => setDraft((prev) => {
+              const path = 'imageGen.localDraw.' + kind
+              const current = prev.imageGen.localDraw?.[kind] || []
+              return setPath(prev, path, current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
+            }),
+          }, names[kind]?.[id] || (kind === 'groups' ? '群' : '好友'), h('span', { className: 'n' }, id)))
+          : h('span', { className: 'ab-muted ab-small' }, '白名单里没有可选会话。'))
+      }
+
+      return h(Card, { title: '成人生图', desc: '复用已启用的本机生图。发「/色图 画面描述」或「/画图 画面描述」。自然说法也可以，群里先 @ 她，例如「画张色图：画面描述」。' },
+        h(Row, { label: '管理员好友私聊' }, h('span', null, owner ? '默认可用 · ' + owner : '请先设置管理员 QQ 号')),
+        row('private', '其他好友私聊', (draft.allow?.private || []).map(String).filter((id) => id !== owner && id !== bot)),
+        row('groups', '开放的 QQ 群', (draft.allow?.groups || []).map(String), '保存后，群内成员都能发起，成品发到同一个群。'))
+    }
+
     function ImageGen({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const c = draft.imageGen
@@ -5405,6 +5596,7 @@ body[data-ds-dark-theme] .ab-root{
           isCustom ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, '例子：地址填 https://image.pollinations.ai/prompt/{prompt}，再加 model=flux-anime、width=1080、height=1920、nologo=true 四个参数，GET 就会请求 …/prompt/<提示词>?model=flux-anime&width=1080&…') : null,
           !c.enabled ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, isLocal ? '部署完成后，打开右上角开关并保存。' : '填好接口信息后，打开右上角开关并保存。') : null,
         ),
+        h(LocalDrawChats, { draft, setDraft }),
         isLocal ? null : h(ImageFallbacks, { draft, setDraft }),
         h(AppearanceCard, { draft, toast }),
         h(PaintGallery, { draft, setDraft, toast }),

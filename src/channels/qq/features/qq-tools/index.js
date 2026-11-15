@@ -2,7 +2,7 @@
 
 import { defineTool, str, int } from '../../../../tools/tools.js'
 import { readQqFile } from '../../../../features/qq-file.js'
-import { isPrivateDrawMessage, parseMessageEvent } from '../../inbound.js'
+import { isLocalDrawMessage, parseMessageEvent } from '../../inbound.js'
 import { normChat, parseChat, platformOf } from '../../../ids.js'
 import { isOwner } from '../../../../chat/access.js'
 
@@ -118,7 +118,7 @@ export default {
           const msgs = (r?.messages || []).filter((m) => !anchor || String(m.message_id) !== String(Number(anchor))).slice(-n)
           if (!msgs.length) return { ok: true, message: '没翻到聊天记录' }
           const self = String(api.config().botQQ)
-          const lines = msgs.filter((m) => !isPrivateDrawMessage(m.message ?? m.raw_message)).map((m) => {
+          const lines = msgs.filter((m) => !isLocalDrawMessage(m.message ?? m.raw_message)).map((m) => {
             const p = parseMessageEvent({ ...m, message_type: m.message_type || (groupId ? 'group' : 'private') }, self)
             const who = String(m.user_id ?? m.sender?.user_id) === self ? '你' : (m.sender?.card || m.sender?.nickname || String(m.user_id ?? ''))
             const t = m.time ? new Date(m.time * 1000).toTimeString().slice(0, 5) : ''

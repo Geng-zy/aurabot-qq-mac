@@ -11,9 +11,10 @@ import { listPaintings, openPaintFolder, paintingPath, rememberPainting, removeP
 import { defineTool, str } from '../../tools/tools.js'
 import { SIZE_OPTIONS } from '../../features/image-shape.js'
 import { dataDir } from '../../core/store.js'
+import { hasActionPhrase } from '../../mind/motivation/index.js'
 import { mimeOf } from '../../core/image-info.js'
 import { isOwner } from '../../chat/access.js'
-import { PRIVATE_DRAW_LABEL } from '../../channels/qq/inbound.js'
+import { localDrawLabel } from '../../channels/qq/inbound.js'
 import { createLocalImage } from '../../features/local-image.js'
 
 export default {
@@ -32,7 +33,8 @@ export default {
     api.onDispose?.(() => { lifetime.abort(); localImage.dispose(); gen.dispose() })
     const closed = () => lifetime.signal.aborted
 
-    function queuePrivateDraw({ prompt, chatId, userId, authorized, reply }) {
+    function queueLocalDraw({ prompt, chatId, kind, userId, authorized, reply }) {
+      const label = localDrawLabel(kind)
       const enabled = () => {
         const cfg = api.config()
         return !closed() && authorized() && cfg.enabled && !cfg.dryRun && !cfg.debug && gen.localReady()
@@ -46,7 +48,7 @@ export default {
           const signal = AbortSignal.any([task.signal, lifetime.signal])
           let buf
           try {
-            buf = await gen.generatePrivate(prompt, { signal })
+            buf = await gen.generateDirect(prompt, { signal })
           } catch {
             if (isCurrent()) await reply('本地生图未完成。请在生图设置中检查环境或脚本。')
             return { ok: false }
@@ -54,9 +56,9 @@ export default {
           if (!isCurrent()) return { ok: false }
           task.beginDelivery()
           const sent = await hub.sendSegments(chatId, [
-            { type: 'text', data: { text: PRIVATE_DRAW_LABEL } },
+            { type: 'text', data: { text: label } },
             { type: 'image', data: { file: 'base64://' + buf.toString('base64') } },
-          ], PRIVATE_DRAW_LABEL, { privateDelivery: true, isCurrent })
+          ], label, { directDelivery: true, isCurrent })
           if (!sent && isCurrent()) await reply('图片已生成，QQ 发送结果未确认。')
           return { ok: Boolean(sent && !sent.queued && !sent.simulated) }
         },
@@ -156,16 +158,19 @@ export default {
 
     api.mind?.offer?.({
       id: 'own-painting', label: '画一张自己的画', needs: { beauty: 0.75, fun: 0.3 },
-      effort: 0.3, cooldownMinutes: 360, keywords: ['画画', '想画', '画一张'],
-      available: () => Boolean(gen.enabled() && api.mind.creativeTarget('art')),
-      async run({ checkpoint, wants }) {
+      effort: 0.3, cooldownMinutes: 360,
+      matchWant: (text) => hasActionPhrase(text, /画(?:画|图|一张|一幅|下来|点什么|个)|涂鸦|(?:想|去|先)画/u),
+      available: () => api.mind.creativeBlocked('art') || gen.enabled() || '生图服务未启用或尚未就绪',
+      async run({ checkpoint, signal, wants }) {
         await checkpoint()
         const prompt = await api.mind.creativeIdea('art', wants)
-        if (!prompt || !gen.enabled() || !api.mind.creativeTarget('art', { continuing: true })) return { ok: false }
+        if (!prompt) return { ok: false, summary: '这次没有想出画面' }
+        if (!gen.enabled() || !api.mind.creativeTarget('art', { continuing: true })) return { ok: false, summary: '主动画画已暂停' }
+        if (!gen.localReady() && hub.containsProtectedText?.('system:creative', prompt)) return { ok: false, summary: '画面描述含私密内容' }
         await checkpoint()
-        const bytes = await gen.generate(prompt)
+        const bytes = await gen.generate(prompt, { signal })
         await checkpoint()
-        if (!api.mind.creativeTarget('art', { continuing: true })) return { ok: false }
+        if (!api.mind.creativeTarget('art', { continuing: true })) return { ok: false, summary: '主动画画已暂停' }
         const saved = savePainting(bytes, prompt)
         if (!saved) return { ok: false, summary: '画作未能保存' }
         api.mind.experience({ text: `自己画了一张图，主题是：${prompt}`, tags: ['画画'], importance: 0.5, effort: 0.05, secret: true })
@@ -294,6 +299,6 @@ export default {
         })
       },
     }) : []))
-    return { ...gen, queuePrivateDraw }
+    return { ...gen, queueLocalDraw }
   },
 }

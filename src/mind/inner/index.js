@@ -17,6 +17,8 @@ const RECENT_MINUTES = 30
 const OWNER_MINUTES = 120
 const LOCAL_CONTEXT = { owner: 12_000, other: 16_000, line: 500 }
 const REMOTE_CONTEXT = { owner: 2400, other: 3600, line: 180 }
+const AFFECT_WINDOW = 30 * MIN
+const ROUTINE_CORRECTION = /(?:看|读|认|算)(?:错|串|反)|(?:只是|就是).{0,8}(?:玩笑|纠正)/u
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, Number(x) || 0))
 const clip = (x, n) => [...String(x || '').toWellFormed()].slice(0, n).join('')
 
@@ -40,12 +42,14 @@ export function parseThought(text) {
     else if ((m = line.match(/^感受[：:]\s*([^\s，,0-9.]+)\s*[，,]?\s*([01](?:\.\d+)?)?/))) {
       const e = emotionOf(m[1])
       if (e) out.feel = { name: e.name, intensity: clamp(m[2] ?? 0.4) }
+    } else if ((m = line.match(/^依据[：:]\s*(?:\[)?(\d+)(?:\])?\s*$/))) {
+      out.evidence = Number(m[1])
     } else if ((m = line.match(/^打算[：:]\s*(.+)$/))) {
       const p = m[1].trim()
       if (!/^(无|没有|不|—|-|暂无)$/.test(p)) out.plan = p
     } else if ((m = line.match(/^深想[：:]\s*(.+)$/))) out.deep = /^(是|要|需要|对)/.test(m[1].trim())
   }
-  if (!out.thought) out.thought = String(text || '').split('\n').map((x) => x.trim()).find((x) => x && !/^(感受|打算|深想)[：:]/.test(x)) || ''
+  if (!out.thought) out.thought = String(text || '').split('\n').map((x) => x.trim()).find((x) => x && !/^(感受|依据|打算|深想)[：:]/.test(x)) || ''
   out.thought = clip(out.thought.replace(/^念头[：:]\s*/, ''), 120)
   out.plan = clip(out.plan, 60)
   return out
@@ -88,7 +92,7 @@ export function createInner(deps) {
       selected.push({ row, line })
       budget -= line.length + 1
     }
-    return selected.sort((a, b) => a.row.at - b.row.at || a.row.id - b.row.id).map((x) => x.line)
+    return selected.sort((a, b) => a.row.at - b.row.at || a.row.id - b.row.id)
   }
 
   /** 私聊和实际参与的群聊进入近况；群里旁听的原话仍留在记忆库。 */
@@ -113,7 +117,7 @@ export function createInner(deps) {
     const lineOf = (r) => {
       const kind = place(r.window).kind
       const where = kind === 'group' ? '群里' : kind === 'private' ? '私聊里' : '其他会话'
-      return `${shortTime(r.at, zone)} ${where}（${r.window}） ${r.dir === 'out' ? '你' : nameOf(r.who)}说：${clip(r.text.replace(/\s+/g, ' '), budget.line)}`
+      return `[原话 ${r.id}] ${shortTime(r.at, zone)} ${where}（${r.window}） ${r.dir === 'out' ? '你' : nameOf(r.who)}说：${clip(r.text.replace(/\s+/g, ' '), budget.line)}`
     }
     const otherRows = candidates.filter((r) => !ownerWindowSet.has(r.window)
       && (place(r.window).kind !== 'group' || r.dir === 'out' || r.addressed === 1))
@@ -124,16 +128,20 @@ export function createInner(deps) {
       : `最近 ${RECENT_MINUTES} 分钟的感知记录里没有${ownerName()}的新消息，无法据此推断对方的原因或态度。`
     const cue = ownerRows.find((r) => r.dir === 'in' && r.who === ownerId)
       || otherRows.find((r) => r.dir === 'in')
-    return { ownerLines: fitLines(ownerRows, lineOf, budget.owner), lines: fitLines(otherRows, lineOf, budget.other),
+    const ownerShown = fitLines(ownerRows, lineOf, budget.owner)
+    const otherShown = fitLines(otherRows, lineOf, budget.other)
+    return { ownerLines: ownerShown.map((x) => x.line), lines: otherShown.map((x) => x.line),
+      evidence: new Map([...ownerShown, ...otherShown].filter(({ row }) => row.dir === 'in' && at - row.at <= AFFECT_WINDOW).map(({ row }) => [row.id, row])),
       contact: ownerId ? contact : '', cue: clip(cue?.text, 160) }
   }
 
   function currentContext(budget) {
     const at = now()
     const zone = deps.tz()
-    const { lines, contact, ownerLines, cue } = recentHappenings(at, zone, budget)
+    const { lines, contact, ownerLines, cue, evidence } = recentHappenings(at, zone, budget)
     return {
       cue,
+      evidence,
       clock: `【当前时间】${describeNow(at, zone)}（${zone}，24 小时制）`,
       recent: [contact && `【最近联系】${contact}`,
         ownerLines.length && `【你和${ownerName()}的最近互动（两小时内节选）】\n${ownerLines.join('\n')}`,
@@ -148,10 +156,12 @@ export function createInner(deps) {
     const owner = ownerName()
     return `你是${name}心里的声音。她现在没人找，自己待着，脑子里在随便想。用第一人称写她此刻的一步念头，接着上一步往下想，可以跳到别的事上（回想、期待、担心、琢磨某人、好奇、无聊、白日梦、饿了困了……）。
 规矩：${factualRules} 有具体、仍值得在意的互动，就想那件事或自己的感受，不复述无关的短句。不必每次都想${owner}，也不必硬找一个话题。念头要短，像人脑子里冒出来的一两句。
-按下面格式输出四行：
+普通纠正、玩笑、聊游戏数据和短暂没收到消息，可以只觉得好笑、有点尴尬，或没有明显情绪。没有来信不能推出对方不在线或不在乎。吃饭是身体状态，不能编出真的点单、送到或听见声音。想想最近真正让你开心、满足、好奇或平静的小事，有就写，没有也自然。旧念头只是联想，不是今天又发生了一次。
+按下面格式输出五行：
 念头：……
-感受：情绪名 强度（0到1，没有就写 无）
-打算：想去做的事（从「能做的事」里挑一件，或者 想找${owner}说话；没有就写 无）
+感受：情绪名 强度（0到1，0.2 左右是轻微反应，没有就写 无）
+依据：如果感受来自一条近期收到的原话，只填它的数字编号。来自联想、身体、旧念头或没有感受时写 无。
+打算：从「能做的事」里挑一件，或写无。虚拟进食只写吃点东西，不能真的点外卖、购物或付款。
 深想：是 或 否（涉及${owner}和你们的关系、情绪很强、要做决定、对自己有了新看法时写 是）
 （${owner}就是你的主人。）`
   }
@@ -160,8 +170,9 @@ export function createInner(deps) {
     const b = deps.body.state()
     const e = deps.emotion.state(b)
     const parts = [current.clock, current.recent, deps.body.describe(b), `【心情】${e.mood.label}`]
-    const feelings = e.active.filter((x) => x.intensity >= 0.15).slice(0, 4).map((x) => `${x.target ? '对' + nameOf(x.target) : ''}${x.name}${x.why ? '（' + x.why + '）' : ''}`)
-    if (feelings.length) parts.push('【感受】' + feelings.join('；'))
+    const feelings = e.active.filter((x) => x.intensity >= 0.1 && !x.hidden && !['thought', 'deep', 'recall'].includes(x.source) && now() - x.at < AFFECT_WINDOW)
+    const lived = [feelings.find((x) => x.def?.v > 0), feelings.find((x) => x.def?.v <= 0)].filter(Boolean)
+    if (lived.length) parts.push('【刚经历过的感受】' + lived.map((x) => x.name + (x.why ? '（' + x.why + '）' : '')).join('；'))
     if (recalled.length) parts.push('【想起的往事】\n' + recalled.map((m) => `- ${shortTime(m.at, deps.tz())} ${m.text}`).join('\n'))
     const todo = deps.memory.dueIntentions({ within: 12 * 60 * MIN }).map((x) => x.gist)
     if (todo.length) parts.push('【惦记着要做的】' + todo.join('；'))
@@ -173,25 +184,26 @@ export function createInner(deps) {
     const can = deps.motivation.motives({ body: b, mood: e.mood }).filter((m) => m.available).map((m) => m.label)
     if (can.length) parts.push('【能做的事】' + can.join('、'))
     if (s.boredom >= 0.5) parts.push('（有点无聊了）')
-    const last = s.log.slice(0, 3).reverse().map((x) => `${shortTime(x.at, deps.tz())} ${x.deep?.thought || x.thought}`)
+    const last = s.log.filter((x) => !x.repeated && now() - x.at < AFFECT_WINDOW && (x.deep || !x.feel || emotionOf(x.feel.name)?.v >= 0)).slice(0, 1)
+      .map((x) => `${shortTime(x.at, deps.tz())} ${x.deep?.thought || x.thought}`)
     if (last.length) parts.push('【前几步在想】\n' + last.join('\n') + '\n（不要重复这几句。可以换个话题。）')
     return parts.filter(Boolean).join('\n')
   }
 
   /** 硬规则：要不要交给聊天模型深想。 */
   function needsDeep(s, step) {
-    const recent = [step, ...s.log.slice(0, 2)]
-    const vals = recent.map((x) => (x.feel ? (emotionOf(x.feel.name)?.v ?? 0) * x.feel.intensity : 0))
+    const recent = [step, ...s.log.filter((x) => !x.repeated && !x.resumed && !x.deep && step.at - x.at < AFFECT_WINDOW).slice(0, 2)]
+    const vals = recent.map((x) => (x.feel ? (emotionOf(x.feel.name)?.v ?? 0) * (x.rawFeelIntensity ?? x.feel.intensity) : 0))
     const spiral = recent.length === 3 && vals.every((v) => v < -0.1) && vals[0] <= vals[1] && vals[1] <= vals[2]
     const call = ownerName()
     const t = String(step.thought || '')
-    const aboutOwner = (t.includes('主人') || (call && t.includes(call)) || /他(?:是不是|会不会|为什么|怎么)|我们(?:之间|的关系)/.test(t)) && vals[0] < -0.1
+    const aboutOwner = step.ownerEvidence && (t.includes('主人') || (call && t.includes(call)) || /我们(?:之间|的关系)/.test(t)) && vals[0] < -0.1
     return spiral ? '越想越难受' : aboutOwner ? '涉及主人和你们的关系' : step.deep ? '小模型觉得要认真想' : ''
   }
 
   const DEEP_SYSTEM = () => `你是${deps.identity().name || '她'}，现在静下来认真想一件让你在意的事。下面是你刚才一连串的念头、此刻的感受和你记得的相关的事（标着是谁、什么时候）。
-先把误会想清楚。${factualRules}
-只输出 JSON：{"thought":"想明白后的一两句（第一人称）","feel":{"n":"情绪名","i":0到1,"reg":"reappraise 或 空"},"belief":"如果对自己或对某人有了新的看法，用「我觉得……」写一句；没有就空","want":"如果想去做什么就写；没有就空"}`
+先把误会想清楚。${factualRules} 没收到来信不代表对方不在线。小插曲可以放过去。若没有出现新情况，感受可以留空；想通了就用 reappraise，若已经平静可以只填 {"reg":"reappraise"}。
+只输出 JSON：{"thought":"想明白后的一两句（第一人称）","feel":{"n":"情绪名","i":0到1,"reg":"reappraise 或 空"},"belief":"如果对自己或对某人有了新的看法，用「我觉得……」写一句；没有就空","want":"想做的事；虚拟进食只写吃点东西；没有就空"}`
 
   async function deepThink(s, step, reason, canCommit) {
     const day = dayKey(now(), deps.tz())
@@ -213,11 +225,20 @@ export function createInner(deps) {
     }
     if (!out || !canCommit()) return null
     s.deepToday.n++
-    if (out.feel?.n) deps.emotion.feel([{ name: out.feel.n, intensity: out.feel.i, reg: out.feel.reg, why: clip(out.thought, 30), importance: 0.6 }], { source: 'deep' })
+    const reappraised = out.feel?.reg === 'reappraise'
+    if (reappraised) {
+      const related = reason === '越想越难受' ? s.log.filter((x) => x.at <= step.at && step.at - x.at < AFFECT_WINDOW).slice(0, 2) : []
+      deps.emotion.reappraiseThoughts([step.at, ...related.map((x) => x.at)])
+    }
+    if (out.feel?.n) {
+      const positive = emotionOf(out.feel.n)?.v > 0
+      const intensity = Math.min(clamp(out.feel.i), positive || step.evidence ? 0.5 : 0.18)
+      deps.emotion.feel([{ name: out.feel.n, intensity, reg: out.feel.reg, why: clip(out.thought, 30), importance: 0.3 }], { source: 'deep' })
+    }
     // 深想是聊天模型认真想的：「我觉得……」可以记成她的看法（仍然只是看法，不是事实）
     if (out.belief && /^我觉得/.test(String(out.belief).trim())) deps.memory.insert({ at: now(), gist: clip(out.belief, 120), kind: 'belief', importance: 0.6, speaker: 'self', attention: 1 })
     if (out.want) deps.motivation.want(out.want, { strength: 0.6, internal: true })
-    return { thought: clip(out.thought, 160), reason }
+    return { thought: clip(out.thought, 160), reason, ...(reappraised ? { reappraised } : {}) }
   }
 
   /**
@@ -253,28 +274,44 @@ export function createInner(deps) {
       }
     }
     const initial = currentContext(LOCAL_CONTEXT)
-    const cue = initial.cue || s.log[0]?.deep?.thought || s.log[0]?.thought || ''
+    const cue = initial.cue
     const recalled = cue ? await deps.memory.recall({ cue, limit: 2 }).catch(() => []) : []
     if (!canCommit()) return null
     let out = null
+    let current = initial
     let by = 'local'
     if (local) {
-      const text = material(s, recalled, currentContext(LOCAL_CONTEXT))
+      const text = material(s, recalled, current)
       out = await local.chat([{ role: 'system', content: SYSTEM() }, { role: 'user', content: text }], { maxTokens: 160, temperature: 0.95 })
     }
     if (out === null && ask && A('thinkWithoutLocal') !== false && deps.budget.allow('think', 1500)) {
       by = 'model'
-      const text = material(s, recalled, currentContext(REMOTE_CONTEXT))
+      current = currentContext(REMOTE_CONTEXT)
+      const text = material(s, recalled, current)
       try { out = await ask({ scene: 'think', system: SYSTEM(), text, maxTokens: 300 }) } catch { out = null }
     }
     if (!out || !canCommit()) return null
     const p = parseThought(out)
     if (!p.thought) return null
     const st = { at: now(), thought: p.thought, feel: p.feel, plan: p.plan, by }
+    const evidence = current.evidence.get(p.evidence)
+    if (evidence) {
+      st.evidence = evidence.id
+      st.ownerEvidence = evidence.who === deps.identity().ownerId
+    }
+    if (st.feel && emotionOf(st.feel.name)?.v < 0) {
+      st.rawFeelIntensity = st.feel.intensity
+      st.feel = { ...st.feel, intensity: Math.min(st.feel.intensity, evidence ? 0.5 : 0.18) }
+    }
     // 重复：和前几步很像 → 停下来放空，无聊感上升
     const repeated = s.log.slice(0, 3).some((x) => overlap(x.thought, p.thought) >= 0.7)
     if (repeated) st.repeated = true
-    const reason = repeated ? '' : needsDeep(s, { ...st, deep: p.deep })
+    const routineCorrection = evidence && place(evidence.window).kind === 'group' && ROUTINE_CORRECTION.test(evidence.text)
+    if (routineCorrection && st.rawFeelIntensity !== undefined) {
+      st.feel.intensity = Math.min(st.feel.intensity, 0.25)
+      delete st.rawFeelIntensity
+    }
+    const reason = repeated || routineCorrection ? '' : needsDeep(s, { ...st, deep: p.deep })
     if (reason) {
       const d = await deepThink(s, st, reason, canCommit)
       if (d?.deferred) {
@@ -287,15 +324,17 @@ export function createInner(deps) {
       } else if (d) st.deep = d
     }
     if (!canCommit()) return null
-    if (recalled.length) deps.memory.strengthen(recalled.map((m) => m.id))
     s.boredom = clamp(load().boredom + (repeated ? 0.25 : -0.05))
     // 只留感受和打算；念头本身只进内心日记，不进记忆
-    if (p.feel && !repeated) deps.emotion.feel([{ name: p.feel.name, intensity: p.feel.intensity * 0.7, why: '想着想着', importance: 0.3 }], { source: 'thought' })
-    if (p.plan && !repeated) {
-      const call = ownerName()
-      const target = /主人|找他|找你|跟他说|和他说/.test(p.plan) || (call && p.plan.includes(call)) ? 'reach_owner' : ''
-      deps.motivation.want(p.plan, { strength: 0.4, action: target, internal: true })
+    if (st.feel && !repeated && !st.deep?.reappraised) {
+      const recent = s.log.filter((x) => !x.repeated && st.at - x.at < AFFECT_WINDOW)
+      const negative = emotionOf(st.feel.name)?.v < 0
+      const alreadyFelt = negative && recent.some((x) => evidence
+        ? x.evidence === st.evidence
+        : !x.evidence && emotionOf(x.feel?.name)?.v < 0)
+      if (!alreadyFelt) deps.emotion.feel([{ name: st.feel.name, intensity: st.feel.intensity * 0.7, why: '想着想着', importance: 0.3 }], { source: 'thought' })
     }
+    if (p.plan && !repeated) deps.motivation.want(p.plan, { strength: 0.4, internal: true })
     s.log.unshift(st)
     s.log = s.log.slice(0, 300)
     save(s)

@@ -1,21 +1,18 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { planDiaryTimes } from '../src/features/qzone.js'
+import { wantsQzonePost } from '../src/features/qzone.js'
 import { matchSticker, pickForReply } from '../src/features/stickers.js'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-test('日记排期：窗口内、间隔够、按时间排序', () => {
-  let seed = 1
-  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  for (let i = 0; i < 50; i++) {
-    const t = planDiaryTimes({ timesPerDay: 2, windowStart: '10:00', windowEnd: '23:30', minGapMinutes: 180 }, rand)
-    assert.equal(t.length, 2)
-    assert.ok(t[0] >= 600 && t[1] < 1410)
-    assert.ok(t[1] - t[0] >= 180)
+test('空间发布意图识别发动态和写日记，跳过浏览、否定和翻唱', () => {
+  for (const text of ['去发动态', '逛 QQ 空间，发个新的动态', '写空间日记（能做的事）', '在空间发一条']) {
+    assert.equal(wantsQzonePost(text), true, text)
   }
-  assert.deepEqual(planDiaryTimes({ timesPerDay: 0, windowStart: '10:00', windowEnd: '23:30', minGapMinutes: 180 }), [])
+  for (const text of ['刷好友动态', '看看好友发的动态', '评论好友写的说说', '今天先不发动态', '别写日记了', '要不要发条说说', '赶紧去发这首歌的翻唱动态', '发一条动态，只给自己看']) {
+    assert.equal(wantsQzonePost(text), false, text)
+  }
 })
 
 test('表情匹配：按名字和标签', () => {

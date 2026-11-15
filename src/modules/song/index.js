@@ -5,6 +5,7 @@ import { createSongStudio, checkRoot } from '../../song/studio.js'
 import { defineTool, str, int, bool } from '../../tools/tools.js'
 import { ownerOrFree } from '../../chat/access.js'
 import { normPerson, parseChat, refOfChat } from '../../channels/ids.js'
+import { hasActionPhrase } from '../../mind/motivation/index.js'
 
 export default {
   id: 'song',
@@ -63,17 +64,26 @@ export default {
 
     api.mind?.offer?.({
       id: 'own-song', label: '翻唱一首自己想唱的歌', needs: { beauty: 0.55, competence: 0.5, companion: 0.3 },
-      effort: 0.55, cooldownMinutes: 720, keywords: ['想唱', '唱歌', '唱一首'],
-      available: () => Boolean(api.config().song.enabled && api.mind.creativeTarget('song') && song.status().ready),
-      async run({ checkpoint, wants }) {
+      effort: 0.55, cooldownMinutes: 720,
+      matchWant: (text) => !/(?:动态|说说|空间|没唱成)/u.test(text) && hasActionPhrase(text, /翻唱|清唱|唱(?:歌|一首|一段|给)|(?:想|去|先)唱|练(?:唱|歌)/u),
+      available: () => {
+        const blocked = api.mind.creativeBlocked('song')
+        if (blocked) return blocked
+        if (!api.config().song.enabled) return '翻唱未开启'
+        const status = song.status()
+        return status.ready || status.message || '翻唱环境尚未就绪'
+      },
+      async run({ checkpoint, signal, wants }) {
         const chatId = api.mind.creativeTarget('song')
-        if (!chatId) return { ok: false }
+        if (!chatId) return { ok: false, summary: '主动翻唱已暂停' }
+        await checkpoint()
         const title = await api.mind.creativeIdea('song', wants)
-        if (!title) return { ok: false }
+        if (!title) return { ok: false, summary: '这次没有选出歌' }
+        if (hub.containsProtectedText?.('system:creative', title)) return { ok: false, summary: '歌名含私密内容' }
         return await song.requestAutonomous({ song: title, chatId, checkpoint: async () => {
           await checkpoint()
-          if (api.mind.creativeTarget('song', { continuing: true }) !== chatId) throw new Error('主动翻唱已暂停')
-        } })
+          if (closed || api.mind.creativeTarget('song', { continuing: true }) !== chatId) throw new Error('主动翻唱已暂停')
+        }, delivery: { isCurrent: () => !closed && !signal?.aborted && api.mind.creativeTarget('song', { continuing: true }) === chatId } })
       },
     })
 

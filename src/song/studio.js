@@ -1018,7 +1018,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       await job.checkpoint?.()
       current.stage = '发送'
       const simulated = Boolean(job.delivery && getConfig().dryRun && !getConfig().debug)
-      if (!simulated) job.delivery?.beginDelivery()
+      if (!simulated) job.delivery?.beginDelivery?.()
       const sent = simulated ? null : await sendVoiceFile(job.chatId, r.file, `[${job.acapella ? '清唱' : '翻唱'}] ${job.title || job.query}`, job.delivery ? { isCurrent: job.delivery.isCurrent, allowQueue: false } : undefined)
       const delivered = Boolean(sent && !sent.queued && !sent.simulated)
       const message = delivered ? `用时 ${Math.round((Date.now() - current.startedAt) / 1000)} 秒` : sent?.queued ? '已做好，正在等待发送' : '已做好，未确认送达'

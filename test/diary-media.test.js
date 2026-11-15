@@ -338,3 +338,34 @@ test('原生日记的预览接口拒绝 GET 和表单请求，JSON POST 不发�
     assert.equal(result.preview, true)
   } finally { disposers.forEach((dispose) => dispose()) }
 })
+
+test('旧的发动态念头驱动日记动作，翻唱动态保留，私密念头不进入发布材料', async (t) => {
+  t.mock.method(Date, 'now', () => Date.parse('2026-11-14T11:55:00+08:00'))
+  const { createMotivation } = await import('../src/mind/motivation/index.js')
+  const definition = (await import('../src/modules/diary/index.js')).default
+  const social = (await import('../src/channels/qq/features/qzone-social/index.js')).default
+  const f = fixture({ config: { diary: { enabled: true, visibility: 'friends', attachImage: false } }, reply: '今天想留一点空白给自己。' })
+  writeJson(dataDir('diary.json'), { history: [] })
+  const store = new Map()
+  const motivation = createMotivation({ now: Date.now, setting: () => undefined, store })
+  const calls = []
+  const disposers = []
+  t.after(() => disposers.forEach((dispose) => dispose()))
+  const api = {
+    ...f.api, log, lazy: () => ({}), onDispose: (fn) => disposers.push(fn), every() {}, tool() {}, rule() {}, route() {},
+    core: { ...f.api.core, onebot: { call: async (action, params) => { calls.push({ action, params }); return { tid: 'stub' } } } },
+  }
+  for (const module of [definition, social]) {
+    module.setup({ ...api, mind: { timezone: () => 'Asia/Shanghai', offer: (action) => motivation.offer({ ...action, id: module.id + ':' + action.id }) } })
+  }
+  const post = motivation.want('逛 QQ 空间，发个新的动态，私下的事留在心里。', { internal: true, strength: 0.6 })
+  const cover = motivation.want('赶紧去发这首歌的翻唱动态')
+  const pick = motivation.choose({ body: { energy: 0.9 } })
+  assert.equal(pick.id, 'diary:write')
+  assert.deepEqual(pick.wantIds, [post.id])
+  assert.ok(!(motivation.motives().find((action) => action.id === 'qzone-social:social').wantIds.includes(post.id)))
+  assert.equal((await motivation.act(pick.id, { checkpoint: async () => {} })).ok, true)
+  assert.deepEqual(calls.map(({ action, params }) => [action, params.ugc_right]), [['send_qzone_msg', 4]])
+  assert.ok(!JSON.stringify([calls, f.prompts]).includes('私下的事留在心里'))
+  assert.deepEqual(motivation.state().wants.map((want) => want.id), [cover.id])
+})

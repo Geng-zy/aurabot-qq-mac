@@ -108,7 +108,7 @@ test('想起：意思相近的被勾起来，同一个地方更容易；想起�
   s.set(T0 + 11 * 3600000) // 当晚 9 点：约定刚过点
   const wm = await s.mem.workingMemory({ cue: '甲喜欢吃辣吗', window: 'qq:group:9' })
   assert.match(wm.text, /【你想起来的】/)
-  assert.match(wm.text, /【你惦记着要做的事】\n- 答应甲今晚八点唱歌/)
+  assert.match(wm.text, /【你惦记着要做的事】\n- 答应甲2026-11-10晚八点唱歌/)
   assert.ok(s.mem.row(got[0].id).stability > before, '想起来被加强')
   assert.equal(s.mem.row(got[0].id).data.hits, 1)
 })
@@ -241,6 +241,25 @@ test('预算用完：后台整理停下，排到第二天；聊天不受影响',
   assert.equal(r.budget, true)
   assert.equal(s.calls.length, 0)
   assert.equal(s.mem.pendingWindows().length, 1, '没记的还在，明天再记')
+})
+
+test('当日放开 token 上限时补记跳过的原话，跨日恢复上限并保留正常进度', async () => {
+  const s = setup({ think: () => ENC })
+  s.m.updateSettings({ 'models.backgroundTokensDaily': 0, 'models.deepThinkDaily': 0 })
+  chat(s.m, T0)
+  const window = 'qq:group:9'
+  const { id } = s.m._store.prep('SELECT max(id) id FROM perception WHERE window = ?').get(window)
+  s.m._store.set('encode.cursor.' + window, id)
+  s.m._store.set('encode.recovery', [{ window, after: 0, through: id }])
+  assert.equal(await s.mem.encodePending(), 0)
+  s.m._store.set('budget.unlimitedDay', s.m.today())
+  assert.equal(s.m.budget.allow('deep', 200), false)
+  assert.ok(await s.mem.encodePending() > 0)
+  assert.equal(s.m._store.get('encode.cursor.' + window), id)
+  assert.deepEqual(s.m._store.get('encode.recovery'), [])
+  assert.ok(s.m._store.get('encode.recovery.progress').rows > 0)
+  s.set(T0 + DAY)
+  assert.equal(s.m.budget.allow('record', 200), false)
 })
 
 test('向量接口：按顺序取回，数量不对就报错；在线服务没密钥不白发请求，本机服务不要密钥', async () => {

@@ -1,7 +1,7 @@
 // 内置模块：空间日记。根据可公开的经历和当前心情写 QQ 空间说说。
-// 导出 createQzone 的返回值：writeDiary / post / remove / history / nextTime / tick。
+// 导出 createQzone 的发布与历史接口。
 
-import { createQzone } from '../../features/qzone.js'
+import { createQzone, wantsQzonePost } from '../../features/qzone.js'
 import { resolveAudience } from '../../features/qzone-audience.js'
 import { pickDiaryImage } from '../../features/diary-image.js'
 import { defineTool, str } from '../../tools/tools.js'
@@ -29,6 +29,8 @@ export default {
     api.every(300_000, () => archive.collect(), '归档公开浏览图')
     const qzone = createQzone({
       getConfig: api.config, onebot, hub, log: api.log,
+      timezone: api.mind?.timezone,
+      actionBudget: api.mind?.actionBudget,
       pickImage: () => pickDiaryImage(),
       composeDiary: media.compose,
       publicExperiences: () => (api.mind?.recent?.({ hours: 24, limit: 8, publicOnly: true }) || []).map(({ text }) => text),
@@ -36,22 +38,16 @@ export default {
       onDiary: (text, { visibility }) => api.mind?.experience?.({ text: `我在 QQ 空间写过：${text}`, kind: 'own-post', importance: 0.55, tags: ['空间日记'], secret: visibility !== 'all' }),
     })
     // 写空间日记由她自己决定（想记下点什么、想被看见）；面板里的「每天写几次」是上限
-    const postsToday = () => {
-      const d = new Date()
-      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-      return (qzone.history() || []).filter((x) => x && x.ok && !x.dryRun && x.at >= start).length
-    }
     api.mind?.offer?.({
       id: 'write', label: '写空间日记', needs: { recognition: 0.6, meaning: 0.5, competence: 0.3 }, effort: 0.3, delayHours: 0.5,
-      cooldownMinutes: 180, payoff: 0.6, keywords: ['日记', '说说', '发空间', '写点什么'],
+      cooldownMinutes: 15, payoff: 0.6, matchWant: wantsQzonePost,
       available: () => {
-        const c = api.config()
-        if (!c.enabled || !c.diary.enabled) return '空间日记没打开'
-        return postsToday() < (c.diary.timesPerDay ?? 2) ? true : '今天写够了'
+        const status = qzone.automaticStatus()
+        return status.available || status.reason
       },
       run: async ({ checkpoint }) => {
         await checkpoint()
-        const r = await qzone.writeDiary({ checkpoint })
+        const r = await qzone.writeDiary({ checkpoint, automatic: true })
         const posted = Boolean(r?.ok && !r.dryRun)
         return { ok: posted, summary: posted ? '写了一篇空间日记' : r?.message || '未发布', outcome: posted ? 0.7 : 0 }
       },
@@ -106,7 +102,7 @@ export default {
     })
     api.route('/diary/history', async () => {
       const sync = await qzone.syncHistory()
-      return { ok: true, items: qzone.history(), next: qzone.nextTime(), warning: sync.warning || '' }
+      return { ok: true, items: qzone.history(), next: '', automatic: qzone.automaticStatus(), warning: sync.warning || '' }
     })
     api.route('/qzone/delete', async (req) => {
       await qzone.remove((await http.body(req)).tid)

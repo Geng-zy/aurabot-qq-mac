@@ -79,7 +79,9 @@ export function createFakeDsh({ brain }) {
             return result
           }
           const reply = await brain({ preset, text, images, ctxText, persona, callTool, toolNames: [...tools.keys()] })
-          turns.push({ source: msg.source, sessionId, preset, userText: text, carried, images: images.length, reply, toolCalls: calls, ctxText })
+          const imageSources = msg.content.flatMap((c, i) => c.type === 'image' && msg.content[i - 1]?.text?.startsWith('【下一张图的来源】')
+            ? [{ label: msg.content[i - 1].text, name: c.name || c.attachment?.name }] : [])
+          turns.push({ source: msg.source, sessionId, preset, userText: text, carried, images: images.length, imageSources, reply, toolCalls: calls, ctxText })
           emit('session/event', session, { type: 'assistant/message', data: { turn: myTurn, message: { content: [{ type: 'text', text: reply }] } } })
           emit('session/event', session, { type: 'turn/end', data: { turn: myTurn, reason: { kind: 'completed' } } })
         })
@@ -124,7 +126,7 @@ export function createFakeDsh({ brain }) {
     agents: { get: (id) => agents.get(id) },
     attachments: {
       async admitPromptContent(content) {
-        return content.map((c) => (c.type === 'image' ? { type: 'image', attachment: { attachmentId: randomUUID() }, mediaType: c.mediaType } : c))
+        return content.map((c) => (c.type === 'image' ? { type: 'image', attachment: { attachmentId: randomUUID(), name: c.name }, mediaType: c.mediaType } : c))
       },
     },
     llm: {

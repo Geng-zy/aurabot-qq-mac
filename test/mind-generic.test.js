@@ -93,8 +93,8 @@ test('内心独白里用她自己改过的称呼', async () => {
   let system = ''
   m.inner.connect({ local: { chat: async (msgs) => { system = msgs[0].content; return '念头：哥哥怎么还不理我\n感受：失落 0.6\n打算：想找哥哥说话\n深想：否' } } })
   const st = await m.inner.step()
-  assert.match(system, /想找哥哥说话/)
-  assert.equal(m.motivation.state().wants[0].action, 'reach_owner')
+  assert.match(system, /哥哥就是你的主人/)
+  assert.equal(m.motivation.state().wants[0].text, '想找哥哥说话')
   assert.ok(st)
 })
 

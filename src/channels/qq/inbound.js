@@ -8,22 +8,26 @@ export function segmentsOf(event) {
   return []
 }
 
-// 用固定的文字段标记直出的图片和回执。QQ 历史可能在重启后才读到，也可能没有可靠的发送回执。
-export const PRIVATE_DRAW_NAME = '画图'
-export const PRIVATE_DRAW_LABEL = '［私聊生图］'
-const PRIVATE_DRAW_COMMAND = new RegExp(`^[/／]\\s*${PRIVATE_DRAW_NAME}(?:\\s+([\\s\\S]*))?$`, 'u')
+// 用固定的文字段标记直出的图片和回执。旧的私聊标记也继续从历史中过滤。
+export const LOCAL_DRAW_NAMES = ['画图', '色图']
+export const localDrawLabel = (kind) => kind === 'group' ? '［群聊生图］' : '［私聊生图］'
+const LOCAL_DRAW_COMMAND = new RegExp(`^[/／]\\s*(?:${LOCAL_DRAW_NAMES.join('|')})(?:(?:\\s+|[:：]\\s*)([\\s\\S]*))?$`, 'u')
+const LOCAL_DRAW_REQUEST = /^(?:请\s*)?(?:帮我|给我|帮忙)?\s*(?:画|来|生成)\s*(?:一?(?:张|幅|个))?\s*(?:色图|涩图|成人图|裸图)(?:[吧呗呀吗])?(?:[。！!？?]|(?:[：:，,]\s*|\s+)([\s\S]*))?$/u
 
 const messageText = (message) => segmentsOf({ message })
   .filter((seg) => seg.type === 'text').map((seg) => String(seg.data?.text ?? '')).join('').trim()
 
 /** null 表示不是命令。仅取用户实际发来的文字段，引用和转发不作为参数。 */
-export function privateDrawPrompt(message) {
-  const match = PRIVATE_DRAW_COMMAND.exec(messageText(message))
+export function localDrawPrompt(message, { natural = false } = {}) {
+  const text = messageText(message)
+  const match = LOCAL_DRAW_COMMAND.exec(text) || (natural && LOCAL_DRAW_REQUEST.exec(text))
   return match ? (match[1] || '').trim() : null
 }
 
-export function isPrivateDrawMessage(message) {
-  return privateDrawPrompt(message) !== null || messageText(message).startsWith(PRIVATE_DRAW_LABEL)
+export function isLocalDrawMessage(message) {
+  const text = messageText(message)
+  return LOCAL_DRAW_COMMAND.test(text) || LOCAL_DRAW_REQUEST.test(text) ||
+    text.startsWith(localDrawLabel('private')) || text.startsWith(localDrawLabel('group'))
 }
 
 /** 这个段是不是「表情包」（不是普通照片）。判定必须严格。 */

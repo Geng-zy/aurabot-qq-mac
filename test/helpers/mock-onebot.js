@@ -72,12 +72,15 @@ export async function startMockOneBot({ selfId = '20000002', token = 'mock-token
         return { file_id: 'file-' + ++msgSeq, file_name: params.name || '' }
       case 'send_private_msg':
       case 'send_group_msg':
+        if (state.failMessage) throw new Error('message rejected')
         if (state.failRecord && params.message?.[0]?.type === 'record') throw new Error('record not supported')
         // 只让带系统表情的那条发失败（测「语音后面补发的表情挂了，不该把整条回复算成没发出去」）
         if (state.failFace && (params.message || []).some((s) => s.type === 'face')) throw new Error('face not supported')
         return { message_id: ++msgSeq }
       case 'get_group_member_info': return { group_id: params.group_id, user_id: params.user_id, role: state.roles[String(params.group_id)] || 'owner' }
       case 'get_group_info': return { group_id: params.group_id, group_name: '测试群' }
+      case 'get_friend_list': return state.friendList || []
+      case 'get_group_list': return state.groupList || []
       case 'get_msg': {
         if (state.failGetMsg) throw new Error('get_msg failed')
         // 测试可以往 state.messages[message_id] 里塞一条被引用的消息（正文 / 图片）

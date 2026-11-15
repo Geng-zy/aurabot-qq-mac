@@ -170,6 +170,21 @@ export function createEmotion(deps) {
     save(s)
   }
 
+  /** Reappraisal softens only feelings carried by the thoughts being reconsidered. */
+  function reappraiseThoughts(thoughtTimes) {
+    const s = load()
+    const at = now()
+    const related = s.active.filter((e) => e.source === 'thought' && thoughtTimes.includes(e.at) && emotionOf(e.name)?.v < 0)
+    if (!related.length) return
+    updateMood(s, at, deps.body?.())
+    for (const e of related) {
+      e.i0 = strength(e, at) * 0.35
+      e.startedAt ??= e.at
+      e.at = at
+    }
+    save(s)
+  }
+
   /** 心情对说话方式的影响倍数（表情包、语音、回复快慢、群里插话），精力和困也算进去。 */
   function effects(body) {
     const { mood } = state(body)
@@ -253,5 +268,5 @@ export function createEmotion(deps) {
     save({ ...s, active, history })
   }
 
-  return { feel, rekindle, state, effects, describe, afterSleep, history, forgetAppraisals, forgetEvent, resolveSource, hasEvent, strength, EMOTIONS }
+  return { feel, rekindle, state, effects, describe, afterSleep, reappraiseThoughts, history, forgetAppraisals, forgetEvent, resolveSource, hasEvent, strength, EMOTIONS }
 }

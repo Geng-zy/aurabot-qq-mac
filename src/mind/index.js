@@ -734,7 +734,7 @@ export function createMind(opts) {
 
   // ---------- 动机和内心活动 ----------
   // 尽责性里的「勤快」越低越容易分心拖着（Steel 2007 的 Γ）
-  const motivation = createMotivation({ store, now, setting, log, distractScale: () => 1.5 - personality.value('productiveness'), trait: (id) => personality.value(id) })
+  const motivation = createMotivation({ store, now, setting, log, today, distractScale: () => 1.5 - personality.value('productiveness'), trait: (id) => personality.value(id) })
   const inner = createInner({
     store, now, setting, tz, log, random: opts.random, memory, emotion, body, motivation, budget, place,
     ownerCall: () => self.ownerCall(), isOwnerWindow,

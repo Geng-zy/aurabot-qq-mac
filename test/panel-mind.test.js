@@ -10,7 +10,7 @@ function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
   const marker = '    exports.apply = apply'
   assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
+  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, LocalDrawChats, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
     ...globals,
   })
@@ -80,6 +80,22 @@ test('工作台按实际能力分组，社区模块按运行状态显示', () =>
   assert.equal(tabGroups().has('douyin'), false)
   assert.equal(new Set(panel.TABS.map((t) => t.id)).size, panel.TABS.length)
   for (const tab of panel.TABS) assert.equal(typeof panel.TAB_CONTENT[tab.id], 'function', tab.id)
+})
+
+test('生图面板从白名单列出好友和群，按会话单独切换', () => {
+  const { panel, slots, render } = setupPanel()
+  slots[0] = { private: { 33: '白名单好友' }, groups: { 33: '白名单群' } }
+  const allowed = { private: ['11', '22', '33'], groups: ['33', '44'] }
+  let draft = { ownerQQ: '11', botQQ: '22', allow: allowed, imageGen: { localDraw: { private: ['33'], groups: [] } } }
+  const show = () => render(panel.LocalDrawChats, { draft, setDraft: (update) => { draft = update(draft) } })
+  const chips = () => findAll(show(), 'button')
+  assert.match(textOf(show()), /默认可用 · 11/)
+  assert.deepEqual(chips().map(textOf), ['白名单好友33', '白名单群33', '群44'])
+  assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [true, false, false])
+  chips()[1].props.onClick()
+  chips()[0].props.onClick()
+  assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [false, true, false])
+  assert.equal(JSON.stringify(draft.allow), JSON.stringify(allowed))
 })
 
 test('心智设置：按分类显示，搜索可跨分类，默认值和依据可展开', () => {
@@ -239,15 +255,17 @@ test('关系页：每个人的关系类型、亲近 / 喜欢 / 信任，称呼�
   slots[2] = 'qq:2'
   const tree = render(panel.MindPeople, { toast() {} })
   const text = textOf(tree)
-  assert.match(text, /好朋友 · QQ 2/)
-  assert.match(text, /亲近 70 · 喜欢 80 · 尊重 50 · 信任 60 · 人情 她欠 1/)
+  assert.match(text, /好朋友QQ 2/)
+  assert.deepEqual(findAll(tree, 'dt').slice(0, 4).map(textOf), ['亲近', '喜欢', '尊重', '信任'])
+  assert.deepEqual(findAll(tree, 'dd').slice(0, 4).map(textOf), ['70', '80', '50', '60'])
+  assert.match(text, /人情 · 她欠 1/)
   assert.match(text, /她叫对方「阿二」/)
   assert.match(text, /爱开玩笑/)
-  assert.match(text, /老梗：鸽子王/)
-  assert.match(text, /别碰：别提前任/)
-  assert.match(text, /没解开的结：放鸽子/)
+  assert.match(text, /老梗鸽子王/)
+  assert.match(text, /别碰别提前任/)
+  assert.match(text, /没解开的结放鸽子/)
   assert.match(text, /爱互怼；规矩：不许刷屏/)
-  assert.match(findAll(tree, panel.Card)[0].props.desc, /「专一」开着/)
+  assert.match(findAll(tree, panel.Card)[0].props.desc, /「专一」已开启/)
 })
 
 test('人格与自我页：19 项特质分组显示本来和现在、推断依据；没确认时提示确认；习惯、她写下的、故事、各种版本、她看到的「她是谁」', () => {

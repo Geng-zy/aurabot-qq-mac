@@ -149,7 +149,7 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
   const originalDataDir = process.env.AURABOT_DATA_DIR
   process.env.AURABOT_DATA_DIR = join(dir, 'data')
   const fake = createFakeDsh({ brain: () => '好' })
-  const cfg = normalize({ enabled: true, dryRun: true, ownerQQ: '10001', workspaceDir: join(dir, 'ws') })
+  const cfg = normalize({ enabled: true, dryRun: true, ownerQQ: '10001', group: { ownerTools: 'owner' }, workspaceDir: join(dir, 'ws') })
   const log = { info() {}, warn() {}, debug() {}, error() {} }
   const hub = createHub({ dsh: fake.ctx, getConfig: () => cfg, log, onebot: { call: async () => ({}) } })
   t.after(() => {
@@ -162,9 +162,16 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
   const controller = fake.ctx.services.sessionController
   const create = controller.create.bind(controller)
   const purge = ['purge_apply', 'purge_revert', 'purge_status']
+  const registered = [...purge, 'present'].map((name) => ({ name }))
+  let definitionsRead = 0
   controller.create = async (request) => {
     const result = await create(request)
     const agent = fake.agents.get(result.sessionId)
+    if (request.agentPreset === 'aurabot-group-owner') {
+      agent.ctx.tools.definitions = () => { definitionsRead++; return registered }
+      agent.ctx.tools.view = () => ({ restrictableNames: new Set(registered.map(({ name }) => name)) })
+    }
+    agent.ctx.tools.guard = (check) => { agent.guard = check; return () => { agent.guard = null } }
     const restrict = agent.ctx.tools.restrict
     agent.ctx.tools.restrict = (filter) => {
       if (filter.deny?.includes('aurabot__probe__')) {
@@ -184,5 +191,12 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
     const agent = [...fake.agents.values()].at(-1)
     const expected = chat.chatId === 'private:10001' ? [] : purge
     assert.deepEqual([...agent.denied], expected, chat.chatId)
+    if (expected.length) assert.match(agent.guard({ name: 'purge_apply' }), /仅限主人私聊/)
   }
+  const groupAgent = [...fake.agents.values()].at(-1)
+  assert.equal(definitionsRead, 1, '有公开定义接口的宿主直接查询 Purge 工具')
+  registered.push({ name: 'purge_extra' })
+  const group = chats.at(-1)
+  await hub.pushToSession(group, [{ type: 'text', text: '重载后的工具' }], group.userId)
+  assert.ok(groupAgent.denied.has('purge_extra'), '已存在的会话也会识别热加载增加的工具')
 })

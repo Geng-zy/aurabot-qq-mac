@@ -22,7 +22,7 @@ export function createBudget({ store, today, setting }) {
     const cap = Number(setting('models.backgroundTokensDaily'))
     const s = spent()
     const pending = [...reservations].filter((r) => r.day === s.day)
-    if (Number.isFinite(cap) && s.tokens + pending.reduce((sum, r) => sum + r.estimate, 0) + estimate > cap) return false
+    if (store.get('budget.unlimitedDay') !== s.day && Number.isFinite(cap) && s.tokens + pending.reduce((sum, r) => sum + r.estimate, 0) + estimate > cap) return false
     if (kind === 'deep') {
       const n = (s.byKind.deep?.calls || 0) + pending.filter((r) => r.kind === 'deep').length
       if (n >= Number(setting('models.deepThinkDaily'))) return false

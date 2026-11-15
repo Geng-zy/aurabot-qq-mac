@@ -165,7 +165,7 @@ export function createSleep(mem, deps) {
     let n = 0
     for (const job of mem.takeJobs('reconsolidate', limit)) {
       const e = mem.row(job.ref)
-      if (!e || ['public-note', 'shared-note'].includes(e.data.kind) || level <= 0) { mem.doneJob(job.id); continue }
+      if (!e || ['pending', 'public-note', 'shared-note'].includes(e.data.kind) || level <= 0) { mem.doneJob(job.id); continue }
       // 干扰：程度够高时，偶尔带上一件很像的事
       let similar = null
       if (level >= 0.2 && random() < level) {

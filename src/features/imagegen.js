@@ -150,12 +150,12 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     if (c.provider === 'local') return Boolean(c.enabled && localImage?.status().ready)
     return Boolean(local?.active('image'))
   }
-  async function generatePrivate(prompt, { signal } = {}) {
+  async function generateDirect(prompt, { signal } = {}) {
     signal?.throwIfAborted()
     const config = getConfig().imageGen
     if (!localReady()) throw new Error('本地生图未启用或尚未就绪')
     if (config.provider === 'local') return localImage.generate(prompt, { signal, size: imageSizeFor(undefined, config), steps: config.localSteps })
-    const outDir = await mkdtemp(join(tmpdir(), 'aurabot-private-image-'))
+    const outDir = await mkdtemp(join(tmpdir(), 'aurabot-direct-image-'))
     const cleanup = () => rm(outDir, { recursive: true, force: true })
     try {
       const result = await local.call('image', { prompt, size: imageSizeFor(undefined, config) }, {
@@ -321,7 +321,7 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     return c.provider === 'custom' ? Boolean(c.custom && c.custom.url) : Boolean(c.baseUrl && c.model)
   }
 
-  return { generate, generatePrivate, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
+  return { generate, generateDirect, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
 }
 
 /**
