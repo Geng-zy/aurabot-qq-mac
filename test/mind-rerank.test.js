@@ -6,7 +6,7 @@ import { createRerankClient } from '../src/mind/memory/vectors.js'
 
 const T0 = Date.UTC(2026, 10, 10, 4)
 // 关键词命中的候选都一样「像」，原顺序按记得多牢；精排让「猫」那条排第一
-function setup({ on = true, fail = false } = {}) {
+function setup({ on, fail = false } = {}) {
   const calls = []
   const fetch = async (url, init) => {
     const body = JSON.parse(init.body)
@@ -18,7 +18,8 @@ function setup({ on = true, fail = false } = {}) {
     throw new Error('不用向量')
   }
   const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => T0, random: () => 0.5, ask: async () => '{"episodes":[]}', fetch, embedKey: () => 'k' })
-  a.mind.updateSettings({ 'identity.age': 18, 'memory.rerank': on })
+  a.mind.updateSettings({ 'identity.age': 18 })
+  if (on !== undefined) a.mind.updateSettings({ 'memory.rerank': on })
   const m = a.mind
   m.memory.insert({ at: T0 - 3600000, window: 'qq:private:1', gist: '周末的时候一起去公园散步', kind: 'event', importance: 0.9 })
   m.memory.insert({ at: T0 - 7200000, window: 'qq:private:1', gist: '周末的时候他家的猫生病了', kind: 'event', importance: 0.5 })
@@ -26,7 +27,7 @@ function setup({ on = true, fail = false } = {}) {
 }
 const first = async (m) => (await m.memory.recall({ cue: '周末的时候', window: 'qq:private:1', limit: 1, deliberate: true }))[0]?.text
 
-test('开着：按精排的相关度排，带上线索和候选原文', async () => {
+test('默认开启：用 BGE 精排候选记忆', async () => {
   const { m, calls } = setup()
   assert.match(await first(m), /猫/)
   assert.equal(calls[0].model, 'BAAI/bge-reranker-v2-m3')
