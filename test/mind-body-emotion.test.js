@@ -31,6 +31,18 @@ test('情绪清单：持续时间来自原文 27 种情绪；清单里每种都�
 
 // ---------- 情绪 ----------
 
+test('回忆保留紧张的正负倾向，带着期待的紧张不转成焦虑', (t) => {
+  const { m } = mind()
+  t.after(() => m.close())
+  const [excited] = m.emotion.rekindle([{ emotion: { name: '紧张', intensity: 0.8, valence: 0.3 }, text: '第一次给朋友唱歌' }])
+  assert.equal(excited.name, '紧张')
+  assert.equal(excited.i0, 0.4)
+  assert.equal(excited.valence, 0.3)
+  const [worried] = m.emotion.rekindle([{ emotion: { name: '紧张', intensity: 0.8, valence: -0.3 }, text: '担心朋友赶不上末班车' }])
+  assert.equal(worried.name, '焦虑')
+  assert.equal(m.emotion.feel([{ name: '紧张', intensity: 0.6 }])[0].name, '紧张')
+})
+
 test('情绪持续多久：难过比害羞久得多；越重要的事越久', () => {
   const { m, set } = mind()
   m.emotion.feel([{ name: '难过', intensity: 0.8, why: 'a' }, { name: '害羞', intensity: 0.8, why: 'b' }])
@@ -262,6 +274,41 @@ test('投喂：只认这一轮真的在跟她说话的人；/投喂 后她又说
   assert.equal(a.mind.person('qq:5'), null, '没见过的人不硬建档案')
 })
 
+test('口语投喂：只认本私聊近期递出的食物，送达后记一次', (t) => {
+  const { a, set } = adapter()
+  t.after(() => a.close())
+  let seq = 0
+  const speak = (text, chatId = 'private:1', userId = '1') => a.perceive({ chatId, kind: 'private', userId, text, messageId: 'in-' + ++seq })
+  const reply = (message, chatId = 'private:1') => a.said({ chatId, message, messageId: 'out-' + ++seq })
+  speak('明天给你块蛋糕吃')
+  reply('（一口咬下去）')
+  speak('给你看张蛋糕图片')
+  reply('我吃了一口。')
+  speak('那给你个蛋糕吃', 'group:9')
+  speak('诺')
+  reply('我吃了一口。')
+  assert.equal(a.mind.body.state().lastMeal, null, '约定、图片和别处的话不触发')
+
+  speak('那给你个蛋糕吃')
+  reply('蛋糕！什么口味的？')
+  speak('草莓的')
+  reply('那我一口咬下去？')
+  assert.equal(a.mind.body.state().lastMeal, null, '问口味和试探没算收下')
+  speak('诺')
+  reply('（一口咬下去，还没松开你的手）')
+  assert.equal(a.mind.body.state().lastMeal.food, '草莓蛋糕')
+  set(T0 + 60_000)
+  a.feel('private:1', '谢谢<feel>{"fed":{"food":"蛋糕","by":"1"}}</feel>', { senders: ['1'] })
+  reply('我吃了一口，真甜。')
+  assert.equal(a.mind.body.state().lastMeal.at, T0)
+  assert.equal(a.mind.memory.list().filter((e) => e.gist === '主人给我吃了草莓蛋糕').length, 1)
+  set(T0 + 5 * 60000)
+  speak('这杯奶茶给你')
+  set(T0 + 9 * 60000)
+  reply('我喝了一口。')
+  assert.equal(a.mind.body.state().lastMeal.food, '草莓蛋糕', '过期了就不从聊天记录补记')
+})
+
 test('睡着时：主人叫才醒（按人不按地方）；别人的消息等她醒了按轻重补回', async () => {
   const { a, replays } = adapter()
   a.mind.body.sleepNow()
@@ -282,7 +329,25 @@ test('醒着但累坏了：明确 @ 或引用仍交给她，普通搭话可以�
   assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: false }).reply, false)
   assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true }).reply, false)
   assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true, explicitlyAddressed: true }).reply, true)
-  assert.equal(a.gate({ chatId: 'private:1', kind: 'private', userId: '1', direct: true }).reply, true)
+  const owner = { chatId: 'private:1', kind: 'private', userId: '1', direct: true }
+  assert.equal(a.gate(owner).reply, false)
+  a.mind.updateSettings({ 'identity.mustReplyOwner': true })
+  assert.equal(a.gate(owner).reply, true)
+  assert.equal(a.gate({ ...owner, direct: false }).reply, false)
+})
+
+test('睡眠设置立即生效：零分钟熬夜、零分钟迷糊、关闭正在进行的倒时差', (t) => {
+  const { m, set } = mind({ settings: { 'body.stayUpMinutes': 0, 'body.groggyMinutes': 0 } })
+  t.after(() => m.close())
+  set(T0 + 20 * H) // 上海 04:00
+  m.body.noteOwner()
+  assert.equal(m.body.tick().state.asleep, true)
+  m.body.wake('qq:1')
+  assert.equal(m.body.state().groggy, false)
+  m.updateSettings({ 'identity.timezone': 'Asia/Tokyo' })
+  assert.equal(m.body.state().shift, 1)
+  m.updateSettings({ 'body.jetLag': false })
+  assert.equal(m.body.state().shift, 0)
 })
 
 test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {

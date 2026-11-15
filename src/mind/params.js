@@ -133,7 +133,7 @@ export const PARAMS = [
   { key: 'relations.fadeDays', group: 'relations', label: '不联系多久开始变淡', def: 30, min: 3, max: 365, step: 1, unit: '天', source: EXP, hint: '长期不联系，亲近度慢慢下降。' },
   { key: 'relations.wakeCloseness', group: 'relations', label: '多亲近算「很亲近的人」', def: 0.7, min: 0.3, max: 1, step: 0.05, source: EXP, hint: '「谁能叫醒她」选了「主人和很亲近的人」时，亲近度到这个数的人叫她也会醒。' },
   { key: 'relations.ignoreDisliked', group: 'relations', label: '不想理讨厌的人的机会', def: 0.85, min: 0, max: 1, step: 0.05, source: EXP, hint: '她很不喜欢、或者有心结的人找她时，有这么大的机会她不想搭理（只是安静看着）。主人不受影响。' },
-  { key: 'relations.interjectScale', group: 'relations', label: '群里主动接话的倍数', def: 1, min: 0, max: 3, step: 0.1, source: '设计决定（插不插话由她的性格、心情、话题和在场的人决定，这里只整体放大缩小）', hint: '0 = 群里只在被叫到时说话。' },
+  { key: 'relations.interjectScale', group: 'relations', label: '群里主动接话的倍数', def: 1, min: 0, max: 3, step: 0.1, source: '设计决定（插不插话由她的性格、心情、话题和在场的人决定，这里只整体放大缩小）', hint: '0 = 默认只在被叫到时说话。单独设为 100% 的群优先使用单群设置。' },
   { key: 'relations.interjectCapPerHour', group: 'relations', label: '每群每小时最多主动接几次', def: 0, min: 0, max: 60, step: 1, source: '设计决定', hint: '0 = 不设上限，由她自己拿捏（被叫到不算在内）。' },
   { key: 'relations.missOwnerHours', group: 'relations', label: '多久没见主人会想', def: 24, min: 2, max: 168, step: 1, unit: '小时', source: '依恋理论（Bowlby；安全基地不在会不安）；时长是经验值', hint: '你这么久没理她，她会想你；依恋焦虑越高想得越早、越不安。' },
 

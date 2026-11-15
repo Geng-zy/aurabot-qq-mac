@@ -24,7 +24,7 @@ import { isOwner } from './chat/access.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
-import { createLocal, fileOf, toImageBuffer } from './local/local.js'
+import { createLocal, localAudioFile, localImageBuffer } from './local/local.js'
 import { createGroupRoles } from './chat/group-roles.js'
 import { defaultModel, askModel, modelReasoning, modelVision, clearReasoningCache, clearVisionCache } from './core/llm.js'
 import { mimeOf } from './core/image-info.js'
@@ -146,6 +146,7 @@ export function apply(ctx) {
   let backupJob = null // { running, done, total, error, result }
   let pushJob = null // { running, ok, error, result, at }
   let pushTimer = null // 云备份每日定时
+  let pushDueAt = null
   const getConfig = () => cfg
   setSsrpMode(() => (getConfig().security && getConfig().security.ssrfMode === 'loose' ? 'loose' : 'strict'))
   const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); for (const item of cfg.imageGen.fallbacks || []) registerSecret(item.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey); registerSecret(cfg.backup?.remote?.token); registerSecret(cfg.backup?.remote?.webdav?.password); registerSecret(cfg.voice?.asrApi?.apiKey); registerSecret(cfg.voice?.breeze?.key); registerSecret(cfg.voice?.breeze?.password) } // 云备份令牌 / WebDAV 密码、语音的 Key 也按密钥脱敏
@@ -467,8 +468,12 @@ export function apply(ctx) {
   }
   const readBody = async (req) => {
     let s = ''
-    try { for await (const c of req) s += c } catch (error) {}
-    try { return JSON.parse(s || '{}') } catch (error) { return {} }
+    try { for await (const c of req) s += c } catch (error) { throw new Error('请求内容没有接收完整') }
+    if (!s.trim()) return {}
+    let body
+    try { body = JSON.parse(s) } catch (error) { throw new Error('请求内容不是有效的 JSON') }
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('请求内容需要是一个 JSON 对象')
+    return body
   }
   /** 原样读请求体（上传大文件用），超过 max 字节就报错。 */
   const readRaw = async (req, max) => {
@@ -885,6 +890,7 @@ export function apply(ctx) {
 
   // ---------- 启动 / 看门狗 ----------
   async function watchdog() {
+    if (unloaded) return
     for (const ch of channels.list()) ch.watch?.()
   }
   const safe = (fn, label) => () => { Promise.resolve().then(fn).catch((error) => log.warn(`${label}出错：`, error.message)) }
@@ -1419,11 +1425,14 @@ export function apply(ctx) {
       return { ok: false, message: error.message }
     }
   })
-  route('/test-send', async () => {
+  route('/test-send', async (req) => {
+    if (req.method !== 'POST') return { ok: false, message: '请从面板发起发送测试' }
     if (!cfg.enabled) return { ok: false, message: '先打开总开关' }
+    if (cfg.debug) return { ok: false, message: '现在是调试模式，先回到正式模式再测' }
     if (cfg.dryRun) return { ok: false, message: '现在是试运行，先关掉试运行再测' }
-    const r = await hub.sendText(`private:${cfg.ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～')
-    return r ? { ok: true, message: '发给主人了，去 QQ 看看' } : { ok: false, message: '没发出去（看日志）' }
+    if (!cfg.ownerQQ) return { ok: false, message: '先填写主人 QQ 号' }
+    const r = await hub.sendText(`private:${cfg.ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～', undefined, undefined, undefined, { allowQueue: false, system: true })
+    return r && !r.queued && !r.simulated ? { ok: true, message: '发给主人了，去 QQ 看看' } : { ok: false, message: '未确认送达，请查看日志' }
   })
 
   route('/sessions/reset', async () => {
@@ -1627,7 +1636,8 @@ export function apply(ctx) {
   // ---------- 关系：每个人、每个群 ----------
   route('/mind/people', async () => {
     if (!mind) return mindOff
-    return { ok: true, list: mind.mind.relations.list(), groups: mind.mind.relations.groups().map((g) => ({ ...g, name: hub?.groupNames?.get?.(String(g.id)) || '' })), exclusive: mind.mind.identity().exclusive }
+    const { exclusive, sexualDesire } = mind.mind.identity()
+    return { ok: true, list: mind.mind.relations.list(), groups: mind.mind.relations.groups().map((g) => ({ ...g, name: hub?.groupNames?.get?.(String(g.id)) || '' })), exclusive, passionEnabled: sexualDesire }
   })
   // 忘掉一个人：delete = 连人带关于他的记忆移进恢复区；stop = 以后不记（clear 时以前的也移走）；resume = 撤销「以后不记」
   route('/mind/people/forget', async (req) => {
@@ -1870,15 +1880,7 @@ export function apply(ctx) {
   }))
   // ---------- 云备份：每天到点自动打包，并把最新备份推到 Gitee 私有仓库（走本机 git）----------
   const alive = () => { try { return !unloaded } catch { return true } }
-  const nextRemoteAt = () => {
-    const r = cfg.backup?.remote
-    if (!r?.enabled) return null
-    const [hh, mm] = String(r.time || '03:30').split(':').map(Number)
-    const next = new Date()
-    next.setHours(hh, mm, 0, 0)
-    if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1)
-    return next.toISOString()
-  }
+  const nextRemoteAt = () => pushDueAt === null ? null : new Date(pushDueAt).toISOString()
   const remoteView = (r = cfg.backup?.remote || {}) => ({
     enabled: !!r.enabled,
     provider: r.provider === 'webdav' ? 'webdav' : 'gitee',
@@ -1948,15 +1950,27 @@ export function apply(ctx) {
       return { ok: false, message: error.message }
     }
   }))
-  const scheduleRemoteBackup = () => {
+  const scheduleRemoteBackup = (retryMs = 0) => {
     if (pushTimer) { clearTimeout(pushTimer); pushTimer = null }
+    pushDueAt = null
     const r = cfg.backup?.remote
     if (!r?.enabled || !alive()) return
-    const [hh, mm] = String(r.time || '03:30').split(':').map(Number)
-    const next = new Date()
-    next.setHours(hh, mm, 0, 0)
-    if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1)
-    pushTimer = setTimeout(() => { pushTimer = null; if (alive()) doPush(true) }, next.getTime() - Date.now())
+    const now = Date.now()
+    const next = new Date(now)
+    if (retryMs) next.setTime(now + retryMs)
+    else {
+      const [hh, mm] = String(r.time || '03:30').split(':').map(Number)
+      next.setHours(hh, mm, 0, 0)
+      if (next.getTime() <= now) next.setDate(next.getDate() + 1)
+    }
+    pushDueAt = next.getTime()
+    pushTimer = setTimeout(() => {
+      pushTimer = null
+      pushDueAt = null
+      if (!alive()) return
+      if (backupJob?.running || pushJob?.running) scheduleRemoteBackup(60_000)
+      else void doPush(true)
+    }, pushDueAt - now)
     pushTimer.unref?.()
   }
   // 上报开关：按工作区分别控制「授权」「提问」要不要在 QQ 里说
@@ -2004,12 +2018,11 @@ export function apply(ctx) {
     const slot = String((await readBody(req)).slot || '')
     try {
       if (slot === 'tts') {
-        const file = fileOf(await local.call('tts', { text: '你好呀，我是大肥鱼，这是本地语音测试。' }))
-        if (!file || !existsSync(file)) return { ok: false, message: '脚本没返回音频文件' }
+        const file = await local.call('tts', { text: '你好呀，我是大肥鱼，这是本地语音测试。' }, { readResult: localAudioFile })
         return { ok: true, message: `念好了：${file}` }
       }
       if (slot === 'image') {
-        const buf = await toImageBuffer(await local.call('image', { prompt: '一条胖乎乎的蓝色小鱼，可爱，插画', size: cfg.imageGen.size || '1024x1024' }))
+        const buf = await local.call('image', { prompt: '一条胖乎乎的蓝色小鱼，可爱，插画', size: cfg.imageGen.size || '1024x1024' }, { readResult: localImageBuffer })
         return { ok: true, message: `画好了（${Math.round(buf.length / 1024)} KB）`, image: buf.toString('base64') }
       }
       return { ok: false, message: '这一项没法单独试：翻唱换声去 QQ 里点首歌，语音识别发条语音条试试' }

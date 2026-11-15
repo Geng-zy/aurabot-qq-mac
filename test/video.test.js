@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import video, { videoFile } from '../src/modules/video/index.js'
 import { SLOTS } from '../src/local/local.js'
 
-function setup({ owner = true, result = 'D:/out/a.mp4', active = true, sendFails = false } = {}) {
+function setup({ owner = true, result = 'D:/out/a.mp4', active = true, sendFails = false, receipt = {} } = {}) {
   const sent = []
   const calls = []
   let tool = null
@@ -12,8 +12,12 @@ function setup({ owner = true, result = 'D:/out/a.mp4', active = true, sendFails
   const done = new Promise((r) => { finish = r })
   const hub = {
     turnSendersAllOwner: () => owner,
-    sendSegments: async (chatId, segs) => { if (sendFails) throw sendFails instanceof Error ? sendFails : new Error('网关不收'); sent.push({ chatId, segs }); finish() },
-    sendFile: async (chatId, file) => { sent.push({ chatId, file }); finish() },
+    sendSegments: async (chatId, segs) => {
+      if (sendFails) throw sendFails instanceof Error ? sendFails : new Error('网关不收')
+      if (receipt) { sent.push({ chatId, segs }); finish() }
+      return receipt
+    },
+    sendFile: async (chatId, file) => { sent.push({ chatId, file }); finish(); return {} },
     sendText: async (chatId, text) => { sent.push({ chatId, text }); finish() },
   }
   const local = { active: () => active, call: async (slot, args, options) => {
@@ -68,6 +72,14 @@ test('视频发送结果不明时不重复发文件', async () => {
   await s.get().execute({ prompt: '一条鱼' })
   await s.done
   assert.match(s.sent[0].text, /可能已发出/)
+  assert.equal(s.sent.some((message) => message.file), false)
+})
+
+test('生好视频却被发送钩子挡下时，报告未确认送达，也不绕过钩子改发文件', async () => {
+  const s = setup({ receipt: null })
+  await s.get().execute({ prompt: '一条鱼' })
+  await s.done
+  assert.match(s.sent[0].text, /已生成，未确认送达/)
   assert.equal(s.sent.some((message) => message.file), false)
 })
 

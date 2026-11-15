@@ -1859,12 +1859,14 @@ body[data-ds-dark-theme] .ab-root{
 
     /** 她在每个白名单群里的身份：群主 / 管理员才能禁言踢人。 */
     function GroupRoles() {
-      const [list, setList] = useState(null)
-      const load = () => { setList(null); get('/groups/roles').then((r) => setList(r.list || [])) }
+      const [result, setResult] = useState(null)
+      const load = () => { setResult(null); get('/groups/roles').then(setResult) }
+      const list = result?.list || []
       useEffect(load, [])
       return h(Card, { title: '群管权限', desc: 'ta在群里是群主或管理员时，主人才能让ta禁言、踢人、发公告；改专属头衔要群主。按已保存的群白名单查。',
         right: h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新') },
-        !list ? h('div', { className: 'ab-muted ab-small' }, h('i', { className: 'ab-spin' }), ' 查询中…')
+        !result ? h('div', { className: 'ab-muted ab-small' }, h('i', { className: 'ab-spin' }), ' 查询中…')
+          : !result.ok ? h('div', { className: 'ab-muted ab-small', role: 'status' }, result.message || '暂时查不到群管权限。')
           : list.length === 0 ? h('div', { className: 'ab-muted ab-small' }, '群白名单是空的。')
           : h('table', { className: 'ab-table' },
             h('thead', null, h('tr', null, ['群', 'ta的身份', '群管'].map((x) => h('th', { key: x }, x)))),
@@ -2735,7 +2737,7 @@ body[data-ds-dark-theme] .ab-root{
       const [s, setS] = useState(null)
       const load = () => get('/qzone/social/state').then(setS)
       useEffect(() => { load() }, [])
-      return h(Card, { title: '空间互动', right: f.sw('qzoneSocial.enabled'), desc: 'ta闲着、想逛的时候会自己去逛 QQ 空间（什么时候逛由ta自己决定，看「内心」页）：有人评论ta的说说就回一句；刷到好友的说说，偶尔点个赞、评一句（你的说说ta更爱评）。评论按ta的人格现写；试运行时只记日志不发。' },
+      return h(Card, { title: '空间互动', right: f.sw('qzoneSocial.enabled'), desc: '她醒着、空闲时会定期检查自己说说下的新评论，并决定是否回复。她想逛好友空间时，也会按设置点赞或评论。' },
         h(Row, { label: '回复自己说说下的评论' }, f.sw('qzoneSocial.replyOwn')),
         h(Row, { label: '评论好友的说说' }, f.sw('qzoneSocial.commentFriends')),
         h(Row, { label: '顺手点赞' }, f.sw('qzoneSocial.like')),
@@ -2743,7 +2745,7 @@ body[data-ds-dark-theme] .ab-root{
         h(Row, { label: '你的说说互动概率' }, f.percent('qzoneSocial.ownerChance')),
         h(Row, { label: '每天最多评论', hint: '点赞不算' }, f.range('qzoneSocial.maxPerDay', 0, 30, 1, (v) => v + ' 条')),
         h('div', { className: 'ab-flex', style: { marginTop: 10 } },
-          h('span', { className: 'ab-muted ab-small' }, s ? '今天评论了 ' + s.count + ' 条' + (s.lastRun ? '，上次逛是 ' + timeAgo(s.lastRun) : '') : ''),
+          h('span', { className: 'ab-muted ab-small' }, s ? '今天评论了 ' + s.count + ' 条' + (s.lastReplyCheck ? '，上次检查新评论 ' + timeAgo(s.lastReplyCheck) : '') + (s.lastRun ? '，上次逛空间 ' + timeAgo(s.lastRun) : '') : ''),
           h('div', { className: 'ab-spacer' }),
           h(Btn, { small: true, onClick: async () => { toast('ta去逛空间了…'); const r = await post('/qzone/social/run'); toast(r.message, r.ok ? 'ok' : 'err'); load() } }, '现在逛一次')),
         s && s.history && s.history.length ? h('div', { className: 'ab-list', style: { marginTop: 10 } }, s.history.map((x, i) => h('div', { key: i, className: 'ab-li' },
@@ -3480,7 +3482,7 @@ body[data-ds-dark-theme] .ab-root{
             emotions.length ? h('ul', { className: 'ab-feeling-list' }, emotions.map((e, i) => h('li', { key: i },
               h('span', { className: 'ab-feeling-mark' }, navIcon('pulse')),
               h('div', null, h('b', null, deg(e.intensity) + e.name),
-                h('div', { className: 'ab-muted ab-small' }, '起于 ' + timeAgo(e.at) + (e.targetName ? ' · 对' + e.targetName : '') + (e.source === 'thought' ? ' · 源自念头' : e.source === 'deep' ? ' · 源自深想' : '') + (e.hidden ? ' · 没表现出来' : '')),
+                h('div', { className: 'ab-muted ab-small' }, '起于 ' + timeAgo(e.at) + (e.targetName ? ' · 对' + e.targetName : '') + (e.source === 'thought' ? ' · 源自念头' : e.source === 'deep' ? ' · 源自深想' : e.source === 'recall' ? ' · 回忆唤起' : '') + (e.hidden ? ' · 没表现出来' : '')),
                 e.why && !(e.source === 'thought' && e.why === '想着想着') ? h('p', null, e.why) : null))))
               : h('div', { className: 'ab-quiet' }, navIcon('pulse'), h('span', null, '此刻没有明显的情绪'))),
           h(Card, { title: '投喂', desc: '虚拟投喂，不涉及任何付款。', className: 'ab-feed' },
@@ -3770,7 +3772,10 @@ body[data-ds-dark-theme] .ab-root{
         const editing = isOpen && impression?.id === p.id
         const scoreFields = [['亲近', r.closeness], ['喜欢', r.liking], ['尊重', r.respect], ['信任', r.trust]]
         if (p.owner || r.intimacy) scoreFields.push(['亲密', r.intimacy], ['承诺', r.commitment])
-        if (r.passion) scoreFields.push(['激情', r.passion])
+        const showPassion = p.owner && (d?.passionEnabled ?? Boolean(r.passion))
+        if (showPassion) scoreFields.push(['激情', r.passion])
+        const change = r.passionChange
+        const points = change ? Number((change.delta * 100).toFixed(1)) : 0
         const detailFields = [
           ['她叫对方', r.call && '「' + r.call + '」'],
           ['对方叫她', r.callMe && '「' + r.callMe + '」'],
@@ -3783,6 +3788,9 @@ body[data-ds-dark-theme] .ab-root{
           ['别碰', texts(r.limits)],
           ['重要时刻', (r.moments || []).map((m) => mindDay(m.at).slice(0, 10) + ' ' + m.text).join('；')],
           ['没解开的结', texts(r.knots)],
+          ['激情', showPassion && (change
+            ? '最近一段变化 ' + (points > 0 ? '+' : '') + points + ' 分 · ' + timeAgo(change.at)
+            : '整理主人私聊时，按对话中明确表现出来的吸引变化更新。')],
           ['其他印象', [r.rivalry >= 0.3 && '有点暗暗较劲', (r.flirts || []).length >= 3 && '最近老撩她、纠缠她'].filter(Boolean).join(' · ')],
         ].filter(([, value]) => value)
         return h('article', { key: p.id, id, tabIndex: -1, className: cx('ab-person', p.owner && 'owner', isOpen && 'expanded') },
@@ -4306,7 +4314,19 @@ body[data-ds-dark-theme] .ab-root{
       const [img, setImg] = useState('')
       const load = () => get('/local/status').then(setSt)
       useEffect(() => { load() }, [])
-      const act = async (path, slot, label) => { setBusy(slot + label); const r = await post(path, { slot }); setBusy(''); toast(r.message, r.ok ? 'ok' : 'err'); if (r.image) setImg(r.image); load() }
+      const act = async (path, target, label) => {
+        setBusy(target + label)
+        try {
+          const r = await post(path, { slot: target })
+          toast(r.message, r.ok ? 'ok' : 'err')
+          if (r.image) setImg(r.image)
+          await load()
+        } catch (error) {
+          toast(error.message, 'err')
+        } finally {
+          setBusy('')
+        }
+      }
       return h('div', { className: 'ab-grid' },
         slot === 'video' ? h(Card, { title: '本地视频脚本', desc: '生成视频需要可用的本机服务和接入脚本。' }) : slot ? null : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH 的话」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
           h('div', { className: 'ab-flex' },

@@ -20,7 +20,7 @@ export function codeFences(value) {
   return ranges
 }
 
-export function extractReply(value) {
+export function extractReply(value, { includeFeel = false } = {}) {
   const text = String(value || '')
   const code = codeFences(text)
   const markers = (re) => [...text.matchAll(re)].filter((m) => !code.some((r) => m.index >= r.start && m.index < r.end))
@@ -30,7 +30,12 @@ export function extractReply(value) {
   const open = opens.at(-1)
   const start = open.index + open[0].length
   const close = closes.find((m) => m.index >= start)
-  return close ? text.slice(start, close.index).trim() : null
+  if (!close) return null
+  const reply = text.slice(start, close.index).trim()
+  if (!includeFeel) return reply
+  const tail = text.slice(close.index + close[0].length)
+  const feel = /^\s*(<feel>(?:(?!<\/?feel\b)[\s\S])*<\/feel>)\s*$/i.exec(tail)
+  return feel ? reply + '\n' + feel[1] : reply
 }
 
 const META = /(?:not addressed to me|no reply needed|stay silent|remain silent|i could react|i should (?:reply|respond|say))/i

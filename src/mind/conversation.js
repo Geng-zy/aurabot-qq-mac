@@ -118,7 +118,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       if (direct && (owner || close)) return { reply: true, wake: body.wake(who), reason: '被叫醒了' }
       return { reply: false, reason: '她睡着了' }
     }
-    if (owner) return { reply: true }
+    if (direct && owner && setting('identity.mustReplyOwner') === true) return { reply: true }
     if (!direct && (b.energy < 0.2 || b.sleepiness >= 0.8)) return { reply: false, reason: '太累了，不插话' }
     if (direct && !explicitlyAddressed && (b.energy < 0.15 || b.sleepiness >= 0.85) && random() < 0.4) return { reply: false, reason: '太累了，懒得理' }
     return { reply: true }
@@ -210,10 +210,12 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       if (!turn.plan.speak) return { status: 'quiet', plan: turn.plan }
       if (!speak) return { status: 'unavailable', plan: turn.plan }
       const current = feeling()
+      const mustReply = direct && isOwner(who) && setting('identity.mustReplyOwner') === true
       const publicOnly = !isOwnerWindow(window) || !isOwner(who)
       const feelings = emotion.describe({ window, body: current.body, people: [who], name: (id) => person(id)?.name || '对方' })
       const system = [
         selfPrompt({ publicOnly }), feelings, describeSpeechPlan(turn.plan),
+        mustReply ? '主人正在叫你。给他一条简短的正文回应；需要确认时问一句。' : '',
         '你是收消息的一方。接着「对方刚说」往下聊。站在自己的角度回复，不要复述对方的消息。',
         '对方还没确定的事按未确认处理。历史消息的日期是说话日期，不能直接当事件日期。对方质疑时以带日期的原话为准，找不到依据就说拿不准。只输出 JSON：{"text":"你要回复的话"}。',
       ].filter(Boolean).join('\n')
@@ -248,7 +250,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       }
       const wait = Math.max(1, Number(responseTimeoutMs) || 30000)
       let response = await request(system, input, 600, effort, wait)
-      if (direct && response === null && isCurrent()) {
+      if (direct && (response === null || (mustReply && response === '')) && isCurrent()) {
         const currentInput = `【对方刚说】\n${String(text).slice(-1800)}`
         const instructions = '接着对方的话简短回复。不要声称执行了任何操作。只输出 JSON：{"text":"正文"}。'
         const minimal = (publicOnly ? publicPersona().card : personaCard()).slice(0, 4500) + '\n' + instructions

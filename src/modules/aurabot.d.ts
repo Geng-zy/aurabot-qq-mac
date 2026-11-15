@@ -210,11 +210,14 @@ export interface MindApi {
   now(): string
   /** 她醒着没有。 */
   awake(): boolean
+  /** 查询可用的后台模型预算（不会占用额度）。 */
+  actionBudget?(tokens?: number): true | string
   /** 把一件她能做的事交给她，由她自己决定什么时候做。返回撤销函数（模块停了会自动撤）。 */
   offer(a: {
     id: string; label: string; needs: Record<string, number>; effort?: number; delayHours?: number; cooldownMinutes?: number
+    retryMinutes?: (result: { ok: boolean; summary?: string }) => number
     payoff?: number; keywords?: string[]; matchWant?: (text: string) => boolean; available?: () => true | string | false
-    run: (ctx: { checkpoint: () => Promise<void>; signal: AbortSignal; wants: string[] }) => Promise<{ ok: boolean; summary?: string; outcome?: number }>
+    run: (ctx: { checkpoint: () => Promise<void>; signal: AbortSignal; wants: string[] }) => Promise<{ ok: boolean; summary?: string; outcome?: number; deferred?: boolean; budgetEstimate?: number }>
   }): () => void
   /** 主人有没有批准她这项权限。 */
   granted(key: string): boolean

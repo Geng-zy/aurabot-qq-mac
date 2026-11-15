@@ -190,9 +190,9 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     }
     // 本地接口接管：用用户自己电脑上的画图服务
     if (local?.active('image')) {
-      const { toImageBuffer } = await import('../local/local.js')
+      const { localImageBuffer } = await import('../local/local.js')
       const t = Date.now()
-      const buf = await toImageBuffer(await local.call('image', { prompt: full, size: c.size, ...(image ? { image: image.toString('base64') } : {}) }, { signal }), { signal })
+      const buf = await local.call('image', { prompt: full, size: c.size, ...(image ? { image: image.toString('base64') } : {}) }, { signal, readResult: localImageBuffer })
       signal?.throwIfAborted()
       log.info(`本地画好了一张图（${Math.round(buf.length / 1024)}KB，${Math.round((Date.now() - t) / 1000)}s）：${prompt.slice(0, 40)}`)
       return buf

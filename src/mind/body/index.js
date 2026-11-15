@@ -57,8 +57,13 @@ export function createBody(deps) {
   /** 时区改了：身体的钟不会马上跟上。 */
   function followTimezone(s, at) {
     const tz = deps.tz()
+    if (B('jetLag') === false) {
+      s.tz = tz
+      s.shift = 0
+      return
+    }
     if (s.tz === tz) return
-    if (B('jetLag') !== false && s.tz) {
+    if (s.tz) {
       try { s.shift = (s.shift || 0) + (tzOffsetHours(at, tz) - tzOffsetHours(at, s.tz)) } catch { s.shift = 0 }
     } else s.shift = 0
     s.tz = tz
@@ -110,7 +115,7 @@ export function createBody(deps) {
     const C = circadian(at, s)
     const p = propensity(s.S, C)
     if (!s.asleep) {
-      const stayUp = at - (s.ownerAt || 0) < (Number(B('stayUpMinutes')) || 20) * MIN
+      const stayUp = at - (s.ownerAt || 0) < Number(B('stayUpMinutes') ?? 20) * MIN
       if (p >= Number(B('sleepThreshold')) && C > 0 && !stayUp) {
         s.asleep = true
         s.sleepAt = at
@@ -208,7 +213,7 @@ export function createBody(deps) {
       hunger: B('hunger') !== false ? s.hunger : 0,
       asleep: s.asleep,
       sleepAt: s.sleepAt,
-      groggy: !s.asleep && s.wokeAt && at - s.wokeAt < (Number(B('groggyMinutes')) || 20) * MIN,
+      groggy: !s.asleep && Boolean(s.wokeAt) && at - s.wokeAt < Number(B('groggyMinutes') ?? 20) * MIN,
       lastMeal: s.lastMeal,
       lastSleep: s.lastSleep,
       shift: Math.round((s.shift || 0) * 10) / 10,

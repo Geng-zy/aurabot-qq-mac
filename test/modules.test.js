@@ -248,6 +248,7 @@ test('联动：开放接口要密钥，只能发给白名单，能调模块', as
   assert.equal((await fake.call('/open/send', { target: 'private:123', text: 'x' }, h)).json().ok, false)
   const r = (await fake.call('/open/send', { text: '联动发的' }, h)).json()
   assert.equal(r.ok, true)
+  assert.equal(r.delivered, true)
   await until(() => sentTo(OWNER).includes('联动发的'))
   assert.equal((await fake.call('/open/call', { module: 'echo', method: 'shout', args: ['hi'] }, h)).json().result, 'HI')
   assert.equal((await fake.call('/open/call', { module: 'nope', method: 'x' }, h)).json().ok, false)
@@ -257,6 +258,20 @@ test('联动：开放接口要密钥，只能发给白名单，能调模块', as
   assert.equal((await fake.call('/state')).json().config.bridge.token, '')
   await fake.call('/save', { bridge: { token: 'hack' } })
   assert.equal(api.getConfig().bridge.token, token)
+})
+
+test('联动接口和 DSH 服务遇到网关拒绝时，不返回已发出的回执', async () => {
+  const token = api.getConfig().bridge.token
+  const h = { authorization: 'Bearer ' + token }
+  mock.state.failMessage = true
+  try {
+    const http = (await fake.call('/open/send', { text: '联动失败回执' }, h)).json()
+    assert.equal(http.ok, false)
+    assert.equal(http.delivered, false)
+    const service = await fake.ctx.get('aurabot').send({ text: '联动服务失败回执' })
+    assert.equal(service.ok, false)
+    assert.match(service.message, /未确认送达/)
+  } finally { mock.state.failMessage = false }
 })
 
 test('联动：别的 DSH 插件能 ctx.get(aurabot)；打开后 DSH 会话有全局工具，她自己的 QQ 会话屏蔽掉', async () => {

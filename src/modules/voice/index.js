@@ -2,12 +2,12 @@
 // 面板里的试听、语音识别自检也在这里。
 // 导出 speak(text) → { file, engine }：聊天中枢发语音时找它。替换这个模块就能换成任何你想要的念法。
 
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { textToSpeech, edgeInstalled, installEdge, voiceConverters } from '../../voice/tts.js'
 import { breezeBalance, breezeClaim, breezeSession, autoClaimOnce, breezeVoices } from '../../voice/breeze.js'
 import { createSongVoice } from '../../voice/rvc.js'
 import { toMono16k } from '../../voice/wav.js'
-import { fileOf } from '../../local/local.js'
+import { localAudioFile } from '../../local/local.js'
 import { asrConfigured, transcribeAudio } from '../../voice/asr.js'
 import { mergeFromPanel, normalize } from '../../core/config.js'
 import { segmentsOf } from '../../channels/qq/inbound.js'
@@ -26,8 +26,8 @@ export default {
       // 本地接口接管语音合成；出错退回内置。试听用 useLocal=false，免得本地接口把面板上选的引擎顶掉
       if (useLocal && local.active('tts')) {
         try {
-          const file = fileOf(await local.call('tts', { text }))
-          if (file && existsSync(file)) return { file, engine: 'local' }
+          const file = await local.call('tts', { text }, { readResult: localAudioFile })
+          return { file, engine: 'local' }
         } catch (error) {}
       }
       return textToSpeech(text, voice, api.log)

@@ -652,7 +652,7 @@ export function createMind(opts) {
     onOwnerCall: (call) => { const o = identity().ownerId; if (o) relations.edit(o, { call }) },
   })
   const personality = createPersonality({ store, now, setting, tz, log, isOwner: (id) => isOwner(id), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), getVersion, goals: () => self.goals() })
-  const relations = createRelations({ store, now, setting, log, place, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
+  const relations = createRelations({ store, now, setting, log, place, identity: () => identity(), isOwner, isOwnerWindow, person: (id) => person(id), savePerson, listPeople: () => listPeople(), trustBase: () => personality.value('trust') })
   // ---------- 身体和情绪 ----------
   const body = createBody({ store, now, setting, tz, log })
   const emotion = createEmotion({ store, now, setting, log, random: opts.random, identity: () => identity(), isOwner: (id) => isOwner(id), person: (id) => person(id), closeness: (id) => relations.closeness(id), trait: (id) => personality.value(id), body: () => body.state({ persist: false }) })
@@ -693,7 +693,7 @@ export function createMind(opts) {
     think: opts.model,
     state: () => { const f = feeling(); return { valence: f.mood.v, energy: f.body.energy } },
     // 记经历时顺带：人格的状态记录（她这次比平时更……）、对人的看法、对群的了解
-    encodeExtra: () => personality.encodeAsk() + '\n' + relations.encodeAsk(),
+    encodeExtra: (window) => personality.encodeAsk() + '\n' + relations.encodeAsk(window),
     onEncoded: ({ window, rows, parsed, evidence }) => {
       const shareableHabits = place(window).kind === 'group' && !(Array.isArray(parsed.episodes) && parsed.episodes.some((e) => e?.secret === true))
       personality.observe(parsed, { window, rows, shareableHabits, evidence })
@@ -704,7 +704,7 @@ export function createMind(opts) {
           if (!item.emotion || !item.sources.length || item.sources.some((id) => id <= lastReply)) continue
           const source = rows.find((r) => r.id === item.sources[0] && r.dir === 'in')
           if (source && !item.sources.some((id) => emotion.hasEvent('perception:' + id))) emotion.feel([{
-            name: item.emotion.name, intensity: item.emotion.intensity, target: source.who,
+            name: item.emotion.name, valence: item.emotion.valence, intensity: item.emotion.intensity, target: source.who,
             importance: item.importance, why: item.secret ? '' : '刚才看到的消息',
           }], { window, source: 'observation', eventId: item.id })
         }
@@ -734,7 +734,7 @@ export function createMind(opts) {
 
   // ---------- 动机和内心活动 ----------
   // 尽责性里的「勤快」越低越容易分心拖着（Steel 2007 的 Γ）
-  const motivation = createMotivation({ store, now, setting, log, today, distractScale: () => 1.5 - personality.value('productiveness'), trait: (id) => personality.value(id) })
+  const motivation = createMotivation({ store, now, setting, log, today, budget, distractScale: () => 1.5 - personality.value('productiveness'), trait: (id) => personality.value(id) })
   const inner = createInner({
     store, now, setting, tz, log, random: opts.random, memory, emotion, body, motivation, budget, place,
     ownerCall: () => self.ownerCall(), isOwnerWindow,

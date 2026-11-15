@@ -154,7 +154,7 @@ test('她现在：身体状态条、心情、此刻的感受（带对象）；�
     ok: true, now: '2026年11月10日 周二 10:00', ownerQQ: '1', hunger: true, feedOnlyByOwner: false,
     body: { energy: 0.4, sleepiness: 0.3, hunger: 0.7, asleep: false, groggy: false, shift: 0, lastMeal: { at: Date.now() - 3600000, food: '奶茶', by: 'qq:1' }, lastSleep: { hours: 7.5, quality: 0.94, wokenBy: '' } },
     mood: { v: 0.3, a: 0.1, label: '心情不错' },
-    emotions: [{ name: '感激', intensity: 0.5, target: 'qq:1', targetName: '主人', why: '给我吃了奶茶', hidden: false, at: Date.now() }],
+    emotions: [{ name: '感激', intensity: 0.5, target: 'qq:1', targetName: '主人', why: '想起：给我吃了奶茶', source: 'recall', hidden: false, at: Date.now() }],
     history: [],
   }
   slots[1] = ''
@@ -164,6 +164,7 @@ test('她现在：身体状态条、心情、此刻的感受（带对象）；�
   assert.match(text, /心情不错/)
   assert.match(text, /有些感激/)
   assert.match(text, /对主人/)
+  assert.match(text, /回忆唤起/)
   assert.match(text, /\/投喂 食物名/)
   assert.match(text, /在 QQ 里直接说/)
   assert.match(text, /点「投喂」/)
@@ -266,6 +267,10 @@ test('关系页：每个人的关系类型、亲近 / 喜欢 / 信任，称呼�
   assert.match(text, /没解开的结放鸽子/)
   assert.match(text, /爱互怼；规矩：不许刷屏/)
   assert.match(findAll(tree, panel.Card)[0].props.desc, /「专一」已开启/)
+  slots[0] = { ...slots[0], passionEnabled: true, list: [{ ...slots[0].list[0], owner: true, rel: { ...rel, passionChange: { at: Date.now(), delta: -0.06 } } }] }
+  const ownerTree = render(panel.MindPeople, { toast() {} })
+  assert.match(textOf(ownerTree), /激情0/)
+  assert.match(textOf(ownerTree), /最近一段变化 -6 分/)
 })
 
 test('人格与自我页：19 项特质分组显示本来和现在、推断依据；没确认时提示确认；习惯、她写下的、故事、各种版本、她看到的「她是谁」', () => {

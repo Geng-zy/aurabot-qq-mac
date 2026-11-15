@@ -77,6 +77,7 @@ test('群聊：每小时 @/唤醒词必回上限，超过不回，主人除外',
   assert.match(decideGroupReply(cap({ mentioned: true })).reason, /回够了/)
   assert.match(decideGroupReply(cap({ repliedToBot: true })).reason, /回够了/)
   assert.match(decideGroupReply(cap({ text: '肥鱼在吗' })).reason, /回够了/)
+  assert.equal(decideGroupReply(cap()).mode, 'interject', '必回用尽，普通插话仍看自己的额度')
   // 主人说话不受限
   assert.equal(decideGroupReply(cap({ mentioned: true, fromOwner: true })).mode, 'must')
   // 小时滚过去就又能回了
@@ -102,9 +103,10 @@ test('群聊：话题无关不插话，越相关越容易插，加入话题后�
   assert.equal(decideGroupReply(base({ relevance: 0.3, rand: () => 0.3 })).mode, 'interject')
   assert.equal(decideGroupReply(base({ relevance: 0.3, rand: () => 0.4 })).reply, false)
   assert.equal(decideGroupReply(base({ relevance: 0.9, rand: () => 0.65 })).mode, 'interject')
-  // 已经在聊这个话题：冷却和上限都不拦，每段都接（一段一回由攒消息保证）
+  // 已经在聊这个话题：冷却不拦，仍遵守每小时上限
   const six = [1, 2, 3, 4, 5, 6].map((i) => 10_000_000 - 10_000 * i)
-  assert.equal(decideGroupReply(base({ relevance: 0.5, engagedUntil: 10_100_000, interjectTimes: six, rand: () => 0.99 })).mode, 'engaged')
+  assert.equal(decideGroupReply(base({ relevance: 0.5, engagedUntil: 10_100_000, interjectTimes: six, rand: () => 0.99 })).reply, false)
+  assert.equal(decideGroupReply(base({ relevance: 0.5, engagedUntil: 10_100_000, interjectTimes: six.slice(0, 5), rand: () => 0.99 })).mode, 'engaged')
   // 话题跑偏了就不接着聊
   assert.notEqual(decideGroupReply(base({ relevance: 0.1, engagedUntil: 10_100_000 })).mode, 'engaged')
 })
@@ -424,10 +426,10 @@ test('#32 工作区位置：面板填的绝对路径优先，相对路径 / 乱�
 })
 
 test('群聊：没人叫她时接话有上限，叫她就重新开始', () => {
-  const six = Array.from({ length: 6 }, (_, i) => 9_000_000 + i)
-  const o = { policy: DEFAULT_GROUP_POLICY, text: '随便聊聊', now: 10_000_000, hour: 12, relevance: 0.5, engagedUntil: 10_100_000, interjectTimes: six, recentTimes: [], botReplyTimes: [], rand: () => 0 }
+  const five = Array.from({ length: 5 }, (_, i) => 9_000_000 + i)
+  const o = { policy: DEFAULT_GROUP_POLICY, text: '随便聊聊', now: 10_000_000, hour: 12, relevance: 0.5, engagedUntil: 10_100_000, interjectTimes: five, recentTimes: [], botReplyTimes: [], rand: () => 0 }
   assert.equal(decideGroupReply({ ...o, engagedRun: 5 }).mode, 'engaged')
-  assert.equal(decideGroupReply({ ...o, engagedRun: 6 }).reply, false, '兜底：接满了就回到插话规则，这里冷却和上限都不过')
+  assert.equal(decideGroupReply({ ...o, engagedRun: 6 }).reply, false, '接满后回到插话规则，冷群不插话')
   assert.equal(decideGroupReply({ ...o, engagedRun: 6, mentioned: true }).mode, 'must')
   assert.equal(decideGroupReply({ ...o, policy: { ...DEFAULT_GROUP_POLICY, engagedMax: 0 } }).reply, false)
 })

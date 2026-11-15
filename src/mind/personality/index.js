@@ -86,6 +86,7 @@ ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[
       s.base = { ...v }
       s.cur = { ...v }
       s.shadow = null
+      delete s.shadowProgress
       deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'migration', reason: '从人格卡推出初始特质（待主人确认）' })
     }
     save(s)
@@ -108,6 +109,7 @@ ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[
     }
     s.confirmed = true
     s.shadow = null
+    delete s.shadowProgress
     deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'owner', reason: '主人确认了本来的样子' })
     save(s)
     return s
@@ -121,6 +123,7 @@ ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[
     s.base = { ...s.base, ...(v.data.base || {}) }
     s.cur = { ...s.cur, ...(v.data.cur || {}) }
     s.shadow = null
+    delete s.shadowProgress
     s.run = {}
     s.traitSteps = (s.traitSteps || []).filter((step) => step.at <= v.at)
     deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'owner', reason: `退回到版本 ${id}` })
@@ -230,39 +233,45 @@ ${usual}
     const pull = clamp(P('pull'), 0, 0.95)
     const cap = clamp(P('ownerInfluenceCap') ?? 0.6, 0.3, 1)
     const shadow = setting('personality.shadowMode') === true
-    if (shadow && !s.shadow) s.shadow = { ...s.cur }
-    if (!shadow) s.shadow = null
+    if (shadow) {
+      s.shadow ??= { ...s.cur }
+      s.shadowProgress ??= { lastStep: { ...s.lastStep }, consumed: { ...s.consumed }, run: { ...s.run }, peak: { ...s.peak } }
+    } else {
+      s.shadow = null
+      delete s.shadowProgress
+    }
+    const progress = shadow ? s.shadowProgress : s
     const target = shadow ? s.shadow : s.cur
     const goals = (deps.goals?.() || []).filter((g) => TRAIT.has(g.trait) && g.dir)
     const steps = []
     for (const id of TRAIT_IDS) {
-      const since = Math.max(at - win, s.consumed[id] || 0)
+      const since = Math.max(at - win, progress.consumed[id] || 0)
       const observations = s.obs.filter((o) => o.t === id && o.at >= since)
       const cur = target[id] ?? 0.5
       const base = s.base[id] ?? 0.5
       const dev = cur - base
       const rules = { need, cap, pull, stepSize, goal: Math.sign(goals.find((g) => g.trait === id)?.dir || 0) }
       const move = movement(cur, base, observations, rules)
-      if (move && at - (s.lastStep[id] || 0) >= gap) {
+      if (move && at - (progress.lastStep[id] || 0) >= gap) {
         const { next, dir, share, days, outward } = move
         if (next !== cur) {
           ;(s.traitSteps ??= []).push({ id, at, cur, base, next, shadow, observations, rules })
           target[id] = next
-          s.lastStep[id] = at
-          s.consumed[id] = at
-          if (outward) s.peak[id] = Math.max(s.peak[id] || 0, Math.abs(next - base))
-          const run = s.run[id] && s.run[id].dir === dir ? s.run[id].n + 1 : 1
-          s.run[id] = { dir, n: run }
+          progress.lastStep[id] = at
+          progress.consumed[id] = at
+          if (outward) progress.peak[id] = Math.max(progress.peak[id] || 0, Math.abs(next - base))
+          const run = progress.run[id] && progress.run[id].dir === dir ? progress.run[id].n + 1 : 1
+          progress.run[id] = { dir, n: run }
           const why = `${days} 天里有这样的表现${share > 0 ? `（主人占 ${Math.round(share * 100)}%）` : ''}`
           steps.push({ id, from: cur, to: next, dir, why, band: bandOf(next), crossed: bandOf(next) !== bandOf(cur) })
-          if (run >= 3) alert(s, id, `「${TRAIT.get(id).label}」连着 ${run} 步往${dir > 0 ? '高' : '低'}走`)
-          if (bandOf(next) === 1 || bandOf(next) === 7) alert(s, id, `「${TRAIT.get(id).label}」走到了${bandOf(next) === 7 ? '最高' : '最低'}一档`)
+          if (!shadow && run >= 3) alert(s, id, `「${TRAIT.get(id).label}」连着 ${run} 步往${dir > 0 ? '高' : '低'}走`)
+          if (!shadow && (bandOf(next) === 1 || bandOf(next) === 7)) alert(s, id, `「${TRAIT.get(id).label}」走到了${bandOf(next) === 7 ? '最高' : '最低'}一档`)
         }
         continue
       }
       // 很久没有新证据：很慢地往本来的样子回落一些，但不完全回去（回到最远时偏离的一半为止）
-      const quiet = !s.obs.some((o) => o.t === id && o.at >= at - win) && at - (s.lastStep[id] || 0) >= win
-      const floor = (s.peak[id] || 0) * 0.5
+      const quiet = !s.obs.some((o) => o.t === id && o.at >= at - win) && at - (progress.lastStep[id] || 0) >= win
+      const floor = (progress.peak[id] || 0) * 0.5
       if (quiet && Math.abs(dev) > floor + 0.005) {
         const back = Math.min(Math.abs(dev) - floor, stepSize * 0.25)
         target[id] = r2(cur - Math.sign(dev) * back)
@@ -310,15 +319,18 @@ ${usual}
     }
     for (const [key, correction] of corrections) {
       if (!correction) continue
-      const [id, shadow] = key.split(':')
-      const target = shadow === 'true' ? s.shadow : s.cur
+      const [id, mode] = key.split(':')
+      const shadow = mode === 'true'
+      const target = shadow ? s.shadow : s.cur
+      const progress = shadow ? s.shadowProgress : s
       if (target) target[id] = r2(clamp(target[id] + correction, 0.02, 0.98))
-      const active = (s.traitSteps || []).filter((step) => step.id === id && step.next !== step.cur)
-      if (active.length) s.lastStep[id] = s.consumed[id] = active.at(-1).at
-      else { delete s.lastStep[id]; delete s.consumed[id] }
-      delete s.run[id]
-      s.alerts = s.alerts.filter((a) => a.trait !== id)
-      s.peak[id] = Math.max(Math.abs((s.cur[id] ?? 0.5) - (s.base[id] ?? 0.5)), ...active.map((step) => Math.abs(step.next - step.base)))
+      if (!progress) continue
+      const active = (s.traitSteps || []).filter((step) => step.id === id && (!step.shadow || shadow) && step.next !== step.cur)
+      if (active.length) progress.lastStep[id] = progress.consumed[id] = active.at(-1).at
+      else { delete progress.lastStep[id]; delete progress.consumed[id] }
+      delete progress.run[id]
+      if (!shadow) s.alerts = s.alerts.filter((a) => a.trait !== id)
+      progress.peak[id] = Math.max(Math.abs((target?.[id] ?? 0.5) - (s.base[id] ?? 0.5)), ...active.map((step) => Math.abs(step.next - step.base)))
     }
     if (timeline.length) {
       const versions = store.prep("SELECT id, at, json FROM versions WHERE kind = 'traits' AND at >= ?").all(timeline[0].at)

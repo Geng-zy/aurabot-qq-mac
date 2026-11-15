@@ -21,6 +21,8 @@ test('本地小模型：没设或文件不对就说清楚原因；设好了要�
   try {
     let py = ''
     let model = ''
+    let idle = 30
+    let blocked
     const spawned = []
     let up = false
     const fakeSpawn = (cmd, args) => {
@@ -36,10 +38,11 @@ test('本地小模型：没设或文件不对就说清楚原因；设好了要�
       if (url.endsWith('/v1/models')) return { ok: true, json: async () => ({}) }
       const body = JSON.parse(init.body)
       assert.equal(body.messages[0].content, '你好')
+      if (blocked) await blocked
       return { ok: true, json: async () => ({ choices: [{ message: { content: '<think>想一想</think>今天有点无聊' } }] }) }
     }
     let t = T0
-    const m = createLocalModel({ python: () => py, modelDir: () => model, spawn: fakeSpawn, fetch, now: () => t, idleMinutes: 30 })
+    const m = createLocalModel({ python: () => py, modelDir: () => model, spawn: fakeSpawn, fetch, now: () => t, idleMinutes: () => idle })
     assert.match(m.status().reason, /没设/)
     assert.equal(await m.chat([{ role: 'user', content: '你好' }]), null)
     py = join(dir, 'python'); writeFileSync(py, '')
@@ -53,7 +56,16 @@ test('本地小模型：没设或文件不对就说清楚原因；设好了要�
     assert.equal(spawned.length, 1)
     assert.deepEqual(spawned[0][1].slice(0, 3), ['-m', 'mlx_lm', 'server'])
     assert.ok(spawned[0][1].includes('{"enable_thinking":false}'), '关掉思考模式')
-    t += 31 * 60000
+    idle = 5
+    let release
+    blocked = new Promise((resolve) => { release = resolve })
+    const request = m.chat([{ role: 'user', content: '你好' }])
+    t += 6 * 60000
+    m.idleCheck()
+    assert.equal(m.status().running, true, '推理中不算闲置')
+    release()
+    await request
+    t += 6 * 60000
     m.idleCheck()
     assert.equal(m.status().running, false)
   } finally {
@@ -149,6 +161,50 @@ test('从结果里学：比预想的开心下次更想做，没做成就没那�
   assert.ok(m.motivation.state().learned.x.success < 0.8)
   m.motivation.feedback('x', 1)
   assert.ok(m.motivation.state().learned.x.expect > 0.5)
+})
+
+test('自主翻唱：旧版未选出歌的记录可短期重试，确认成功后才用完整冷却', async () => {
+  const { m, set } = mind()
+  const min = 60000
+  const state = m._store.get('motivation')
+  state.learned.song = { lastAt: T0 - 10 * min, runs: 1, expect: 0.6, success: 0.64 }
+  state.log.push({ at: T0 - 9 * min, id: 'song', ok: false, summary: '这次没有选出歌' })
+  m._store.set('motivation', state)
+  let result = { ok: false, summary: '这次没有选出歌' }
+  m.motivation.offer({
+    id: 'song', label: '翻唱', cooldownMinutes: 720, keywords: ['唱歌'],
+    retryMinutes: ({ summary }) => summary === '这次没有选出歌' ? 15 : 0,
+    run: async () => result,
+  })
+  const want = m.motivation.want('想唱歌')
+  assert.match(m.motivation.motives()[0].why, /未开始/)
+  set(T0 + 6 * min)
+  assert.equal(m.motivation.motives()[0].cooling, false)
+  await m.motivation.act('song')
+  assert.equal(m.motivation.state().learned.song.success, 0.64)
+  assert.equal(m.motivation.state().wants[0].id, want.id)
+  set(T0 + 21 * min)
+  assert.equal(m.motivation.motives()[0].cooling, false)
+  result = { ok: true, summary: '翻唱已送达' }
+  await m.motivation.act('song')
+  set(T0 + 60 * min)
+  assert.equal(m.motivation.motives()[0].cooling, true)
+  assert.equal(m.motivation.state().wants.length, 0)
+})
+
+test('后台预算临时不足不会记成失败，也不阻止同一天恢复后再做', async () => {
+  const { m } = mind()
+  m.updateSettings({ 'models.backgroundTokensDaily': 0 })
+  let result = { ok: false, deferred: true, budgetEstimate: 2000 }
+  m.motivation.offer({ id: 'tour', label: '逛热榜', keywords: ['热榜'], run: async () => result })
+  m.motivation.want('去逛热榜', { strength: 1 })
+  await m.motivation.act('tour')
+  assert.match(m.motivation.motives()[0].why, /等待后台模型预算/)
+  assert.equal(m.motivation.state().log.length, 0)
+  m.updateSettings({ 'models.backgroundTokensDaily': 10000 })
+  assert.equal(m.motivation.choose()?.id, 'tour')
+  result = { ok: true }
+  assert.equal((await m.motivation.act('tour')).ok, true)
 })
 
 test('具体想要：很像的不重复记，会加强；对上某件事就算它的动力；做到了就消失；一周没动静就淡了', async () => {

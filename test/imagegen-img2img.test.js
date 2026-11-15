@@ -256,7 +256,7 @@ test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保
   await assert.rejects(hub.referenceImage(privateChat, 'quote'), /没有可用的引用图片/)
 })
 
-function drawTool(cfg, overrides = {}) {
+function drawTool(cfg, overrides = {}, tasks) {
   let build
   const generated = [], sent = [], events = [], references = []
   const hub = {
@@ -268,7 +268,7 @@ function drawTool(cfg, overrides = {}) {
   }
   imagegenModule.setup({ config: () => cfg, log, dsh: {}, lazy: () => ({}), mind: { experience: (event) => events.push(event) },
     route() {}, tool: (fn) => { build = fn },
-    core: { hub, local: { active: () => true, call: async (slot, args) => { generated.push({ slot, args }); return OTHER } } },
+    core: { hub, tasks, local: { active: () => true, call: async (slot, args) => { generated.push({ slot, args }); return OTHER } } },
   })
   return { tool: build({ chat: privateChat, sessionId: 'img-test' }), generated, sent, events, references }
 }
@@ -329,9 +329,24 @@ test('发送失败沿用原流程：不保存画作、不记成功经历', async
   const dir = sandbox(t), s = drawTool(config(), { sendSegments: async () => false })
   const out = await s.tool.execute({ prompt: '猫', image: 'last' })
   assert.equal(out.ok, false)
-  assert.match(out.message, /没有发到 QQ/)
+  assert.match(out.message, /画好了，但未确认图片已发到 QQ/)
   assert.equal(s.events.length, 0)
   assert.ok(!readdirSync(dir).includes('imagegen'))
+})
+
+test('后台生图已生成但未送达时，明确通知发送问题', async (t) => {
+  sandbox(t)
+  const notices = []
+  let run
+  let delivering = false
+  const tasks = { start(task) { run = task.run; return { ok: true, taskId: 'test' } } }
+  const s = drawTool(config(), { sendSegments: async () => null, sendText: async (_chatId, message) => { notices.push(message) } }, tasks)
+  assert.equal((await s.tool.execute({ prompt: '猫' })).taskId, 'test')
+  const result = await run({ checkpoint() {}, beginDelivery() { delivering = true }, isCurrent: () => true })
+  assert.equal(delivering, true)
+  assert.equal(result.ok, false)
+  assert.deepEqual(notices, ['画好了，但未确认图片已发到 QQ。'])
+  assert.equal(s.events.length, 0)
 })
 
 test('试运行生成并保存画作，不调用发送接口或记录已送达经历', async (t) => {

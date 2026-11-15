@@ -37,6 +37,9 @@ function matchesWant(action, want) {
 const availability = (action) => {
   try { return action.available ? action.available() : true } catch { return false }
 }
+const retryDelay = (action, result) => {
+  try { return result?.ok === false ? Math.max(0, Number(action.retryMinutes?.(result)) || 0) * 60000 : 0 } catch { return 0 }
+}
 
 export function hasActionPhrase(text, pattern) {
   return String(text || '').split(/[，、；。！？\n]/u).some((clause) => {
@@ -93,7 +96,7 @@ export function needStrengths(trait) {
 }
 
 /**
- * @param {{ store: any, now: () => number, setting: (k: string) => any, log?: any }} deps
+ * @param {{ store: any, now: () => number, setting: (k: string) => any, log?: any, budget?: any }} deps
  */
 export function createMotivation(deps) {
   const { store, now, setting } = deps
@@ -174,7 +177,8 @@ export function createMotivation(deps) {
   /**
    * 登记一件她能做的事。模块用它把自己的能力交给她，由她决定什么时候做。
    * @param {{ id: string, label: string, needs: Record<string, number>, effort?: number, delayHours?: number,
-   *   cooldownMinutes?: number, payoff?: number, keywords?: string[], matchWant?: (text: string) => boolean, available?: () => (true|string|false),
+   *   cooldownMinutes?: number, retryMinutes?: (result: { ok: boolean, summary?: string }) => number,
+   *   payoff?: number, keywords?: string[], matchWant?: (text: string) => boolean, available?: () => (true|string|false),
    *   run: () => Promise<{ ok: boolean, summary?: string, outcome?: number }> }} a
    */
   function offer(a) {
@@ -198,8 +202,13 @@ export function createMotivation(deps) {
     for (const a of actions.values()) {
       const avail = availability(a)
       const L = s.learned[a.id] || { expect: a.payoff, success: 0.8, runs: 0, lastAt: 0 }
-      const waitingForBudget = Boolean(L.budgetDay && L.budgetDay === deps.today?.())
-      const cooling = waitingForBudget || Boolean(L.lastAt && at - L.lastAt < a.cooldownMinutes * 60000)
+      const waitingForBudget = Boolean(L.budgetDay && L.budgetDay === deps.today?.() &&
+        (!L.budgetEstimate || !deps.budget?.allow('action', L.budgetEstimate)))
+      // 行动日志也能识别升级前未实际开始的尝试。
+      const lastResult = L.retryAt === undefined && a.retryMinutes && s.log.find((entry) => entry.id === a.id && entry.at >= L.lastAt)
+      const delay = retryDelay(a, lastResult)
+      const retryAt = L.retryAt ?? (delay ? lastResult.at + delay : 0)
+      const cooling = waitingForBudget || (retryAt ? at < retryAt : Boolean(L.lastAt && at - L.lastAt < a.cooldownMinutes * 60000))
       let value = 0
       for (const [id, w] of Object.entries(a.needs || {})) {
         const n = s.needs[id]
@@ -213,7 +222,8 @@ export function createMotivation(deps) {
       let m = (L.success * value) / (1 + gamma * a.delayHours)
       m = m * (0.3 + 0.7 * energy) - a.effort * (1 - energy) * 0.5
       m *= 1 + 0.3 * valence
-      const why = avail === true ? (waitingForBudget ? '等待次日的后台模型预算' : cooling ? '刚做过' : '') : (typeof avail === 'string' ? avail : '现在做不了')
+      const reason = L.budgetEstimate ? '等待后台模型预算' : '等待次日的后台模型预算'
+      const why = avail === true ? (waitingForBudget ? reason : cooling ? (retryAt ? '上次未开始，稍后再试' : '刚做过') : '') : (typeof avail === 'string' ? avail : '现在做不了')
       out.push({ id: a.id, label: a.label, motive: Math.max(0, m), available: avail === true, why, cooling, wants: wants.map((w) => w.text), wantIds: wants.map((w) => w.id) })
     }
     return out.sort((x, y) => y.motive - x.motive)
@@ -241,7 +251,7 @@ export function createMotivation(deps) {
     // 内心活动看得到私密会话。它的打算可以影响动力，原文只供心智和面板查看。
     const matched = s0.wants.filter((w) => matchesWant(a, w))
     const wants = matched.filter((w) => !w.internal).map((w) => w.text)
-    try { r = (await a.run({ ...context, wants })) || { ok: false } } catch (error) { r = { ok: false, summary: error.message, deferred: error.code === 'BUDGET' } }
+    try { r = (await a.run({ ...context, wants })) || { ok: false } } catch (error) { r = { ok: false, summary: error.message, deferred: error.code === 'BUDGET', budgetEstimate: error.budgetEstimate } }
     if (context.signal?.aborted) return { ok: false, summary: '这件事已停止' }
     const lr = Number(M('rewardLearning')) || 0
     const s = load()
@@ -249,14 +259,23 @@ export function createMotivation(deps) {
     if (!r.ok && (r.deferred || context.budgetBlocked)) {
       l.lastAt = lastAt
       l.budgetDay = deps.today?.()
+      l.budgetEstimate = context.budgetBlocked || r.budgetEstimate || 0
       s.learned[id] = l
       save(s)
       return { ...r, deferred: true }
     }
     delete l.budgetDay
+    delete l.budgetEstimate
     const outcome = r.ok ? clamp(r.outcome ?? 0.6) : 0
-    l.expect = clamp(l.expect + lr * (outcome - l.expect), 0.05, 1)
-    l.success = clamp(l.success + lr * ((r.ok ? 1 : 0) - l.success), 0.05, 1)
+    const delay = retryDelay(a, r)
+    if (a.retryMinutes) {
+      l.retryAt = delay ? now() + delay : 0
+      if (r.ok) l.lastAt = now()
+    }
+    if (!delay) {
+      l.expect = clamp(l.expect + lr * (outcome - l.expect), 0.05, 1)
+      l.success = clamp(l.success + lr * ((r.ok ? 1 : 0) - l.success), 0.05, 1)
+    }
     l.runs = (l.runs || 0) + 1
     s.learned[id] = l
     if (r.ok) for (const [need, w] of Object.entries(a.needs || {})) if (s.needs[need]) s.needs[need].deficit = clamp(s.needs[need].deficit - 0.5 * w * outcome)

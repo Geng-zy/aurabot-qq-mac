@@ -64,7 +64,7 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
    * 加入一条待发送消息。只接受 send_private_msg / send_group_msg；
    * 图片 base64 等过大内容不入队，避免队列文件失控。
    */
-  function add ({ action, params, chatId = '', note = '', kind = 'reply', ttlMs, privacyRevision = '' } = {}) {
+  function add ({ action, params, chatId = '', note = '', kind = 'reply', ttlMs, privacyRevision = '', replyJournal, replyFeed } = {}) {
     if (action !== 'send_private_msg' && action !== 'send_group_msg') {
       return { ok: false, message: '不是可补发的消息类型' }
     }
@@ -86,6 +86,8 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
       note: String(note || '').slice(0, 120),
       kind,
       ...(privacyRevision ? { privacyRevision } : {}),
+      ...(['own', 'external'].includes(replyJournal) ? { replyJournal } : {}),
+      ...(kind === 'reply' && replyFeed ? { replyFeed } : {}),
       createdAt: at,
       expiresAt: at + Math.max(10_000, Number(ttlMs) || ttlForKind(kind)),
       attempts: 0,

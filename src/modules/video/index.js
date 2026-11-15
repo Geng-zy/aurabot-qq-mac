@@ -21,14 +21,17 @@ export default {
     api.onDispose?.(() => lifetime.abort(new Error('生视频模块已关闭')))
 
     async function deliver(chatId, file) {
+      let receipt
       try {
-        await hub.sendSegments(chatId, [{ type: 'video', data: { file: pathToFileURL(file).href } }], '[视频]', { throwOnError: true, timeoutMs: 120_000, isCurrent })
+        receipt = await hub.sendSegments(chatId, [{ type: 'video', data: { file: pathToFileURL(file).href } }], '[视频]', { throwOnError: true, timeoutMs: 120_000, isCurrent })
       } catch (error) {
         if (!isCurrent()) return
-        if (error?.uncertain) throw new Error('视频可能已发出，网关没有确认')
+        if (error?.uncertain) throw new Error('视频已生成，可能已发出，网关没有确认')
         api.log.warn('按视频发送失败，改发文件：', error.message)
-        await hub.sendFile(chatId, file)
+        try { receipt = await hub.sendFile(chatId, file) }
+        catch (uploadError) { throw new Error('视频已生成，文件发送未确认：' + uploadError.message) }
       }
+      if (!receipt && isCurrent()) throw new Error('视频已生成，未确认送达')
     }
 
     async function generate(chatId, args) {

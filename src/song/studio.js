@@ -403,10 +403,13 @@ export function clipWindow(durationSec, maxSec, start = 'auto') {
   return { start: s, length: maxSec }
 }
 
-function run(cmd, args, { cwd, env, log, onLine, timeoutMs = 30 * 60_000 } = {}) {
+function run(cmd, args, { cwd, env, log, onLine, timeoutMs = 30 * 60_000, signal, acceptedExitCodes = [0] } = {}) {
   return new Promise((resolve, reject) => {
+    signal?.throwIfAborted()
     const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env } })
     let tail = ''
+    let interrupted
+    let killTimer
     const feed = (buf) => {
       const s = String(buf)
       tail = (tail + s).slice(-4000)
@@ -414,11 +417,26 @@ function run(cmd, args, { cwd, env, log, onLine, timeoutMs = 30 * 60_000 } = {})
     }
     child.stdout.on('data', feed)
     child.stderr.on('data', feed)
-    const timer = setTimeout(() => { try { child.kill() } catch (error) {} }, timeoutMs)
-    child.on('error', (e) => { clearTimeout(timer); reject(e) })
-    child.on('exit', (code) => {
+    const stop = (error) => {
+      if (interrupted) return
+      interrupted = error
+      child.kill('SIGTERM')
+      killTimer = setTimeout(() => child.kill('SIGKILL'), 1500)
+      killTimer.unref?.()
+    }
+    const abort = () => stop(signal.reason)
+    signal?.addEventListener('abort', abort, { once: true })
+    const timer = setTimeout(() => stop(new Error(`${basename(cmd)} 执行超时`)), timeoutMs)
+    const cleanup = () => {
       clearTimeout(timer)
-      if (code === 0) resolve(tail)
+      clearTimeout(killTimer)
+      signal?.removeEventListener('abort', abort)
+    }
+    child.once('error', (error) => { cleanup(); reject(interrupted || error) })
+    child.once('close', (code) => {
+      cleanup()
+      if (interrupted) reject(interrupted)
+      else if (acceptedExitCodes.includes(code)) resolve(tail)
       else {
         log?.debug(`${basename(cmd)} 失败（code ${code}）：${tail.slice(-800)}`)
         reject(new Error(`${basename(cmd)} 退出码 ${code}：${tail.trim().split(/\r?\n/).slice(-2).join(' ').slice(0, 300)}`))
@@ -727,29 +745,22 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     return { PATH: [...dirs, process.env.PATH].join(delimiter), PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', MPLCONFIGDIR: join(p.root, 'cache', 'matplotlib') }
   }
 
-  async function ffprobeDuration(file) {
-    // ffmpeg -i 会把时长打在 stderr 里，退出码是 1，这里自己接
-    return new Promise((resolve) => {
-      const c = spawn(P().ffmpeg, ['-hide_banner', '-i', file])
-      let s = ''
-      c.stderr.on('data', (b) => { s += b })
-      c.on('exit', () => {
-        const m = s.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)
-        resolve(m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0)
-      })
-      c.on('error', () => resolve(0))
-    })
+  async function ffprobeDuration(file, signal) {
+    // ffmpeg -i 只探测输入时会输出信息并返回 1。
+    try {
+      const out = await run(P().ffmpeg, ['-hide_banner', '-i', file], { signal, acceptedExitCodes: [0, 1] })
+      const m = out.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)
+      return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0
+    } catch (error) { signal?.throwIfAborted(); return 0 }
   }
 
   /** 人声轨的平均音量（dB）；纯音乐分出来的人声几乎是静音。 */
-  async function meanVolume(file) {
-    return new Promise((resolve) => {
-      const c = spawn(P().ffmpeg, ['-hide_banner', '-i', file, '-af', 'volumedetect', '-f', 'null', '-'])
-      let s = ''
-      c.stderr.on('data', (b) => { s += b })
-      c.on('exit', () => { const m = s.match(/mean_volume:\s*(-?[\d.]+|-inf)/); resolve(m ? (m[1] === '-inf' ? -200 : Number(m[1])) : 0) })
-      c.on('error', () => resolve(0))
-    })
+  async function meanVolume(file, signal) {
+    try {
+      const out = await run(P().ffmpeg, ['-hide_banner', '-i', file, '-af', 'volumedetect', '-f', 'null', '-'], { signal })
+      const m = out.match(/mean_volume:\s*(-?[\d.]+|-inf)/)
+      return m ? (m[1] === '-inf' ? -200 : Number(m[1])) : 0
+    } catch (error) { signal?.throwIfAborted(); return 0 }
   }
 
   async function download(job, dir) {
@@ -767,7 +778,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     }
     let pick = job.songId ? { id: job.songId, name: job.query, artists: '' } : null
     if (!pick) {
-      const found = await searchSongs(job.query, { cookie: c.neteaseCookie, limit: 10 })
+      const found = await searchSongs(job.query, { cookie: c.neteaseCookie, limit: 10, signal: job.signal })
       if (!found.length) throw new Error(`网易云上没搜到「${job.query}」`)
       // 试过、确认没人声的跳过；看着像纯音乐的排到最后
       const known = noVocals()
@@ -775,18 +786,19 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       if (!list.length) throw new Error(`搜到的「${job.query}」都是没有人声的版本`)
       // 按顺序找第一首拿得到完整音频的
       for (const s of list) {
-        const u = await songUrl(s.id, { cookie: c.neteaseCookie })
+        const u = await songUrl(s.id, { cookie: c.neteaseCookie, signal: job.signal })
         if (u.url && !u.trial) { pick = { ...s, url: u.url }; break }
       }
       if (!pick) throw new Error(`「${job.query}」要会员或者有版权限制，下载不了${c.neteaseCookie ? '' : '（在面板里填网易云 Cookie 后可以下会员歌）'}`)
     } else {
-      const u = await songUrl(pick.id, { cookie: c.neteaseCookie })
+      const u = await songUrl(pick.id, { cookie: c.neteaseCookie, signal: job.signal })
       if (!u.url || u.trial) throw new Error('这首歌下载不了（要会员或者有版权限制）')
       pick.url = u.url
     }
     job.title = pick.artists ? `${pick.name} - ${pick.artists}` : pick.name
     job.songKey = String(pick.id)
-    const r = await fetch(pick.url, { signal: AbortSignal.timeout(120_000) })
+    const timeout = AbortSignal.timeout(120_000)
+    const r = await fetch(pick.url, { signal: job.signal ? AbortSignal.any([job.signal, timeout]) : timeout })
     if (!r.ok) throw new Error(`下载失败（HTTP ${r.status}）`)
     const buf = Buffer.from(await r.arrayBuffer())
     if (buf.length > 60 * 1024 * 1024) throw new Error('歌太大了')
@@ -795,14 +807,14 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     return file
   }
 
-  async function separate(input, dir) {
+  async function separate(input, dir, signal) {
     const p = P()
     mkdirSync(p.separatorModels, { recursive: true })
     const model = cfg().separatorModel
     await ensureReadable((SEPARATOR_FILES[model] || [[model]]).map(([n]) => join(p.separatorModels, n)))
     const args = [input, '--model_filename', model, '--model_file_dir', p.separatorModels, '--output_dir', dir, '--output_format', 'WAV']
     const [cmd, argv] = separatorCommand(p, args)
-    await run(cmd, argv, { log, env: pyEnv(), timeoutMs: 20 * 60_000 })
+    await run(cmd, argv, { log, env: pyEnv(), timeoutMs: 20 * 60_000, signal })
     const files = readdirSync(dir)
     const vocals = files.find((f) => /\(vocals\)/i.test(f))
     const inst = files.find((f) => /\(instrumental\)/i.test(f) || /\(other\)/i.test(f))
@@ -841,13 +853,13 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
    * 人声 → 她的声音。本地接口接管时交给本地脚本；否则走内置的增强流程（pipeline.js）。
    * speech：语音条（说话），只换声，不去混响、不拆、不定调、不校正音色。
    */
-  async function convert(vocals, dir, voice, pitch, duet = false, { speech = false } = {}) {
+  async function convert(vocals, dir, voice, pitch, duet = false, { speech = false, signal } = {}) {
     const p = P()
     const out = join(dir, 'vocals_rvc.wav')
     if (local?.active('song')) {
       const { fileOf } = await import('../local/local.js')
       // duet：点歌时说了「对唱」，本地换声脚本可以先分男女声再换（脚本不认这个参数就忽略）
-      const r = await local.call('song', { input: vocals, output: out, pitch, duet, voice: voice?.id || '', voiceFile: voice?.pth || '', indexFile: voice?.index || '' })
+      const r = await local.call('song', { input: vocals, output: out, pitch, duet, voice: voice?.id || '', voiceFile: voice?.pth || '', indexFile: voice?.index || '' }, { signal })
       const file = fileOf(r) || out
       if (!existsSync(file)) throw new Error('本地换声脚本没写出文件：' + file)
       return file
@@ -860,7 +872,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     }
     const r = await runPipeline({
       input: vocals, output: out, pitch, duet, env, settings, log,
-      run: (cmd, args, o = {}) => run(cmd, args, { cwd: o.cwd || p.applio, log, env: { ...pyEnv(), ...(o.env || {}) }, timeoutMs: 20 * 60_000 }),
+      run: (cmd, args, o = {}) => run(cmd, args, { cwd: o.cwd || p.applio, log, env: { ...pyEnv(), ...(o.env || {}) }, timeoutMs: 20 * 60_000, signal }),
     })
     const tag = r.shift ? (r.shift > 0 ? '+' : '') + r.shift : ''
     log.info(`换声完成（${speech ? '语音条，' : ''}${voice.id}，变调 ${pitch}${tag}${r.octave ? '，人声另挪 ' + r.octave : ''}）${r.notes.length ? ' ' + r.notes.join('；') : ''}`)
@@ -904,35 +916,37 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     return convert(source, dir, v, n, false, { speech: true })
   }
 
-  async function mix(vocals, inst, dir) {
+  async function mix(vocals, inst, dir, signal) {
     const c = cfg()
     const full = join(dir, 'cover.mp3')
     const vol = Math.max(0.2, Math.min(2, Number(c.vocalVolume) || 1))
     const iv = Math.max(0.1, Math.min(2, Number(c.instVolume) || 0.8))
-    await run(P().ffmpeg, mixArgs({ vocals, inst, vol, iv, out: full }), { log })
+    await run(P().ffmpeg, mixArgs({ vocals, inst, vol, iv, out: full }), { log, signal })
     return full
   }
 
   /** 先截出要发的那一段再处理：分离和换声都只算这一段，快一倍多。返回 {file, cut, length}。 */
-  async function cutFirst(song, dir) {
+  async function cutFirst(song, dir, signal) {
     const c = cfg()
-    const dur = await ffprobeDuration(song)
+    const dur = await ffprobeDuration(song, signal)
     const w = clipWindow(dur, Number(c.maxVoiceSec) || 120, c.clipStart)
     if (!dur || (w.start === 0 && w.length >= dur)) return { file: song, cut: false, length: dur }
     const out = join(dir, 'part.wav')
-    await run(P().ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-ss', String(w.start), '-t', String(w.length), '-i', song, '-ar', '44100', out], { log })
+    await run(P().ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-ss', String(w.start), '-t', String(w.length), '-i', song, '-ar', '44100', out], { log, signal })
     return { file: out, cut: true, length: w.length }
   }
 
   /** 截过的段落首尾加淡入淡出，听起来不突兀。 */
-  async function fade(mixed, dir, length) {
+  async function fade(mixed, dir, length, signal) {
     const out = join(dir, 'voice.mp3')
     await run(P().ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error', '-i', mixed,
-      '-af', `afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, length - 3)}:d=3`, '-b:a', '320k', out], { log })
+      '-af', `afade=t=in:d=1.5,afade=t=out:st=${Math.max(0, length - 3)}:d=3`, '-b:a', '320k', out], { log, signal })
     return out
   }
 
   async function process1(job) {
+    const { signal } = job
+    signal?.throwIfAborted()
     await job.checkpoint?.()
     const c = cfg()
     const voice = listVoices(P().models).find((v) => v.id === (job.voice || c.voice)) || listVoices(P().models)[0]
@@ -957,11 +971,11 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     }
     stage('截取要唱的那一段')
     await job.checkpoint?.()
-    const part = await cutFirst(song, dir)
+    const part = await cutFirst(song, dir, signal)
     stage('分离人声和伴奏')
-    const { vocals, inst } = await separate(part.file, dir)
+    const { vocals, inst } = await separate(part.file, dir, signal)
     // 纯音乐 / 伴奏版分不出人声：换下一首候选重做，不然发出去只有伴奏
-    const vol = await meanVolume(vocals)
+    const vol = await meanVolume(vocals, signal)
     if (vol < VOCAL_MIN_DB) {
       log.info(`翻唱：「${job.title}」几乎没有人声（${vol.toFixed(0)} dB），像是纯音乐`)
       try { rmSync(dir, { recursive: true, force: true }) } catch (error) {}
@@ -974,10 +988,11 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     }
     stage('换成她的声音')
     await job.checkpoint?.()
-    const converted = await convert(vocals, dir, voice, pitch, job.duet)
+    const converted = await convert(vocals, dir, voice, pitch, job.duet, { signal })
     stage('混音')
-    const mixed = await mix(converted, job.acapella ? null : inst, dir)
-    const out = part.cut ? await fade(mixed, dir, part.length) : mixed
+    const mixed = await mix(converted, job.acapella ? null : inst, dir, signal)
+    const out = part.cut ? await fade(mixed, dir, part.length, signal) : mixed
+    signal?.throwIfAborted()
     mkdirSync(join(work(), 'cache'), { recursive: true })
     copyFileSync(out, cached)
     pruneCache(join(work(), 'cache'), 40)
@@ -985,7 +1000,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
   }
 
   /** 翻唱失败：让她自己说一句（say 由模块层接模型生成），同一聊天 60 秒内只提示一次。 */
-  function noticeFail(job, error, why) {
+  function noticeFail(job, error, why, generated = false) {
     const title = job.title || job.query
     const now = Date.now()
     const last = failNoticed.get(job.chatId)
@@ -995,13 +1010,13 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     }
     failNoticed.set(job.chatId, { at: now, why })
     // 模型那边彻底挂了也得让人听到一句，不能一声不吭；这句只是兜底，不是原来的模板
-    const plain = `「${title}」这次没唱成，回头再试试？`
+    const plain = `「${title}」${generated ? why : '这次没唱成，回头再试试？'}`
     if (!say) {
       Promise.resolve(sendText?.(job.chatId, plain)).catch(() => {})
       return
     }
     Promise.resolve()
-      .then(() => say({ chatId: job.chatId, title, query: job.query, why, error: String(error?.message || '') }))
+      .then(() => say({ chatId: job.chatId, title, query: job.query, why, generated, error: String(error?.message || '') }))
       .catch((e) => {
         log.warn('翻唱失败提示没说出来，退回一句短的：', e?.message || e)
         Promise.resolve(sendText?.(job.chatId, plain)).catch(() => {})
@@ -1011,12 +1026,16 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
   async function pump() {
     if (current || !queue.length) return
     const job = queue.shift()
+    job.signal?.removeEventListener('abort', job.cancelQueued)
     current = { query: job.query, title: job.query, chatId: job.chatId, stage: '排队', startedAt: Date.now() }
     log.info(`翻唱开始：「${job.query}」→ ${job.chatId}`)
+    let generated = false
     try {
       const r = await process1(job)
+      job.signal?.throwIfAborted()
       await job.checkpoint?.()
       current.stage = '发送'
+      generated = true
       const simulated = Boolean(job.delivery && getConfig().dryRun && !getConfig().debug)
       if (!simulated) job.delivery?.beginDelivery?.()
       const sent = simulated ? null : await sendVoiceFile(job.chatId, r.file, `[${job.acapella ? '清唱' : '翻唱'}] ${job.title || job.query}`, job.delivery ? { isCurrent: job.delivery.isCurrent, allowQueue: false } : undefined)
@@ -1025,16 +1044,21 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       history.unshift({ at: Date.now(), title: job.title || job.query, voice: r.voice, pitch: r.pitch, ok: delivered, message })
       log.info(`翻唱完成：「${job.title || job.query}」`)
       if (delivered) onSung?.(job.title || job.query, job.chatId)
-      job.onResult?.({ ok: delivered, ...(simulated ? { simulated } : {}), summary: message, outcome: 0.8 })
+      job.onResult?.({ ok: delivered, generated, ...(simulated ? { simulated } : {}), summary: message, outcome: 0.8 })
+      if (!job.onResult && !delivered && !sent?.queued && !getConfig().dryRun && !getConfig().debug) noticeFail(job, null, message, generated)
       if (!cfg().keepWork) try { rmSync(r.dir, { recursive: true, force: true }) } catch (error) {}
     } catch (error) {
       if (job.workDir && !cfg().keepWork) try { rmSync(job.workDir, { recursive: true, force: true }) } catch {}
-      const why = explainSongError(error.message)
+      if (job.signal?.aborted) {
+        job.onResult?.({ ok: false, cancelled: true, summary: '翻唱已取消' })
+        return
+      }
+      const why = generated ? '已做好，未确认送达' : explainSongError(error.message)
       history.unshift({ at: Date.now(), title: job.title || job.query, ok: false, message: why })
       log.warn(`翻唱失败：「${job.query}」：`, error.message)
       // 说什么由她自己定：原来那句固定文案对谁、什么原因都一样，听着不像她说的
-      if (job.onResult) job.onResult({ ok: false, summary: why })
-      else noticeFail(job, error, why)
+      if (job.onResult) job.onResult({ ok: false, generated, summary: why })
+      else noticeFail(job, error, why, generated)
     } finally {
       history = history.slice(0, 20)
       current = null
@@ -1043,14 +1067,23 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
   }
 
   /** 点一首：马上返回，做好了自己发到聊天里。 */
-  function request({ song, songId, file, pitch, voice, chatId, acapella, duet, checkpoint, progress, delivery, onResult }) {
+  function request({ song, songId, file, pitch, voice, chatId, acapella, duet, checkpoint, progress, delivery, signal, onResult }) {
     const c = cfg()
     if (!c.enabled) return { ok: false, message: '翻唱还没打开（面板「翻唱」标签里开）' }
     const st = status()
     if (!st.ready) return { ok: false, message: '翻唱环境还没装好：' + st.message }
     if (!song && !songId && !file) return { ok: false, message: '要说唱哪首歌' }
+    if (signal?.aborted) return { ok: false, message: '翻唱已取消' }
     if (queue.length >= 5) return { ok: false, message: '排队的歌太多了，等会儿再点' }
-    queue.push({ query: song || basename(file || ''), songId, file, pitch, voice, chatId, acapella: Boolean(acapella), duet: Boolean(duet), checkpoint, progress, delivery, onResult })
+    const job = { query: song || basename(file || ''), songId, file, pitch, voice, chatId, acapella: Boolean(acapella), duet: Boolean(duet), checkpoint, progress, delivery, signal, onResult }
+    job.cancelQueued = () => {
+      const index = queue.indexOf(job)
+      if (index === -1) return
+      queue.splice(index, 1)
+      onResult?.({ ok: false, cancelled: true, summary: '翻唱已取消' })
+    }
+    signal?.addEventListener('abort', job.cancelQueued, { once: true })
+    queue.push(job)
     const ahead = queue.length - 1 + (current ? 1 : 0)
     pump()
     return { ok: true, message: `开始准备「${song || basename(file || '')}」，大概要两三分钟${ahead ? `（前面还有 ${ahead} 首）` : ''}，做好了会直接发语音` }

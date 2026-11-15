@@ -31,6 +31,7 @@ export const EMOTIONS = [
   { name: '惊讶', group: '基本', v: 0.1, a: 0.7, anchor: 'surprise' },
   { name: '厌恶', group: '基本', v: -0.6, a: 0.3, anchor: 'disgust' },
   { name: '焦虑', group: '基本', v: -0.5, a: 0.6, anchor: 'anxiety' },
+  { name: '紧张', group: '基本', v: 0, a: 0.6, anchor: 'stress' },
   // 愉悦类
   { name: '好笑', group: '愉悦', v: 0.6, a: 0.5, anchor: 'surprise' },
   { name: '兴奋', group: '愉悦', v: 0.7, a: 0.8, anchor: 'enthusiasm' },
@@ -99,14 +100,15 @@ const BY_NAME = new Map(EMOTIONS.map((e) => [e.name, e]))
 // 模型常用的近义说法 → 清单里的名字
 const ALIAS = {
   开心: '快乐', 高兴: '快乐', 愉快: '快乐', 伤心: '难过', 悲伤: '难过', 难受: '难过', 愤怒: '生气', 恼火: '生气', 火大: '生气',
-  恐惧: '害怕', 担心: '焦虑', 紧张: '焦虑', 不安: '焦虑', 恶心: '厌恶', 有趣: '好笑', 乐: '好笑', 激动: '兴奋', 放松: '平静',
+  恐惧: '害怕', 担心: '焦虑', 不安: '焦虑', 恶心: '厌恶', 有趣: '好笑', 乐: '好笑', 激动: '兴奋', 放松: '平静',
   感谢: '感激', 心痛: '心疼', 吃醋: '嫉妒', 看不起: '鄙视', 害臊: '害羞', 丢脸: '尴尬', 惭愧: '羞愧', 寂寞: '孤独',
   烦: '烦躁', 撒娇: '想撒娇', 赌气: '闹别扭', 喜欢: '喜爱', 爱: '爱慕', 想念: '思念', 嫌弃: '厌恶', 饥饿: '饿', 困倦: '困',
 }
 
 /** 名字（或近义说法）→ 清单里的情绪；认不出返回 null。 */
-export function emotionOf(name) {
+export function emotionOf(name, valence) {
   const n = String(name || '').trim()
+  if (n === '紧张' && Number(valence) < 0) return BY_NAME.get('焦虑')
   return BY_NAME.get(n) || BY_NAME.get(ALIAS[n]) || null
 }
 

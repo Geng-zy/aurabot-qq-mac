@@ -35,6 +35,7 @@ async function brain({ preset, text, images, callTool }) {
   if (text.includes('【你看到的事，不是主人说的话】')) return '你电脑上 pwsh 那俩会话卡住啦，去点一下批准嘛'
   if (text.includes('调试对话测试')) return '调试里回你<feel>{"e":[{"n":"开心","i":0.9}]}</feel>'
   if (text.includes('感受测试')) return '好呀|||嘿嘿<feel>{"e":[{"n":"开心","i":0.6,"who":"10000001","why":"被夸了"}]}</feel>'
+  if (text.includes('投喂回执测试')) return '⟦REPLY⟧谢谢你<face:呲牙>⟦/REPLY⟧<feel>{"fed":{"food":"回执测试饼干","by":"10000001"}}</feel>'
   if (text.includes('at+表情测试')) return '<at:10000001> 看这个<sticker:开心>'
   if (text.includes('热重载探针')) { const r = await callTool('probe73', {}); return r ? '探针:' + r.message : '没有探针工具' }
   if (text.includes('慢工具测试')) { const r = await callTool('slow74', {}); return r ? '慢工具好了' : '没有慢工具' }
@@ -98,6 +99,10 @@ async function brain({ preset, text, images, callTool }) {
   if (text.includes('跑个慢任务')) { await new Promise((r) => setTimeout(r, 1500)); return '慢任务跑完了' }
   if (text.includes('改成快的')) return '好 改成快的'
   if (text.includes('语音说你好')) return '你好呀'
+  if (text.includes('主人必回行为测试')) return '[沉默]'
+  if (/^【私聊】.*：那给你个蛋糕吃(?:\n|$)/m.test(text)) return '蛋糕！什么口味的？'
+  if (/^【私聊】.*：草莓的(?:\n|$)/m.test(text)) return '草莓的我喜欢。'
+  if (/^【私聊】.*：诺(?:\n|$)/m.test(text)) return '（一口咬下去，还没松开你的手）|||甜，你也吃一口。'
   if (text.includes('群聊回复语音防漏测试')) return '主人在问我为什么不理他，得赶紧回。他那条我以为只是个梗。\n刚才那条我没接上，现在看到了。'
   if (text.includes('表情语音测试') || text.includes('表情补发失败测试')) return '<voice>晚安<face:呲牙>😁</voice>'
   if (text.includes('语音带引用')) return '<voice>晚安啦 做个好梦</voice>'
@@ -257,6 +262,89 @@ test('不在白名单的私聊：不理', async () => {
   await sleep(400)
   assert.equal(fake.turns.length, before)
   assert.equal(sentTo('private', '123456').length, 0)
+})
+
+test('主人必回：只有开启时才要求正文，模型选沉默时按原问题补答', async () => {
+  const core = api.mind.mind
+  const originalStream = fake.ctx.llm.stream
+  let retries = 0
+  fake.ctx.llm.stream = async function* (options) {
+    const isReplyRecovery = options.system?.includes('按人设回答对方刚说的话') &&
+      options.messages?.some(({ content }) => content?.some?.(({ text }) => text?.includes('主人必回行为测试')))
+    if (!isReplyRecovery) return yield* originalStream(options)
+    retries++
+    yield { type: 'text-delta', text: '看到了，我在。' }
+    yield { type: 'finish', reason: { kind: 'stop' } }
+  }
+  try {
+    const previous = sentTo('private', OWNER).length
+    mock.push(priv(OWNER, text('主人必回行为测试：关闭')))
+    await until(() => fake.turns.some((turn) => turn.userText.includes('主人必回行为测试：关闭')))
+    await sleep(200)
+    assert.equal(sentTo('private', OWNER).length, previous)
+    assert.equal(retries, 0)
+    core.updateSettings({ 'identity.mustReplyOwner': true })
+    mock.push(priv(OWNER, text('主人必回行为测试：开启')))
+    await until(() => sentTo('private', OWNER).slice(previous).some((entry) => JSON.stringify(entry.params.message).includes('看到了，我在。')))
+    assert.match(fake.turns.findLast((turn) => turn.userText.includes('主人必回行为测试：开启')).userText, /本轮回应要求/)
+    assert.equal(retries, 1)
+  } finally {
+    core.resetSetting('identity.mustReplyOwner')
+    fake.ctx.llm.stream = originalStream
+  }
+})
+
+test('主人私聊口语递蛋糕：没有感受标签，吃到的回复确认投递后面板饥饿值下降', async () => {
+  const core = api.mind.mind
+  const original = core._store.get('body')
+  core._store.set('body', { ...original, at: Date.now(), hunger: 0.74 })
+  try {
+    const send = async (message, expected) => {
+      const before = sentTo('private', OWNER).length
+      mock.push(priv(OWNER, text(message)))
+      await until(() => sentTo('private', OWNER).slice(before).some((entry) => JSON.stringify(entry.params.message).includes(expected)))
+    }
+    await send('那给你个蛋糕吃', '什么口味')
+    await send('草莓的', '草莓的我喜欢')
+    assert.ok((await fake.call('/mind/now')).json().body.hunger >= 0.74)
+    await send('诺', '一口咬下去')
+    const result = await until(async () => {
+      const state = (await fake.call('/mind/now')).json()
+      return state.body.lastMeal?.food === '草莓蛋糕' && state.body
+    })
+    assert.ok(result.hunger < 0.01)
+    assert.equal(result.lastMeal.by, 'qq:' + OWNER)
+  } finally {
+    core._store.set('body', original)
+  }
+})
+
+test('带回复标记的投喂，网关拒绝时饥饿值不下降，确认后才登记', async () => {
+  const core = api.mind.mind
+  const original = core._store.get('body')
+  const body = { ...original, at: Date.now(), hunger: 0.74 }
+  core._store.set('body', body)
+  await fake.call('/save', { chat: { replyMarker: true }, stickers: { faces: true } })
+  const failedFace = () => mock.calls.filter((entry) => entry.action === 'send_private_msg' && entry.params.message?.some((seg) => seg.type === 'face')).length
+  try {
+    mock.state.failFace = true
+    const before = failedFace()
+    mock.push(priv(OWNER, text('投喂回执测试，第一轮')))
+    await until(() => failedFace() > before)
+    const state = (await fake.call('/mind/now')).json().body
+    assert.notEqual(state.lastMeal?.food, '回执测试饼干')
+    assert.ok(state.hunger >= 0.74)
+    mock.state.failFace = false
+    mock.push(priv(OWNER, text('投喂回执测试，第二轮')))
+    await until(async () => (await fake.call('/mind/now')).json().body.lastMeal?.food === '回执测试饼干')
+    const sent = sentTo('private', OWNER).findLast((entry) => entry.params.message?.some((seg) => seg.type === 'face'))
+    assert.match(JSON.stringify(sent.params.message), /谢谢你/)
+    assert.doesNotMatch(JSON.stringify(sent.params.message), /<feel>|回执测试饼干/)
+  } finally {
+    mock.state.failFace = false
+    core._store.set('body', original)
+    await fake.call('/save', { chat: { replyMarker: false } })
+  }
 })
 
 test('群聊：没叫她不回；@她必回（群聊 preset，只有主人那一轮能发文件）', async () => {
@@ -2184,14 +2272,40 @@ test('心智核心：QQ 补发成功才记成她说过的话，系统通知不�
   const chatId = `private:${OWNER}`
   const window = `qq:${chatId}`
   const saved = () => api.mind.mind.history(window).filter((row) => row.text.includes('补发回执测试'))
+  const journaled = () => api.hub.chatLogDays().flatMap((day) => api.hub.chatLogOf(day)).filter((row) => row.text.includes('补发回执测试'))
   for (const [kind, content] of [['reply', '补发回执测试正文'], ['system', '补发回执测试系统通知']]) {
-    assert.ok(channel.outbox.add({ kind, action: 'send_private_msg', chatId, params: { user_id: Number(OWNER), message: text(content) } }).ok)
+    assert.ok(channel.outbox.add({ kind, replyJournal: 'own', action: 'send_private_msg', chatId, params: { user_id: Number(OWNER), message: text(content) } }).ok)
   }
   assert.deepEqual(saved(), [])
+  assert.deepEqual(journaled(), [])
   await Promise.all([channel.flushOutbox(), channel.flushOutbox()])
   const sent = sentTo('private', OWNER).filter((row) => JSON.stringify(row.params.message).includes('补发回执测试'))
   assert.equal(sent.length, 2)
   assert.deepEqual(saved().map(({ text: content }) => content), ['补发回执测试正文'])
+  assert.deepEqual(journaled().map(({ text: content }) => content), ['补发回执测试正文'])
+})
+
+test('投喂跟随补发队列落盘，只有确认送达后才登记一次', async () => {
+  const core = api.mind.mind
+  const original = core._store.get('body')
+  const channel = api.hub.channels.get('qq')
+  const chatId = `private:${OWNER}`
+  const at = Date.now()
+  const fedCount = () => core.person(`qq:${OWNER}`)?.fedCount || 0
+  const before = fedCount()
+  core._store.set('body', { ...original, at, hunger: 0.74 })
+  try {
+    let replyFeed
+    api.mind.feel(chatId, '谢谢<feel>{"fed":{"food":"补发测试曲奇","by":"10000001"}}</feel>', { senders: [OWNER], deferFeed: (pending) => { replyFeed = pending } })
+    assert.ok(replyFeed)
+    for (const content of ['补发投喂第一条', '补发投喂第二条']) {
+      assert.ok(channel.outbox.add({ action: 'send_private_msg', chatId, replyFeed, params: { user_id: Number(OWNER), message: text(content) } }).ok)
+    }
+    assert.notEqual((await fake.call('/mind/now')).json().body.lastMeal?.food, '补发测试曲奇')
+    await channel.flushOutbox()
+    assert.equal((await fake.call('/mind/now')).json().body.lastMeal?.food, '补发测试曲奇')
+    assert.equal(fedCount(), before + 1)
+  } finally { core._store.set('body', original) }
 })
 
 test('心智核心：单一注意力——她在一个群里回话时，另一个群先等着，回完再看；主人的私聊可以插队', async () => {

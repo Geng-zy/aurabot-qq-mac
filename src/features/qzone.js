@@ -36,7 +36,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
     if (!cfg.enabled) return { ok: false, message: '总开关关着' }
     if (cfg.dryRun) {
       log.info(`试运行：本来要发说说（${audience.label}）：${text.slice(0, 60)}`)
-      return { ok: true, tid: '', dryRun: true, visibility: audience.visibility, label: audience.label, target_uins: audience.target_uins || [] }
+      return { ok: true, tid: '', dryRun: true, message: '试运行，未发布到 QQ 空间', visibility: audience.visibility, label: audience.label, target_uins: audience.target_uins || [] }
     }
     const imgs = []
     const imageIndexes = []
@@ -56,12 +56,14 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
       if (sharesPrivateText()) return { ok: false, message: '说说包含私密内容，已拦下' }
       beforeSend?.()
       const r = await onebot.call('send_qzone_msg', { content: text, ugc_right: audience.ugc_right, ...(audience.target_uins ? { target_uins: audience.target_uins } : {}), ...(imgs.length ? { images: imgs } : {}) }, { timeoutMs: 60000 })
-      const tid = String(r?.tid ?? r?.id ?? r ?? '')
+      const id = r?.tid ?? r?.id ?? r
+      const tid = ['string', 'number'].includes(typeof id) ? String(id) : ''
       log.info(`发了一条说说（${audience.label}，tid ${tid || '?'}）`)
       try { onDiary?.(text, { visibility: audience.visibility }) } catch (error) { log.debug?.('空间说说发了，经历没记下来：', error.message) }
       return { ok: true, tid, visibility: audience.visibility, label: audience.label, target_uins: audience.target_uins || [], imageCount: imgs.length, imageIndexes }
     } catch (error) {
       log.warn('发说说失败：', error.message)
+      if (error.uncertain) return { ok: false, uncertain: true, message: 'QQ 网关未确认发布结果，请在空间核对。' }
       return { ok: false, message: error.message }
     }
   }
@@ -197,7 +199,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
       checkBeforeSend()
       let r = await post(text, { visibility: images.length ? 'self' : visibility, images, beforeSend: checkBeforeSend })
       // 配图发不出去（比如空间不认这张图）不能把整篇日记憋回去：退回只发文字，日记照发
-      if (!r.ok && images.length) {
+      if (!r.ok && !r.uncertain && images.length) {
         log.warn('日记配图没发成，改成只发文字：', r.message)
         images.length = 0
         await checkpoint?.()

@@ -67,11 +67,19 @@ test('图片：先按图发，不走 sendFile', async () => {
 })
 
 test('图片明确发不出去时，按文件发', async () => {
-  const s = setup({ hubOver: { sendImage: async () => null } })
+  const s = setup({ hubOver: { sendImage: async () => false } })
   const r = await s.tool.execute({ file: '/tmp/a.png' })
   assert.equal(r.ok, true)
   assert.equal(r.message, '文件发出去了：a.png')
   assert.deepEqual(s.sent, ['private:1'])
+})
+
+test('发送钩子拦截图片时，既不报告成功，也不绕过钩子转成文件发送', async () => {
+  const s = setup({ hubOver: { sendImage: async () => null } })
+  const r = await s.tool.execute({ file: '/tmp/a.png' })
+  assert.equal(r.ok, false)
+  assert.match(r.message, /未确认送达/)
+  assert.deepEqual(s.sent, [])
 })
 
 test('图片结果不确定（超时）：报错，绝不按文件再发一份', async () => {

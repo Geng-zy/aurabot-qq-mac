@@ -2,8 +2,7 @@
 // 否则她事后查不出自己发的是哪一张——被说「乱贴表情」时连自查都做不到。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { itemsToLine } from '../src/chat/reply.js'
+import { deliveredItems, itemsToLine } from '../src/chat/reply.js'
 
 const STICKER = { name: '让我看看内鬼是谁', md5: 'd8c18f33aabbccdd' }
 
@@ -39,8 +38,9 @@ test('文字与语音原样、其它类型保持旧写法', () => {
   assert.equal(said, '嗯 我在呢 [image] [poke]')
 })
 
-test('hub 记流水时走 itemsToLine 并接入表情库解析（源码契约）', () => {
-  const src = readFileSync(new URL('../src/chat/hub.js', import.meta.url), 'utf8')
-  assert.match(src, /const said = itemsToLine\(items, \(q\) => stickers(\?\.)?\.?match(\?\.)?\(q\)\)/)
-  assert.ok(!src.includes("`[${i.kind}]`"), '不能再有把表情写成 [sticker] 的老写法')
+test('流水按确认的消息内容识别商城表情和被钩子替换的普通图片', () => {
+  const segment = { type: 'image', data: { emoji_id: 'abc', emoji_package_id: '1' } }
+  const sticker = { item: STICKER, segment }
+  assert.equal(itemsToLine(deliveredItems([segment], { sticker })), '[表情：让我看看内鬼是谁]')
+  assert.equal(itemsToLine(deliveredItems([{ type: 'image', data: { file: '画稿.jpg' } }], { sticker })), '[image]')
 })

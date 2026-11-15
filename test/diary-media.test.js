@@ -360,8 +360,8 @@ test('旧的发动态念头驱动日记动作，翻唱动态保留，私密念�
   }
   const post = motivation.want('逛 QQ 空间，发个新的动态，私下的事留在心里。', { internal: true, strength: 0.6 })
   const cover = motivation.want('赶紧去发这首歌的翻唱动态')
-  const pick = motivation.choose({ body: { energy: 0.9 } })
-  assert.equal(pick.id, 'diary:write')
+  const pick = motivation.choose({ body: { energy: 0.65 } })
+  assert.equal(pick?.id, 'diary:write', '有明确的发动态念头时，精力一般也能选择马上开始写')
   assert.deepEqual(pick.wantIds, [post.id])
   assert.ok(!(motivation.motives().find((action) => action.id === 'qzone-social:social').wantIds.includes(post.id)))
   assert.equal((await motivation.act(pick.id, { checkpoint: async () => {} })).ok, true)

@@ -17,7 +17,9 @@ export default {
   setup(api) {
     const { hub, local, http } = api.core
     let closed = false
-    api.onDispose?.(() => { closed = true })
+    const lifetime = new AbortController()
+    const activeSignal = (signal) => signal ? AbortSignal.any([lifetime.signal, signal]) : lifetime.signal
+    api.onDispose?.(() => { closed = true; lifetime.abort(new Error('翻唱模块已关闭')) })
     const song = createSongStudio({
       local,
       getConfig: api.config,
@@ -26,10 +28,10 @@ export default {
       sendText: (chatId, text) => hub.sendText(chatId, text),
       // 翻唱失败那句话不写死：把歌名和真实原因给她，在那个聊天里用她自己的话说（参考原项目 6ac8693）。
       // 聊天空着就交给那个聊天的会话；正忙就单独组织一句；念了内部信息的句子不发。都不成由 studio 发一句兜底短话。
-      say: async ({ chatId, title, why }) => {
+      say: async ({ chatId, title, why, generated }) => {
         const voice = api.core.herVoice
         if (!voice) throw new Error('没有接上她的说话通道')
-        const r = await voice.tell({ chatId, facts: failFacts(title, why), clean: cleanFailLine })
+        const r = await voice.tell({ chatId, facts: failFacts(title, why, generated), clean: cleanFailLine })
         if (!r) throw new Error('她没说出来')
       },
       onSung: (title, chatId) => {
@@ -42,7 +44,7 @@ export default {
       },
     })
     function requestTask(options, requesters) {
-      if (!api.core.tasks || api.config().debug) return song.request(options)
+      if (!api.core.tasks || api.config().debug) return song.request({ ...options, signal: lifetime.signal })
       if (!api.config().song.enabled) return { ok: false, message: '翻唱还没打开' }
       const status = song.status()
       if (!status.ready) return { ok: false, message: '翻唱环境还没装好：' + status.message }
@@ -55,8 +57,10 @@ export default {
             task.checkpoint(stage)
           }
           checkpoint('等待翻唱')
-          const result = await song.requestAutonomous({ ...options, checkpoint, progress: checkpoint, delivery: { ...task, isCurrent: () => !closed && task.isCurrent() } })
-          if (!result.ok && !result.simulated && !closed && task.isCurrent()) await hub.sendText(options.chatId, '这首歌没唱成，可以问我当前进度。')
+          const result = await song.requestAutonomous({ ...options, signal: activeSignal(task.signal), checkpoint, progress: checkpoint, delivery: { ...task, isCurrent: () => !closed && task.isCurrent() } })
+          if (!result.ok && !result.simulated && !closed && task.isCurrent()) {
+            await hub.sendText(options.chatId, result.generated ? '这首歌已经做好了，暂时没确认送到。' : '这首歌没唱成，可以问我当前进度。')
+          }
           return result
         },
       })
@@ -65,6 +69,7 @@ export default {
     api.mind?.offer?.({
       id: 'own-song', label: '翻唱一首自己想唱的歌', needs: { beauty: 0.55, competence: 0.5, companion: 0.3 },
       effort: 0.55, cooldownMinutes: 720,
+      retryMinutes: ({ summary }) => summary === '这次没有选出歌' ? 15 : 0,
       matchWant: (text) => !/(?:动态|说说|空间|没唱成)/u.test(text) && hasActionPhrase(text, /翻唱|清唱|唱(?:歌|一首|一段|给)|(?:想|去|先)唱|练(?:唱|歌)/u),
       available: () => {
         const blocked = api.mind.creativeBlocked('song')
@@ -80,7 +85,7 @@ export default {
         const title = await api.mind.creativeIdea('song', wants)
         if (!title) return { ok: false, summary: '这次没有选出歌' }
         if (hub.containsProtectedText?.('system:creative', title)) return { ok: false, summary: '歌名含私密内容' }
-        return await song.requestAutonomous({ song: title, chatId, checkpoint: async () => {
+        return await song.requestAutonomous({ song: title, chatId, signal: activeSignal(signal), checkpoint: async () => {
           await checkpoint()
           if (closed || api.mind.creativeTarget('song', { continuing: true }) !== chatId) throw new Error('主动翻唱已暂停')
         }, delivery: { isCurrent: () => !closed && !signal?.aborted && api.mind.creativeTarget('song', { continuing: true }) === chatId } })
@@ -133,9 +138,9 @@ export default {
 
 // 翻唱失败时给她看的事：歌名 + 真实原因（标明是内部信息），要她自己说一句。
 // 原因写进来是让她知道「为什么没成」，不是让她复述——所以明说不许念技术细节。
-export function failFacts(title, why) {
+export function failFacts(title, why, generated = false) {
   return [
-    `有人点了一首《${title}》，但这次没唱成。`,
+    generated ? `《${title}》已经做好了，暂时没有确认送达。请说清这两件事。` : `有人点了一首《${title}》，但这次没唱成。`,
     `内部原因（只给你看，不要念出来，也不要提技术细节、额度、报错原文）：${why || '没说清'}`,
     '口语一句就好，别用客服腔；可以说得含糊、撒个娇、说回头再试，别编具体的技术理由，不要出现路径、英文报错、错误码、额度数字。',
   ].join('\n')

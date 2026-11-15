@@ -30,8 +30,16 @@ export default {
           properties: { name: str('表情名字或情绪关键词') },
           required: ['name'],
           execute: async ({ name }) => {
-            const ok = await hub.sendSticker(current, String(name || ''))
-            return ok ? { ok: true, message: '发了' } : { ok: false, message: '表情库里没找到合适的' }
+            const status = await hub.sendSticker(current, String(name || ''), undefined, undefined, { detailed: true })
+            const messages = {
+              delivered: '发了',
+              simulated: '模拟发送完成',
+              queued: '已排队，正在等待发送',
+              disabled: '表情包已关闭',
+              missing: '表情库里没找到合适的',
+              unconfirmed: '表情没有确认送达',
+            }
+            return { ok: ['delivered', 'simulated', 'queued'].includes(status), message: messages[status] }
           },
         })] : []),
         defineTool({

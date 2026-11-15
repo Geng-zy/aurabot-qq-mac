@@ -76,14 +76,19 @@ test('生图：脚本返回 Buffer / base64 / 文件都认；接管后不需要�
   await assert.rejects(L.toImageBuffer({}), /没返回图片/)
   const local = L.createLocal({ getConfig: () => cfg, log })
   local.template('image')
-  writeFileSync(local.pathOf('image'), `export default async ({ prompt, size }) => ({ base64: Buffer.from(prompt + '|' + size).toString('base64') })`)
+  const pngHeader = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==', 'base64')
+  writeFileSync(local.pathOf('image'), `export default async ({ prompt, size }) => ({ base64: Buffer.concat([Buffer.from('${pngHeader.toString('base64')}', 'base64'), Buffer.from(prompt + '|' + size)]).toString('base64') })`)
   const { createImageGen } = await import('../src/features/imagegen.js')
   const gen = createImageGen({ getConfig: () => cfg, log, local })
   assert.equal(gen.enabled(), false)
   cfg.local.image = true
   assert.equal(gen.enabled(), true, '没填在线服务也能画')
   cfg.imageGen.stylePrompt = '水彩'
-  assert.equal(String(await gen.generate('小鱼')), '水彩，小鱼|' + cfg.imageGen.size)
+  assert.equal((await gen.generate('小鱼')).subarray(pngHeader.length).toString(), '水彩，小鱼|' + cfg.imageGen.size)
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  writeFileSync(local.pathOf('image'), "export default async () => ({ base64: Buffer.from('服务返回的是文字').toString('base64') })")
+  await assert.rejects(gen.generate('小鱼'), /没返回有效图片/)
+  assert.equal(local.status().find((x) => x.slot === 'image').last.ok, false)
   cfg.local.image = false
 })
 

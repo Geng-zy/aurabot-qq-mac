@@ -23,7 +23,7 @@ export function hasLocalModel(dir) {
  *   python: () => string,          // 装了 mlx-lm 的 Python
  *   modelDir: () => string,        // 模型文件夹（MLX 格式）
  *   port?: number,
- *   idleMinutes?: number,          // 闲置多久自动停
+ *   idleMinutes?: number | (() => number), // 闲置多久自动停
  *   log?: any,
  *   spawn?: typeof nodeSpawn,
  *   fetch?: typeof fetch,
@@ -43,6 +43,7 @@ export function createLocalModel(o) {
   let lastUse = 0
   let lastError = ''
   let calls = 0
+  let requests = 0
 
   /** 设置齐不齐、文件在不在。 */
   function check() {
@@ -126,11 +127,12 @@ export function createLocalModel(o) {
    * @param {Array<{ role: 'system'|'user'|'assistant', content: string }>} messages
    */
   async function chat(messages, { maxTokens = 160, temperature = 0.8, timeoutMs = 60000 } = {}) {
-    if (!(await ensure())) return null
-    lastUse = now()
-    const ctl = new AbortController()
-    const t = setTimeout(() => ctl.abort(), timeoutMs)
+    requests++
+    let timer
     try {
+      if (!(await ensure())) return null
+      const ctl = new AbortController()
+      timer = setTimeout(() => ctl.abort(), timeoutMs)
       const r = await doFetch(base + '/v1/chat/completions', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal,
         body: JSON.stringify({ model: 'default_model', messages, max_tokens: maxTokens, temperature, top_p: 0.9 }),
@@ -145,7 +147,9 @@ export function createLocalModel(o) {
       log.debug('本地小模型出错：', error.message)
       return null
     } finally {
-      clearTimeout(t)
+      clearTimeout(timer)
+      requests--
+      if (proc) lastUse = now()
     }
   }
 
@@ -159,8 +163,9 @@ export function createLocalModel(o) {
 
   /** 闲置太久就停，省内存。外面定时调用。 */
   function idleCheck() {
-    const idle = (o.idleMinutes ?? 30) * 60000
-    if (proc && lastUse && now() - lastUse > idle) { log.info('本地小模型闲置太久，先停了'); stop() }
+    const minutes = typeof o.idleMinutes === 'function' ? o.idleMinutes() : o.idleMinutes
+    const idle = (minutes ?? 30) * 60000
+    if (proc && !starting && !requests && lastUse && now() - lastUse > idle) { log.info('本地小模型闲置太久，先停了'); stop() }
   }
 
   function status() {

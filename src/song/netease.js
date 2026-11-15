@@ -45,7 +45,8 @@ export function musicU(cookie) {
   return m ? m[1] : s.includes('=') ? '' : s
 }
 
-async function post(path, data, cookie) {
+async function post(path, data, cookie, signal) {
+  const timeout = AbortSignal.timeout(20000)
   const u = musicU(cookie)
   const r = await fetch('https://music.163.com/weapi' + path, {
     method: 'POST',
@@ -56,16 +57,16 @@ async function post(path, data, cookie) {
       cookie: 'os=pc; appver=3.0.0' + (u ? '; MUSIC_U=' + u : ''),
     },
     body: new URLSearchParams(weapi({ ...data, csrf_token: '' })).toString(),
-    signal: AbortSignal.timeout(20000),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   })
-  const j = await r.json().catch(() => ({}))
+  const j = await r.json().catch(() => { signal?.throwIfAborted(); return {} })
   if (j.code !== 200) throw new Error(`网易云返回 ${j.code ?? r.status}${j.message || j.msg ? '：' + (j.message || j.msg) : ''}`)
   return j
 }
 
 /** 搜歌：[{id, name, artists, durationSec, vip}] */
-export async function searchSongs(keyword, { cookie, limit = 5 } = {}) {
-  const j = await post('/cloudsearch/pc', { s: String(keyword), type: 1, limit, offset: 0 }, cookie)
+export async function searchSongs(keyword, { cookie, limit = 5, signal } = {}) {
+  const j = await post('/cloudsearch/pc', { s: String(keyword), type: 1, limit, offset: 0 }, cookie, signal)
   return (j.result?.songs || []).map((s) => ({
     id: s.id,
     name: s.name,
@@ -77,8 +78,8 @@ export async function searchSongs(keyword, { cookie, limit = 5 } = {}) {
 }
 
 /** 拿下载地址：{url, trial}。拿不到返回 url=''。trial = 只给了试听片段（没登录或不是会员）。 */
-export async function songUrl(id, { cookie } = {}) {
-  const j = await post('/song/enhance/player/url/v1', { ids: `[${id}]`, level: 'exhigh', encodeType: 'mp3' }, cookie)
+export async function songUrl(id, { cookie, signal } = {}) {
+  const j = await post('/song/enhance/player/url/v1', { ids: `[${id}]`, level: 'exhigh', encodeType: 'mp3' }, cookie, signal)
   const d = (j.data || [])[0] || {}
   return { url: d.url || '', trial: Boolean(d.freeTrialInfo), type: d.type || 'mp3' }
 }

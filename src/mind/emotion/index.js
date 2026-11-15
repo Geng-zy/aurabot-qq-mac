@@ -58,7 +58,7 @@ export function createEmotion(deps) {
    * - 「专一」开着时，恋爱式情绪只对主人：对别人的心动 / 爱慕变成喜爱（不超过中等），性欲去掉，嫉妒变成羡慕；
    * - 被带动的（src=contagion）按「情绪传染强度」打折；
    * - 调节方式改变强度和持续时间（Gross 的情绪调节模型；具体倍数是经验值）。
-   * @param {Array<{ name: string, intensity: number, target?: string, why?: string, importance?: number, reg?: string, src?: string }>} items
+   * @param {Array<{ name: string, intensity: number, valence?: number, target?: string, why?: string, importance?: number, reg?: string, src?: string }>} items
    * @returns 实际记下的
    */
   function feel(items, { window = '', source = '', eventId = '', revision = null } = {}) {
@@ -75,7 +75,7 @@ export function createEmotion(deps) {
     }
     const out = []
     for (const raw of Array.isArray(items) ? items : []) {
-      let def = emotionOf(raw?.name)
+      let def = emotionOf(raw?.name, raw?.valence)
       if (!def) continue
       let intensity = clamp(raw.intensity, 0, 1)
       const target = String(raw.target || '')
@@ -97,6 +97,7 @@ export function createEmotion(deps) {
       const e = {
         name: def.name, i0: intensity, at, halfH: Math.max(0.05, hours / LOG2_10), target, why: clip(raw.why, 80),
         window, importance, hidden: reg === 'suppress', distract: reg === 'distract' ? at + HOUR : 0, source, ...(eventId ? { eventId } : {}),
+        ...(def.name === '紧张' && raw.valence > 0 ? { valence: clamp(raw.valence, 0, 1) } : {}),
       }
       // 同一会话和事件里的同类情绪取更强的一份，保留不同事件各自的依据。
       const same = s.active.find((x) => x.name === e.name && x.target === e.target && x.window === window && (x.eventId || '') === eventId
@@ -118,7 +119,7 @@ export function createEmotion(deps) {
     const k = Number(E('rekindle')) || 0
     if (k <= 0) return []
     const items = (memories || []).filter((m) => m?.emotion?.name && m.emotion.intensity > 0)
-      .map((m) => ({ name: m.emotion.name, intensity: m.emotion.intensity * k, target: m.target || '', why: '想起：' + String(m.text || '').slice(0, 40), importance: 0.4 }))
+      .map((m) => ({ name: m.emotion.name, valence: m.emotion.valence, intensity: m.emotion.intensity * k, target: m.target || '', why: '想起：' + String(m.text || '').slice(0, 40), importance: 0.4 }))
     return items.length ? feel(items, { window, source: 'recall' }) : []
   }
 
@@ -131,7 +132,7 @@ export function createEmotion(deps) {
     const live = s.active.map((e) => ({ e, i: strength(e, at) * (e.distract && at < e.distract ? 0.5 : 1), def: emotionOf(e.name) })).filter((x) => x.def)
     let tv = b.v
     let ta = b.a
-    for (const { i, def } of live) { tv += def.v * i * 0.6; ta += def.a * i * 0.6 }
+    for (const { e, i, def } of live) { tv += (e.valence ?? def.v) * i * 0.6; ta += def.a * i * 0.6 }
     if (body) {
       tv -= (Number(E('hungerMood')) || 0) * (body.hunger || 0)
       tv -= 0.2 * Math.max(0, (body.sleepiness || 0) - 0.5)

@@ -9,6 +9,7 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { defineTool } from '../tools/tools.js'
+import { describeDelivery } from '../chat/reply.js'
 
 const RING = 300
 
@@ -52,9 +53,10 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
       const why = canSend(t)
       if (why) return { ok: false, message: why }
       if (!String(text || '').trim()) return { ok: false, message: '要说点什么' }
-      await hub.deliver(t, String(text))
+      const result = await hub.deliver(t, String(text))
       const cfg = getConfig()
-      return { ok: true, message: !cfg.enabled ? '总开关关着，没真发' : cfg.dryRun ? '试运行，只进了日志' : '发出去了' }
+      if (cfg.debug || cfg.dryRun || !cfg.enabled) return { ok: true, delivered: false, simulated: true, message: cfg.debug ? '调试模式，未发到 QQ' : !cfg.enabled ? '总开关关着，没真发' : '试运行，只进了日志' }
+      return describeDelivery(result)
     },
     /** 让她自己想一想再说（走她的人格和记忆）。to 填了就把她的回答发过去。 */
     think: async ({ prompt, to } = {}) => {
@@ -62,7 +64,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
       if (to) { const why = canSend(to); if (why) return { ok: false, message: why } }
       const reply = await hub.runSystemTurn('bridge', '联动', `【系统提醒·来自联动接口】${prompt}\n（只写你要说的话。不想说就输出 [沉默]）`)
       const text = String(reply || '').trim()
-      if (to && text && text !== '[沉默]') await hub.deliver(String(to), text)
+      if (to && text && text !== '[沉默]') return { ...await ops.send({ target: to, text }), reply: text }
       return { ok: true, reply: text }
     },
     /** 调某个模块导出的函数：call('memory', 'recall', '香菜')。模块导出了什么看面板「扩展」和 API.md。 */

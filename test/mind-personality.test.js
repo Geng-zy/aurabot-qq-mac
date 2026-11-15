@@ -118,7 +118,11 @@ test('影子模式：只计算不生效，面板里能看到算出来的', () =>
   assert.equal(cur(env), 0.5, '没生效')
   const t = env.m.personality.state().traits.find((x) => x.id === 'sociability')
   assert.equal(t.shadow, 0.52)
+  assert.equal(t.lastStep, 0)
   assert.match(env.m.listVersions('traits', 1)[0].reason, /影子模式/)
+  env.m.updateSettings({ 'personality.shadowMode': false })
+  night(env, 3)
+  assert.equal(cur(env), 0.52, '模拟期间收集的证据仍可用于实际变化')
 })
 
 test('拉力：离本来的样子越远，往外越难、往回越容易；越往边上越难走', () => {
@@ -357,6 +361,39 @@ test('没满 18 岁没有激情', () => {
   const env = mk({ settings: { 'identity.age': 16 } })
   env.m.relations.observe({ rel: [{ who: 'qq:1', d: { close: 1 } }] }, { window: 'qq:private:1', rows: relRows('qq:1') })
   assert.equal(env.m.relations.get('qq:1').rel.passion, 0)
+})
+
+test('对接层：激情在整理主人私聊时按有依据的变化更新，每段只更新一次', async (t) => {
+  const owner = 'qq:1'
+  let rel
+  const env = adapter({ answer: () => JSON.stringify({ episodes: [], rel }) })
+  t.after(() => env.a.mind.close())
+  const R = env.a.mind.relations
+  const batch = async (d, { chatId = 'private:1', out = true, line = 2, passTwice = false } = {}) => {
+    const i = env.asks.length
+    rel = Array.from({ length: passTwice ? 2 : 1 }, () => ({ who: owner, d, passionLine: line }))
+    env.a.perceive({ chatId, kind: chatId.startsWith('private:') ? 'private' : 'group', userId: '1', text: '你现在怎么想？', messageId: 'p' + i })
+    if (out) env.a.said({ chatId, message: '这段相处确实让我有了新感受。', messageId: 's' + i })
+    env.set(env.get() + 10 * 60000)
+    await env.a.encodeTick()
+    return env.asks.findLast((o) => o.scene === 'record').system
+  }
+  assert.match(await batch({}), /d\.passion/)
+  assert.equal(R.get(owner).rel.passion, 0.3)
+  await batch({ passion: 1 }, { out: false, line: 1 })
+  assert.equal(R.get(owner).rel.passion, 0.3)
+  assert.doesNotMatch(await batch({ passion: 1 }, { chatId: 'group:9' }), /d\.passion/)
+  assert.equal(R.get(owner).rel.passion, 0.3)
+  await batch({ passion: 1 }, { passTwice: true })
+  assert.equal(R.get(owner).rel.passion, 0.38)
+  for (let i = 0; i < 5; i++) await batch({ passion: -1 })
+  assert.equal(R.get(owner).rel.passion, 0)
+  assert.equal(R.get(owner).rel.passionChange.delta, -0.06)
+  await batch({})
+  assert.equal(R.get(owner).rel.passion, 0, '降到零后，普通聊天不会重设为 30')
+  env.a.mind.updateSettings({ 'identity.age': 16 })
+  assert.doesNotMatch(await batch({ passion: 1 }), /d\.passion/)
+  assert.equal(R.get(owner).rel.passion, 0)
 })
 
 test('有人反复撩她：好感下降，记下这个人在纠缠；很不喜欢的人她不想搭理', () => {

@@ -39,7 +39,7 @@ export default {
     })
     // 写空间日记由她自己决定（想记下点什么、想被看见）；面板里的「每天写几次」是上限
     api.mind?.offer?.({
-      id: 'write', label: '写空间日记', needs: { recognition: 0.6, meaning: 0.5, competence: 0.3 }, effort: 0.3, delayHours: 0.5,
+      id: 'write', label: '写空间日记', needs: { recognition: 0.6, meaning: 0.5, competence: 0.3 }, effort: 0.3,
       cooldownMinutes: 15, payoff: 0.6, matchWant: wantsQzonePost,
       available: () => {
         const status = qzone.automaticStatus()
@@ -68,6 +68,8 @@ export default {
       required: ['content'],
       execute: async ({ content, images, visibility }) => {
         const r = await qzone.post(String(content || ''), { images: Array.isArray(images) ? images.slice(0, 4) : [], visibility })
+        if (r.dryRun) return { ok: true, sent: false, simulated: true, message: r.message }
+        if (r.uncertain) return { ok: false, uncertain: true, message: r.message }
         return r.ok ? { ok: true, message: '发好了（' + (r.label || r.visibility) + '）', tid: r.tid } : { ok: false, message: r.message }
       },
     }) : []))

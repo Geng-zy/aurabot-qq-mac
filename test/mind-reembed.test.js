@@ -47,6 +47,21 @@ test('设成 0 就不重算', async () => {
   assert.equal(m.memory.vectorProgress().done, 0)
 })
 
+test('同名模型切换服务地址时，旧向量不混用，面板仍显示模型名', async (t) => {
+  const { a, m } = setup()
+  t.after(() => a.close())
+  const id = m.memory.insert({ at: T0, gist: '测试接口切换的记忆', kind: 'event' })
+  await m.memory.embedEpisodes([id])
+  assert.equal(m.memory.vectorProgress().done, 1)
+  m.updateSettings({ 'memory.embedUrl': 'http://127.0.0.1:12121/v1/' })
+  assert.equal(m.memory.vectorProgress().done, 0)
+  assert.equal(a.embeddingStatus().model, 'A')
+  await m.memory.embedEpisodes([id])
+  assert.equal(m.memory.vectorProgress().done, 1)
+  m.updateSettings({ 'memory.embedUrl': 'http://127.0.0.1:12121/v1' })
+  assert.equal(m.memory.vectorProgress().done, 1, '末尾斜杠不算换接口')
+})
+
 test('补向量临时失败会留待下次，即使关闭了换模型重算', async (t) => {
   const { a, m } = setup()
   t.after(() => a.close())

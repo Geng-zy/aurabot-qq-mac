@@ -387,6 +387,29 @@ test('网关明确没连上时，发送失败的消息进补发队列', { timeou
   assert.equal(r && r.queued, true, '确定没发出去的发送应返回 queued')
   assert.equal(calls, 1)
   assert.equal(outbox.status().count, 1, '消息应进补发队列')
+  const turn = await hub.deliver(CHAT, '回复也排队')
+  assert.equal(turn.delivered, false)
+  assert.deepEqual(hub.chatLogDays(), [])
+  assert.equal(outbox.list().find((item) => item.chatId === CHAT).replyJournal, 'external')
+})
+
+test('按 base64 发送图片时也区分网关超时、明确拒绝和钩子拦截', async (t) => {
+  const dir = mkdtempSync(join(root, 'image-'))
+  const path = join(dir, 'demo.png')
+  writeFileSync(path, png(19))
+  let blocked = false
+  let error = new OneBotError('send_private_msg', { message: '发送超时' }, { uncertain: true })
+  const { hub } = setup(t, {
+    cfg: config({ dryRun: false, files: { imageByPath: false } }),
+    hooks: { send: (segments) => blocked ? null : segments },
+    onebot: { connected: true, async call() { throw error } },
+  })
+  const send = () => hub.sendImage(CHAT, path, undefined, undefined, { strict: true })
+  await assert.rejects(send, /图片可能已经发出去了/)
+  error = new OneBotError('send_private_msg', { retcode: 100, message: '拒绝格式' })
+  assert.equal(await send(), false, '明确拒绝时可以换文件格式')
+  blocked = true
+  assert.equal(await send(), null, '发送钩子拦截时不应再改发文件')
 })
 
 test('LA-27 敏感命令发送失败时不记录参数、回执和网关错误，也不补发', async (t) => {

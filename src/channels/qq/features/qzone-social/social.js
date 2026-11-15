@@ -88,7 +88,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   }
 
   /** 回复自己说说下别人的新评论。 */
-  async function replyOwn(s, budget) {
+  async function replyOwn(s, budget, checkpoint) {
     let done = 0
     const list = await onebot.call('get_qzone_msg_list', { num: 5 }, { timeoutMs: 20000 })
     for (const m of list?.msglist || []) {
@@ -100,8 +100,6 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         if (done >= budget) break
         const t = pendingInThread(c, self(), handled)
         if (!t.pending.length) continue
-        for (const id of t.pending.map((x) => x.id)) handled.add(id) // 这一串新消息只回一次，回不回都不再看
-        for (const x of t.pending) remember(x.name, x.uin, `在你的说说「${String(m.content).slice(0, 30)}」下面说：${String(x.content).slice(0, 200)}`)
         const last = t.pending[t.pending.length - 1]
         const name = (u) => (String(u.uin) === self() ? '你' : u.name + (String(u.uin) === String(getConfig().ownerQQ) ? `（你的${owner()}）` : ''))
         const thread = t.thread.map((x) => `${name(x)}：${String(x.content).slice(0, 150)}`).join('\n')
@@ -110,13 +108,21 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         const text = await write(`你在 QQ 空间发过一条说说：「${String(m.content).slice(0, 200)}」${m.images?.length ? `（配了 ${m.images.length} 张图）` : ''}\n` +
           (others.length ? `这条说说下面大家的评论：\n${others.join('\n')}\n\n` : '') +
           `你要回的是这一串：\n${thread}\n\n${last.name} 刚刚说了新的话，结合说说内容和上面的评论，用你的口气接着回 TA 一句。`)
+        await checkpoint?.()
+        const latest = getConfig()
+        if (!latest.enabled || !latest.qzoneSocial.enabled || !latest.qzoneSocial.replyOwn || (checkpoint && latest.dryRun)) break
+        // 模型做出决定后才处理这一串。预算用尽时保留未看的评论，已经处理过的也不会重来。
+        for (const x of t.pending) {
+          handled.add(x.id)
+          remember(x.name, x.uin, `在你的说说「${String(m.content).slice(0, 30)}」下面说：${String(x.content).slice(0, 200)}`)
+        }
+        s.replied[m.tid] = [...handled].slice(-200)
         if (!text) continue
         if (!(await sendComment(m.tid, `回复 ${last.name}：${text}`))) continue
         if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: true, tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
         done++
       }
-      s.replied[m.tid] = [...handled].slice(-200)
     }
     // 只留最近的说说的记录
     const keep = new Set((list?.msglist || []).map((m) => m.tid))
@@ -169,20 +175,25 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     return done
   }
 
-  async function run({ force = false } = {}) {
+  async function run({ force = false, scope = 'all', checkpoint } = {}) {
     const cfg = getConfig()
     const c = cfg.qzoneSocial
     if (busy) return { ok: false, message: '正在逛空间' }
-    if (!force && (!cfg.enabled || !c.enabled)) return { ok: false, message: '没打开' }
+    if (!force) {
+      const allowed = canRun(scope)
+      if (allowed !== true) return { ok: false, message: allowed }
+    }
     busy = true
     const s = load()
     if (s.day !== dayKey()) Object.assign(s, { day: dayKey(), count: 0 })
-    s.lastRun = Date.now()
+    const repliesEnabled = scope !== 'friends' && c.replyOwn
+    if (scope !== 'replies') s.lastRun = Date.now()
+    if (repliesEnabled) s.lastReplyCheck = Date.now()
     try {
       const left = Math.max(0, c.maxPerDay - s.count)
       if (!left) return { ok: true, message: '今天互动够多了', replies: 0, comments: 0 }
-      const replies = c.replyOwn ? await replyOwn(s, Math.min(3, left)) : 0
-      const comments = c.commentFriends ? await browseFriends(s, Math.min(2, Math.max(0, c.maxPerDay - s.count))) : 0
+      const replies = repliesEnabled ? await replyOwn(s, Math.min(3, left), checkpoint) : 0
+      const comments = scope !== 'replies' && c.commentFriends ? await browseFriends(s, Math.min(2, Math.max(0, c.maxPerDay - s.count))) : 0
       return { ok: true, message: `回了 ${replies} 条评论，评了 ${comments} 条好友说说`, replies, comments }
     } catch (error) {
       log.warn('逛空间出错：', error.message)
@@ -193,19 +204,23 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     }
   }
 
-  /** 每分钟调一次：醒着的时候，每隔 intervalMin 分钟逛一次。 */
-  /** 现在能不能去逛空间（面板里的开关和间隔还算数）。去不去由她自己决定。 */
-  function canRun() {
+  function canRun(scope = 'all') {
     const cfg = getConfig()
     const c = cfg.qzoneSocial
     if (!cfg.enabled || !c.enabled) return '逛空间没打开'
     if (cfg.dryRun || cfg.debug) return '当前模式暂停自动空间互动'
+    if (busy) return '正在逛空间'
+    if (scope === 'replies' && !c.replyOwn) return '回复自己的空间评论已关闭'
+    if (scope === 'friends' && !c.commentFriends) return '好友空间互动已关闭'
     if (!c.replyOwn && !c.commentFriends) return '空间评论和好友互动都已关闭'
     const current = load()
     if (c.maxPerDay <= (current.day === dayKey() ? current.count : 0)) return '今天的空间互动次数已用完'
-    if (Date.now() - current.lastRun < c.intervalMin * 60_000) return '刚逛过'
+    if (scope === 'replies' && Date.now() - (current.lastReplyCheck || 0) < 5 * 60_000) return '刚查过新评论'
     return true
   }
 
-  return { run, canRun, state: () => { const s = load(); return { count: s.day === dayKey() ? s.count : 0, lastRun: s.lastRun, history: s.history.slice(0, 15) } } }
+  return { run, canRun, state: () => {
+    const s = load()
+    return { count: s.day === dayKey() ? s.count : 0, lastRun: s.lastRun, lastReplyCheck: s.lastReplyCheck || 0, history: s.history.slice(0, 15) }
+  } }
 }

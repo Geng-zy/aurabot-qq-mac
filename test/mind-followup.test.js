@@ -34,15 +34,30 @@ test('记成惦记的事：结果出来的时间到了才问，问过往后推�
   const first = (await ctx(a, 1)).text
   assert.match(first, /^【你惦记着别人的事，还不知道结果】[\s\S]*2026-11-11下午面试/)
   assert.match(first, /mind_followup_done/)
+  assert.equal(m.memory.followups()[0].asks, 0, '只有提示时不消耗次数')
+  assert.match((await ctx(a, 1)).text, /面试/)
+  const window = 'qq:private:1'
+  const incoming = (msgId) => m.perceive({ window, who: 'qq:1', text: '说说那个面试', msgId })
+  incoming('received')
+  m.said({ window, text: '记得你提过下午面试。现在有空吗？', msgId: 'unrelated' })
+  assert.equal(m.memory.followups()[0].asks, 0, '相关陈述后面的无关问题不算')
+  m.said({ window, text: '你面试有结果了吗？', msgId: 'asked-0' })
+  m.said({ window, text: '那场面试有消息了吗？', msgId: 'asked-0b' })
+  assert.equal(m.memory.followups()[0].asks, 1, '同一轮的重述只算一次')
   assert.doesNotMatch((await ctx(a, 1)).text, /面试/, '刚问过，往后推')
   // 主人：在乎程度高，最多问 3 次左右；隔几天再问
   let asked = 1
   for (let d = 1; d <= 20; d++) {
     set(Date.UTC(2026, 10, 11, 11) + d * DAY)
-    if (/面试/.test((await ctx(a, 1)).text)) asked++
+    if (/面试/.test((await ctx(a, 1)).text)) {
+      incoming('received-' + d)
+      m.said({ window, text: '你面试有结果了吗？', msgId: 'asked-' + d })
+      asked++
+    }
   }
   assert.ok(asked >= 2 && asked <= 3, `问了 ${asked} 次`)
-  assert.equal(m.memory.followups()[0].asks, asked)
+  assert.equal(m.memory.followups({ all: true })[0].asks, asked)
+  assert.equal(m.memory.followups().length, 0)
 })
 
 test('有结果了 / 说别问了：她用工具放下；主人在面板里也能取消', async () => {

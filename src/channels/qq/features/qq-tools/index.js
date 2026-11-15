@@ -5,6 +5,7 @@ import { readQqFile } from '../../../../features/qq-file.js'
 import { isLocalDrawMessage, parseMessageEvent } from '../../inbound.js'
 import { normChat, parseChat, platformOf } from '../../../ids.js'
 import { isOwner } from '../../../../chat/access.js'
+import { describeDelivery } from '../../../../chat/reply.js'
 
 /** 真实网关对不在群里的人也回成功、角色写 member，只有 join_time 是空的：没有它就不算成员。 */
 async function isGroupMember(onebot, groupId, userId) {
@@ -150,6 +151,8 @@ export default {
             const cfg = api.config()
             return { ok: false, message: !cfg.enabled ? '总开关关着，没发' : cfg.dryRun ? '试运行，只记了日志，没真发' : '卡片没发出去' }
           }
+          if (r.simulated) return { ok: true, simulated: true, message: '模拟发送卡片，未发到 QQ' }
+          if (r.queued) return { ok: true, queued: true, message: '卡片已排队，正在等待发送' }
           return { ok: true, message: '卡片发出去了' }
         },
       }))
@@ -241,14 +244,18 @@ export default {
             }
             try {
               const img = await hub.sendImage(chatId, abs, undefined, undefined, { strict: true })
+              if (img?.simulated) return { ok: true, simulated: true, message: `模拟发送图片：${label}` }
+              if (img?.queued) return { ok: true, queued: true, message: `图片已排队，正在等待发送：${label}` }
               if (img) return { ok: true, message: `图片发出去了：${label}` }
+              if (img !== false) return { ok: false, message: '图片未确认送达' }
             } catch (error) {
               // 结果不确定（超时/断线）：可能已经发出去了，绝不能再按文件发第二份
               return { ok: false, message: error.message }
             }
           }
           const r = await hub.sendFile(chatId, abs, name ? String(name) : '')
-          if (!r) return { ok: false, message: !cfg.enabled ? '总开关关着，没发' : cfg.dryRun ? '试运行，只记了日志，没真发' : '没发出去' }
+          if (!r) return { ok: false, message: !cfg.enabled ? '总开关关着，没发' : cfg.debug || cfg.dryRun ? '调试或试运行，只记了日志，没真发' : '没发出去' }
+          if (r.simulated) return { ok: true, simulated: true, message: `模拟发送文件：${label}` }
           return { ok: true, message: `文件发出去了：${label}` }
         },
       }))
@@ -267,9 +274,11 @@ export default {
           if (!okList.map(String).includes(String(id))) return { ok: false, message: '不在白名单里，不能发' }
           if (`${kind}:${id}` === chat.chatId) return { ok: false, message: '这就是当前聊天，直接回话就行，别用这个工具' }
           const r = await hub.deliver(`${kind}:${id}`, String(text || ''))
-          if (!r) return { ok: false, message: '没发出去：这条被拦下了，或者内容是空的' }
-          if (r.failed) return { ok: false, message: `没发出去（${r.failed} 条失败）：${r.errors[0]}。别说发过了，照实告诉对方` }
-          return r?.missedAt?.length ? { ok: true, message: `发出去了，但 ${r.missedAt.map((n) => '@' + n).join('、')} 没对上群里的人（群名片和昵称里没有），只是文字、对方收不到提醒。要真 @ 得写 <at:QQ号>，不知道就问主人要他的群名片或 QQ 号` } : { ok: true, message: '发出去了' }
+          const result = describeDelivery(r)
+          if (r?.missedAt?.length && (result.delivered || result.queued)) {
+            result.message += `。${r.missedAt.map((n) => '@' + n).join('、')} 没对上群里的人，只是文字、对方收不到提醒。要真 @ 得写 <at:QQ号>`
+          }
+          return result
         },
       }))
       return tools

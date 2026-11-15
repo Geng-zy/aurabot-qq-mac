@@ -171,7 +171,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
         canSend: canReplayDelivery,
         onSent: (item, result) => emit({
           type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
-          messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system',
+          messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system', replyJournal: item.replyJournal, replyFeed: item.replyFeed,
         }),
       })
       if (r.sent || r.dropped || r.left) log.info(`补发队列：成功 ${r.sent}，丢弃 ${r.dropped}，剩余 ${r.left}`)
@@ -237,6 +237,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     restart() { if (!disposed) gw.restart() },
     /** 看门狗：总开关开着、上次没连错号，就保持连着。 */
     watch() {
+      if (disposed) return
       if (!getConfig().enabled) { if (gw.state !== 'stopped') gw.stop(); return }
       // 上次连上的不是机器人号：等主人点「重新连接」或改设置再连
       if (wrongAccount) return
@@ -259,10 +260,12 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     diagnose: () => diagnoseOneBot({ cfg: getConfig(), state: gwState, wrongAccount, call: (a, p, o) => gw.call(a, p, o) }),
     /** 面板「重新连接」：等几秒看结果，别只回一句「正在重连」。 */
     async reconnect() {
+      if (disposed) return { ok: false, message: 'QQ 连接已关闭' }
       if (!getConfig().enabled) return { ok: false, message: connectionProblem() }
       wrongAccount = ''
       gw.restart()
-      for (let i = 0; i < 24 && !ready() && !wrongAccount; i++) await new Promise((r) => setTimeout(r, 500))
+      for (let i = 0; i < 24 && !disposed && !ready() && !wrongAccount; i++) await new Promise((r) => setTimeout(r, 500))
+      if (disposed) return { ok: false, message: 'QQ 连接已关闭' }
       if (ready()) return { ok: true, message: '连上了' }
       return { ok: false, message: '没连上：' + connectionProblem() }
     },
@@ -270,7 +273,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
      * 发一条消息。route.groupId：私聊是从群里临时会话来的，回的时候带上群号。
      * queue：确定没发出去（网关还没就绪）时放进补发队列，返回 { queued:true }；入不了队把原因写在 error.queueProblem 上再抛。
      */
-    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '', directDelivery = false } = {}) {
+    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '', directDelivery = false, replyJournal, replyFeed } = {}) {
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error(`不是 QQ 的聊天：${chatId}`)
       const action = tgt.kind === 'group' ? 'send_group_msg' : 'send_private_msg'
@@ -282,9 +285,9 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
         const r = await gw.call(action, params, directDelivery ? { timeoutMs, wsOnly: true } : timeoutMs ? { timeoutMs } : undefined)
         return { ...(r && typeof r === 'object' ? r : {}), ...(r && r.message_id !== undefined ? { messageId: String(r.message_id) } : {}) }
       } catch (error) {
-        // 超时（uncertain）不入队，避免同一条消息发两次。
-        if (queue && box && isDefiniteFailure(error)) {
-          const q = box.add({ action, params, chatId, note, kind: system ? 'system' : 'reply', privacyRevision })
+        // 只补发没连上网关的消息。网关明确拒绝了内容，或超时结果不明，都不重发。
+        if (queue && box && error?.transport && isDefiniteFailure(error)) {
+          const q = box.add({ action, params, chatId, note, kind: system ? 'system' : 'reply', privacyRevision, replyJournal, replyFeed })
           if (q.ok) return { queued: true, queuedId: q.id, error }
           error.queueProblem = q.message
         }
@@ -297,7 +300,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       if (!tgt) throw new Error(`不是 QQ 的聊天：${chatId}`)
       const action = tgt.kind === 'group' ? 'upload_group_file' : 'upload_private_file'
       const params = tgt.kind === 'group' ? { group_id: Number(tgt.id), file, name } : { user_id: Number(tgt.id), file, name }
-      return gw.call(action, params, timeoutMs ? { timeoutMs } : undefined)
+      return (await gw.call(action, params, timeoutMs ? { timeoutMs } : undefined)) ?? {}
     },
     /** 网关明确说没发出去（可以换一种方式再发）；超时、结果不确定的不算。 */
     isDefiniteFailure,

@@ -118,9 +118,9 @@ export default {
       if (req?.method !== 'POST') return { ok: false, message: '要用 POST 上传' }
       try { return await looks.add(await api.core.http.raw(req, 20 * 1024 * 1024)) } catch (error) { return { ok: false, message: error.message } }
     })
-    api.route('/image/appearance/delete', async (req) => looks.remove(String((await api.core.http.body(req).catch(() => ({})))?.file || '')))
-    api.route('/image/appearance/primary', async (req) => looks.setPrimary(String((await api.core.http.body(req).catch(() => ({})))?.file || '')))
-    api.route('/image/appearance/description', async (req) => looks.setDescription(String((await api.core.http.body(req).catch(() => ({})))?.text || ''), 'owner'))
+    api.route('/image/appearance/delete', async (req) => looks.remove(String((await api.core.http.body(req)).file || '')))
+    api.route('/image/appearance/primary', async (req) => looks.setPrimary(String((await api.core.http.body(req)).file || '')))
+    api.route('/image/appearance/description', async (req) => looks.setDescription(String((await api.core.http.body(req)).text || ''), 'owner'))
     // 看图写一段外貌描述（要看得懂图的模型：表情起名单独挑了模型就用它，不然用聊天模型）
     api.route('/image/appearance/describe', async () => {
       const imgs = looks.buffers(4)
@@ -236,7 +236,10 @@ export default {
           const dryRun = cfg.dryRun && !cfg.debug
           if (!dryRun) task?.beginDelivery()
           const sent = dryRun ? null : await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`, task ? { isCurrent: () => !closed() && task.isCurrent(), allowQueue: false } : undefined)
-          if (!sent && !dryRun) return { ok: false, message: '画好了，但没有发到 QQ（请检查网关）' }
+          if (!sent && !dryRun) {
+            const message = '画好了，但未确认图片已发到 QQ。'
+            return { ok: false, message, summary: message, deliveryFailed: true }
+          }
           const saved = savePainting(buf, String(prompt || ''))
           if (saved) api.log.debug(`生图已存盘：${saved}`)
           try {
@@ -290,11 +293,14 @@ export default {
         return api.core.tasks.start({
           kind: '生图', chatId: chat.chatId, requesters: api.core.taskRequesters?.({ chat, sessionId }) || [],
           run: async (task) => {
-            try { return await draw(task) }
+            let result
+            try { result = await draw(task) }
             catch (error) {
               if (!closed() && task.isCurrent()) await hub.sendText(chat.chatId, '这张图没画成，可以问我当前进度。')
               throw error
             }
+            if (result.deliveryFailed && !closed() && task.isCurrent()) await hub.sendText(chat.chatId, result.message)
+            return result
           },
         })
       },

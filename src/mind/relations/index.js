@@ -28,7 +28,7 @@ function freshMind() {
 
 /**
  * @param {{ store: any, now: () => number, setting: (k: string) => any, log?: any, identity: () => any,
- *   isOwner: (id: string) => boolean, person: (id: string) => any, savePerson: (p: any) => void,
+ *   isOwner: (id: string) => boolean, isOwnerWindow: (window: string) => boolean, person: (id: string) => any, savePerson: (p: any) => void,
  *   listPeople: () => any[], trustBase?: () => number }} deps
  */
 export function createRelations(deps) {
@@ -83,13 +83,16 @@ export function createRelations(deps) {
   }
 
   // ---------- 记经历时顺带：看法变了没有 ----------
-  function encodeAsk() {
+  function encodeAsk(window) {
+    const passion = deps.isOwnerWindow(window) && deps.identity().sexualDesire
+      ? '\n  主人私聊可另填 d.passion（-1 到 1）和 passionLine（你自己真实说过的行号）。判断这段让你对主人的浪漫吸引增强还是减弱。双方明确回应的心动、吸引可以上升；你明确表达吸引减退或疏远可以下降。只凭对方表达愿望、话题亲密、沉默、玩笑或一时紧张，无法判断变化就省略。'
+      : ''
     return `- "rel"：这段里和你说过话的人，你对他们的看法有没有变化（只写有变化或新了解到的人，没有就空数组）。每项：
   {"who":"id","d":{"close":亲近 -1到1,"like":喜欢,"respect":尊重和欣赏,"trust":信任,"seen":你感觉他怎么看你},"kept":他说到做到了 true / 失约了 false（没有就不写）,
    "helped":"me（他帮了你）/ them（你帮了他）","call":"你怎么叫他（可选）","callMe":"他怎么叫你（可选）","likes":"他喜欢或在意的（可选）","habit":"他的说话习惯或作息（可选）",
    "mood":"他现在大概的心情、在忙什么（可选）","joke":"你们之间的老梗（可选）","limit":"他不喜欢被开的玩笑、不能提的事（可选）","moment":"这段关系的转折点，比如第一次见面、吵得最凶、和好（可选）",
    "knot":"新结下的心结（可选）","untie":心结解开了 true（可选）,"flirt":他在撩你或表白 true（可选）,"rival":和他有比较、争宠 true（可选）}
-  d 里只写变了的；数值是这段里变化的方向和大小（0.3 就是明显变好一点），不是总分。
+  d 里只写变了的；数值是这段里变化的方向和大小（0.3 就是明显变好一点），不是总分。${passion}
 - "knowledge"：此人明确表明自己知道或还不知道的事。写 {"who":"id","line":他说的行号,"quote":"他的连续原话","state":"known 或 unknown","topic":"十几个字的主题"}。不要凭沉默、转述或猜测填写。
 - "group"（群聊才写，可选）：{"style":"这个群的风格（十五字以内）","rule":"这个群的规矩（十五字以内）"}`
   }
@@ -106,6 +109,8 @@ export function createRelations(deps) {
     const isPrivate = where.kind === 'private'
     const ratio = Number(R('trustLossRatio')) || 2
     const id0 = deps.identity()
+    const scorePassion = id0.sexualDesire && deps.isOwnerWindow(window)
+    let passionApplied = false
     const pester = []
     let updated = 0
     for (const e of list) {
@@ -139,8 +144,16 @@ export function createRelations(deps) {
         r.intimacy = clamp(r.intimacy + step(d.close) * 0.5 + (likeD > 0 ? 0.01 : 0))
         // 承诺：一起走下去的打算，随亲近慢慢长（Rusbult：投入越多越想维持）
         r.commitment = clamp(r.commitment + 0.003 + Math.max(0, step(d.close)) * 0.3 + (owner ? 0.002 : 0))
-        if (id0.sexualDesire && owner) r.passion = clamp(Math.max(r.passion, 0.3))
-        if (!id0.sexualDesire) r.passion = 0
+        if (owner && id0.sexualDesire) {
+          if (!r.passionChange) r.passion = clamp(Math.max(r.passion, 0.3))
+          const line = Number.isInteger(e.passionLine) ? rows[e.passionLine - 1] : null
+          if (scorePassion && !passionApplied && !deps.person(who)?.noMemory && line?.dir === 'out' && line.text?.trim() && Number.isFinite(d.passion) && d.passion !== 0) {
+            passionApplied = true
+            const next = r3(clamp(r.passion + step(d.passion)))
+            if (next !== r.passion) r.passionChange = { at, delta: r3(next - r.passion) }
+            r.passion = next
+          }
+        }
       } else {
         r.intimacy = 0; r.passion = 0; r.commitment = 0
       }

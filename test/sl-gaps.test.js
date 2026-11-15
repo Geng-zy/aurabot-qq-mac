@@ -378,9 +378,10 @@ test('跨聊天发消息：群里只有主人那一轮能发，别人私聊没�
   const { default: mod } = await import('../src/modules/qq-tools/index.js')
   const sent = []
   let owner = false
+  let receipt = { delivered: true }
   let build
   mod.setup({
-    core: { hub: { turnSendersAllOwner: () => owner, deliver: async (id, text) => { sent.push([id, text]); return {} } }, onebot: { call: async () => ({}) } },
+    core: { hub: { turnSendersAllOwner: () => owner, deliver: async (id, text) => { sent.push([id, text]); return receipt } }, onebot: { call: async () => ({}) } },
     config: () => ({ enabled: true, freedom: false, ownerQQ: '1', allow: { private: ['2'], groups: ['9', '8'] }, files: {} }),
     tool: (fn) => { build = fn },
   })
@@ -394,6 +395,12 @@ test('跨聊天发消息：群里只有主人那一轮能发，别人私聊没�
   assert.equal((await tool.execute({ target: 'group:7', text: '嗨' })).ok, false, '白名单外')
   assert.equal((await tool.execute({ target: 'group:9', text: '嗨' })).ok, false, '当前聊天')
   assert.deepEqual(sent.map((x) => x[0]), ['group:8', 'private:2'])
+  receipt = { delivered: false, queued: 1 }
+  assert.match((await tool.execute({ target: 'group:8', text: '等候补发' })).message, /正在等待发送/)
+  receipt = { delivered: true, unconfirmed: 1 }
+  assert.deepEqual(await tool.execute({ target: 'group:8', text: '两条消息' }), {
+    ok: false, delivered: true, queued: 0, message: '部分已发出，1 条未确认送达',
+  })
   const stranger = build({ chat: { kind: 'private', userId: '2', chatId: 'private:2' }, level: 'social', sessionId: 's' })
   assert.equal(stranger.find((t) => t.name === 'qq_send_message'), undefined)
 })

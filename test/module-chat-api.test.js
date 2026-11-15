@@ -25,7 +25,7 @@ function setup(t, options = {}) {
   const hub = createHub({ dsh: fake.ctx, getConfig: () => cfg,
     log: { info() {}, warn() {}, debug() {}, error() {} },
     onebot: { connected: true, async call(action, params) { calls.push({ action, params }); return { message_id: calls.length } } },
-    mind: { perceive: (msg) => { memory.push(msg); return true } }, onActivity: (a) => activity.push(a),
+    mind: { perceive: (msg) => { memory.push(msg); return true } }, onActivity: (a) => activity.push(a), stickers: options.stickers,
     isMuted: () => muted, hooks: { journal: (row) => rows.push(row), ...options.hooks } })
   const off = fake.ctx.on('session/event', hub.onSessionEvent)
   t.after(() => {
@@ -56,6 +56,44 @@ test('流水通知与落盘同源：来源端标记不落盘，监听失败不�
   const other = setup(t, { hooks: { journal() { throw new Error('consumer failed') } } })
   assert.equal(other.hub.logChat(CHAT, 'bot', '落盘不回滚'), true)
   assert.equal(other.hub.chatLogOf(other.hub.chatLogDays()[0])[0].text, '落盘不回滚')
+})
+
+test('回复分条投递时，流水和活动只记录实际确认的内容', async (t) => {
+  const s = setup(t, { hooks: { send(message) {
+    if (message[0].data.text === '拦截这条') return null
+    return [{ type: 'text', data: { text: '钩子修改后的内容' } }]
+  } } })
+  const blocked = await s.hub.deliver(CHAT, '拦截这条')
+  assert.equal(blocked.delivered, false)
+  assert.deepEqual(s.rows, [])
+  assert.deepEqual(s.activity, [])
+  const partial = await s.hub.deliver(CHAT, '改写这条|||拦截这条')
+  assert.equal(partial.delivered, true)
+  assert.deepEqual(s.rows.map(({ text }) => text), ['钩子修改后的内容'])
+  assert.deepEqual(s.activity.map(({ reply }) => reply), ['钩子修改后的内容'])
+  assert.equal(s.hub.lastBotToOwner.text, '钩子修改后的内容')
+})
+
+test('表情被拦截时无回执也不增加用量，确认后按真实名称进入流水', async (t) => {
+  const used = []
+  let blocked = true
+  const s = setup(t, {
+    hooks: { send: (message) => blocked ? null : message },
+    stickers: {
+      match: () => ({ name: '收到', md5: 'a12345678' }),
+      segmentFor: () => ({ type: 'image', data: { file: 'test.jpg' } }),
+      markUsed: (id) => used.push(id),
+    },
+  })
+  s.cfg.stickers.enabled = true
+  assert.equal(await s.hub.sendSticker(CHAT, '收到', undefined, undefined, { detailed: true }), 'unconfirmed')
+  assert.deepEqual(used, [])
+  assert.equal(s.hub.stats().stickers, 0)
+  blocked = false
+  assert.equal((await s.hub.deliver(CHAT, '<sticker:收到>')).delivered, true)
+  assert.deepEqual(used, ['a12345678'])
+  assert.equal(s.hub.stats().stickers, 1)
+  assert.equal(s.rows[0].text, '[表情：收到]')
 })
 
 test('外部主人输入复用已有会话、心智核心的感知和来源，群会话保留 social 权限', async (t) => {

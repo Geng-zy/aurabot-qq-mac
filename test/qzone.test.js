@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -8,6 +8,8 @@ process.env.AURABOT_DATA_DIR = mkdtempSync(join(tmpdir(), 'aurabot-qzone-'))
 
 const { createQzone } = await import('../src/features/qzone.js')
 const { dataDir, readJson, writeJson } = await import('../src/core/store.js')
+const { default: qzoneSocial } = await import('../src/channels/qq/features/qzone-social/index.js')
+const { default: diary } = await import('../src/modules/diary/index.js')
 
 const noopLog = { info() {}, warn() {} }
 const hub = { chatLogOf: () => [] }
@@ -39,6 +41,40 @@ function qzoneWith(onebot) {
 function entry(tid, extra = {}) {
   return { at: Date.now() - 60_000, text: '写了一条', ok: true, tid, dryRun: false, visibility: 'all', error: '', ...extra }
 }
+
+test('试运行时发说说工具如实报告模拟，网关无作品 ID 时不会造一个', async () => {
+  const onebot = mockOnebot([{}])
+  let register
+  diary.setup({
+    config: () => ({ ...config, dryRun: true }), core: { hub, onebot }, log: noopLog, dataDir,
+    onDispose() {}, every() {}, rule() {}, route() {}, tool(fn) { register = fn },
+  })
+  const tool = register({ chat: { kind: 'private' }, level: 'full' })
+  const simulated = await tool.execute({ content: '今天去看了晚霞' })
+  assert.equal(simulated.sent, false)
+  assert.match(simulated.message, /未发布/)
+  assert.equal(onebot.calls.length, 0)
+  const posted = await qzoneWith(onebot).post('今天去看了晚霞')
+  assert.equal(posted.ok, true)
+  assert.equal(posted.tid, '')
+})
+
+test('空间日记配图发布结果不确定时，不再以纯文字重发', async () => {
+  seed([])
+  const onebot = mockOnebot([Object.assign(new Error('超时'), { uncertain: true }), { tid: 'duplicate' }])
+  const picture = dataDir('diary-test.jpg')
+  writeFileSync(picture, Buffer.from([0xff, 0xd8, 0xff, 0xd9]))
+  const qzone = createQzone({
+    getConfig: () => ({ ...config, diary: { ...config.diary, visibility: 'self', attachImage: true } }),
+    onebot, hub: { runSystemTurn: async () => '今晚喝了一杯热茶。' }, log: noopLog,
+    pickImage: async () => picture,
+  })
+  const result = await qzone.writeDiary()
+  assert.equal(result.uncertain, true)
+  assert.match(result.message, /未确认/)
+  assert.equal(onebot.calls.length, 1)
+  assert.equal(onebot.calls[0].params.images?.length, 1)
+})
 
 test('remove：删除成功后把本地记录标记为已删除', async () => {
   seed([entry('t1'), entry('t2')])
@@ -216,4 +252,46 @@ test('主动日记在发布前复查设置，成功时才留下实际发布记�
   assert.deepEqual(onebot.calls.map((x) => x.action), ['send_qzone_msg'])
   assert.equal(qzone.automaticStatus().count, 1)
   assert.match(qzone.automaticStatus().reason, /距离上次发布/)
+})
+
+test('空闲检查空间新评论无需逛好友空间，预算中断后继续未处理的评论', async (t) => {
+  let at = Date.parse('2026-11-14T11:55:00+08:00')
+  t.mock.method(Date, 'now', () => at)
+  const ids = ['c1', 'c2']
+  const calls = []
+  const comments = ids.map((comment_id, i) => ({ comment_id, name: '访客' + i, uin: 10001 + i, content: '你好', time: at / 1000 - 3, replies: [] }))
+  const cfg = { enabled: true, dryRun: false, qzoneSocial: { enabled: true, replyOwn: true, commentFriends: true, maxPerDay: 8 } }
+  const onebot = { async call(action, data) {
+    calls.push({ action, data })
+    if (action === 'get_qzone_msg_list') return { msglist: [{ tid: 'mine', comment_num: 2, time: at / 1000 }] }
+    if (action === 'get_qzone_msg_detail') return { comments }
+    if (action !== 'comment_qzone') assert.fail(action)
+  } }
+  let allowed = false
+  let rounds = 0
+  const hub = { selfId: '10000', async runSystemTurn() {
+    if (++rounds === 2) throw Object.assign(new Error('预算不足'), { code: 'BUDGET' })
+    return '你好呀'
+  } }
+  let scheduled
+  let action
+  const social = qzoneSocial.setup({
+    config: () => cfg, core: { hub, onebot }, log: noopLog, route() {},
+    every: (_ms, run) => { scheduled = run },
+    mind: { offer: (def) => { action = def }, checkSpaceReplies: async (run) => { if (allowed) await run({ checkpoint: async () => {} }) } },
+  })
+  assert.equal(action.id, 'social')
+  await scheduled()
+  assert.equal(calls.length, 0)
+  allowed = true
+  await scheduled()
+  assert.equal(social.state().count, 1)
+  assert.equal(social.state().lastRun, 0)
+  assert.equal(social.state().lastReplyCheck, at)
+  await scheduled()
+  assert.equal(rounds, 2)
+  at += 5 * 60000
+  await scheduled()
+  assert.equal(social.state().count, 2)
+  assert.deepEqual(calls.filter((call) => call.action === 'comment_qzone').map((call) => call.data.content), ['回复 访客0：你好呀', '回复 访客1：你好呀'])
 })

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createHash } from 'node:crypto'
 import { estimateTokens } from '../mind/budget.js'
 import { wantsOwnerChat, wantsMeal } from '../mind/motivation/index.js'
 import { fileURLToPath } from 'node:url'
@@ -12,9 +13,11 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { createMind } from '../mind/index.js'
+import { paramOf } from '../mind/params.js'
 import { effortForScene, speechScene } from '../mind/conversation.js'
 import { createEmbedClient, createRerankClient } from '../mind/memory/vectors.js'
 import { parseJson } from '../mind/memory/index.js'
+import { keywords } from '../mind/memory/words.js'
 import { dayKey, inRange, minuteOfDay, parsePeriod, parseRange, shortTime } from '../mind/clock.js'
 import { createLocalModel, hasLocalModel } from '../mind/local/runner.js'
 import { defineTool, str, int } from '../tools/tools.js'
@@ -24,6 +27,7 @@ import { shortId } from '../mind/place.js'
 import { isSilence } from '../chat/reply.js'
 import { checkAllowed } from '../chat/access.js'
 import { migrateLegacy, LEGACY_TAG } from './migrate.js'
+import { acceptsFood, naturalFoodOffer } from './feeding.js'
 
 /** 非主人想让她记成长久规矩的话（“以后都听我的”“主人让你……”）：她不会因为群友一句话就记成规矩。 */
 export function looksLikeRule(text) {
@@ -123,8 +127,11 @@ export function createMindAdapter(opts) {
 
   const localEmbedding = opts.localEmbedding || createEmbedder(fileURLToPath(new URL('../../models/', import.meta.url)))
   const embedBackend = () => opts.getConfig()?.mind?.embedBackend === 'local' ? 'local' : 'remote'
+  const embedUrl = () => String(mind.setting('memory.embedUrl') || '').trim().replace(/\/+$/, '')
+  const localIdentity = 'local:bge-small-zh-v1.5-int8'
+  const embedName = () => embedBackend() === 'local' ? localIdentity : String(mind.setting('memory.embedModel') || '').trim()
   const embedRemote = createEmbedClient({
-    url: () => mind.setting('memory.embedUrl'),
+    url: embedUrl,
     model: () => mind.setting('memory.embedModel'),
     key: () => opts.embedKey?.() || '',
     fetch: opts.fetch,
@@ -138,10 +145,16 @@ export function createMindAdapter(opts) {
   function embeddingStatus() {
     const backend = embedBackend()
     const error = backend === 'local' ? localEmbedding.probe() : ''
-    return { backend, error }
+    return { backend, error, model: embedName() }
   }
   mem.connect({
-    embeddingIdentity: () => embedBackend() === 'local' ? 'local:bge-small-zh-v1.5-int8' : mind.setting('memory.embedModel'),
+    embeddingIdentity: () => {
+      const name = embedName()
+      const url = embedUrl()
+      // 给兼容接口单独的索引。默认服务沿用已有向量，避免升级时重新计算。
+      if (embedBackend() === 'local' || url === paramOf('memory.embedUrl').def) return name
+      return 'endpoint:' + createHash('sha256').update(url + '\0' + name).digest('hex')
+    },
     embeddingReady: () => !embeddingStatus().error,
     embed: async (texts, { query = false } = {}) => {
       if (embedBackend() !== 'local') return embedRemote(texts)
@@ -157,7 +170,7 @@ export function createMindAdapter(opts) {
   const local = opts.localModel || createLocalModel({
     python: () => localModelPaths(mind.setting).python,
     modelDir: () => localModelPaths(mind.setting).model,
-    idleMinutes: Number(mind.setting('models.localIdleMinutes')) || 30,
+    idleMinutes: () => mind.setting('models.localIdleMinutes'),
     log,
   })
   mind.inner.connect({
@@ -171,6 +184,13 @@ export function createMindAdapter(opts) {
 
   /** 这个人设成了「以后不记」：他的话不进感知记录，和他私聊时她说的也不记。 */
   const notRemembered = (person) => Boolean(person) && mind.person(person)?.noMemory === true
+
+  function canSeedHistory(chatId, senderId) {
+    const chat = parseChat(chatId)
+    return Boolean(chat && senderId) &&
+      !(chat.kind === 'private' && notRemembered(refOfChat(chatId))) &&
+      !notRemembered(personIn(chatId, senderId))
+  }
 
   function recentUserMessages(chat, currentText) {
     const chatId = windowOf(chat?.chatId)
@@ -231,7 +251,14 @@ export function createMindAdapter(opts) {
       noteChatActivity()
       const text = segmentsText(message, note)
       if (!text) return false
-      return mind.said({ window: windowOf(chatId), text, msgId: messageId !== undefined && messageId !== null ? String(messageId) : undefined, kind })
+      const window = windowOf(chatId)
+      const recorded = mind.said({ window, text, msgId: messageId !== undefined && messageId !== null ? String(messageId) : undefined, kind })
+      if (recorded && kind === 'reply' && isOwnerChat(chatId) && acceptsFood(text)) {
+        const giver = refOfChat(window)
+        const offer = latestFoodOffer(window, giver)
+        if (offer && !fedSince(offer)) feed(offer.food, giver, chatId)
+      }
+      return recorded
     } catch (error) {
       log.warn('心智没记下她说的话：', error.message)
       return false
@@ -259,9 +286,10 @@ export function createMindAdapter(opts) {
    * 正文里已经有的收到的消息去掉。没给 current 时，去掉末尾刚到的那几条。
    * 更早没回的（比如群里潜水看到的）照样给。
    */
-  function carryOver(chatId, { current = '', limit = 30, maxChars = Number(mind.setting('memory.workingChars')) || 1800, batchMs = 10 * 60000, allowLine = () => true } = {}) {
+  function carryOver(chatId, { current = '', query = '', limit = 30, maxChars = Number(mind.setting('memory.workingChars')) || 1800, batchMs = 10 * 60000, allowLine = () => true } = {}) {
     const window = windowOf(chatId)
-    const rows = mind.history(window, { limit: limit + 20, audienceWindow: window }).filter(allowLine)
+    const terms = limit > 2 && query && mem.pendingThrough(window) ? keywords(query) : []
+    const rows = mind.history(window, { limit: limit + (terms.length ? 120 : 20), audienceWindow: window }).filter(allowLine)
     const newest = rows.length ? rows[rows.length - 1].at : 0
     const fresh = (r) => r.dir === 'in' && newest - r.at <= batchMs
     let kept
@@ -272,20 +300,36 @@ export function createMindAdapter(opts) {
       while (end > 0 && fresh(rows[end - 1])) end--
       kept = rows.slice(0, end)
     }
-    const picked = kept.slice(-limit)
     const tz = mind.identity().timezone
-    const lines = []
-    let total = 0
-    for (let i = picked.length - 1; i >= 0; i--) {
-      const r = picked[i]
+    const format = (r) => {
       const who = r.dir === 'out' ? '你' : (mind.person(r.who)?.name || r.who)
-      const line = `${dayKey(r.at, tz)} ${who}：${String(r.text).replace(/\s+/g, ' ').slice(0, 200)}`
+      return `${dayKey(r.at, tz)} ${who}：${String(r.text).replace(/\s+/g, ' ').slice(0, 200)}`
+    }
+    const earlier = []
+    let total = 0
+    if (terms.length) {
+      const matches = kept.slice(0, -limit).map((row) => ({
+        row, score: terms.reduce((score, { w, weight }) => row.text.includes(w) ? score + weight : score, 0),
+      })).filter(({ score }) => score >= 1).sort((a, b) => b.score - a.score || b.row.at - a.row.at)
+      for (const { row } of matches.slice(0, 2).reverse()) {
+        const line = format(row)
+        if (total + line.length > maxChars / 3) continue
+        total += line.length
+        earlier.push(line)
+      }
+    }
+    const picked = kept.slice(-(limit - earlier.length))
+    const lines = []
+    for (let i = picked.length - 1; i >= 0; i--) {
+      const line = format(picked[i])
       if (total + line.length > maxChars && lines.length) break
       total += line.length
       lines.unshift(line)
     }
+    lines.unshift(...earlier)
     if (!lines.length) return ''
-    return `【接着之前的聊天（你自己记得的最近 ${lines.length} 条）】\n${lines.join('\n')}\n【以上是之前的，下面是新的】`
+    const range = earlier.length ? '同一聊天的近期原话和相关旧消息' : `你自己记得的最近 ${lines.length} 条`
+    return `【接着之前的聊天（${range}）】\n${lines.join('\n')}\n【以上是之前的，下面是新的】`
   }
 
   /** 每轮给她的「此刻」：按她的时区；生日那天告诉她。 */
@@ -722,7 +766,14 @@ export function createMindAdapter(opts) {
       },
       /** 她现在的时间（按她的时区）。 */
       now: () => mind.nowText(),
-      ...(source === 'builtin' && moduleId === 'diary' ? { timezone: () => mind.identity().timezone, actionBudget } : {}),
+      actionBudget,
+      ...(source === 'builtin' && moduleId === 'diary' ? { timezone: () => mind.identity().timezone } : {}),
+      ...(source === 'builtin' && moduleId === 'qzone-social' ? {
+        async checkSpaceReplies(run) {
+          if (!canThink() || actionBudget() !== true) return
+          await runAction('', { label: '检查空间新评论', run })
+        },
+      } : {}),
       /**
        * 把一件她能做的事交给她，由她自己决定什么时候做（不再由模块自己定时）。
        * needs：这件事满足哪些基本需要（fun 新鲜和乐趣、curiosity 好奇、beauty 美、companion 陪伴、recognition 被认可……），0～1。
@@ -846,9 +897,9 @@ export function createMindAdapter(opts) {
     return { thought, did: pick?.id || '' }
   }
 
-  async function runAction(id) {
+  async function runAction(id, scheduled) {
     if (closed || doing) return { ok: false, summary: '她正在做别的事' }
-    const label = mind.motivation.state().actions.find((a) => a.id === id)?.label || id
+    const label = scheduled?.label || mind.motivation.state().actions.find((a) => a.id === id)?.label || id
     const controller = new AbortController()
     doing = { id, label, at: now(), controller }
     const enabled = () => opts.getConfig()?.enabled !== false
@@ -862,9 +913,9 @@ export function createMindAdapter(opts) {
     log.info(`她自己去${label}`)
     try {
       await checkpoint()
-      const context = { checkpoint, signal: controller.signal, budgetBlocked: false }
-      const r = await actionContext.run(context, () => mind.motivation.act(id, context))
-      if (r?.ok) mind.inner.relieve(0.5)
+      const context = { checkpoint, signal: controller.signal, budgetBlocked: 0 }
+      const r = await actionContext.run(context, () => scheduled ? scheduled.run(context) : mind.motivation.act(id, context))
+      if (r?.ok && !scheduled) mind.inner.relieve(0.5)
       return r
     } catch (error) {
       return { ok: false, summary: error.message }
@@ -880,15 +931,16 @@ export function createMindAdapter(opts) {
     const estimate = estimateTokens(prompt) + 1600
     const finish = mind.budget.reserve('action', estimate)
     if (!finish) {
-      action.budgetBlocked = true
+      action.budgetBlocked = estimate
       throw Object.assign(new Error('今天的后台模型预算已用完'), { code: 'BUDGET' })
     }
     return (started, used) => { if (!closed) finish(started ? used || estimate : undefined) }
   }
 
-  function actionBudget() {
+  function actionBudget(tokens = 1600) {
     const cap = Number(mind.setting('models.backgroundTokensDaily'))
-    return mind.budget.allow('action', 1600) ? true : cap === 0 ? '后台模型预算设为 0' : '今天的后台模型预算不足'
+    const estimate = Number.isFinite(tokens) ? Math.max(1600, tokens) : 1600
+    return mind.budget.allow('action', estimate) ? true : cap === 0 ? '后台模型预算设为 0' : '今天的后台模型预算不足'
   }
 
   // ---------- 忘掉一个人（面板「关系」页） ----------
@@ -1117,15 +1169,15 @@ export function createMindAdapter(opts) {
    */
   async function encodeChat(chatId) {
     if (closed || !opts.ask || debug()) return 0
+    const window = windowOf(chatId)
+    const through = mem.pendingThrough(window)
+    if (!through) return 0
     while (encodingP) await encodingP.catch(() => {})
     if (closed || debug()) return 0
-    let n = 0
-    encodingP = mem.encodeWindow(windowOf(chatId), { force: true })
-      .then((r) => { n = r?.encoded || 0 })
-      .catch((error) => log.warn('换会话时记经历出错：', error.message))
+    encodingP = mem.encodeThrough(window, through, () => !closed && !debug())
+      .catch((error) => { log.warn('换会话时记经历出错：', error.message); return 0 })
       .finally(() => { encodingP = null })
-    await encodingP
-    return n
+    return encodingP
   }
   // ---------- 身体：每分钟推进一次；睡、醒、自己吃都由身体决定 ----------
   const missed = new Map() // 睡着时找她、但叫不醒她的消息：chatId → { event, owner, at }
@@ -1267,6 +1319,11 @@ export function createMindAdapter(opts) {
     return decision
   }
 
+  function mustReplyOwner(chatId, userId) {
+    syncOwner()
+    return mind.setting('identity.mustReplyOwner') === true && mind.isOwner(personIn(chatId, userId))
+  }
+
   /** 叫醒她（面板按钮）：和被消息叫醒一样，醒来整理记忆、补回消息。 */
   function wakeUp(byQQ = '') {
     const ev = mind.body.wake(byQQ ? personOf(byQQ) : '')
@@ -1323,11 +1380,24 @@ export function createMindAdapter(opts) {
   }
 
   // ---------- 她的感受：回复里的 <feel>，发出去之前收走 ----------
+  function latestFoodOffer(window, giver) {
+    return naturalFoodOffer(mind.history(window, { since: now() - 3 * 60000, limit: 20 }), mind.canon(giver))
+  }
+
+  function fedSince(offer) {
+    return (mind.body.state({ persist: false }).lastMeal?.at ?? -Infinity) >= offer.at
+  }
+
+  function confirmReplyFeed(chatId, { food, giver, at }) {
+    if (debug() || !giver || !food || !Number.isFinite(at) || notRemembered(giver) || fedSince({ at })) return
+    feed(food, giver, chatId)
+  }
+
   /**
    * 从她的回复里收走 <feel>…</feel>（别人看不到），记下情绪；里面说有人给她吃的就算投喂。
    * @returns {string} 去掉 <feel> 后的回复
    */
-  function feel(chatId, text, { senders = [] } = {}) {
+  function feel(chatId, text, { senders = [], deferFeed } = {}) {
     const raw = String(text || '')
     const blocks = [...raw.matchAll(/<feel>([\s\S]*?)<\/feel>/gi)]
     const clean = raw.replace(/<feel>[\s\S]*?<\/feel>/gi, '').replace(/<feel>[\s\S]*$/i, '').trim()
@@ -1356,7 +1426,12 @@ export function createMindAdapter(opts) {
         const by = String(fed.by ?? '').trim()
         // 写了是谁给的，就必须是这一轮在跟她说话的人；没写、这一轮又只有一个人，就是那个人
         const giver = by ? speakers.find((id) => id === asId(by)) : speakers.length === 1 ? speakers[0] : ''
-        if (giver) feed(fed.food, giver, chatId)
+        const offer = giver && isOwnerChat(chatId) ? latestFoodOffer(window, giver) : null
+        if (giver) {
+          const pending = { food: [...String(offer?.food || fed.food).trim()].slice(0, 40).join(''), giver, at: offer?.at ?? now() }
+          if (deferFeed) deferFeed(pending)
+          else confirmReplyFeed(chatId, pending)
+        }
       }
     }
     return clean
@@ -1368,7 +1443,7 @@ export function createMindAdapter(opts) {
       '【感受】你的回复最后可以加一段 <feel>…</feel>，只给系统看，别人看不到。「此刻的感受」里已有的情绪已经记下，只写回复过程中新增或主动调节的感受。格式：<feel>{"e":[{"n":"情绪名","i":0到1的强度,"who":"对方在当前渠道的账号（自己或没有就留空）","why":"十个字以内的原因","imp":这件事对你多重要0到1}]}</feel>。',
       '判断感受时想一想：这事和你在乎的人和事有关吗；对你是好事还是坏事；是谁造成的、是不是故意的；你应付得了吗；意外吗；和你认为对的事合不合。气是冲着谁的就写谁，不要把对别人的气写到眼前的人身上。',
       '情绪名用常见的说法，比如 快乐、难过、生气、害怕、焦虑、好笑、兴奋、满足、平静、松一口气、期待、感动、喜爱、感激、心疼、羡慕、委屈、尴尬、害羞、内疚、失落、无聊、烦躁、想撒娇。你在调节情绪时可以加 "reg"：reappraise 换个角度想 / suppress 忍着不表现 / distract 转移注意 / share 找人说 / ruminate 反复想；被群里气氛带动的加 "src":"contagion"。',
-      '有人给你吃的、喝的（而且你收下了），在 <feel> 里加 "fed":{"food":"食物名","by":"给你的人的账号"}。',
+      '对方这一段确实递给你吃的或喝的，且你收下时，在 <feel> 里加 "fed":{"food":"食物名","by":"给你的人的账号"}。只讨论口味、表示想吃、答应以后再给，或者已经记下过的食物，都不用加。',
     ]
   }
 
@@ -1627,7 +1702,7 @@ export function createMindAdapter(opts) {
     mind.close()
   }
 
-  return { mind, perceive, noteAddressed, recentUserMessages, said, shouldRotate, carryOver, encodeChat, contextFor, beforeTurn, endTurn, invalidateMemory, checkOutgoingPrivacy, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reserveActionModel, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, wakeUp, noteTurn, feed, feel, rules, effects, embeddingStatus, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
+  return { mind, perceive, noteAddressed, recentUserMessages, said, shouldRotate, carryOver, canSeedHistory, encodeChat, contextFor, beforeTurn, endTurn, invalidateMemory, checkOutgoingPrivacy, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reserveActionModel, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, mustReplyOwner, wakeUp, noteTurn, feed, feel, confirmReplyFeed, rules, effects, embeddingStatus, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
     selfPrompt: (options) => mind.selfPrompt(options),
     protectedText: (chatId) => mem.protectedText(privateChatOf(ownerOf()), windowOf(chatId)),
     sharedText: (chatId) => mem.sharedText(windowOf(chatId)),

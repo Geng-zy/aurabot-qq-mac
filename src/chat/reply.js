@@ -518,7 +518,7 @@ export function itemsToLine(items, resolveSticker = () => null) {
   return (items || [])
     .map((i) => {
       if (!i) return ''
-      if (i.kind === 'text' || i.kind === 'voice') return String(i.value ?? '')
+      if (i.kind === 'text' || i.kind === 'voice' || i.kind === 'mention') return String(i.value ?? '')
       if (i.kind === 'sticker') {
         const item = i.value && typeof i.value === 'object' ? i.value : resolveSticker(i.value)
         const name = item?.name || (item?.md5 ? String(item.md5).slice(0, 8) : '')
@@ -528,6 +528,37 @@ export function itemsToLine(items, resolveSticker = () => null) {
     })
     .filter((s) => s !== '')
     .join(' ')
+}
+
+/** 只把网关收到的消息段还原为流水正文。 */
+export function deliveredItems(message, { transcript, sticker } = {}) {
+  return message.flatMap(({ type, data }) => {
+    if (type === 'reply') return []
+    if (type === 'text') return data?.text?.trim() ? [{ kind: 'text', value: data.text }] : []
+    if (type === 'at') return [{ kind: 'mention', value: '@' + (data?.name || data?.qq || '') }]
+    if (type === 'record' && transcript) return [{ kind: 'voice', value: transcript }]
+    if (type === 'image' && sticker) {
+      const source = sticker.segment.data
+      if (source.file && data?.file === source.file
+        || source.emoji_id && data?.emoji_id === source.emoji_id && data?.emoji_package_id === source.emoji_package_id) {
+        return [{ kind: 'sticker', value: sticker.item }]
+      }
+    }
+    return [{ kind: type }]
+  })
+}
+
+/** 给工具和联动接口同一套回执语义。 */
+export function describeDelivery(result) {
+  const { delivered = false, simulated = 0, queued = 0, unconfirmed = 0 } = result || {}
+  const receipt = { delivered, queued }
+  if (unconfirmed) {
+    const pending = queued ? `，另有 ${queued} 条正在排队` : ''
+    return { ...receipt, ok: false, message: `${delivered ? '部分已发出，' : ''}${unconfirmed} 条未确认送达${pending}` }
+  }
+  if (queued) return { ...receipt, ok: true, message: delivered ? '部分已发出，其余正在排队' : '已排队，正在等待发送' }
+  if (simulated) return { ...receipt, ok: true, simulated: true, message: '模拟发送完成，未发到 QQ' }
+  return { ...receipt, ok: delivered, message: delivered ? '发出去了' : '未确认送达' }
 }
 
 function pushText(items, s) {

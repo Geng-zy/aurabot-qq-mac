@@ -48,6 +48,24 @@ test('mind_recall：只给时间就列那段时间的事，带线索就只在那
   assert.equal((await t.mind_recall.execute({})).ok, false)
 })
 
+test('按日期回顾能找到已归档的周摘要，并沿用会话可见性', async (t) => {
+  const { a, tools } = setup()
+  t.after(() => a.close())
+  const at = Date.UTC(2026, 10, 8, 4)
+  const add = (gist, window, kind) => {
+    const id = a.mind.memory.insert({ at, window, gist, kind })
+    a.mind._store.prep("UPDATE episodes SET status = 'archived' WHERE id = ?").run(id)
+  }
+  add('私聊回顾：定下了读书清单', 'qq:private:1', 'week-summary')
+  add('群聊回顾：讨论过游戏更新', 'qq:group:5', 'week-summary')
+  add('已经淡忘的闲聊：看了新电影', 'qq:group:5', 'event')
+  const owner = await tools(OWNER).mind_recall.execute({ period: '上周' })
+  assert.match(owner.message, /读书清单/)
+  const group = await tools(GROUP).mind_recall.execute({ period: '上周' })
+  assert.match(group.message, /游戏更新/)
+  assert.doesNotMatch(group.message, /读书清单|新电影/)
+})
+
 test('mind_read_day：群和其他私聊可跨会话查原话，主人私聊留在来源会话', async (testContext) => {
   let ownerTurn = true
   const { a, tools } = setup(() => ownerTurn)

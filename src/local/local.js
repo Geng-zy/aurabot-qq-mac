@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dataDir } from '../core/store.js'
 import { withTimeoutSignal } from '../core/net.js'
+import { mimeOf } from '../core/image-info.js'
 
 const TEMPLATES = fileURLToPath(new URL('./templates/', import.meta.url))
 const README = 'README-本地接口.md'
@@ -39,6 +40,18 @@ export async function toImageBuffer(r, { signal, allowUrl = true } = {}) {
 /** 返回值里取文件路径（tts / 翻唱）。 */
 export const fileOf = (r) => (typeof r === 'string' ? r : r?.file || r?.output || '')
 
+export function localAudioFile(result) {
+  const file = fileOf(result)
+  if (!file || !statSync(file, { throwIfNoEntry: false })?.isFile()) throw new Error('脚本没返回可读的音频文件')
+  return file
+}
+
+export async function localImageBuffer(result, signal) {
+  const bytes = await toImageBuffer(result, { signal })
+  if (!String(mimeOf(bytes)).startsWith('image/')) throw new Error('脚本没返回有效图片')
+  return bytes
+}
+
 export function createLocal({ getConfig, log }) {
   const dir = () => dataDir('local')
   const outDir = () => dataDir('local', 'out')
@@ -50,7 +63,7 @@ export function createLocal({ getConfig, log }) {
     return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot))
   }
 
-  async function call(slot, args, { signal, outDir: output = outDir(), sensitive = false, onLateFinish } = {}) {
+  async function call(slot, args, { signal, outDir: output = outDir(), sensitive = false, onLateFinish, readResult } = {}) {
     const spec = SLOTS[slot]
     const file = pathOf(slot)
     const t = Date.now()
@@ -77,7 +90,7 @@ export function createLocal({ getConfig, log }) {
       const work = Promise.resolve().then(() => {
         activeSignal.throwIfAborted()
         return fn({ ...args, outDir: output, log: child, signal: activeSignal })
-      }).finally(() => {
+      }).then((result) => readResult ? readResult(result, activeSignal) : result).finally(() => {
         if (activeSignal.aborted) return onLateFinish?.()
       })
       const result = await Promise.race([interrupted, work])

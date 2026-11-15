@@ -84,7 +84,7 @@ export function decideGroupReply(p) {
   // 每小时 @/唤醒词必回上限：这小时被叫的次数够多了就闭嘴。主人说话不受限（主人的必回也不计入）
   const mustMax = Number(pol.mustMaxPerHour ?? 100)
   const mustHour = (p.mustTimes || []).filter((t) => p.now - t < 3600_000).length
-  if (!p.fromOwner && mustMax > 0 && mustHour >= mustMax) {
+  if (calling && !p.fromOwner && mustMax > 0 && mustHour >= mustMax) {
     return { reply: false, mode: 'none', reason: `这小时被叫了 ${mustHour} 次，回够了，歇一歇` }
   }
   if (p.mentioned) return { reply: true, mode: 'must', reason: '被 @' }
@@ -95,15 +95,15 @@ export function decideGroupReply(p) {
 
   if (!(pol.interjectChance > 0)) return { reply: false, mode: 'none', reason: '插话关着' }
   if (inQuietHours(p.hour, pol.quietHours)) return { reply: false, mode: 'none', reason: '静默时段' }
+  const times = p.interjectTimes || []
+  const lastHour = times.filter((t) => p.now - t < 3600_000).length
+  if (lastHour >= pol.maxPerHour) return { reply: false, mode: 'none', reason: '这小时插话够多了' }
   const minRel = Number(pol.minRelevance) || 0
-  // 已经加入了这个话题：接着聊（每段看完再回，不受冷却和每小时上限限制）。她说话会续上这个状态，
+  // 已经加入了这个话题：接着聊（每段看完再回，不受冷却限制）。她说话会续上这个状态，
   // 她会看到自己接了几次、自己决定停不停，engagedMax 只是兜底
   if (p.engagedUntil && p.now < p.engagedUntil && rel >= minRel && (p.engagedRun || 0) < (pol.engagedMax ?? 2)) {
     return { reply: true, mode: 'engaged', reason: `正聊得起劲，接着说（相关度 ${rel.toFixed(2)}）` }
   }
-  const times = p.interjectTimes || []
-  const lastHour = times.filter((t) => p.now - t < 3600_000).length
-  if (lastHour >= pol.maxPerHour) return { reply: false, mode: 'none', reason: '这小时插话够多了' }
   const last = times.length ? Math.max(...times) : 0
   if (p.now - last < pol.cooldownSec * 1000) return { reply: false, mode: 'none', reason: '插话冷却中' }
   const recent = (p.recentTimes || []).filter((t) => p.now - t < pol.activeWindowSec * 1000).length

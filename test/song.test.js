@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
+import { createTasks } from '../src/core/tasks.js'
 
 let studio
 let py
@@ -93,6 +95,56 @@ test('点歌前置检查：没打开、没装好、没说歌名', () => {
   assert.equal(st.ready, false)
   assert.equal(st.parts.python, false)
   assert.match(st.message, /导入/)
+})
+
+test('取消后台翻唱会停止当前 ffmpeg 进程，排队取消也不会开始处理', { timeout: 8000 }, async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'aurabot-song-cancel-'))
+  const active = new AbortController()
+  const waiting = new AbortController()
+  const tasks = createTasks({ file: join(root, 'tasks.json') })
+  t.after(() => { tasks.dispose(); active.abort(); waiting.abort(); rmSync(root, { recursive: true, force: true }) })
+  const p = studio.pathsOf(root)
+  const marker = join(root, 'running')
+  const source = join(root, 'fixture.wav')
+  const cfg = normalize({ song: { root, enabled: true, separatorModel: 'fixture.onnx' } })
+  mkdirSync(p.bin, { recursive: true })
+  mkdirSync(p.separatorModels, { recursive: true })
+  mkdirSync(join(p.python, '..'), { recursive: true })
+  for (const file of [source, p.python, p.separatorExe, join(p.separatorModels, 'fixture.onnx')]) writeFileSync(file, 'fixture')
+  writeFileSync(p.ffmpeg, '#!/bin/sh\nprintf "%s" "$$" > "${0%/*}/../running"\nexec /bin/sleep 120\n', { mode: 0o755 })
+  const sends = []
+  const s = studio.createSongStudio({
+    getConfig: () => cfg, log: { info() {}, warn() {}, debug() {} }, local: { active: () => true },
+    sendVoiceFile: (...args) => sends.push(args),
+  })
+  assert.equal(s.status().ready, true)
+  const chat = { kind: 'private', chatId: 'private:1' }
+  const [status, cancel] = tasks.tools({ chat }, () => ['1'])
+  const first = tasks.start({
+    kind: '翻唱', chatId: chat.chatId, requesters: ['1'],
+    run: (task) => s.requestAutonomous({ chatId: chat.chatId, file: source, signal: AbortSignal.any([active.signal, task.signal]) }),
+  })
+  let pid = 0
+  for (let i = 0; i < 300 && !pid; i++) {
+    if (existsSync(marker)) pid = Number(readFileSync(marker, 'utf8'))
+    if (!pid) await delay(10)
+  }
+  assert.ok(pid > 0, JSON.stringify({ task: await status.execute({ id: first.taskId }), history: s.status().history }))
+  const second = s.requestAutonomous({ chatId: chat.chatId, song: '排队歌曲', file: source, signal: waiting.signal })
+  assert.equal(s.status().queue.length, 1)
+  waiting.abort()
+  assert.equal((await second).cancelled, true)
+  assert.equal(s.status().queue.length, 0)
+  assert.equal((await cancel.execute({ id: first.taskId })).ok, true)
+  let message
+  for (let i = 0; i < 100; i++) {
+    message = (await status.execute({ id: first.taskId })).message
+    if (message.includes('已取消')) break
+    await delay(10)
+  }
+  assert.match(message, /已取消/)
+  assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' })
+  assert.deepEqual(sends, [])
 })
 
 test('/sing：歌名和变调', async () => {
@@ -249,6 +301,7 @@ test('翻唱失败那句话：交给她的事带上歌名和真实原因、明�
   assert.ok(p.includes('《雨爱》'))
   assert.ok(p.includes('翻唱环境不完整'))
   assert.ok(p.includes('不要念出来'))
+  assert.match(failFacts('雨爱', '网关没确认', true), /已经做好了，暂时没有确认送达/)
 })
 
 test('翻唱失败那句话：清洗只留一句口语，[沉默] 和念了内部信息的都当没说话', async () => {
