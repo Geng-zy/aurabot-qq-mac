@@ -10,7 +10,7 @@ function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
   const marker = '    exports.apply = apply'
   assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, LocalDrawChats, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
+  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, AdultChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
     ...globals,
   })
@@ -45,6 +45,32 @@ function findAll(node, type, out = []) {
   return out
 }
 const textOf = (node) => (node == null ? '' : typeof node !== 'object' ? String(node) : Array.isArray(node) ? node.map(textOf).join('') : (node.children || []).map(textOf).join(''))
+
+test('点击当前侧栏分组只切换展开状态，收起后子页退出 Tab 导航', () => {
+  const { panel, render } = setupPanel()
+  const groups = [
+    { id: 'home', label: '概览', pages: [{ id: 'overview', label: '概览' }] },
+    { id: 'qq', label: 'QQ 会话', pages: [{ id: 'connect', label: '连接' }, { id: 'access', label: '白名单与权限' }] },
+  ]
+  const calls = []
+  const props = {
+    groups, current: { id: 'access', group: 'qq' },
+    go: (id) => calls.push(['go', id]), toggleGroup: (id) => calls.push(['toggle', id]), dirtyOf: () => false,
+  }
+  for (const expanded of [true, false]) {
+    const tree = render(panel.WorkspaceNav, { ...props, collapsedGroup: expanded ? null : 'qq' })
+    const qq = findAll(tree, 'button').find((b) => textOf(b) === 'QQ 会话')
+    assert.equal(qq.props['aria-expanded'], expanded)
+    assert.equal(qq.props['aria-current'], 'true')
+    qq.props.onClick()
+    const nav = render(panel.PageNav, findAll(tree, panel.PageNav)[0].props)
+    assert.equal(nav.children[0].props.inert, expanded ? undefined : 'inert')
+    assert.equal(findAll(nav, 'button').find((b) => b.props['aria-current'] === 'page').children[0], '白名单与权限')
+  }
+  const tree = render(panel.WorkspaceNav, props)
+  findAll(tree, 'button').find((b) => textOf(b) === '概览').props.onClick()
+  assert.deepEqual(calls, [['toggle', 'qq'], ['toggle', 'qq'], ['go', 'overview']])
+})
 
 test('概览以运行状态为标题，显示保存的聊天和生图配置', () => {
   const { panel, render } = setupPanel()
@@ -82,20 +108,31 @@ test('工作台按实际能力分组，社区模块按运行状态显示', () =>
   for (const tab of panel.TABS) assert.equal(typeof panel.TAB_CONTENT[tab.id], 'function', tab.id)
 })
 
-test('生图面板从白名单列出好友和群，按会话单独切换', () => {
+test('白名单与权限页按会话切换成人话题讨论，生图页没有这项设置', () => {
   const { panel, slots, render } = setupPanel()
   slots[0] = { private: { 33: '白名单好友' }, groups: { 33: '白名单群' } }
   const allowed = { private: ['11', '22', '33'], groups: ['33', '44'] }
-  let draft = { ownerQQ: '11', botQQ: '22', allow: allowed, imageGen: { localDraw: { private: ['33'], groups: [] } } }
-  const show = () => render(panel.LocalDrawChats, { draft, setDraft: (update) => { draft = update(draft) } })
+  let draft = { ownerQQ: '11', botQQ: '22', allow: allowed, adultChat: { private: ['33'], groups: [] } }
+  const props = () => ({ st: { config: { allow: allowed }, modules: [] }, draft, setDraft: (update) => { draft = update(draft) } })
+  const show = () => render(panel.AdultChatPermissions, props())
   const chips = () => findAll(show(), 'button')
-  assert.match(textOf(show()), /默认可用 · 11/)
+  assert.equal(findAll(render(panel.TAB_CONTENT.access, props()), panel.AdultChatPermissions).length, 1)
+  const imageProps = { ...props(), draft: { ...draft, imageGen: { provider: 'local' } } }
+  assert.equal(findAll(render(panel.TAB_CONTENT.imagegen, imageProps), panel.AdultChatPermissions).length, 0)
+  const [card] = findAll(show(), panel.Card)
+  const folded = render(panel.Card, card.props)
+  assert.equal(folded.type, 'details')
+  assert.equal(folded.props.id, 'ab-section-qq-adult-chat')
+  assert.equal(folded.props.open, undefined)
+  assert.equal(folded.children[0].type, 'summary')
+  assert.match(textOf(show()), /默认开放 · 11/)
   assert.deepEqual(chips().map(textOf), ['白名单好友33', '白名单群33', '群44'])
   assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [true, false, false])
   chips()[1].props.onClick()
   chips()[0].props.onClick()
   assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [false, true, false])
   assert.equal(JSON.stringify(draft.allow), JSON.stringify(allowed))
+  assert.equal(JSON.stringify(draft.adultChat), JSON.stringify({ private: [], groups: ['33'] }))
 })
 
 test('心智设置：按分类显示，搜索可跨分类，默认值和依据可展开', () => {
@@ -193,6 +230,15 @@ test('内心：内心日记（标出深想和放空）、想要的、能做的�
   slots[1] = ''
   const tree = render(panel.MindInner, { toast() {} })
   const text = textOf(tree)
+  const cards = findAll(tree, panel.Card)
+  for (const [fold, title] of [['mind-journal', '内心日记（最近 3 条）'], ['mind-wants', '她想要的（1 项）']]) {
+    const card = cards.find((c) => c.props.fold === fold)
+    assert.ok(card, title)
+    const details = render(panel.Card, { ...card.props, children: card.children })
+    assert.equal(details.type, 'details')
+    assert.equal(details.props.open, undefined)
+    assert.equal(textOf(findAll(details, 'summary')[0]), title)
+  }
   for (const s of ['好想他', '深想（涉及主人和你们的关系）：他只是在忙', '在重复，放空了', '想找主人说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'qqAvatar ✕']) assert.ok(text.includes(s), '缺：' + s)
   assert.ok(findAll(tree, panel.Meter).some((m) => m.props.label === '陪伴和归属'))
   const local = findAll(tree, panel.MindLocalModel)[0]

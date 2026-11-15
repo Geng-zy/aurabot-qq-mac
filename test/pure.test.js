@@ -339,6 +339,38 @@ test('更新后：会公开发东西的新功能，老用户先关着，新安�
   }
 })
 
+test('旧生图会话授权转换为当前白名单内的成人话题设置', async () => {
+  const { normalize, mergeFromPanel } = await import('../src/core/config.js')
+  const { adultChatContext } = await import('../src/chat/access.js')
+  const allow = { private: ['11', '22', '35'], groups: ['55'] }
+  const raw = { ownerQQ: '11', botQQ: '22', allow, imageGen: { localDraw: { private: ['11', '22', '35', '36'], groups: ['55', '56'] } } }
+  const cfg = normalize(raw)
+  assert.deepEqual(cfg.adultChat, { private: ['35'], groups: ['55'] })
+  assert.equal(cfg.imageGen.localDraw, undefined)
+  assert.match(adultChatContext(cfg, 'qq:private:35'), /已开放/)
+  assert.match(adultChatContext(cfg, 'group:55'), /已开放/)
+  assert.match(adultChatContext(cfg, 'group:35'), /未开放/)
+  assert.equal(adultChatContext(cfg, 'mock:group:55'), '')
+  assert.equal(adultChatContext(cfg, 'qq:private:11'), '')
+  assert.equal(adultChatContext(cfg, 'system:diary'), '')
+  const cleared = { private: [], groups: [] }
+  assert.deepEqual(normalize({ ...raw, adultChat: cleared }).adultChat, cleared)
+  assert.deepEqual(mergeFromPanel(cfg, { adultChat: cleared }).adultChat, cleared)
+})
+
+test('额外会话生图先拦截本人和上下文引用，只接受明确的其他角色判定', async () => {
+  const { guestImageSubject, isAdultImage } = await import('../src/features/guest-image.js')
+  const chat = async () => { assert.fail('明确的本人或不明指代应直接处理') }
+  assert.equal(await guestImageSubject('画大．肥．鱼', { chat }), 'self')
+  assert.equal(await guestImageSubject('请画薄 荷', { aliases: ['薄荷'], chat }), 'self')
+  assert.equal(await guestImageSubject('跟刚才一样，把那个角色画出来。', { chat }), 'unclear')
+  assert.equal(await guestImageSubject('一位独立的虚构角色'), 'unavailable')
+  assert.equal(await guestImageSubject('一位独立的虚构角色', { chat: async () => 'OTHER' }), 'other')
+  assert.equal(await guestImageSubject('一位独立的虚构角色', { chat: async () => '答案可能是 OTHER' }), 'unclear')
+  assert.equal(isAdultImage('色 - 图'), true)
+  assert.equal(isAdultImage('海边自拍'), false)
+})
+
 test('升级只保留旧版 B 站配置里的共享 ffmpeg 路径', async () => {
   const { normalize, mergeFromPanel, publicConfig } = await import('../src/core/config.js')
   const raw = { bili: { ffmpegPath: ' /opt/bin/ffmpeg ', cookie: 'legacy-cookie' }, local: { asr: true } }

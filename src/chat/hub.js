@@ -15,7 +15,7 @@ import { gifFrames } from '../core/image-info.js'
 import { parseReply, bubbleDelay, wantsVoice, itemsToLine, deliveredItems, cleanOutboundText, cleanOutboundSegments, capOutboundText, isSilence } from './reply.js'
 import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, topicRelevance } from './group-policy.js'
 import { guardReply, extractReply, CODE_INSTRUCTION, DIRECT_REPLY_INSTRUCTION, MARKER_INSTRUCTION } from './output-guard.js'
-import { checkAllowed, levelFor, presetFor, isOwner } from './access.js'
+import { adultChatContext, checkAllowed, levelFor, presetFor, isOwner } from './access.js'
 import { fetchImage, segmentBytes } from '../core/net.js'
 import { toMono16k } from '../voice/wav.js'
 import { asrConfigured, transcribeAudio } from '../voice/asr.js'
@@ -1027,8 +1027,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
             } catch (error) {}
           }
           if (chat.kind !== 'system') {
-            if (getConfig().chat?.thinkingGuard !== false) parts.push(CODE_INSTRUCTION, DIRECT_REPLY_INSTRUCTION)
-            if (getConfig().chat?.replyMarker) parts.push(MARKER_INSTRUCTION)
+            const cfg = getConfig()
+            const adultContext = adultChatContext(cfg, chat.chatId)
+            if (adultContext) parts.push(adultContext)
+            if (cfg.chat?.thinkingGuard !== false) parts.push(CODE_INSTRUCTION, DIRECT_REPLY_INSTRUCTION)
+            if (cfg.chat?.replyMarker) parts.push(MARKER_INSTRUCTION)
           }
           const text = cleanText(parts.join('\n\n'))
           sources.context = text

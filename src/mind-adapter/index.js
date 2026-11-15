@@ -28,6 +28,7 @@ import { isSilence } from '../chat/reply.js'
 import { checkAllowed } from '../chat/access.js'
 import { migrateLegacy, LEGACY_TAG } from './migrate.js'
 import { acceptsFood, naturalFoodOffer } from './feeding.js'
+import { inspectionTools } from './inspection.js'
 
 /** 非主人想让她记成长久规矩的话（“以后都听我的”“主人让你……”）：她不会因为群友一句话就记成规矩。 */
 export function looksLikeRule(text) {
@@ -552,9 +553,15 @@ export function createMindAdapter(opts) {
   }
   function buildTools(chat, ownerTurn) {
     const window = windowOf(chat.chatId)
-    const ownerPrivateTurn = () => isOwnerChat(window) && personIn(window, chat.userId) === ownerOf()
+    const target = parseChat(window)
+    const ownerPrivate = () => isOwnerChat(window) && personIn(window, chat.userId) === ownerOf()
+    const ownerPrivateTurn = () => ownerPrivate()
       && (typeof ownerTurn === 'function' ? ownerTurn() === true : ownerTurn === true)
     return [
+      ...(target?.kind === chat.kind ? inspectionTools({
+        mind, window, platform: target.platform, ownerPrivate, syncOwner,
+        peopleHere: () => [...new Set((target.kind === 'private' ? [refOfChat(window)] : speakersOf.get(window) || []).map(mind.canon))],
+      }) : []),
       defineTool({
         name: 'mind_recall',
         description: '使劲想一想：按你给的线索在自己的记忆里找（人、事、说过的话都行）。想某一天、某段时间发生了什么就填 period（只填 period 不填 query = 那段时间有哪些事）。记得模糊的只会想起个大概。',

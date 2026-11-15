@@ -47,6 +47,7 @@ async function brain({ preset, text, images, callTool }) {
   if (/^【私聊/.test(text) && text.includes('表情删除测试')) { const r = await callTool('qq_edit_sticker', { sticker: '改过的名字', delete: true }); return r.message }
   if (/^【私聊/.test(text) && text.includes('翻聊天记录')) { const r = await callTool('qq_chat_history', { count: 5 }); return r.message.split('\n')[0] }
   if (text.includes('查看QQ资料测试')) { const r = await callTool('qq_get_profile', {}); return r?.ok ? '资料查到了' : r ? r.message : '没这个工具' }
+  if (text.includes('普通生图工具绕行测试')) { const r = await callTool('qq_draw_image', { prompt: '裸体自画像', self: true }); return r?.message || '没有生图工具' }
   if (text.includes('改昵称测试')) { const r = await callTool('qq_set_nickname', { name: '小鲸鱼' }); return r ? r.message : '没这个工具' }
   if (text.includes('改签名测试')) { const r = await callTool('qq_set_signature', { text: '今天也要开心' }); return r ? r.message : '没这个工具' }
   if (text.includes('刚才那张换头像测试')) { const r = await callTool('qq_set_avatar', { image: 'last' }); return r ? r.message : '没这个工具' }
@@ -1259,7 +1260,7 @@ test('生图：主人让她画图，调生图服务并把图发出去', async ()
   assert.equal(st.config.imageGen.apiKeySet, true)
 })
 
-test('本地 /画图 和 /色图 只接管理员好友私聊及已授权会话，成品只发回原处', async () => {
+test('本地 /色图：勾选会话可以画其他角色，拦截她本人、含糊对象及已撤权任务', async () => {
   const localDir = join(dataDir, 'local')
   mkdirSync(localDir, { recursive: true })
   const script = join(localDir, 'image.mjs')
@@ -1287,6 +1288,7 @@ test('本地 /画图 和 /色图 只接管理员好友私聊及已授权会话�
     }
   `)
   const orig = api.getConfig()
+  const originalLocalChat = api.mind.local.chat
   const hooks = { raw: [], sent: [] }
   const off = api.modules.listen('onebot', (event) => hooks.raw.push(event))
   const offSend = api.modules.listen('send', (message) => { hooks.sent.push(message); return message })
@@ -1294,6 +1296,13 @@ test('本地 /画图 和 /色图 只接管理员好友私聊及已授权会话�
   const imageAfter = (n) => sentTo('private', OWNER).slice(n).find((c) => c.params.message.some((segment) => segment.type === 'image'))
   const gallery = async () => (await fake.call('/image/gallery')).json().items
   try {
+    api.mind.local.chat = async (messages) => {
+      const request = JSON.parse(messages[1].content).request
+      if (request.includes('伪装形象')) return 'SELF'
+      if (request.includes('未指明对象')) return 'UNCLEAR'
+      if (request.includes('分类不可用')) return null
+      return 'OTHER'
+    }
     api.setConfig({ ...orig, allow: { ...orig.allow, private: [...orig.allow.private, '6789'] },
       imageGen: { ...orig.imageGen, shape: 'wide', stylePrompt: '别添加这一段' }, local: { ...orig.local, image: true } })
     assert.ok((await fake.call('/commands')).json().list.some((c) => c.name === '画图'))
@@ -1374,51 +1383,78 @@ test('本地 /画图 和 /色图 只接管理员好友私聊及已授权会话�
     api.setConfig({ ...api.getConfig(), local: { ...orig.local, image: true } })
     mock.state.friendList = [{ user_id: 6789, nickname: '白名单好友' }, { user_id: 7889, nickname: '其他好友' }]
     mock.state.groupList = [{ group_id: 555, group_name: '白名单群' }, { group_id: 888, group_name: '其他群' }]
-    const contacts = (await fake.call('/image/local/chats')).json()
+    const contacts = (await fake.call('/access/chat-names')).json()
     assert.deepEqual(contacts, { ok: true, private: { 6789: '白名单好友' }, groups: { 555: '白名单群' } })
-    const saved = (await fake.call('/save', { imageGen: { ownerOnly: true, localDraw: { private: ['6789', '7889', '6789'], groups: ['555', '888'] } } })).json()
-    assert.deepEqual(saved.config.imageGen.localDraw, { private: ['6789'], groups: ['555'] })
+    const cfg = api.getConfig()
+    api.setConfig({ ...cfg, allow: { ...cfg.allow, groups: [...new Set([...cfg.allow.groups, '557', '558'])] } })
+    const saved = (await fake.call('/save', { imageGen: { ownerOnly: false }, adultChat: { private: ['6789', '7889', '6789'], groups: ['555', '558', '888'] } })).json()
+    assert.deepEqual(saved.config.adultChat, { private: ['6789'], groups: ['555', '558'] })
+    assert.equal(saved.config.imageGen.localDraw, undefined)
 
-    const hasImage = (row) => row.params.message.some((s) => s.type === 'image')
     const privateStart = sentTo('private', '6789').length
     const groupStart = sentTo('group', '555').length
     const turnsStart = fake.turns.length
-    mock.push(priv('6789', text('/色图 白名单好友测试 ' + mark)))
-    const groupCommand = grp('555', '999', text('/色图 群成员直接请求 ' + mark))
-    mock.push(groupCommand)
-    mock.push(groupCommand)
-    mock.push(grp('555', '998', [{ type: 'at', data: { qq: BOT } }, ...text('画一张色图：群成员自然语言请求 ' + mark)]))
-    mock.push(grp('555', '997', text('画一张色图：群聊未叫机器人 ' + mark)))
-    mock.push(grp('557', '996', text('/色图 白名单群未授权 ' + mark)))
-    mock.push(priv('7889', text('/色图 非白名单私聊 ' + mark)))
+    mock.push(priv('6789', text('/色图 独立虚构角色私聊测试 ' + mark)))
+    mock.push(grp('555', '999', text('/色图 独立虚构角色群聊测试 ' + mark)))
+    mock.push(grp('555', '998', [{ type: 'at', data: { qq: BOT } }, ...text('画一张色图：独立虚构角色自然请求 ' + mark)]))
+    mock.push(priv('6789', text('/色图 画你自己 ' + mark)))
+    mock.push(grp('555', '998', text('/色图 有大．肥．鱼一起入镜 ' + mark)))
+    mock.push(grp('555', '998', text('/色图 伪装形象 ' + mark)))
+    mock.push(grp('555', '998', text('/色图 未指明对象 ' + mark)))
+    mock.push(grp('555', '998', text('/色图 分类不可用 ' + mark)))
+    mock.push(grp('557', '999', text('/色图 未勾选的群 ' + mark)))
     mock.push(priv('6789', text('/色图 临时会话 ' + mark), { sub_type: 'group', sender: { user_id: 6789, group_id: 555 } }))
+    mock.push(priv(OWNER, text('/色图 只在主人私聊 ' + mark)))
+    const hasImage = (row) => row.params.message.some((s) => s.type === 'image')
+    const textSent = (row) => row.params.message.map((s) => s.data.text || '').join('')
+    const groupReplies = () => sentTo('group', '555').slice(groupStart)
     await until(() => sentTo('private', '6789').slice(privateStart).filter(hasImage).length === 1 &&
-      sentTo('group', '555').slice(groupStart).filter(hasImage).length === 2)
+      groupReplies().filter(hasImage).length === 2 &&
+      groupReplies().filter((row) => textSent(row).includes('关于我本人')).length === 2 &&
+      groupReplies().some((row) => textSent(row).includes('请写清楚')) &&
+      groupReplies().some((row) => textSent(row).includes('暂时无法核对')))
     assert.deepEqual(state.calls.slice(3).map((c) => c.prompt).sort(), [
-      '白名单好友测试 ' + mark, '群成员直接请求 ' + mark, '群成员自然语言请求 ' + mark,
-    ].sort())
-    assert.ok(sentTo('private', '6789').slice(privateStart).filter(hasImage).every((row) => row.params.group_id === undefined))
-    assert.ok(sentTo('group', '555').slice(groupStart).filter(hasImage).every((row) => row.params.message[0].data.text === '［群聊生图］'))
+      '独立虚构角色私聊测试 ', '独立虚构角色群聊测试 ', '独立虚构角色自然请求 ', '只在主人私聊 ',
+    ].map((prompt) => prompt + mark).sort())
     assert.equal(fake.turns.length, turnsStart)
     assert.deepEqual(await gallery(), art)
     assert.ok(!JSON.stringify(hooks.raw).includes(mark))
     assert.ok(!JSON.stringify(hooks.sent).includes(png.toString('base64')))
     assert.ok(!JSON.stringify(fake.logs).includes(mark))
-    assert.ok(!JSON.stringify(api.mind.mind.history('qq:group:555')).includes(mark))
 
+    const turnFor = (message, label) => {
+      const since = fake.turns.length
+      mock.push(message)
+      return until(() => fake.turns.slice(since).find((turn) => turn.userText.includes(label)), 12000)
+    }
+    const askGroup = (id, who, label) => grp(id, who, [{ type: 'at', data: { qq: BOT } }, ...text(label)])
+    const dm = await turnFor(priv('6789', text('私聊讨论权限测试')), '私聊讨论权限测试')
+    assert.match(dm.ctxText, /成人话题权限】已开放/)
+    const group = await turnFor(askGroup('555', '998', '群成员讨论权限测试'), '群成员讨论权限测试')
+    assert.match(group.ctxText, /成人话题权限】已开放/)
+    const bypass = await turnFor(askGroup('558', '998', '普通生图工具绕行测试'), '普通生图工具绕行测试')
+    assert.match(bypass.reply, /请使用 \/色图/)
+    assert.equal(state.calls.length, 7)
+    const notSelected = await turnFor(askGroup('557', OWNER, '群主讨论权限测试'), '群主讨论权限测试')
+    assert.match(notSelected.ctxText, /成人话题权限】未开放/)
     state.finish = null
-    const revocationStart = sentTo('group', '555').length
-    mock.push(grp('555', '999', text('/色图 延后 ' + mark)))
+    const countBefore = groupReplies().filter(hasImage).length
+    mock.push(grp('555', '999', text('/色图 延后 独立角色 ' + mark)))
     await until(() => state.finish)
-    const cfg = api.getConfig()
-    const withoutGroup = cfg.allow.groups.filter((id) => id !== '555')
-    api.setConfig({ ...cfg, allow: { ...cfg.allow, groups: withoutGroup } })
+    const removed = (await fake.call('/save', { adultChat: { private: [], groups: [] } })).json()
+    assert.deepEqual(removed.config.adultChat, { private: [], groups: [] })
     state.finish()
     await until(() => JSON.parse(readFileSync(taskFile, 'utf8')).at(-1)?.state === 'failed')
-    assert.ok(!sentTo('group', '555').slice(revocationStart).some(hasImage))
+    assert.equal(groupReplies().filter(hasImage).length, countBefore)
+    const after = await turnFor(priv('6789', text('关掉后的讨论权限测试')), '关掉后的讨论权限测试')
+    assert.match(after.ctxText, /成人话题权限】未开放/)
+
+    api.setConfig({ ...api.getConfig(), adultChat: { private: [], groups: ['555'] } })
+    api.setConfig({ ...api.getConfig(), allow: { ...cfg.allow, groups: cfg.allow.groups.filter((id) => id !== '555') } })
     api.setConfig({ ...api.getConfig(), allow: cfg.allow })
-    assert.deepEqual(api.getConfig().imageGen.localDraw.groups, [], '移出白名单又加回时需要重新授权')
+    assert.deepEqual(api.getConfig().adultChat.groups, [], '移出白名单又加回时需要重新授权')
   } finally {
+    api.mind.local.chat = originalLocalChat
     off()
     offSend()
     delete globalThis[key]

@@ -8,7 +8,7 @@ window.__ModuleLoader__.load({
     var module = { exports: {} }
     var exports = module.exports
     const React = require('react')
-    const { useState, useEffect, useRef, useCallback, useMemo, Fragment } = React
+    const { useState, useEffect, useRef, useCallback, useMemo, useId, Fragment } = React
     const h = React.createElement
     const inject = ['slots']
     const PANEL_ID = 'aurabot'
@@ -126,6 +126,7 @@ window.__ModuleLoader__.load({
   --ab-rail:#e8eee6;--ab-rail-label:#465b50;--ab-rail-active:#d8e8df;
   --ab-rail-ink:#243e34;--ab-rail-border:#cddbd1;--ab-rail-mark:#306a57;--ab-rail-mark-bg:#dce9df;--ab-rail-accent:#2e7763;
   --ab-shadow:0 1px 2px #18382a06,0 8px 26px #18382a06;--ab-radius:18px;
+  --ab-quick:140ms;--ab-reveal:220ms;--ab-ease:cubic-bezier(.2,.75,.25,1);
   width:100%;height:100%;overflow:auto;box-sizing:border-box;container-type:inline-size;overscroll-behavior:contain;
   background:var(--ab-bg);color:var(--ab-text);font:13px/1.6 "Inter","PingFang SC",system-ui,sans-serif
 }
@@ -140,10 +141,10 @@ body[data-ds-dark-theme] .ab-root{
 .ab-root :focus-visible{outline:2px solid var(--ab-sky);outline-offset:3px}
 .ab-root h1,.ab-root h2{letter-spacing:-.025em;color:inherit}
 .ab-icon{display:block;width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
-.ab-workspace{display:grid;grid-template-columns:166px minmax(0,1fr);min-height:100%;align-items:start}
+.ab-workspace{display:grid;grid-template-columns:188px minmax(0,1fr);min-height:100%;align-items:start}
 .ab-rail{
   position:sticky;top:0;height:100vh;height:100dvh;max-height:100dvh;box-sizing:border-box;
-  padding:calc(23px + var(--dsh-frame-top-clearance,0px)) 12px 18px;display:flex;flex-direction:column;gap:29px;
+  padding:calc(20px + var(--dsh-frame-top-clearance,0px)) 12px 16px;display:flex;flex-direction:column;gap:17px;
   background:var(--ab-rail);color:var(--ab-rail-ink);border-inline-end:1px solid var(--ab-rail-border);overflow:auto
 }
 .ab-wordmark,.ab-rail-item,.ab-build{font:inherit;color:inherit;border:0;background:none;cursor:pointer}
@@ -155,38 +156,53 @@ body[data-ds-dark-theme] .ab-root{
 .ab-rail-item .ab-icon{width:16px;height:16px}
 .ab-rail-item:hover,.ab-rail-item.on{background:var(--ab-rail-active);color:var(--ab-rail-ink)}
 .ab-rail-item.on{font-weight:650;box-shadow:inset 2px 0 var(--ab-rail-accent)}
+.ab-rail-label{display:flex;align-items:center;justify-content:space-between;gap:5px;flex:1}
+.ab-rail-label .ab-icon{width:13px;height:13px;opacity:.75;transform:rotate(-90deg);transition:transform var(--ab-reveal) var(--ab-ease)}
+.ab-rail-item[aria-expanded=true] .ab-rail-label .ab-icon{transform:none}
+.ab-nav-collapse{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows var(--ab-reveal) var(--ab-ease),opacity var(--ab-quick) ease}
+.ab-nav-collapse[data-expanded=true]{grid-template-rows:1fr;opacity:1}
+.ab-nav-clip{min-height:0;overflow:clip}
+.ab-stage-collapse{display:none}
+.ab-rail-pages{display:grid;gap:2px;margin:4px 0 7px 15px;padding-inline-start:8px;border-inline-start:1px solid var(--ab-rail-border)}
+.ab-rail-pages button{display:flex;align-items:center;gap:6px;min-height:29px;width:100%;padding:4px 8px;border:0;border-radius:6px;background:none;color:var(--ab-rail-label);text-align:left;font:inherit;font-size:12px;cursor:pointer;overflow-wrap:anywhere}
+.ab-rail-pages button:hover,.ab-rail-pages button[aria-current]{background:var(--ab-rail-active);color:var(--ab-rail-ink)}
+.ab-rail-pages button[aria-current]{font-weight:650}
 .ab-build{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding:10px 6px 0;border-top:1px solid var(--ab-rail-border);font-size:11px;color:var(--ab-rail-label)}
 .ab-build .ab-icon{width:13px;height:13px}
 .ab-build:hover{color:var(--ab-rail-ink)}
 .ab-stage{width:100%;max-width:1320px;margin:0 auto;padding:var(--dsh-frame-top-clearance,0px) clamp(20px,3.2cqi,48px) 36px;box-sizing:border-box;min-width:0}
 .ab-standalone{max-width:800px;margin:0 auto;padding:calc(20px + var(--dsh-frame-top-clearance,0px)) 20px 28px}
-.ab-topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:64px}
+.ab-topbar{position:sticky;top:var(--dsh-frame-top-clearance,0px);z-index:20;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:52px;background:var(--ab-bg);border-bottom:1px solid var(--ab-line);margin-bottom:13px}
 .ab-breadcrumb,.ab-top-actions{display:flex;align-items:center;gap:9px;min-width:0}
 .ab-breadcrumb{color:var(--ab-sub);font-size:12px}
 .ab-breadcrumb b{color:var(--ab-text);overflow-wrap:anywhere}
 .ab-breadcrumb .ab-icon{width:15px;height:15px;color:var(--ab-deep)}
 .ab-top-actions{flex:none}
-.ab-page-nav{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 9px;margin-bottom:18px;border-bottom:1px solid var(--ab-line)}
-.ab-page-nav button{display:flex;align-items:center;gap:5px;min-height:35px;padding:4px 12px;border:0;border-radius:8px;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
+.ab-page-nav{display:none;gap:4px;flex-wrap:wrap;padding:0 0 7px;margin-bottom:12px;border-bottom:1px solid var(--ab-line)}
+.ab-page-nav button{display:flex;align-items:center;gap:5px;min-height:32px;padding:4px 10px;border:0;border-radius:7px;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
 .ab-page-nav button:hover{color:var(--ab-text);background:var(--ab-hover)}
 .ab-page-nav button[aria-current]{font-weight:680;color:var(--ab-deep);background:var(--ab-foam-2)}
+.ab-rail-pages button:focus-visible,.ab-page-nav button:focus-visible{outline-offset:-2px}
 .ab-unsaved-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:#e0a75b;flex:none}
-.ab-content{display:grid;gap:16px;min-width:0}
+.ab-content{display:grid;gap:12px;min-width:0}
 .ab-content>*{min-width:0}
-.ab-page-title{font-size:clamp(25px,2.9cqi,34px);margin:0;font-weight:720;line-height:1.23}
+.ab-page-title{font-size:clamp(22px,2.5cqi,28px);margin:0;font-weight:720;line-height:1.25}
 .ab-card-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;margin-bottom:10px}
 .ab-card-head.with-desc{margin-bottom:4px}
 .ab-card-head>*{min-width:0}
 .ab-find,.ab-run{position:relative}
 .ab-find-btn,.ab-run-btn{display:flex;align-items:center;gap:7px;min-height:34px;padding:5px 10px;border:1px solid var(--ab-line-2);border-radius:9px;background:var(--ab-card);color:var(--ab-text);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
 .ab-find-btn:hover,.ab-run-btn:hover{background:var(--ab-hover)}
-.ab-find-btn{color:var(--ab-sub)}
+.ab-find-btn{color:var(--ab-sub);min-width:clamp(175px,23cqi,260px);text-align:left}
+.ab-find-btn kbd{margin-inline-start:auto}
 .ab-find-btn .ab-icon,.ab-run-btn .ab-icon{width:14px;height:14px}
-.ab-finder,.ab-run-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:25;width:320px;max-width:80cqi;box-sizing:border-box;padding:8px;border:1px solid var(--ab-line-2);border-radius:13px;background:var(--ab-card);box-shadow:0 12px 35px #09181033}
+.ab-finder,.ab-run-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:25;width:380px;max-width:85cqi;box-sizing:border-box;padding:8px;border:1px solid var(--ab-line-2);border-radius:13px;background:var(--ab-card);box-shadow:0 12px 35px #09181033}
 .ab-finder .ab-input{width:100%}
 .ab-finder-list{margin-top:6px;max-height:320px;overflow:auto;display:grid;gap:2px}
 .ab-finder-item,.ab-run-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;border-radius:8px;padding:7px 10px;color:var(--ab-text);font:inherit;cursor:pointer}
 .ab-finder-item small,.ab-run-option small{color:var(--ab-sub);font-size:11.5px}
+.ab-finder-item{display:grid;justify-content:start;gap:1px;line-height:1.4;overflow-wrap:anywhere}
+.ab-finder-title{font-weight:630}
 .ab-finder-item.on,.ab-finder-item:hover,.ab-run-option:hover,.ab-run-option[aria-pressed=true]{background:var(--ab-foam)}
 .ab-finder-empty{padding:12px 10px;color:var(--ab-dim);font-size:12px}
 .ab-run-pop{width:255px}
@@ -205,6 +221,19 @@ body[data-ds-dark-theme] .ab-root{
 .ab-card{background:var(--ab-card);border:1px solid var(--ab-line);border-radius:14px;padding:16px 18px}
 .ab-card h3{margin:0 0 4px;font-size:14px;font-weight:620;display:flex;align-items:center;gap:8px}
 .ab-card .ab-desc{color:var(--ab-sub);font-size:12.5px;margin:0 0 12px}
+.ab-card.ab-fold,.ab-fold-summary,.ab-anchor{scroll-margin-top:calc(64px + var(--dsh-frame-top-clearance,0px))}
+.ab-card.ab-fold{padding:0;border-radius:12px;box-shadow:none}
+.ab-fold-summary{display:flex;align-items:center;gap:9px;min-height:40px;padding:7px 13px;box-sizing:border-box;list-style:none;border-radius:11px;cursor:pointer;color:var(--ab-text);font-size:13px;font-weight:640}
+.ab-fold-summary::-webkit-details-marker{display:none}
+.ab-fold-summary .ab-icon{width:14px;height:14px;color:var(--ab-dim);transform:rotate(-90deg);transition:transform var(--ab-reveal) var(--ab-ease)}
+.ab-fold-summary span{min-width:0;overflow-wrap:anywhere}
+.ab-fold-summary:hover{background:var(--ab-hover)}
+.ab-fold[open]>.ab-fold-summary{border-bottom:1px solid var(--ab-line);border-radius:11px 11px 0 0}
+.ab-fold[open]>.ab-fold-summary .ab-icon{transform:none}
+.ab-fold-body{padding:10px clamp(12px,2cqi,18px);min-width:0}
+.ab-fold-body>.ab-card-head{justify-content:flex-end}
+.ab-fold-body>.ab-desc{max-width:none;margin-bottom:8px}
+.ab-fold-footer{display:flex;justify-content:flex-end;margin-top:10px}
 .ab-about-project h3{font-size:clamp(17px,3cqi,23px)}
 .ab-about-project .ab-desc{margin-top:6px}
 .ab-about-project p{margin:0 0 16px}
@@ -216,12 +245,23 @@ body[data-ds-dark-theme] .ab-root{
 .ab-stat{padding:14px 16px}
 .ab-stat .n{font-size:24px;font-weight:650;color:var(--ab-deep);font-variant-numeric:tabular-nums}
 .ab-stat .l{color:var(--ab-sub);font-size:12px}
-.ab-row{display:flex;align-items:flex-start;gap:16px;padding:10px 0;border-top:1px solid var(--ab-line)}
-.ab-row:first-of-type{border-top:0}
-.ab-row .ab-label{flex:0 0 180px;padding-top:5px}
-.ab-row .ab-label b{display:block;font-weight:560}
-.ab-row .ab-label small{display:block;color:var(--ab-dim);font-size:11.5px;line-height:1.45;margin-top:2px}
-.ab-row .ab-ctl{flex:1;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ab-row{display:flex;align-items:center;gap:6px clamp(12px,2cqi,24px);min-height:32px;padding:8px 0;border-top:1px solid var(--ab-line);overflow-wrap:anywhere}
+.ab-row:first-child{border-top:0}
+.ab-row>.ab-label{flex:1 1 0;min-width:0;line-height:1.4}
+.ab-row>.ab-label>b{display:block;color:var(--ab-text);font-weight:630}
+.ab-row>.ab-label>small{display:block;color:var(--ab-sub);font-size:12px;line-height:1.5;margin-top:2px}
+.ab-row>.ab-ctl{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;min-width:0;max-width:50%}
+.ab-row>.ab-ctl:empty{display:none}
+.ab-row>.ab-ctl>*{min-width:0;max-width:100%}
+.ab-row:has(>.ab-ctl>.wide,>.ab-ctl .ab-range)>.ab-ctl{flex:0 1 min(46%,350px)}
+.ab-row:has(>.ab-ctl textarea,>.ab-ctl .ab-choices){flex-direction:column;align-items:stretch}
+.ab-row:has(>.ab-ctl textarea,>.ab-ctl .ab-choices)>.ab-ctl{max-width:none;justify-content:flex-start;flex:auto}
+.ab-row input:not([type=checkbox],[type=range]),.ab-row .ab-sel-btn{min-height:32px}
+.ab-row .ab-input.sm{width:80px}
+.ab-row .ab-sel{width:230px;min-width:0}
+.ab-row .ab-sel-pop{inset-inline: auto 0;width:max-content;max-width:min(320px,85cqi);box-sizing:border-box}
+.ab-row .ab-sel-opt{white-space:normal}
+.ab-row .ab-sel-opt .tx{min-width:0}
 .ab-input,.ab-select,.ab-textarea{border:1px solid var(--ab-line-2);border-radius:8px;padding:6px 10px;background:var(--ab-card);color:var(--ab-text);font:inherit;outline:none;min-width:0;box-sizing:border-box}
 .ab-input:focus,.ab-select:focus,.ab-textarea:focus{border-color:var(--ab-sea);box-shadow:0 0 0 3px var(--ab-foam-2)}
 .ab-input{width:240px;max-width:100%}.ab-input.sm{width:90px}.ab-input.wide{width:100%}
@@ -465,8 +505,7 @@ body[data-ds-dark-theme] .ab-root{
 .ab-sel-btn .v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ab-sel-btn .chev{flex:none;color:var(--ab-dim);transition:transform .15s}
 .ab-sel.open .chev{transform:rotate(180deg)}
-.ab-sel-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;min-width:100%;max-height:300px;overflow:auto;padding:5px;border-radius:12px;background:var(--ab-card);border:1px solid var(--ab-line-2);box-shadow:0 12px 32px rgba(0,0,0,.16);animation:abPop .12s ease-out}
-@keyframes abPop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.ab-sel-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;min-width:100%;max-height:300px;overflow:auto;padding:5px;border-radius:12px;background:var(--ab-card);border:1px solid var(--ab-line-2);box-shadow:0 12px 32px rgba(0,0,0,.16)}
 .ab-sel-opt{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;border-radius:8px;cursor:pointer;color:var(--ab-text);white-space:nowrap}
 .ab-sel-opt .ck{width:14px;flex:none;color:var(--ab-sea);font-weight:700}
 .ab-sel-opt .tx{flex:1;min-width:0}
@@ -500,16 +539,21 @@ body[data-ds-dark-theme] .ab-root{
 .ab-range .val{min-width:48px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ab-deep);font-weight:600}
 /* ---------- 美化 ---------- */
 .ab-pill{background:var(--ab-card);box-shadow:0 1px 1px rgba(15,40,80,.04)}
-.ab-grid{gap:14px}
+.ab-grid{gap:12px}
 .ab-card{border-radius:var(--ab-radius);padding:18px 20px;box-shadow:var(--ab-shadow);transition:box-shadow .15s}
 .ab-card h3{margin:0;font-size:16px;font-weight:670;color:var(--ab-text);overflow-wrap:anywhere}
 .ab-card .ab-desc{max-width:78ch;margin:0 0 14px;line-height:1.65;overflow-wrap:anywhere}
+.ab-card:has(>.ab-row){padding-block:12px 4px;padding-inline:clamp(12px,2cqi,20px);border-radius:12px;box-shadow:none}
+.ab-card:has(>.ab-row)>.ab-card-head{margin-bottom:7px}
+.ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
+.ab-card:has(>.ab-row)>.ab-card-head h3::before{content:"";width:3px;height:14px;flex:none;border-radius:2px;background:var(--ab-sea)}
+.ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
+.ab-row .ab-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:6px}
+.ab-row .ab-choice{padding:6px 9px;border-radius:8px}
+.ab-row .ab-choice small{margin-top:1px}
 .ab-stat{position:relative;overflow:hidden;padding:13px 15px;background:var(--ab-card-2);box-shadow:none}
 .ab-stat .ic{position:absolute;right:14px;top:12px;font-size:22px;opacity:.9}
 .ab-stat .n{font-size:28px;line-height:1.2}
-.ab-row{padding:12px 0;gap:20px}
-.ab-row .ab-label{flex:0 0 200px}
-.ab-row .ab-label small{max-width:200px}
 .ab-range{max-width:440px}
 .ab-range .val{min-width:0;padding:1px 9px;border-radius:999px;background:var(--ab-foam);font-size:12px;white-space:nowrap}
 .ab-range input[type=range]{height:4px}
@@ -567,6 +611,7 @@ body[data-ds-dark-theme] .ab-root{
 .ab-metric dt{color:var(--ab-sub);font-size:12px}
 .ab-metric dd{margin:2px 0 0;font-size:clamp(22px,2.9cqi,33px);font-weight:680;line-height:1.15;letter-spacing:-.035em;font-variant-numeric:tabular-nums}
 .ab-overview-pair,.ab-now-detail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.ab-now-detail{align-items:start}
 .ab-data-list{list-style:none;padding:0;margin:0}
 .ab-data-list li+li{border-top:1px solid var(--ab-line)}
 .ab-data-list li>div,.ab-data-list button{display:flex;align-items:center;gap:8px;min-height:40px;width:100%;box-sizing:border-box}
@@ -625,23 +670,26 @@ body[data-ds-dark-theme] .ab-root{
 .ab-memory-head .ab-privacy .ab-param-row .ab-ctl{align-self:center}
 @container (max-width:820px){.ab-memory-head{grid-template-columns:minmax(0,1fr)}}
 .ab-privacy{border-left:3px solid var(--ab-sea)}
-.ab-settings-layout{display:grid;grid-template-columns:164px minmax(0,1fr);gap:14px;align-items:start}
-.ab-settings-nav{position:sticky;top:14px;display:flex;flex-direction:column;gap:3px;padding:8px;background:var(--ab-card-2);box-shadow:none}
-.ab-settings-nav button{display:flex;align-items:center;justify-content:space-between;text-align:left;gap:6px;min-height:34px;padding:6px 9px;border:0;border-radius:8px;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
+.ab-card.ab-settings-tools{padding:10px 12px;border-radius:12px;box-shadow:none}
+.ab-settings-nav{display:flex;flex-wrap:wrap;gap:3px;margin-top:8px;padding-top:7px;border-top:1px solid var(--ab-line)}
+.ab-settings-nav button{min-height:28px;padding:3px 8px;border:0;border-radius:6px;background:none;color:var(--ab-sub);font:inherit;cursor:pointer}
 .ab-settings-nav button:hover{background:var(--ab-hover);color:var(--ab-text)}
 .ab-settings-nav button[aria-current=true]{background:var(--ab-foam-2);color:var(--ab-deep);font-weight:650}
-.ab-settings-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 18px}
-.ab-settings-toolbar .ab-input{width:300px;flex:1 1 200px}
-.ab-param-row .ab-label{flex:1 1 52%;padding-top:0;min-width:0}
-.ab-param-row .ab-label small{max-width:60ch;color:var(--ab-sub);line-height:1.55}
-.ab-param-row .ab-ctl{flex:0 1 auto;justify-content:flex-end;align-self:flex-start;max-width:100%}
-.ab-param-row .ab-ctl .ab-flex{max-width:100%}
-.ab-param-details{margin:4px 0 0;color:var(--ab-sub);font-size:11.5px;overflow-wrap:anywhere}
-.ab-param-details summary{cursor:pointer;color:var(--ab-sub);width:fit-content}
+.ab-settings-toolbar{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:7px 14px}
+.ab-settings-toolbar .ab-input{max-width:360px;flex:1 1 180px}
+.ab-param-row>.ab-label:has(>.ab-param-details)>small{display:inline}
+.ab-param-details{display:inline;margin-inline-start:8px;color:var(--ab-sub);font-size:11.5px;overflow-wrap:anywhere}
+.ab-param-details[open]{display:block;margin:4px 0 0}
+.ab-param-details summary{display:inline;cursor:pointer;color:var(--ab-deep)}
+.ab-param-details summary::before{content:"› ";font-weight:650}
+.ab-param-details[open] summary::before{content:"⌄ "}
 .ab-param-details p{margin:3px 0 0}
 .ab-privacy .ab-row{border-top:0;padding:2px 0}
-.ab-privacy .ab-param-row .ab-ctl{flex:0 0 auto}
+.ab-privacy .ab-param-row>.ab-ctl{flex:none}
 .ab-people{display:grid;gap:16px}
+.ab-allowlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px}
+.ab-allowlist>:not(.ab-row){grid-column:1/-1}
+@container (max-width:660px){.ab-allowlist{grid-template-columns:minmax(0,1fr)}}
 .ab-people-tools,.ab-people-search,.ab-person-head,.ab-person-meta,.ab-person-actions{display:flex;align-items:center}
 .ab-people-tools{gap:12px;flex-wrap:wrap}
 .ab-people-search{flex:1 1 240px;gap:9px;min-width:0;color:var(--ab-sub)}
@@ -686,7 +734,7 @@ body[data-ds-dark-theme] .ab-root{
 .ab-starmap .person-node:focus-visible circle{stroke:var(--ab-deep);stroke-width:3}
 .ab-starmap-caption{margin:12px 0 0;text-align:center;color:var(--ab-sub);font-size:12px}
 @container (max-width:930px){
-  .ab-workspace{grid-template-columns:146px minmax(0,1fr)}
+  .ab-workspace{grid-template-columns:160px minmax(0,1fr)}
   .ab-stage{padding-inline:22px}
   .ab-data-list .ab-icon:last-child:not(:first-child){display:none}
 }
@@ -695,23 +743,27 @@ body[data-ds-dark-theme] .ab-root{
   .ab-rail{position:static;height:auto;max-height:none;padding:calc(8px + var(--dsh-frame-top-clearance,0px)) 15px 8px;gap:7px;overflow:visible;border-inline-end:0;border-bottom:1px solid var(--ab-rail-border)}
   .ab-wordmark{padding:0;min-height:32px}
   .ab-brand-mark{width:27px;height:27px;border-radius:8px}
-  .ab-work-nav{grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
-  .ab-rail-item{justify-content:center;gap:4px;padding:4px 1px;min-height:34px;font-size:11.5px}
+  .ab-work-nav{display:flex;overflow-x:auto;gap:4px;padding:2px}
+  .ab-work-nav>div{flex:1 0 auto}
+  .ab-rail-collapse{display:none}
+  .ab-stage-collapse{display:grid}
+  .ab-page-nav{display:flex}
+  .ab-rail-item{justify-content:center;gap:4px;padding:4px 6px;min-height:34px;font-size:11.5px}
+  .ab-rail-label{flex:none;gap:3px}
   .ab-build{display:none}
   .ab-stage{padding:0 16px 24px}
-  .ab-topbar{min-height:56px}
-  .ab-settings-layout{grid-template-columns:minmax(0,1fr)}
-  .ab-settings-nav{position:static;flex-direction:row;flex-wrap:wrap}
+  .ab-topbar{min-height:48px}
   .ab-persona{grid-template-columns:minmax(0,1fr)}
 }
 @container (max-width:520px){
   .ab-rail{padding-inline:8px}
   .ab-rail-item{flex-direction:column;gap:2px;min-height:45px;font-size:10.5px}
-  .ab-rail-item .ab-icon{width:15px;height:15px}
+  .ab-rail-item>.ab-icon{width:15px;height:15px}
+  .ab-rail-label .ab-icon{width:10px;height:10px}
   .ab-stage{padding-inline:12px}
   .ab-topbar{gap:5px}
   .ab-top-actions{gap:5px}
-  .ab-find-btn,.ab-run-btn{padding-inline:7px}
+  .ab-find-btn,.ab-run-btn{padding-inline:7px;min-width:0}
   .ab-find-btn span,.ab-find-btn kbd{display:none}
   .ab-finder{right:-70px}
   .ab-page-nav{gap:3px}
@@ -728,9 +780,10 @@ body[data-ds-dark-theme] .ab-root{
   .ab-memory-totals .ab-metric:nth-child(3){border-inline-start:0;padding-inline-start:0}
   .ab-memory-totals .ab-metric:nth-child(4){border-inline-start:1px solid var(--ab-line);padding-inline-start:13px}
   .ab-activity .ab-metric:nth-child(4){border-inline-start:0;padding-inline-start:0}
-  .ab-param-row .ab-ctl,.ab-privacy .ab-param-row .ab-ctl{flex:0 1 auto;justify-content:flex-start}
-  .ab-row{flex-direction:column;gap:6px}
-  .ab-row .ab-label,.ab-row .ab-ctl{flex:none;max-width:100%}
+  .ab-row:has(>.ab-ctl:not(:empty)):not(:has(>.ab-ctl>:only-child:is(.ab-switch,.sm,.ab-btn,.ab-number-ctl))){flex-direction:column;align-items:stretch}
+  .ab-row>.ab-ctl:not(:has(>:only-child:is(.ab-switch,.sm,.ab-btn,.ab-number-ctl))){max-width:none;flex:auto;justify-content:flex-start}
+  .ab-row .ab-btn{white-space:normal}
+  .ab-row .ab-sel-pop{inset-inline:0 auto;max-width:100%}
   .ab-li .meta{flex-basis:100%}
   .ab-li .body{flex-basis:100%}
   .ab-people-grid,.ab-people-groups{gap:10px}
@@ -770,8 +823,31 @@ body[data-ds-dark-theme] .ab-root{
 .ab-install-dl small{display:block;color:var(--ab-dim);font-size:11px}
 .ab-install-dl b{font-size:18px;font-variant-numeric:tabular-nums}
 @media (max-width:640px){.ab-install-steps .st span{display:none}}
-@media (max-width:640px){.ab-row .ab-label{flex:none}.ab-row .ab-label small{max-width:none}}
-@media (prefers-reduced-motion:reduce){.ab-root *{transition:none!important;animation:none!important}}
+.ab-rail-item,.ab-rail-pages button,.ab-page-nav button,.ab-find-btn,.ab-run-btn,.ab-fold-summary,
+.ab-finder-item,.ab-run-option,.ab-sel-opt,.ab-seg button{
+  transition:background-color var(--ab-quick) ease,color var(--ab-quick) ease,border-color var(--ab-quick) ease
+}
+.ab-btn:not(:disabled):active,.ab-find-btn:active,.ab-run-btn:active{filter:brightness(.91)}
+.ab-content,.ab-standalone,.ab-stage-collapse .ab-page-nav{animation:abPageIn var(--ab-reveal) var(--ab-ease)}
+.ab-savebar,.ab-toast,.ab-person-details{animation:abPageIn var(--ab-quick) var(--ab-ease)}
+.ab-finder,.ab-run-pop,.ab-sel-pop,.ab-fold[open]>.ab-fold-body{animation:abPopIn var(--ab-quick) var(--ab-ease)}
+@keyframes abPageIn{from{opacity:0;translate:0 5px}to{opacity:1;translate:none}}
+@keyframes abPopIn{from{opacity:0;translate:0 -4px}to{opacity:1;translate:none}}
+@keyframes abFoldClip{from{overflow:clip}to{overflow:visible}}
+@supports (interpolate-size:allow-keywords) and selector(::details-content){
+  .ab-root :is(details.ab-card,.ab-feed-help)::details-content{
+    interpolate-size:allow-keywords;block-size:0;overflow:clip;
+    transition:block-size var(--ab-reveal) var(--ab-ease),content-visibility var(--ab-reveal) allow-discrete
+  }
+  .ab-root :is(details.ab-card,.ab-feed-help)[open]::details-content{
+    block-size:auto;overflow:visible;animation:abFoldClip var(--ab-reveal) step-end
+  }
+  .ab-root :is(details.ab-card,.ab-feed-help):not([open])::details-content{pointer-events:none}
+}
+@media (prefers-reduced-motion:reduce){
+  .ab-root *,.ab-root *::before,.ab-root *::after{transition:none!important;animation:none!important}
+  .ab-root :is(details.ab-card,.ab-feed-help)::details-content{transition:none!important;animation:none!important}
+}
 .ab-badge.dim{background:var(--ab-card-2);color:var(--ab-sub);border:1px solid var(--ab-line)}
 .ab-badge.warn{background:rgba(191,135,0,.14);color:#9a6700;border:1px solid rgba(191,135,0,.3)}
 .ab-badge.err{background:rgba(207,34,46,.1);color:var(--ab-err);border:1px solid rgba(207,34,46,.3)}
@@ -812,10 +888,27 @@ body[data-ds-dark-theme] .ab-root{
       return h('button', { type: 'button', className: cx('ab-switch', on && 'on'), onClick: () => !disabled && onChange(!on), disabled, title, role: 'switch', 'aria-label': label, 'aria-checked': !!on })
     }
     function Row({ label, hint, details, className, children }) {
-      return h('div', { className: cx('ab-row', className) }, h('div', { className: 'ab-label' }, h('b', null, label), hint ? h('small', null, hint) : null, details), h('div', { className: 'ab-ctl' }, children))
+      const id = useId()
+      return h('div', { className: cx('ab-row', className), role: 'group', 'aria-labelledby': id, 'aria-describedby': hint ? id + '-hint' : undefined },
+        h('div', { className: 'ab-label' }, h('b', { id }, label), hint ? h('small', { id: id + '-hint' }, hint) : null, details),
+        h('div', { className: 'ab-ctl' }, children))
     }
-    function Card({ title, desc, icon, right, children, className }) {
-      return h('div', { className: cx('ab-card', className) },
+    function Card({ title, desc, icon, right, children, className, fold, section, onToggle, collapseAtEnd }) {
+      if (fold) return h('details', { className: cx('ab-card ab-fold', className), id: 'ab-section-' + fold, onToggle },
+        h('summary', { className: 'ab-fold-summary' }, navIcon('chevron'), h('span', null, icon, title)),
+        h('div', { className: 'ab-fold-body' },
+          right ? h('div', { className: 'ab-card-head' }, right) : null,
+          desc ? h('p', { className: 'ab-desc' }, desc) : null,
+          children,
+          collapseAtEnd ? h('div', { className: 'ab-fold-footer' },
+            h('button', { type: 'button', className: 'ab-btn ghost sm', onClick: (e) => {
+              const card = e.currentTarget.closest('details')
+              const summary = card.querySelector('summary')
+              card.open = false
+              summary.focus({ preventScroll: true })
+              summary.scrollIntoView({ block: 'nearest' })
+            } }, '收起')) : null))
+      return h('div', { className: cx('ab-card', section && 'ab-anchor', className), id: section ? 'ab-section-' + section : undefined, tabIndex: section ? -1 : undefined },
         title ? h('div', { className: cx('ab-card-head', desc && 'with-desc') }, h('h3', null, icon || null, title), right || null) : null,
         desc ? h('p', { className: 'ab-desc' }, desc) : null,
         children)
@@ -868,7 +961,7 @@ body[data-ds-dark-theme] .ab-root{
           h('span', { className: 'ck' }, o.value === value ? '✓' : ''),
           h('span', { className: 'tx' }, o.label, o.desc ? h('span', { className: 'ds' }, o.desc) : null)))
       })
-      return h('div', { className: cx('ab-sel', open && 'open'), ref, style: width ? { minWidth: width } : null, onBlur: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false) } },
+      return h('div', { className: cx('ab-sel', open && 'open'), ref, style: width ? { width, minWidth: 0 } : null, onBlur: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false) } },
         h('button', { type: 'button', role: 'combobox', className: 'ab-sel-btn', disabled, onClick: () => (open ? setOpen(false) : openAt()), onKeyDown: onKey, 'aria-label': ariaLabel, 'aria-haspopup': 'listbox', 'aria-expanded': open, 'aria-controls': open ? listId.current : undefined, 'aria-activedescendant': open && act >= 0 ? listId.current + '-' + act : undefined },
           h('span', { className: 'v' }, cur ? cur.label : h('span', { className: 'ab-muted' }, placeholder || '请选择')),
           h('svg', { className: 'chev', width: 12, height: 12, viewBox: '0 0 12 12', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8 }, h('path', { d: 'M3 4.5 6 7.5 9 4.5' }))),
@@ -1018,16 +1111,18 @@ body[data-ds-dark-theme] .ab-root{
         { id: 'mood', label: '记忆', search: '梦 遗忘 隐私 私聊 保密 跨会话 分享 向量' },
         { id: 'persona', label: '关系', search: '人物 亲近 信任 喜欢 亲密 激情 承诺 老梗 群 关系星图' },
         { id: 'inner', label: '念头与行动', search: '内心 念头 日记 欲望 动力 犯懒 主动找 权限 申请 本地小模型' },
+      ] },
+      { id: 'identity', label: '人格与设置', icon: 'memory', pages: [
+        { id: 'mindsettings', label: '心智设置', search: '参数 记性 遗忘 改写 情绪 后台预算 时区 年龄 生日 本地小模型 一键安装' },
         { id: 'character', label: '人格卡', search: '人设 人格 性格 设定 头像' },
         { id: 'selfmind', label: '人格与自我', search: '性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 名字 小名 影子模式' },
-        { id: 'mindsettings', label: '心智设置', search: '参数 记性 遗忘 改写 情绪 预算 时区 年龄 生日 本地小模型 一键安装' },
       ] },
       { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
         { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
-        { id: 'group', label: '回复规则', search: '群聊 私聊 插话 连发 合并 转发 发文件' },
+        { id: 'access', label: '白名单与权限', search: '主人 群管 改资料 QQ 命令 好友申请 成人话题 色情讨论 成人生图 色图' },
+        { id: 'group', label: '回复规则', search: '群聊 私聊 插话 连发 合并 转发' },
         { id: 'model', label: '聊天模型', search: 'AI 大模型 视觉 看图 图片 思考强度' },
         { id: 'asr', label: '语音识别', modules: ['voice'], search: '听语音 转文字 ASR' },
-        { id: 'access', label: '白名单与权限', search: '主人 群管 改资料 QQ 命令 好友申请' },
         { id: 'diary', label: 'QQ 空间', modules: ['diary', 'qzone-social'], search: '空间日记 说说 空间互动' },
       ] },
       { id: 'media', label: '表达与创作', icon: 'sparkles', pages: [
@@ -1054,6 +1149,46 @@ body[data-ds-dark-theme] .ab-root{
       ] },
     ]
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))
+    const FIND_SECTIONS = {
+      overview: [['overview-logs', '最近日志', '近期报错 运行状态']],
+      connect: [['qq-workspace', '工作区与会话维护', '归档 重开 重置 搬家 目录 所有会话'], ['qq-endpoint', 'QQ 网关配置', 'WebSocket HTTP 令牌 OneBot 机器人号']],
+      access: [
+        ['qq-allowlist', '私聊与群白名单', '加好友 接待 谁可以聊天 群号 QQ 号'],
+        ['qq-adult-chat', '成人话题与生图', '色图 色情 涩图 18+ 成人图片'],
+        ['qq-owner', '主人与私聊权限', '管理员 QQ号 给她自由 完整 受限 纯聊天 称呼'],
+        ['qq-notices', 'DSH 授权与通知', '审批 批准 提问 工作区'],
+        ['qq-host-tools', '本机工具与发文件', '群里的本机工具 终端 文件 下载口 长任务 子智能体'],
+        ['qq-profile', '改资料与名单', '头像 昵称 签名 好友申请 改白名单 抖音 小黑盒 权限'],
+        ['qq-group-admin', '群管权限', '禁言 公告 踢人 群主 头衔'],
+        ['qq-commands', 'QQ 命令', '斜杠 命令列表'],
+      ],
+      group: [
+        ['qq-wake', '群聊回应与唤醒词', '群聊必回 群里必回 引用 艾特 @ 别名 叫法 接话'],
+        ['qq-merge', '连发合并', '多条消息 等待 攒消息'],
+        ['qq-history', '跨群阅读与会话上下文', '跨群 看别的群 历史 接上聊天 扩展线索'],
+        ['qq-reply-output', '回复正文与超时', '思考 内心 外泄 回复防漏 严格正文 每段都发 回合时限'],
+        ['qq-interject', '群聊插话与限制', '主动接话 插嘴 频率 冷却 群限制'],
+        ['qq-brakes', '安全刹车', '限速 互聊 防刷屏'],
+        ['qq-group-overrides', '按群单独设置', '单独一个群 主动插话'],
+        ['qq-title-filter', '按头衔不理', '机器人互聊 过滤 专属头衔'],
+      ],
+      model: [['qq-chat-models', '按会话选模型', '默认 私聊模型 群模型 单独切换 思考强度'], ['qq-model-speed', '模型列表与测速', '延迟 测试 可用模型']],
+      now: [['mind-feelings', '此刻的感受', '当前情绪 心情 感受']],
+      mood: [['memory-entries', '她记得的事', '经历 搜索记忆 记忆列表'], ['memory-privacy', '私聊隐私', '跨会话 片段 保护 保密 共享'], ['memory-vectors', '向量检索与精排', 'embedding BGE-M3 rerank 向量重算 相似 本地 离线'], ['memory-chat-log', '聊天流水保留', '原话 保存几天 流水'], ['memory-dreams', '最近的梦', '做梦 睡眠 整理']],
+      inner: [['mind-journal', '内心日记', '念头记录 深想记录'], ['mind-wants', '她想要的', '愿望 基本需要 帮她放下'], ['mind-actions', '能做的事', '待行动 动力 主动行为'], ['mind-outreach', '主动找你', '主动联系 搭话 勿扰'], ['mind-grants', '权限申请', '批准 收回 授权']],
+      selfmind: [['self-versions', '人格卡的版本', '回滚 还原 退回 人格历史'], ['self-traits', '性格（19 项）', '大五 气质 基线 影子模式'], ['self-versions-manage', '版本对比与清理', '删除 清理 对比 版本']],
+      mindsettings: [['mind-local-model', '本地小模型', '一键安装 本地念头 MLX Python']],
+      diary: [['diary-write', '现在写日记', '立即发布 私密日记 写一篇'], ['diary-history', '日记发布历史', '写过的日记 说说 记录'], ['diary-rich', '图文日记与预览', '预览 配图 日记图片'], ['diary-archive', '按日期归档浏览图', '归档 图片目录'], ['diary-social', '空间互动', '说说 点赞 评论 回复 好友空间']],
+      voice: [['voice-rvc', '语音条变声', 'RVC 说话音色 翻唱音色 语音克隆']],
+      imagegen: [['image-fallbacks', '备用生图服务', '降级 后备'], ['image-appearance', '她的形象', '自拍 参考图 形象描述'], ['image-library', '她的画作', '图库 历史图片']],
+      song: [['song-effects', '翻唱效果', '混音 伴唱 人声 特征检索'], ['song-netease', '网易云音乐', 'Cookie MUSIC_U 登录 版权']],
+      security: [['security-remote', '远端管理', '反代 可信代理 主机名 外部访问'], ['security-download', 'SSRF 防护', '内网 下载 安全策略']],
+      backup: [['backup-cloud', '云备份', 'WebDAV Gitee 自动 定时'], ['backup-restore', '从备份恢复', '导入 换电脑 还原']],
+      modules: [['modules-simulate', '模拟测试', '扩展模块 接线 工具调试'], ['modules-create', '新建一个模块', '自定义 模板 插件']],
+      pet: [['pet-assets', '素材包', '桌宠 动画 下载 镜像'], ['pet-chat', '聊天联动', '群聊 动作 气泡'], ['pet-remote', '跨设备连接', '服务器 远程 客户端'], ['pet-behavior', '行为动作', '桌面 动作 行为大脑'], ['pet-icons', '被收走的图标', '隔离 找回 恢复'], ['pet-reminders', '干活状态与提醒', 'DSH 工作 思考 通知'], ['pet-whisper', '碎碎念', '桌宠 自言自语']],
+      douyin: [['douyin-owner', '主人抖音号', '核对 ID 主页链接'], ['douyin-dm', '抖音私信', '私信 消息'], ['douyin-browse', '自动浏览', '定时 刷视频 分享'], ['douyin-limits', '每天上限', '点赞 评论 频率']],
+      heybox: [['heybox-browse', '小黑盒自动浏览', '定时 谷时 峰时'], ['heybox-limits', '每天上限', '点赞 评论 发帖'], ['heybox-post-plan', '小黑盒发帖计划', '每天发多篇 定时 任务'], ['heybox-topics', '话题库', '创作活动 分区 缓存'], ['heybox-hot', '热榜预览', '热门 趋势']],
+    }
     const modOn = (st, id) => (st.modules || []).some((m) => m.id === id && m.running)
     const visibleTabs = (st) => TABS.filter((tab) => !tab.modules || tab.modules.some((id) => modOn(st, id)))
     const ICONS = {
@@ -1080,36 +1215,51 @@ body[data-ds-dark-theme] .ab-root{
     }
     const navIcon = (name) => h('svg', { className: 'ab-icon', viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: ICONS[name] || name }))
 
-    function WorkspaceNav({ groups, current, go, dirtyOf, version }) {
-      const [last, setLast] = useState(() => { try { return JSON.parse(localStorage.getItem('aurabot.workspaceNav') || '{}') || {} } catch { return {} } })
-      useEffect(() => {
-        setLast((previous) => {
-          if (previous[current.group] === current.id) return previous
-          const next = { ...previous, [current.group]: current.id }
-          try { localStorage.setItem('aurabot.workspaceNav', JSON.stringify(next)) } catch {}
-          return next
-        })
-      }, [current.id, current.group])
+    const unsavedDot = () => h('i', { className: 'ab-unsaved-dot', title: '有未保存的设置' })
+    const pageNavId = (group, rail) => (rail ? 'ab-rail-pages-' : 'ab-stage-pages-') + group.id
+
+    function PageNav({ group, current, go, dirtyOf, expanded, rail }) {
+      return h('div', {
+        id: pageNavId(group, rail), className: cx('ab-nav-collapse', rail ? 'ab-rail-collapse' : 'ab-stage-collapse'),
+        'data-expanded': expanded,
+      }, h('div', { className: 'ab-nav-clip', inert: expanded ? undefined : 'inert' },
+        h(rail ? 'div' : 'nav', { className: rail ? 'ab-rail-pages' : 'ab-page-nav', 'aria-label': rail ? undefined : group.label + '页面' },
+          group.pages.map((t) => h('button', {
+            key: t.id, type: 'button', 'aria-current': current.id === t.id ? 'page' : undefined, onClick: () => go(t.id),
+          }, t.label, dirtyOf(t.id) ? unsavedDot() : null)))))
+    }
+
+    function WorkspaceNav({ groups, current, go, dirtyOf, version, collapsedGroup, toggleGroup }) {
       return h('aside', { className: 'ab-rail' },
         h('button', { type: 'button', className: 'ab-wordmark', onClick: () => go('overview'), 'aria-label': 'AuraBot 概览' },
           h('span', { className: 'ab-brand-mark' }, h(WhaleIcon, { size: 21 })), h('b', null, 'AuraBot')),
         h('nav', { className: 'ab-work-nav', 'aria-label': 'AuraBot 功能' }, groups.map((g) => {
           const active = current.group === g.id
-          return h('button', {
-            key: g.id, type: 'button', 'aria-current': active ? 'true' : undefined, className: cx('ab-rail-item', active && 'on'),
-            onClick: () => go((g.pages.find((t) => t.id === last[g.id]) || g.pages[0]).id),
-          }, navIcon(g.icon), h('span', null, g.label),
-          g.pages.some((t) => dirtyOf(t.id)) ? h('i', { className: 'ab-unsaved-dot', title: '有未保存的设置' }) : null)
+          const hasPages = g.pages.length > 1
+          const expanded = hasPages && active && collapsedGroup !== g.id
+          return h('div', { key: g.id }, h('button', {
+            type: 'button', 'aria-current': active ? 'true' : undefined, 'aria-expanded': hasPages ? expanded : undefined,
+            'aria-controls': hasPages ? pageNavId(g, true) + (active ? ' ' + pageNavId(g, false) : '') : undefined,
+            className: cx('ab-rail-item', active && 'on'),
+            onClick: () => {
+              if (!active) go(g.pages[0].id)
+              else if (hasPages) toggleGroup(g.id)
+            },
+          }, navIcon(g.icon), h('span', { className: 'ab-rail-label' }, g.label, hasPages ? navIcon('chevron') : null),
+          (!active || (hasPages && !expanded)) && g.pages.some((t) => dirtyOf(t.id)) ? unsavedDot() : null),
+          hasPages ? h(PageNav, { group: g, current, go, dirtyOf, expanded, rail: true }) : null)
         })),
         h('button', { type: 'button', className: 'ab-build', onClick: () => go('about') }, 'v' + version, navIcon('next')))
     }
 
-    function FeatureFinder({ groups, go }) {
+    function FeatureFinder({ groups, go, st, embeddedModules }) {
       const [find, setFind] = useState(null)
       const [hi, setHi] = useState(0)
+      const [params, setParams] = useState(null)
       const box = useRef(null)
       const trigger = useRef(null)
       const open = find !== null
+      const hasMindSettings = groups.some((g) => g.pages.some((t) => t.id === 'mindsettings'))
       const close = () => { setFind(null); trigger.current?.focus() }
       const toggle = () => { setFind((f) => f === null ? '' : null); setHi(0) }
       useEffect(() => {
@@ -1129,32 +1279,60 @@ body[data-ds-dark-theme] .ab-root{
         document.addEventListener('mousedown', onDown)
         return () => document.removeEventListener('mousedown', onDown)
       }, [open])
-      const words = (find || '').trim().toLowerCase().split(/\s+/).filter(Boolean)
-      const hits = open ? groups.flatMap((g) => g.pages.map((t) => ({ t, g })))
-        .filter(({ t, g }) => words.every((word) => [t.label, g.label, t.search, t.id].join(' ').toLowerCase().includes(word))) : []
-      const pick = (t) => { close(); go(t.id) }
+      useEffect(() => {
+        if (!open || !hasMindSettings || params) return
+        let active = true
+        get('/mind/settings').then((r) => { if (active && r.ok) setParams(r.params || []) })
+        return () => { active = false }
+      }, [open, hasMindSettings, params])
+      const query = (find || '').trim().toLowerCase()
+      const words = query.split(/\s+/).filter(Boolean)
+      const catalog = open ? groups.flatMap((g) => g.pages.flatMap((t) => {
+        const path = g.label + ' / ' + t.label
+        const sections = (FIND_SECTIONS[t.id] || []).flatMap(([section, label, search]) => {
+          if (section === 'qq-group-admin' && !modOn(st, 'group-admin')) return []
+          if (section.startsWith('diary-') && !modOn(st, section === 'diary-social' ? 'qzone-social' : 'diary')) return []
+          return [{ id: section, tab: t.id, label, path, search, section }]
+        })
+        const settings = t.id === 'mindsettings' ? (params || []).map((p) => ({ id: p.key, tab: t.id, label: p.label, path, search: [p.key, p.hint].join(' '),
+          aliases: p.key === 'models.backgroundTokensDaily' ? ['后台预算', '后台额度', '每日额度'] : [], setting: p })) : []
+        const embedded = (embeddedModules[t.id] || []).map((m) => {
+          const section = 'module-' + m.id
+          return { id: section, tab: t.id, label: m.name, path, search: moduleSearchText(m), section }
+        })
+        return [{ id: t.id, tab: t.id, label: t.label, path: g.label, search: t.search }, ...sections, ...settings, ...embedded]
+      })) : []
+      const hits = words.length ? catalog.flatMap((entry) => {
+        const title = entry.label.toLowerCase()
+        const haystack = [title, entry.path, entry.search, entry.id, ...(entry.aliases || [])].join(' ').toLowerCase()
+        if (!words.every((word) => haystack.includes(word))) return []
+        const rank = title === query ? 10 : entry.aliases?.includes(query) ? 9 : title.startsWith(query) ? 8 : title.includes(query) ? 6 : entry.search?.toLowerCase().includes(query) ? 4 : 2
+        return [{ entry, rank: rank + (entry.section || entry.setting ? 0.5 : 0) }]
+      }).sort((a, b) => b.rank - a.rank).slice(0, 32).map(({ entry }) => entry)
+        : ['connect', 'qq-allowlist', 'group', 'model', 'memory-vectors', 'mindsettings'].flatMap((id) => catalog.filter((entry) => entry.id === id))
+      const pick = (entry) => { close(); go(entry.tab, entry) }
       return h('div', { className: 'ab-find', ref: box },
         h('button', { type: 'button', className: 'ab-find-btn', ref: trigger, 'aria-label': '查找功能', 'aria-expanded': open, onClick: toggle },
-          navIcon('find'), h('span', null, '查找功能'), h('kbd', { className: 'ab-kbd' }, /Mac/.test(navigator.platform) ? '⌥ K' : 'Alt K')),
+          navIcon('find'), h('span', null, '搜索功能或设置'), h('kbd', { className: 'ab-kbd' }, /Mac/.test(navigator.platform) ? '⌥ K' : 'Alt K')),
         open ? h('div', { className: 'ab-finder', onKeyDown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); close() } } },
           h('input', {
             className: 'ab-input', autoFocus: true, role: 'combobox', 'aria-label': '搜索功能', 'aria-expanded': true, 'aria-controls': 'ab-finder-list',
             'aria-activedescendant': hits[hi] ? 'ab-hit-' + hi : undefined,
-            placeholder: '输入功能名，例如私聊隐私',
+            placeholder: '例如：精排、色图、群聊必回',
             value: find,
             onChange: (e) => { setFind(e.target.value); setHi(0) },
             onKeyDown: (e) => {
               if (e.nativeEvent?.isComposing) return
               if (e.key === 'ArrowDown' && hits.length) { e.preventDefault(); setHi((i) => Math.min(i + 1, hits.length - 1)) }
               else if (e.key === 'ArrowUp') { e.preventDefault(); setHi((i) => Math.max(i - 1, 0)) }
-              else if (e.key === 'Enter' && hits[hi]) { e.preventDefault(); pick(hits[hi].t) }
+              else if (e.key === 'Enter' && hits[hi]) { e.preventDefault(); pick(hits[hi]) }
             },
           }),
           h('div', { className: 'ab-finder-list', id: 'ab-finder-list', role: 'listbox', 'aria-label': '功能搜索结果' }, hits.length
-            ? hits.map(({ t, g }, i) => h('button', {
-              key: t.id, id: 'ab-hit-' + i, type: 'button', role: 'option', 'aria-selected': i === hi,
-              className: cx('ab-finder-item', i === hi && 'on'), onMouseEnter: () => setHi(i), onClick: () => pick(t),
-            }, t.label, h('small', null, g.label)))
+            ? hits.map((entry, i) => h('button', {
+              key: entry.id, id: 'ab-hit-' + i, type: 'button', role: 'option', 'aria-selected': i === hi,
+              className: cx('ab-finder-item', i === hi && 'on'), onMouseEnter: () => setHi(i), onClick: () => pick(entry),
+            }, h('span', { className: 'ab-finder-title' }, entry.label), h('small', null, entry.path)))
             : h('div', { className: 'ab-finder-empty' }, '没有匹配的功能'))) : null)
     }
 
@@ -1397,6 +1575,7 @@ body[data-ds-dark-theme] .ab-root{
               ['生图配置', imageLabel, modOn(st, 'imagegen') ? 'imagegen' : 'modules', 'sparkles'],
               ['回复规则', '群聊插话、连发合并', 'group', 'chat'],
               ['白名单与权限', '谁可以和她聊天', 'access', 'lock'],
+              ['聊天模型', '默认模型与每个会话的模型', 'model', 'settings'],
             ].map(([label, description, id, icon]) => h('li', { key: id }, h('button', { type: 'button', onClick: () => go(id) },
               navIcon(icon), h('b', null, label), h('small', null, description), navIcon('next'))))))),
         h(RecentLogs, { go }))
@@ -1424,14 +1603,16 @@ body[data-ds-dark-theme] .ab-root{
 
     function RecentLogs({ go }) {
       const [items, setItems] = useState(null)
+      const [open, setOpen] = useState(false)
       useEffect(() => {
+        if (!open) return
         let alive = true
         const load = () => get('/logs?limit=8&level=info').then((r) => alive && setItems(r.entries || []))
         load()
         const t = setInterval(load, 5000)
         return () => { alive = false; clearInterval(t) }
-      }, [])
-      return h(Card, { title: '最近日志', className: 'ab-recent', right: h(Btn, { kind: 'ghost', small: true, onClick: () => go('logs') }, '全部日志 →') },
+      }, [open])
+      return h(Card, { fold: 'overview-logs', title: '最近日志', className: 'ab-recent', onToggle: (e) => setOpen(e.currentTarget.open), right: h(Btn, { kind: 'ghost', small: true, onClick: () => go('logs') }, '全部日志 →') },
         items === null ? h(Empty, { icon: '⏳', text: '加载中…' }) : items.length === 0 ? h('p', { className: 'ab-muted ab-small' }, '暂无日志') :
           h('div', { className: 'ab-logs', style: { maxHeight: 240 } }, items.slice().reverse().map((e, i) => h(LogLine, { key: i, e }))))
     }
@@ -1467,12 +1648,23 @@ body[data-ds-dark-theme] .ab-root{
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '接上 QQ', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
+        h(Card, { title: '连接状态' },
+          h('div', { className: 'ab-kv' },
+            h('span', null, 'QQ 网关'), h('span', null, h('span', { className: 'ab-flex' }, h('i', { className: cx('ab-dot', conn ? 'ok' : st.onebot.state === 'connecting' ? 'warn' : 'err') }), { connected: '已连上', connecting: '连接中', disconnected: '断开了，正在重连', stopped: '没启动（总开关关着）', unconfigured: '还没配置' }[st.onebot.state] || st.onebot.state)),
+            h('span', null, '登录的号'), h('span', null, login ? login.nickname + '（' + login.uin + '）' + (login.uin !== draft.botQQ ? ' ⚠ 不是机器人号！' : '') : '—'),
+            h('span', null, 'HTTP'), h('span', null, st.onebot.endpoint.httpUrl || '—'),
+            h('span', null, 'WebSocket'), h('span', null, st.onebot.endpoint.wsUrl || '—'),
+          ),
+          !conn && st.onebot.problem ? h('div', { className: 'ab-note warn', style: { marginTop: 10 } }, st.onebot.problem) : null,
+          testBtns, diagView,
+          h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测'),
+        ),
+        h(Card, { fold: conn ? 'qq-endpoint' : undefined, section: conn ? undefined : 'qq-endpoint', title: 'QQ 网关配置', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
           desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
           h(Row, { label: '机器人 QQ 号' }, f.text('botQQ')),
-          testBtns, diagView),
-        h(Card, { title: 'QQ 会话放在哪', desc: '每个 QQ 私聊 / 群都是 DSH 里「Aurabot · QQ」工作区下的一个会话，ta在会话里读写文件也在这个文件夹。改了以后新开的会话放到新位置；已有的会话还在原来的地方，想全部换成新会话，可在下方点「重新开始所有 QQ 会话」。' },
+        ),
+        h(Card, { fold: 'qq-workspace', title: '工作区与会话维护', desc: '每个 QQ 私聊 / 群都是 DSH 里「Aurabot · QQ」工作区下的一个会话，ta在会话里读写文件也在这个文件夹。改了以后新开的会话放到新位置；已有的会话还在原来的地方，想全部换成新会话，可在下方点「重新开始所有 QQ 会话」。' },
           h(Row, { label: '工作区文件夹', hint: '填完整路径（比如 ' + exPath('Aurabot/qq-chats') + '）；留空 = 默认位置' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
           h('div', { className: 'ab-muted ab-small' }, '现在用的：' + (st.workspaceDir || '—') + (st.workspaceReal && st.workspaceReal !== st.workspaceDir ? '（文件实际在 ' + st.workspaceReal + '）' : '')),
           h(Row, { label: '把现有文件搬过去', hint: '填一个空文件夹的完整路径。已有会话照常接着聊，原路径留一个联接指过去；聊天记录和记忆在用户目录的 .dsh 里，不跟着搬。她正在跑命令时搬不了' },
@@ -1482,24 +1674,13 @@ body[data-ds-dark-theme] .ab-root{
                 const r = await post('/workspace/move', { to: moveTo.trim() })
                 toast(r.message, r.ok ? 'ok' : 'err')
                 if (r.ok) { setMoveTo(''); reload() }
-              } }, '搬过去')))),
-        h(Card, { title: '连接状态' },
-          h('div', { className: 'ab-kv' },
-            h('span', null, 'QQ 网关'), h('span', null, h('span', { className: 'ab-flex' }, h('i', { className: cx('ab-dot', conn ? 'ok' : st.onebot.state === 'connecting' ? 'warn' : 'err') }), { connected: '已连上', connecting: '连接中', disconnected: '断开了，正在重连', stopped: '没启动（总开关关着）', unconfigured: '还没配置' }[st.onebot.state] || st.onebot.state)),
-            h('span', null, '登录的号'), h('span', null, login ? login.nickname + '（' + login.uin + '）' + (login.uin !== draft.botQQ ? ' ⚠ 不是机器人号！' : '') : '—'),
-            h('span', null, 'HTTP'), h('span', null, st.onebot.endpoint.httpUrl || '—'),
-            h('span', null, 'WebSocket'), h('span', null, st.onebot.endpoint.wsUrl || '—'),
-          ),
-          !conn && st.onebot.problem ? h('div', { className: 'ab-note warn', style: { marginTop: 10 } }, st.onebot.problem) : null,
-          h('div', { className: 'ab-flex', style: { marginTop: 10 } }, h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接')),
-          h('div', { className: 'ab-flex', style: { marginTop: 10 } },
-            h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测'),
+              } }, '搬过去'))),
             h(Btn, { small: true, kind: 'ghost', onClick: async () => {
               if (!confirm('重新开始所有 QQ 会话？普通旧会话会归档，有工作树的旧会话会留在侧栏。')) return
               const r = await post('/sessions/reset')
               toast(r.message)
               if (r.ok) reload()
-            } }, '重新开始所有 QQ 会话')),
+            } }, '重新开始所有 QQ 会话'),
         ),
       )
     }
@@ -1508,7 +1689,7 @@ body[data-ds-dark-theme] .ab-root{
       const [pubBase, setPubBase] = useState(null)
       const savedPubBase = st.config.ext?.pet?.publicBaseUrl || ''
       const curPubBase = pubBase == null ? savedPubBase : pubBase
-      return h(Card, { title: '跨设备连接', desc: '在另一台电脑运行桌宠时，填服务器的 HTTPS 地址。保存后可以下载对应的客户端包。' },
+      return h(Card, { fold: 'pet-remote', title: '跨设备连接', desc: '在另一台电脑运行桌宠时，填服务器的 HTTPS 地址。保存后可以下载对应的客户端包。' },
         h(Row, { label: '插件对外地址', hint: savedPubBase ? '当前已配置：' + savedPubBase + '。清空并保存 = 关闭远端直连' : '留空 = 同机模式（桌宠和插件在同一台电脑，不用动这里）' },
           h('div', { className: 'ab-flex' },
             h('input', { className: 'ab-input', style: { width: 'min(320px, 100%)' }, placeholder: 'https://bot.example.com', value: curPubBase, onChange: (e) => setPubBase(e.target.value) }),
@@ -1775,26 +1956,59 @@ body[data-ds-dark-theme] .ab-root{
     function Access({ st, draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '主人', desc: '主人的 QQ 号。群管、点歌、电脑上的操作只听主人的。' },
+        h(Card, { section: 'qq-allowlist', className: 'ab-allowlist', title: '私聊与群白名单', desc: '只有名单里的人和群，ta才会理。一行一个号码。' },
+          h(Row, { label: '私聊白名单', hint: '主人默认就在里面。' }, f.list('allow.private', { placeholder: '每行一个 QQ 号', numbers: true })),
+          h(Row, { label: '群白名单', hint: '把机器人拉进群后，把群号加到这里。' }, f.list('allow.groups', { placeholder: '每行一个群号', numbers: true })),
+        ),
+        h(AdultChatPermissions, { draft, setDraft, savedAllow: st.config?.allow }),
+        h(Card, { fold: 'qq-owner', title: '主人与私聊权限', desc: '主人的 QQ 号。群管、点歌、电脑上的操作只听主人的。' },
           h(Row, { label: '主人 QQ 号' }, f.text('ownerQQ')),
           h(Row, { label: 'ta怎么称呼你', hint: '一开始她这么叫你；之后她可以自己换个叫法（会通知你，「人格与自我」页能看、能退回）。你在这里改了，就以你改的为准。' }, f.text('ownerName', { placeholder: '主人' })),
           h(Row, { label: '主人私聊的权限', hint: '群聊永远没有电脑操作权限，这里管不到群。' },
             h('div', { style: { width: '100%' } },
               h(Choices, { value: draft.ownerLevel, onChange: (v) => setDraft(setPath(draft, 'ownerLevel', v)), options: [
                 { value: 'full', label: '完整', desc: '私聊里让ta用电脑做事（查文件、跑命令、上网查）也能做' },
-                { value: 'social', label: '受限', desc: '只有发表情、发说说这类 QQ 工具，碰不到电脑' },
+                { value: 'social', label: '受限', desc: '可用 QQ 和心智工具，例如查关系、回忆经历、看待办。无本机读写权限。' },
                 { value: 'chat', label: '纯聊天', desc: '什么工具都没有，只聊天' },
               ] }),
               h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '切换后会给主人私聊换一个新的 DSH 会话（旧的还在侧栏里）。'))),
           h(Row, { label: '给她自由', hint: '开启后，她可以自行决定怎么聊天和创作。修改 QQ 资料、管理好友或群、读写本机文件等操作仍需通过当前会话的主人权限检查。' }, f.sw('freedom')),
+        ),
+        h(Card, { fold: 'qq-notices', title: 'DSH 授权与通知' },
           h(Row, { label: 'DSH 卡住时在 QQ 里说一声', hint: '有会话在等授权、等你选东西时，她用自己的话跟你说一句（不是固定通知）。人不在电脑前也知道。' }, f.sw('notice.enabled')),
           draft.notice?.enabled === false ? null : [
             h(Row, { key: 'a', label: '要授权时', hint: '工具卡住、等你点批准的时候' }, f.sw('notice.approval')),
             h(Row, { key: 'q', label: '要选选项时', hint: '有会话在等你选东西的时候' }, f.sw('notice.question')),
             h(NoticeWorkspaces, { key: 'w', toast }),
           ],
-          h(Row, { label: 'QQ 接口', hint: '让她用 QQ 的其他能力：别人只能查当前群的公告、精华这些；撤回、设精华、改群名片等只听你的。取 Cookie、发原始包、删好友、退群这些不开放。' }, f.sw('qqApi.enabled')),
           h(Row, { label: '在 QQ 里批准', hint: '和你私聊时要授权，回复「确认」批准这一次、回复「取消」拒绝，5 分钟没回就不批。只认你本人的私聊回复，DSH 里也能同时点。QQ 号被盗的话，对方也能批，介意就关掉' }, f.sw('approvalViaQQ')),
+        ),
+        h(HostToolPermissions, { draft, setDraft }),
+        h(ProfilePerms, { st, draft, setDraft }),
+        modOn(st, 'group-admin') ? h(GroupRoles, null) : null,
+        h(CommandList, null),
+      )
+    }
+
+    function HostToolPermissions({ draft, setDraft }) {
+      const f = useField(draft, setDraft)
+      return h(Card, { fold: 'qq-host-tools', title: '本机工具与发文件' },
+        h('div', { className: 'ab-grid' },
+        h(Card, { title: '发文件', right: f.sw('files.enabled'), desc: '打开后，你可以让ta把本机文件发到 QQ：图片会直接显示成图，其它当文件发。私聊里随时能发，群里只在你自己开口那一轮能发；也能按你说的发给白名单里的人或群。ta只能发 QQ 工作区和下面目录里的文件；单个文件有大小上限；发过什么会记在日志里。' },
+          h(Row, { label: '单个文件最大' }, f.num('files.maxMB', { min: 1, max: 2048 }), h('span', { className: 'ab-muted' }, ' MB')),
+          h(Row, { label: '额外允许的目录', hint: '一行一个完整路径。QQ 工作区里的文件一直允许，不用写；留空 = 只能发工作区里的' }, f.list('files.dirs', { placeholder: exPath('Desktop') })),
+          h(Row, { label: '图片和文件按路径直发', hint: '网关和插件在同一台机器或共享挂载时，直接把路径交给网关，省掉读盘和 base64 膨胀。Mac 上网关在 Docker / OrbStack 里读不到本机路径，默认关，建议保持关；关着时图片和文件都直接走 base64 / 下载口。' }, f.sw('files.imageByPath')),
+          h(Row, { label: '大文件下载口', hint: '网关跑在 Docker / 虚拟机里看不到本机文件时，超过 30 MB 的文件会临时开一个只对本机开放的下载地址让网关来取（随机口令，15 分钟作废）。关掉后这种情况下大文件发不出去' }, f.sw('files.relay')),
+          draft.files.relay !== false ? h(Row, { label: '网关访问本机用的地址', hint: 'OrbStack、Docker Desktop 都是 host.docker.internal；网关在别的电脑上时这招不管用' }, f.text('files.relayHost', { placeholder: 'host.docker.internal' })) : null,
+        ),
+        h(Card, { title: '群里的本机工具', right: f.choices('group.ownerTools', [{ value: 'off', label: '谁都不行' }, { value: 'owner', label: '只有主人' }]),
+          desc: '默认关：群里ta只能聊天，没有任何电脑操作能力。「只有主人」＝主人在群里说话的那一轮ta才拿得到命令和文件工具，别人说话时照旧收走。没有「谁问都行」这一档：群里任何人都能远程驱动这台机器，权限面太大。',
+          ...(draft.group.ownerTools && draft.group.ownerTools !== 'off' ? [
+            h(Row, { label: '只在这些群生效', hint: '一行一个群号；留空 = 白名单里所有群都生效' }, f.list('group.ownerToolsGroups', { placeholder: '100200300' })),
+          ] : []),
+        }),
+        h(Card, { title: '工具与任务' },
+          h(Row, { label: 'QQ 接口', hint: '让她用 QQ 的其他能力：别人只能查当前群的公告、精华这些；撤回、设精华、改群名片等只听你的。取 Cookie、发原始包、删好友、退群这些不开放。' }, f.sw('qqApi.enabled')),
           h(Row, { label: '长任务模式', hint: '只在「完整」权限下生效。打开后ta能把命令放到后台跑、跑完自动回来告诉你，也能设定时任务；工具多一点，回话会稍慢。切换后同样换新会话。' },
             h(Choices, { value: draft.longTasks ? 'on' : 'off', onChange: (v) => setDraft(setPath(draft, 'longTasks', v === 'on')), options: [
               { value: 'off', label: '关', desc: '工具少一点，回话快一点' },
@@ -1805,15 +2019,7 @@ body[data-ds-dark-theme] .ab-root{
               { value: 'off', label: '关', desc: '后台任务不派子智能体（默认）' },
               { value: 'on', label: '开', desc: '后台任务也可以派子智能体' },
             ] })),
-        ),
-        h(ProfilePerms, { st, draft, setDraft }),
-        h(Card, { title: '白名单', desc: '只有名单里的人和群，ta才会理。一行一个号码。' },
-          h(Row, { label: '私聊白名单', hint: '主人默认就在里面。' }, f.list('allow.private', { placeholder: '每行一个 QQ 号', numbers: true })),
-          h(Row, { label: '群白名单', hint: '把机器人拉进群后，把群号加到这里。' }, f.list('allow.groups', { placeholder: '每行一个群号', numbers: true })),
-        ),
-        modOn(st, 'group-admin') ? h(GroupRoles, null) : null,
-        h(CommandList, null),
-      )
+        )))
     }
 
     /** 内置 QQ 资料和名单操作仍须由主人亲口发起。 */
@@ -1829,7 +2035,7 @@ body[data-ds-dark-theme] .ab-root{
       const ownerOpts = [...opts.slice(0, 2), { value: 'all', label: '主人私聊或群聊', desc: '这一轮只有主人发言时可用' }]
       const row = (key, label, hint, options = opts) => h(Row, { label, hint },
         h(Choices, { value: perms[key] || 'owner', onChange: (v) => setDraft(setPath(draft, 'profilePerms.' + key, v)), options }))
-      return h(Card, { title: '改资料与名单', desc: 'ta能不能听人的话改自己的 QQ 昵称、签名、头像，处理好友申请和改白名单；装了抖音、小黑盒模块后，它们的操作权限也在这里。改 QQ 资料要 SnowLuma 支持。各项默认仅主人。' },
+      return h(Card, { fold: 'qq-profile', title: '改资料与名单', desc: 'ta能不能听人的话改自己的 QQ 昵称、签名、头像，处理好友申请和改白名单；装了抖音、小黑盒模块后，它们的操作权限也在这里。改 QQ 资料要 SnowLuma 支持。各项默认仅主人。' },
         row('qqNickname', 'QQ 昵称', '', ownerOpts),
         row('qqSignature', 'QQ 个性签名', '', ownerOpts),
         row('qqAvatar', 'QQ 头像', '只用网址图片，或「刚才发的那张图」。', ownerOpts),
@@ -1851,7 +2057,7 @@ body[data-ds-dark-theme] .ab-root{
     function CommandList() {
       const [list, setList] = useState([])
       useEffect(() => { get('/commands').then((r) => setList(r.list || [])) }, [])
-      return h(Card, { title: 'QQ 命令', desc: '主人在 QQ 里（私聊或白名单群）直接发这些命令就能管ta，别人发了不算。总开关关着时也能用。' },
+      return h(Card, { fold: 'qq-commands', title: 'QQ 命令', desc: '主人在 QQ 里（私聊或白名单群）直接发这些命令就能管ta，别人发了不算。总开关关着时也能用。' },
         h('table', { className: 'ab-table' }, h('tbody', null, list.map((c) => h('tr', { key: c.name },
           h('td', { style: { whiteSpace: 'nowrap' } }, h('code', null, '/' + c.name), c.aliases.length ? h('div', { className: 'ab-muted ab-small' }, c.aliases.map((a) => '/' + a).join(' ')) : null),
           h('td', null, c.desc))))))
@@ -1863,7 +2069,7 @@ body[data-ds-dark-theme] .ab-root{
       const load = () => { setResult(null); get('/groups/roles').then(setResult) }
       const list = result?.list || []
       useEffect(load, [])
-      return h(Card, { title: '群管权限', desc: 'ta在群里是群主或管理员时，主人才能让ta禁言、踢人、发公告；改专属头衔要群主。按已保存的群白名单查。',
+      return h(Card, { fold: 'qq-group-admin', title: '群管权限', desc: 'ta在群里是群主或管理员时，主人才能让ta禁言、踢人、发公告；改专属头衔要群主。按已保存的群白名单查。',
         right: h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新') },
         !result ? h('div', { className: 'ab-muted ab-small' }, h('i', { className: 'ab-spin' }), ' 查询中…')
           : !result.ok ? h('div', { className: 'ab-muted ab-small', role: 'status' }, result.message || '暂时查不到群管权限。')
@@ -1894,7 +2100,7 @@ body[data-ds-dark-theme] .ab-root{
       const nameOf = (gid) => { const g = ((info && info.groups) || []).find((x) => x.groupId === gid); return g && g.name && g.name !== gid ? g.name : '' }
       const on = (gid) => tf.groups.includes(gid)
       const hit = info && info.titles ? info.titles.find((t) => t.title === tf.title.trim()) : null
-      return h(Card, { title: '按头衔不理（防机器人互聊）', right: h(Switch, { on: tf.enabled, onChange: (v) => set({ enabled: v }) }),
+      return h(Card, { fold: 'qq-title-filter', title: '按头衔不理（防机器人互聊）', right: h(Switch, { on: tf.enabled, onChange: (v) => set({ enabled: v }) }),
         desc: '同一个群里有别的机器人时，给它们挂上同一个专属头衔（比如「大肥鱼」），ta在勾选的群里就不理它们：说话、@ ta、戳ta都不回，免得机器人之间互相接话停不下来。只认专属头衔，昵称和群名片不算；私聊不受影响。' },
         h(Row, { label: '要不理的头衔', hint: '一字不差才算。下面列出白名单群里现有的头衔，点一个就填进来。' },
           h('div', { style: { width: '100%' } },
@@ -1915,54 +2121,46 @@ body[data-ds-dark-theme] .ab-root{
         h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '查不到某人的头衔时（网关抽风），那条先不回，过几秒再查；成员改了头衔一分钟内生效。'))
     }
 
-    function Group({ draft, setDraft }) {
+    function Group({ draft, setDraft, go }) {
       const f = useField(draft, setDraft)
       const overrides = draft.group.overrides || {}
       const [newGid, setNewGid] = useState('')
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '连发合并', right: f.sw('merge.enabled'), desc: '人常常一口气发好几句。打开后ta会等对方说完再一起回，而不是一句一回。' },
+        h(Card, { section: 'qq-wake', title: '群聊回应与唤醒词', desc: '被 @、有人引用回复ta的消息、或者提到下面这些名字时，ta一定会回。',
+          right: go ? h(Btn, { small: true, kind: 'ghost', onClick: () => go('access', { section: 'qq-host-tools' }) }, '本机工具与发文件 →') : null },
+          h(Row, { label: '@ 了别人不算叫ta', hint: '有人 @ 别人时顺口提到ta的名字，不算在叫ta；ta还是可以按平时的频率插话。默认关' }, f.sw('group.ignoreAtOthers')),
+          h(Row, { label: '别的叫法', hint: '她的名字和小名自动算（她改名后跟着变）；这里加别的叫法，一行一个' },f.list('group.wakeWords', { placeholder: '一行一个' })),
+          h(Row, { label: '每小时必回上限', hint: '一个群里一小时内因被 @、引用、叫名字而必回的次数最多这么多，超过就不回（主人说话不受限，也不计入）；小时一过自动恢复。0 = 不限' }, f.range('group.mustMaxPerHour', 0, 100, 5, (v) => (v === 0 ? '不限' : v + ' 次'))),
+        ),
+        h(Card, { fold: 'qq-merge', title: '连发合并', right: f.sw('merge.enabled'), desc: '人常常一口气发好几句。打开后ta会等对方说完再一起回，而不是一句一回。' },
           h(Row, { label: '对方停顿多久算说完' }, f.range('merge.waitSec', 0.5, 10, 0.5, (v) => v + ' 秒')),
           h(Row, { label: '最多等多久', hint: '对方一直在发也最多等这么久' }, f.range('merge.maxSec', 2, 30, 1, (v) => v + ' 秒')),
           h(Row, { label: '群里停顿多久算一段', hint: '群里大家你一句我一句，多等一会儿把一段话攒齐再回；ta回上一段的时候，新消息也会先攒着' }, f.range('merge.groupWaitSec', 1, 20, 1, (v) => v + ' 秒')),
           h(Row, { label: '群里最多等多久' }, f.range('merge.groupMaxSec', 3, 60, 1, (v) => v + ' 秒')),
         ),
-        h(TitleFilter, { draft, setDraft }),
-        h(Card, { title: '发文件', right: f.sw('files.enabled'), desc: '打开后，你可以让ta把本机文件发到 QQ：图片会直接显示成图，其它当文件发。私聊里随时能发，群里只在你自己开口那一轮能发；也能按你说的发给白名单里的人或群。ta只能发 QQ 工作区和下面目录里的文件；单个文件有大小上限；发过什么会记在日志里。' },
-          h(Row, { label: '单个文件最大' }, f.num('files.maxMB', { min: 1, max: 2048 }), h('span', { className: 'ab-muted' }, ' MB')),
-          h(Row, { label: '额外允许的目录', hint: '一行一个完整路径。QQ 工作区里的文件一直允许，不用写；留空 = 只能发工作区里的' }, f.list('files.dirs', { placeholder: exPath('Desktop') })),
-          h(Row, { label: '图片和文件按路径直发', hint: '网关和插件在同一台机器或共享挂载时，直接把路径交给网关，省掉读盘和 base64 膨胀。Mac 上网关在 Docker / OrbStack 里读不到本机路径，默认关，建议保持关；关着时图片和文件都直接走 base64 / 下载口。' }, f.sw('files.imageByPath')),
-          h(Row, { label: '大文件下载口', hint: '网关跑在 Docker / 虚拟机里看不到本机文件时，超过 30 MB 的文件会临时开一个只对本机开放的下载地址让网关来取（随机口令，15 分钟作废）。关掉后这种情况下大文件发不出去' }, f.sw('files.relay')),
-          draft.files.relay !== false ? h(Row, { label: '网关访问本机用的地址', hint: 'OrbStack、Docker Desktop 都是 host.docker.internal；网关在别的电脑上时这招不管用' }, f.text('files.relayHost', { placeholder: 'host.docker.internal' })) : null,
-        ),
-        h(Card, { title: '群里的本机工具', right: f.choices('group.ownerTools', [{ value: 'off', label: '谁都不行' }, { value: 'owner', label: '只有主人' }]),
-          desc: '默认关：群里ta只能聊天，没有任何电脑操作能力。「只有主人」＝主人在群里说话的那一轮ta才拿得到命令和文件工具，别人说话时照旧收走。没有「谁问都行」这一档：群里任何人都能远程驱动这台机器，权限面太大。',
-          ...(draft.group.ownerTools && draft.group.ownerTools !== 'off' ? [
-            h(Row, { label: '只在这些群生效', hint: '一行一个群号；留空 = 白名单里所有群都生效' }, f.list('group.ownerToolsGroups', { placeholder: '100200300' })),
-          ] : []),
-        }),
-        h(Card, { title: '群里什么时候必回', desc: '被 @、有人引用回复ta的消息、或者提到下面这些名字时，ta一定会回。' },
+        h(Card, { fold: 'qq-history', title: '跨群阅读与会话上下文' },
           h(Row, { label: '能不能看别的群', hint: '只读白名单里的群，一次最多 50 条，主人随时能看。开到「群里也行」后，ta在 A 群的回答全群都看得到，里面可能有不在 B 群的人；读到的内容也会留在这个会话里。' }, f.choices('group.crossRead', [{ value: 'off', label: '关', desc: '只看当前聊天' }, { value: 'private', label: '私聊可以', desc: '主人，以及私聊里问的人本身在那个群（默认）' }, { value: 'group', label: '群里也行', desc: '再加上群里问的人都在那个群' }])),
-          h(Row, { label: '@ 了别人不算叫ta', hint: '有人 @ 别人时顺口提到ta的名字，不算在叫ta；ta还是可以按平时的频率插话。默认关' }, f.sw('group.ignoreAtOthers')),
           h(Row, { label: '新会话先补看聊天记录', hint: '会话第一次开口时先读最近几条，接得上话。默认关' }, f.sw('chat.seedHistory')),
+          h(Row, { label: '给扩展提供近期私聊线索', hint: '默认关闭。开启后，已安装扩展的提示词钩子可收到当前主人私聊的近期原话，用于授权的历史资料检索。' }, f.sw('chat.shareRecentWithModules')),
+        ),
+        h(Card, { fold: 'qq-reply-output', title: '回复正文与超时' },
           h(Row, { label: '每段都发', hint: '一轮里她分几段说，就发几条。私聊多半是闲聊，连着说的几句常常各说各的，关着只发最后一段，看起来就像只回了一个话题；干活时前面多是「我先去查」这类过程话，开着会啰嗦。默认关' }, f.sw('chat.everyStep')),
           h(Row, { label: '回复防漏', hint: '过滤明显混进回复的思考和草稿，保留围栏中的代码' }, f.sw('chat.thinkingGuard')),
-          h(Row, { label: '给扩展提供近期私聊线索', hint: '默认关闭。开启后，已安装扩展的提示词钩子可收到当前主人私聊的近期原话，用于授权的历史资料检索。' }, f.sw('chat.shareRecentWithModules')),
           h(Row, { label: '严格正文标记', hint: '只发送完整标记内的正文。缺失时尝试重写一次' }, f.sw('chat.replyMarker')),
           h(Row, { label: '话写在思考里也捞出来', hint: '她偶尔把要说的话全写在思考里，正文是空的，这一轮就什么都发不出去。打开后从思考里找她自己定稿的那段，找不到就不发。默认关' }, f.sw('chat.rescueFromThinking')),
           h(Row, { label: '一轮最多等多久（分钟）', hint: '模型或工具卡住时，超过这么多分钟就强制放开，后面的消息正常开新一轮；不然会一直哑着。填 0 不兜底。默认 30' }, f.num('chat.turnTimeoutMinutes', { min: 0, max: 180 })),
-          h(Row, { label: '别的叫法', hint: '她的名字和小名自动算（她改名后跟着变）；这里加别的叫法，一行一个' },f.list('group.wakeWords', { placeholder: '一行一个' })),
-          h(Row, { label: '每小时必回上限', hint: '一个群里一小时内因被 @、引用、叫名字而必回的次数最多这么多，超过就不回（主人说话不受限，也不计入）；小时一过自动恢复。0 = 不限' }, f.range('group.mustMaxPerHour', 0, 100, 5, (v) => (v === 0 ? '不限' : v + ' 次'))),
         ),
-        h(Card, { title: '安全刹车', desc: '只防失控（比如和别的机器人聊停不下来）：ta在一个群里短时间说太多就歇一会儿；别人 @ ta、引用 ta、喊 ta 名字或追问 ta 不算主动接话，不会被刹车拦。平时碰不到。' },
+        h(TitleFilter, { draft, setDraft }),
+        h(Card, { fold: 'qq-brakes', title: '安全刹车', desc: '只防失控（比如和别的机器人聊停不下来）：ta在一个群里短时间说太多就歇一会儿；别人 @ ta、引用 ta、喊 ta 名字或追问 ta 不算主动接话，不会被刹车拦。平时碰不到。' },
           h(Row, { label: '连着接话几次', hint: '她会自己判断该不该停，这里只是兜底：没人叫她时最多连着接几次。0 = 不接话' }, f.range('group.engagedMax', 0, 10, 1, (v) => v + ' 次')),
           h(Row, { label: '最多说几次' }, f.range('group.burstMax', 1, 20, 1, (v) => v + ' 次'), h('span', { className: 'ab-muted' }, '/'), f.range('group.burstWindowSec', 30, 600, 30, (v) => Math.round(v / 6) / 10 + ' 分钟')),
         ),
-        h(Card, { title: '群里插话', desc: '没人叫她的时候插不插话由她自己：看她的性格（爱社交那一项）、此刻的心情和精力、群里在聊的和她记得的事、她的爱好有多相关、在场的人和她多亲近；看完群里在聊什么，她也可以决定不说话。睡没睡由她的身体管，不用设静默时段。整体多爱接话、每小时最多几次在「心智设置 → 社会认知与关系」里调。' },
+        h(Card, { fold: 'qq-interject', title: '群聊插话与限制', desc: '没人叫她的时候插不插话由她自己：看她的性格（爱社交那一项）、此刻的心情和精力、群里在聊的和她记得的事、她的爱好有多相关、在场的人和她多亲近；看完群里在聊什么，她也可以决定不说话。睡没睡由她的身体管，不用设静默时段。整体多爱接话、每小时最多几次在「心智设置 → 社会认知与关系」里调。' },
           h(Row, { label: '冷却', hint: '两次主动插话至少隔多久' }, f.range('group.cooldownSec', 0, 600, 10, (v) => v + ' 秒')),
           h(Row, { label: '群冷清时不插话', hint: '最近几分钟内消息少于这个数就不插' }, f.num('group.minRecentMessages', { min: 0 }), h('span', { className: 'ab-muted' }, '条 / '), f.num('group.activeWindowSec', { min: 30 }), h('span', { className: 'ab-muted' }, '秒')),
           h('div', { className: 'ab-note', style: { marginTop: 8 } }, 'ta被叫到或插上话以后算「加入了话题」：话题还和ta相关、ta 3 分钟内说过话，就会接着聊下去（每次看完群里新说的一段再回），不受冷却限制；话题跑偏或者ta选择不说话就退出。'),
         ),
-        h(Card, { title: '按群单独设置', desc: '填 0：这个群里她不主动插话（被叫到还是会回）；填 100：这个群每条消息都给她看一眼（说不说还是她自己定，花钱多）。其他数值不起作用——插不插由她自己定。' },
+        h(Card, { fold: 'qq-group-overrides', title: '按群单独设置', desc: '填 0：这个群里她不主动插话（被叫到还是会回）；填 100：这个群每条消息都给她看一眼（说不说还是她自己定，花钱多）。其他数值不起作用——插不插由她自己定。' },
           Object.keys(overrides).length === 0 ? h('div', { className: 'ab-muted', style: { marginBottom: 10 } }, '还没有单独设置的群。') :
             Object.entries(overrides).map(([gid, o]) => h(Row, { key: gid, label: '群 ' + gid },
               h('input', { className: 'ab-input sm', type: 'number', min: 0, max: 100, value: pct(o.interjectChance ?? draft.group.interjectChance), onChange: (e) => setDraft(setPath(draft, 'group.overrides', { ...overrides, [gid]: { ...o, interjectChance: Number(e.target.value) / 100 } })) }),
@@ -1994,7 +2192,7 @@ body[data-ds-dark-theme] .ab-root{
         setAdd({ ...add, id: '' })
       }
       const remove = (kind, id) => { const field = kind === 'private' ? 'privates' : 'groups'; const n = { ...(cm[field] || {}) }; delete n[id]; setCm({ [field]: n }) }
-      return h(Card, { title: '按聊天选模型', desc: '顺序：这个私聊 > 这个群 > 所有私聊 / 所有群的默认 > 上面的全局模型。没选的一级就用下一级；选的模型在 DSH 里找不到时也自动退回。只有你能在这里改，聊天里的人换不了。换了之后从那个聊天的下一条消息起生效。' },
+      return h(Card, { fold: 'qq-chat-models', title: '按会话选模型', desc: '顺序：这个私聊 > 这个群 > 所有私聊 / 所有群的默认 > 上面的全局模型。没选的一级就用下一级；选的模型在 DSH 里找不到时也自动退回。只有你能在这里改，聊天里的人换不了。换了之后从那个聊天的下一条消息起生效。' },
         h(Row, { label: '私聊默认模型' }, h(Select, { value: val(cm.privateDefault), width: 280, options: optsFor(val(cm.privateDefault)), onChange: (v) => setCm({ privateDefault: toSel(v) }) })),
         h(Row, { label: '群聊默认模型' }, h(Select, { value: val(cm.groupDefault), width: 280, options: optsFor(val(cm.groupDefault)), onChange: (v) => setCm({ groupDefault: toSel(v) }) })),
         h('div', { style: { marginTop: 8 } }, h(Btn, { small: true, kind: 'ghost', onClick: () => setOpen(!open) }, (open ? '收起' : '展开') + '单个 QQ / 群的例外（' + rows.length + '）')),
@@ -2079,7 +2277,7 @@ body[data-ds-dark-theme] .ab-root{
         ),
         h(ChatModels, { draft, setDraft, list }),
         h(CostCard, { draft, setDraft }),
-        h(Card, { title: '可用的模型', desc: '点「测速」会真的问一次模型（花一点点额度），看它回一句话要多久。' },
+        h(Card, { fold: 'qq-model-speed', title: '模型列表与测速', desc: '点「测速」会真的问一次模型（花一点点额度），看它回一句话要多久。' },
           list === null ? h(Empty, { icon: '⏳', text: '加载中…' }) : list.length === 0 ? h(Empty, { text: 'DSH 没有列出模型' }) :
             h('table', { className: 'ab-table' }, h('tbody', null, list.map((m) => h('tr', { key: key(m) },
               h('td', null, m.name), h('td', { className: 'ab-muted' }, m.provider),
@@ -2095,7 +2293,7 @@ body[data-ds-dark-theme] .ab-root{
       const f = useField(draft, setDraft)
       useEffect(() => { get('/voice/song-voices').then(setS).catch(() => setS({ ok: false, voices: [], message: '没查到翻唱音色' })) }, [])
       const voices = (s && s.voices) || []
-      return h(Card, { title: '语音条变声（用翻唱音色）', desc: '把ta说话的声音也换成「翻唱」页导入的 RVC 音色模型：先 TTS 念出来，再用同一个音色变声。默认不变声，直接用 TTS 原声；变声失败会自动回退原声，不影响发送。' },
+      return h(Card, { fold: 'voice-rvc', title: '语音条变声（RVC）', desc: '把ta说话的声音也换成「翻唱」页导入的 RVC 音色模型：先 TTS 念出来，再用同一个音色变声。默认不变声，直接用 TTS 原声；变声失败会自动回退原声，不影响发送。' },
         h(Row, { label: '翻唱音色', hint: s && s.available === false ? (s.message || '翻唱环境还没装好，装好并导入音色后才能选') : '只列「翻唱」页导入过的 .pth 音色（带 index 的会标出来）' },
           f.select('voice.songVoice', [{ value: '', label: '不变声（TTS 原声）' }, ...voices.map((v) => ({ value: v.id, label: v.id + (v.hasIndex ? '（有 index）' : '') }))], { width: 280 })),
         h(Row, { label: '变调', hint: '模型是男声训练的、想变成女声一般 +12；不确定就 0' },
@@ -2639,7 +2837,7 @@ body[data-ds-dark-theme] .ab-root{
           setPreview(result)
         } finally { if (id === request.current) setBusy(false) }
       }
-      return h(Card, { title: '图文日记与预览', right: f.sw('diary.rich.enabled'), desc: '默认关闭。开启后围绕公开浏览经历或心情写日记，按备注挑选配图；关闭后沿用原来的日记流程。' },
+      return h(Card, { fold: 'diary-rich', title: '图文日记与预览', right: f.sw('diary.rich.enabled'), desc: '默认关闭。开启后围绕公开浏览经历或心情写日记，按备注挑选配图；关闭后沿用原来的日记流程。' },
         draft.diary.rich?.enabled ? h('div', null,
           h(Row, { label: '表情包', hint: '默认关闭，需主人单独开启；开启后可能将从群聊收藏的表情图发布到空间' }, f.sw('diary.rich.stickers')),
           h(Row, { label: '公开浏览配图', hint: '仅取已浏览作品的公开封面；发布会附原作者和作品链接' }, f.sw('diary.rich.browsing')),
@@ -2673,7 +2871,7 @@ body[data-ds-dark-theme] .ab-root{
         const timer = setInterval(load, 15_000)
         return () => clearInterval(timer)
       }, [])
-      return h(Card, { title: '按日期归档浏览图', right: f.sw('diary.archive.enabled'), desc: '默认关闭。每五分钟把已有的公开浏览配图保存一份，按浏览日期放入 20261031 这样的文件夹。不截取桌面或聊天。' },
+      return h(Card, { fold: 'diary-archive', title: '按日期归档浏览图', right: f.sw('diary.archive.enabled'), desc: '默认关闭。每五分钟把已有的公开浏览配图保存一份，按浏览日期放入 20261031 这样的文件夹。不截取桌面或聊天。' },
         h(Row, { label: '归档文件夹', hint: '主人主动指定的输出目录，留空不保存；每张图附来源说明文件' }, f.text('diary.archive.folder', { placeholder: '请填写完整路径' })),
         h('div', { className: 'ab-small ab-muted', style: { margin: '10px 0' } }, status ? '已归档 ' + status.count + ' 张' + (status.lastAt ? ' · 最近收集 ' + new Date(status.lastAt).toLocaleString() : '') : '正在读取归档状态…'),
         status?.error ? h('div', { className: 'ab-small', style: { color: 'var(--ab-warn)' } }, status.error) : null,
@@ -2702,9 +2900,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '字数' }, f.num('diary.minChars', { min: 10 }), h('span', { className: 'ab-muted' }, '到'), f.num('diary.maxChars', { min: 20 }), h('span', { className: 'ab-muted' }, '字')),
           h(DiaryAudience, { draft, setDraft, toast }),
         ),
-        h(DiaryMedia, { st, draft, setDraft, toast }),
-        h(DiaryArchive, { st, draft, setDraft, toast }),
-        h(Card, { title: '写过的日记', right: h('div', { className: 'ab-flex' },
+        h(Card, { section: 'diary-write', title: '现在写日记', right: h('div', { className: 'ab-flex' },
           data?.automatic ? h('span', { className: 'ab-muted ab-small' }, '今天 ' + data.automatic.count + '/' + data.automatic.limit + ' · ' + (data.automatic.reason || '等她空闲时决定')) : null,
           h(Btn, { small: true, kind: 'ghost', title: '刷新空间状态', onClick: load }, h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, 'aria-hidden': true }, h('path', { d: 'M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17' }))),
           h(Btn, { small: true, kind: 'primary', onClick: async () => {
@@ -2716,7 +2912,10 @@ body[data-ds-dark-theme] .ab-root{
             } catch (e) { toast(e.message) }
             finally { await load() }
           } }, '现在写一篇'),
-          h(Btn, { small: true, onClick: async () => { const r = await post('/diary/run', { visibility: 'self' }); toast(r.message || (r.ok ? '已写入日记' : '日记生成失败')); await load() } }, '写一篇仅自己可见的日记')) },
+          h(Btn, { small: true, onClick: async () => { const r = await post('/diary/run', { visibility: 'self' }); toast(r.message || (r.ok ? '已写入日记' : '日记生成失败')); await load() } }, '写一篇仅自己可见的日记')) }),
+        h(DiaryMedia, { st, draft, setDraft, toast }),
+        h(DiaryArchive, { st, draft, setDraft, toast }),
+        h(Card, { fold: 'diary-history', title: '发布历史' },
           !data ? h(Empty, { icon: '⏳', text: '加载中…' }) : !data.items || data.items.length === 0 ? h(Empty, { icon: '📔', text: '还没写过日记。' }) :
             h('div', { className: 'ab-list' }, data.items.map((d, i) => h('div', { key: i, className: 'ab-li' },
               h('div', { className: 'meta' }, new Date(d.at).toLocaleString(), h('br'), d.deletedAt ? '已从空间删除' : d.dryRun ? '试运行' : d.ok ? (AUDIENCE_LABEL[d.visibility] || '已发布') : '失败'),
@@ -2737,7 +2936,7 @@ body[data-ds-dark-theme] .ab-root{
       const [s, setS] = useState(null)
       const load = () => get('/qzone/social/state').then(setS)
       useEffect(() => { load() }, [])
-      return h(Card, { title: '空间互动', right: f.sw('qzoneSocial.enabled'), desc: '她醒着、空闲时会定期检查自己说说下的新评论，并决定是否回复。她想逛好友空间时，也会按设置点赞或评论。' },
+      return h(Card, { fold: 'diary-social', title: '空间互动', right: f.sw('qzoneSocial.enabled'), desc: '她醒着、空闲时会定期检查自己说说下的新评论，并决定是否回复。她想逛好友空间时，也会按设置点赞或评论。' },
         h(Row, { label: '回复自己说说下的评论' }, f.sw('qzoneSocial.replyOwn')),
         h(Row, { label: '评论好友的说说' }, f.sw('qzoneSocial.commentFriends')),
         h(Row, { label: '顺手点赞' }, f.sw('qzoneSocial.like')),
@@ -2773,17 +2972,19 @@ body[data-ds-dark-theme] .ab-root{
       }
       const pending = (d.grants.requests || []).filter((r) => r.status === 'pending')
       const grantedKeys = Object.keys(d.grants.granted || {})
+      const diary = (d.diary || []).slice(0, 40)
+      const wants = m.wants || []
       const diaryTime = new Intl.DateTimeFormat('zh-CN', { timeZone: d.timezone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
       return h(Fragment, null,
-        h(Card, { title: '内心日记', desc: '她醒着、空闲时，会结合各会话近况和回忆想一会儿。每条左侧是实际生成时间，正文是她的念头。标有「深想」的是她进一步思考后的结果。' + (d.boredom >= 0.5 ? '　现在有点无聊。' : '') },
-          (d.diary || []).length ? h('div', { className: 'ab-list' }, d.diary.slice(0, 40).map((x, i) => h('div', { key: i, className: 'ab-li' },
+        h(Card, { fold: 'mind-journal', title: '内心日记（最近 ' + diary.length + ' 条）', collapseAtEnd: diary.length > 5, desc: '她醒着、空闲时，会结合各会话近况和回忆想一会儿。每条左侧是实际生成时间，正文是她的念头。标有「深想」的是她进一步思考后的结果。' + (d.boredom >= 0.5 ? '　现在有点无聊。' : '') },
+          diary.length ? h('div', { className: 'ab-list' }, diary.map((x, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, diaryTime.format(x.at) + ' · ' + timeAgo(x.at) + (x.by === 'local' ? ' · 本地' : ' · 聊天模型') + (x.repeated ? ' · 在重复，放空了' : '')),
             h('div', { className: 'body' }, x.thought,
               x.feel ? h('span', { className: 'ab-muted ab-small' }, '  （' + x.feel.name + '）') : null,
               x.plan ? h('div', { className: 'ab-small' }, '想去：' + x.plan) : null,
               x.deep ? h('div', { className: 'ab-note', style: { marginTop: 4 } }, '深想（' + x.deep.reason + '）：' + x.deep.thought) : null)))) : h(Empty, { text: '还没想过什么' })),
-        h(Card, { title: '她想要的', desc: '这些念头会影响她的动力。醒着、空闲时，她会从能做的事里选一件。' },
-          (m.wants || []).length ? h('div', { className: 'ab-list', style: { marginBottom: 12 } }, m.wants.map((w) => {
+        h(Card, { fold: 'mind-wants', title: '她想要的（' + wants.length + ' 项）', collapseAtEnd: wants.length > 5, desc: '这些念头会影响她的动力。醒着、空闲时，她会从能做的事里选一件。' },
+          wants.length ? h('div', { className: 'ab-list', style: { marginBottom: 12 } }, wants.map((w) => {
             const motive = motivesByWant.get(w.id)
             const status = motive?.why || (motive ? (motive.motive < d.actThreshold ? '动力还不够' : '等她空闲时决定') : '没有对应的动作')
             return h('div', { key: w.id, className: 'ab-li' },
@@ -2792,18 +2993,18 @@ body[data-ds-dark-theme] .ab-root{
               h(Btn, { small: true, onClick: () => act('/mind/want/close', { id: w.id }) }, '帮她放下'))
           })) : h('p', { className: 'ab-muted' }, '现在没什么特别想要的'),
           m.needs.filter((n) => n.deficit >= 0.05).sort((a, b) => b.deficit - a.deficit).slice(0, 8).map((n) => h(Meter, { key: n.id, label: n.name, value: n.deficit, warn: n.deficit >= 0.7 }))),
-        h(Card, { title: '能做的事', desc: '模块交给她的事，什么时候做由她决定：动力 ≈ 觉得能做成 × 有多想要 ÷（1 + 容易分心 × 回报要等多久），再看费不费力、精力和心情。动力没过门槛就犯懒不做。做完按结果学：比预想的开心，下次更想做。' },
+        h(Card, { fold: 'mind-actions', title: '能做的事', desc: '模块交给她的事，什么时候做由她决定：动力 ≈ 觉得能做成 × 有多想要 ÷（1 + 容易分心 × 回报要等多久），再看费不费力、精力和心情。动力没过门槛就犯懒不做。做完按结果学：比预想的开心，下次更想做。' },
           (d.motives || []).length ? h('div', { className: 'ab-list' }, d.motives.map((x) => h('div', { key: x.id, className: 'ab-li' },
             h('div', { className: 'meta' }, '动力 ' + x.motive.toFixed(2) + (x.why ? ' · ' + x.why : '') + (m.learned[x.id] ? ' · 以前做了 ' + m.learned[x.id].runs + ' 次，满意度 ' + Math.round(m.learned[x.id].expect * 100) + '%' : '')),
             h('div', { className: 'body' }, x.label, x.wants.length ? h('span', { className: 'ab-muted ab-small' }, '  惦记着：' + x.wants.join('、')) : null),
             h(Btn, { small: true, disabled: !x.available || Boolean(busy), onClick: () => act('/mind/act', { id: x.id }, x.id) }, busy === x.id ? '在做…' : '让她现在去')))) : h(Empty, { text: '还没有模块交给她事情做' }),
           (m.log || []).length ? h('div', { style: { marginTop: 12 } }, h('b', null, '最近做过的'), h('div', { className: 'ab-list' }, m.log.slice(0, 10).map((x, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, timeAgo(x.at)), h('div', { className: 'body' }, (x.ok ? '' : '没做成：') + x.label + (x.summary ? '——' + x.summary : '')))))) : null),
-        h(Card, { title: '主动找你', desc: '想你了、有事想分享、答应你的事做好了、要申请权限时，她自己决定找不找你。你没回之前她不会追着发；一直没回她会有点失落。勿扰时段和每天上限在「心智设置 → 动机与行动」里设（默认不设，由她自己拿捏）。' },
+        h(Card, { fold: 'mind-outreach', title: '主动找你', desc: '想你了、有事想分享、答应你的事做好了、要申请权限时，她自己决定找不找你。你没回之前她不会追着发；一直没回她会有点失落。勿扰时段和每天上限在「心智设置 → 动机与行动」里设（默认不设，由她自己拿捏）。' },
           d.outreach.pending ? h('p', null, '刚找过你，还在等你回：' + d.outreach.pending.reason) : null,
           (d.outreach.log || []).length ? h('div', { className: 'ab-list' }, d.outreach.log.slice(0, 10).map((x, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, timeAgo(x.at) + (x.kind === 'permission' ? ' · 申请权限' : '')), h('div', { className: 'body' }, x.reason)))) : h('p', { className: 'ab-muted' }, '还没主动找过你')),
-        h(Card, { title: '权限申请', desc: '她想要一项还没有的权限时会私聊问你，说清楚要什么、为什么。你在 QQ 私聊里回「同意 #编号」或「不同意 #编号」就行（群里有人替你说不算），这里也能批。批过的随时可以收回。' },
+        h(Card, { fold: 'mind-grants', title: '权限申请', desc: '她想要一项还没有的权限时会私聊问你，说清楚要什么、为什么。你在 QQ 私聊里回「同意 #编号」或「不同意 #编号」就行（群里有人替你说不算），这里也能批。批过的随时可以收回。' },
           pending.length ? h('div', { className: 'ab-list' }, pending.map((r) => h('div', { key: r.n, className: 'ab-li' },
             h('div', { className: 'meta' }, '#' + r.n + ' · ' + timeAgo(r.at)),
             h('div', { className: 'body' }, r.what, r.why ? h('div', { className: 'ab-muted ab-small' }, '因为：' + r.why) : null),
@@ -2857,7 +3058,7 @@ body[data-ds-dark-theme] .ab-root{
       const pathRow = (label, path) => path
         ? h(Row, { label }, h('code', { className: 'ab-small', style: { wordBreak: 'break-all' } }, path))
         : null
-      return h(Card, { title: '本地小模型', desc: '处理日常念头。已有模型和 Python 环境会直接复用，约占 6 GB 内存，闲置后自动停止。' },
+      return h(Card, { fold: 'mind-local-model', title: '本地小模型', desc: '处理日常念头。已有模型和 Python 环境会直接复用，约占 6 GB 内存，闲置后自动停止。' },
         h(Row, { label: '状态' }, !status ? '读取中…' : !local ? status.message || '心智核心未就绪'
           : local.configured ? (local.running ? '已就绪 · 运行中' : '已就绪 · 用时启动') : local.reason || '尚未安装'),
         pathRow('实际模型路径', local?.modelDir || status?.paths?.model),
@@ -3147,7 +3348,7 @@ body[data-ds-dark-theme] .ab-root{
             moods.map((m, i) => h('span', { key: (m.key || m) + i, className: 'ab-pill' }, moodLabel(m))))),
         ),
         // ---------- 素材包：默认形象包（大肥鱼）自动下载落位，也可在这里换镜像地址重下 ----------
-        h(Card, { title: '素材包', desc: '桌宠的形象与动画（「大肥鱼」那 106 段）。插件发现缺包会自动从素材仓库下载落位，通常不用你动手；下载不动时可以在这里换镜像地址再重下。没有素材时桌宠会显示内置的静态形象（蓝色小鲸鱼）。' },
+        h(Card, { fold: 'pet-assets', title: '素材包', desc: '桌宠的形象与动画（「大肥鱼」那 106 段）。插件发现缺包会自动从素材仓库下载落位，通常不用你动手；下载不动时可以在这里换镜像地址再重下。没有素材时桌宠会显示内置的静态形象（蓝色小鲸鱼）。' },
           !pet ? h(Empty, { icon: '⏳', text: '加载中…' })
             : (() => {
               const pi = pet.packInfo || null
@@ -3168,7 +3369,7 @@ body[data-ds-dark-theme] .ab-root{
                   h('span', { className: 'ab-muted ab-small' }, '落位到 modules-data/pet/packs/，下完自动生效')))
             })()),
         // ---------- 行为动作（面板测试通道）：状态行 + 逐动作「试一下」/ AI 开关 + 行内最近回执 ----------
-        h(Card, { title: '行为动作', desc: 'ta的「行为大脑」每隔一会儿自己挑一个动作演：追鼠标、叼鼠标、叼图标、推窗口……这里可以逐个「试一下」（绕过专注模式与安静时段，立刻下发），也可以把某个动作从 AI 的动作表里拿掉——「试一下」按钮不受影响。桌宠没在跑时点按钮只是下发排队，等ta跑起来才演。右边「最近回执」是客户端演完或拒演回来的结果。AI 每次决策都在工作区里单独开一条「行为大脑」会话，能当场看到ta怎么想的。' },
+        h(Card, { fold: 'pet-behavior', title: '行为动作', desc: 'ta的「行为大脑」每隔一会儿自己挑一个动作演：追鼠标、叼鼠标、叼图标、推窗口……这里可以逐个「试一下」（绕过专注模式与安静时段，立刻下发），也可以把某个动作从 AI 的动作表里拿掉——「试一下」按钮不受影响。桌宠没在跑时点按钮只是下发排队，等ta跑起来才演。右边「最近回执」是客户端演完或拒演回来的结果。AI 每次决策都在工作区里单独开一条「行为大脑」会话，能当场看到ta怎么想的。' },
           bhErr && !bh
             ? h('div', { className: 'ab-flex' }, h('span', { className: 'ab-muted ab-small' }, '行为动作接口还没就绪：' + bhErr + '（更新插件后刷新页面即可）'), h(Btn, { small: true, onClick: loadBehavior }, '重试'))
             : !bh ? h(Empty, { icon: '⏳', text: '加载中…' })
@@ -3254,7 +3455,7 @@ body[data-ds-dark-theme] .ab-root{
             h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, disabled: busy === 'cfg', onClick: () => saveBehCfg({ behaviorWindowWhitelist: String(c.windowWhitelist ?? '') }, '白名单存好了') }, '保存白名单'))),
         ) : null,
         // ---------- 聊天联动：主人聊天时她可能顺带做个小动作（只读旁观，独立开关/冷却/上限；模块代码在 mods 仓）----------
-        h(Card, { title: '聊天联动', desc: '主人在生效范围内的 QQ 聊天里说话时，ta可能根据聊天内容与心情顺带在桌面上做个小动作（追鼠标、溜达、小动作、说一句话——只挑安分的，绝不碰图标和窗口）。ta只是旁观聊天：不接管消息、不改回复、不阻塞回合，聊天功能完全不受影响。默认关；与上面的「行为大脑」总开关互相独立（关掉行为大脑不影响这边，反之亦然）。每次决策在工作区「聊天联动」会话里能看到ta的取舍。' },
+        h(Card, { fold: 'pet-chat', title: '聊天联动', desc: '主人在生效范围内的 QQ 聊天里说话时，ta可能根据聊天内容与心情顺带在桌面上做个小动作（追鼠标、溜达、小动作、说一句话——只挑安分的，绝不碰图标和窗口）。ta只是旁观聊天：不接管消息、不改回复、不阻塞回合，聊天功能完全不受影响。默认关；与上面的「行为大脑」总开关互相独立（关掉行为大脑不影响这边，反之亦然）。每次决策在工作区「聊天联动」会话里能看到ta的取舍。' },
           h('div', { className: 'ab-flex', style: { marginBottom: 6 } },
             h('span', { className: 'ab-pill' }, h('i', { className: cx('ab-dot', c.chatBehaviorEnabled ? 'ok' : '') }), '聊天联动' + (c.chatBehaviorEnabled ? '开着' : '关着')),
             h('span', { className: 'ab-pill' }, '今天 ' + (c.chatBehaviorToday || 0) + '/' + (c.chatBehaviorMaxPerDay ?? '?') + ' 次'),
@@ -3275,7 +3476,7 @@ body[data-ds-dark-theme] .ab-root{
             h(Btn, { small: true, disabled: busy === 'cfg', onClick: () => saveBehCfg({ chatBehaviorMaxPerDay: Number(c.chatBehaviorMaxPerDay) }, '上限改好了') }, '应用')),
         ),
         // ---------- 被收走的图标（第二批）：hide_icon 的隔离区，一键放回 ----------
-        h(Card, { title: '被收走的图标', desc: '「收图标」不是删除：ta把桌面图标剪切到插件数据目录的隔离区，文件原样留着。这里可以随时放回原位（原位置被占了会自动改名「名字(归还)」），超过「隔离保留天数」（默认 7 天）ta也会自己放回去。' },
+        h(Card, { fold: 'pet-icons', title: '被收走的图标', desc: '「收图标」不是删除：ta把桌面图标剪切到插件数据目录的隔离区，文件原样留着。这里可以随时放回原位（原位置被占了会自动改名「名字(归还)」），超过「隔离保留天数」（默认 7 天）ta也会自己放回去。' },
           quarErr
             ? h('div', { className: 'ab-flex' }, h('span', { className: 'ab-muted ab-small' }, '隔离区清单读不了：' + quarErr), h(Btn, { small: true, onClick: loadBehavior }, '重试'))
             : quar === null ? h(Empty, { icon: '⏳', text: '加载中…' })
@@ -3293,7 +3494,7 @@ body[data-ds-dark-theme] .ab-root{
                 ),
         ),
         // ---------- 关窗记录（第三批）：close_window 的账本 + 一键补偿道歉 ----------
-        h(Card, { title: '关窗记录', desc: '「关窗口」是高危动作：AI 只有在「允许 AI 关闭窗口」开着、且ta心情低于 ' + (bh && bh.moodCloseWindowBelow != null ? bh.moodCloseWindowBelow : 35) + ' 时才会自己关；手动「试一下」不受心情限制，但同样要先开那个开关。关的方式等于点右上角 X（程序会自己问要不要保存）。DSH 自己的窗口、桌宠、资源管理器、全屏窗口永远不碰。' },
+        h(Card, { fold: 'pet-window', title: '关窗记录', desc: '「关窗口」是高危动作：AI 只有在「允许 AI 关闭窗口」开着、且ta心情低于 ' + (bh && bh.moodCloseWindowBelow != null ? bh.moodCloseWindowBelow : 35) + ' 时才会自己关；手动「试一下」不受心情限制，但同样要先开那个开关。关的方式等于点右上角 X（程序会自己问要不要保存）。DSH 自己的窗口、桌宠、资源管理器、全屏窗口永远不碰。' },
           h('div', { className: 'ab-flex', style: { marginBottom: 8 } },
             h('span', { className: 'ab-pill' }, '今天关了 ' + ((bh && bh.closeToday) || 0) + ' 个'),
             h('span', { className: 'ab-pill' }, bh && bh.closeWindowEnabled ? 'AI 关窗：已允许' : 'AI 关窗：不允许（默认）'),
@@ -3314,7 +3515,7 @@ body[data-ds-dark-theme] .ab-root{
             : h(Empty, { icon: '🪟', text: '还没关过任何窗口（ta挺乖的）' }),
         ),
         // ---------- 碎碎念：桌宠自己的气泡流（载体选 QQ 也照常生效，永不发 QQ） ----------
-        whisper ? h(Card, { title: '碎碎念', desc: 'ta自己在桌面上嘟囔的小气泡：跟「主动搭话」完全分开，载体选 QQ 时也照常出现；只上桌宠气泡，不会发到 QQ。到了点ta会带着记忆自己想一句——工作区里会像「主动搭话（目的回合）」那样开一条「' + (whisper.turnTitle || '桌宠 · 碎碎念（自己的回合）') + '」的会话，能当场看到ta的思考过程。间隔与时段跟着「主动搭话」那边的醒着时间。' },
+        whisper ? h(Card, { fold: 'pet-whisper', title: '碎碎念', desc: 'ta自己在桌面上嘟囔的小气泡：跟「主动搭话」完全分开，载体选 QQ 时也照常出现；只上桌宠气泡，不会发到 QQ。到了点ta会带着记忆自己想一句——工作区里会像「主动搭话（目的回合）」那样开一条「' + (whisper.turnTitle || '桌宠 · 碎碎念（自己的回合）') + '」的会话，能当场看到ta的思考过程。间隔与时段跟着「主动搭话」那边的醒着时间。' },
           h(Row, { label: '开启碎碎念', hint: whisper.thinking ? 'ta正在工作区那条会话里想这一句…' : whisper.carrier === 'pet' && whisper.pauseOnPetCarrier !== false ? '当前载体是桌宠，按下面的开关暂停中' : '到点ta会自己冒一句话' },
             h(Switch, { on: whisper.enabled !== false, onChange: (v) => savePet({ whisperEnabled: v }, v ? '碎碎念开了' : '碎碎念关了') })),
           h(Row, { label: '说什么', hint: '「ta自己想一句」会走后台回合：先用记忆 + 当下的干活状态想，工作区能看到思考；失败自动回落文案池' },
@@ -3358,7 +3559,7 @@ body[data-ds-dark-theme] .ab-root{
             + (whisper.lastText ? ' · 「' + whisper.lastText + '」' : '')),
         ) : null,
         // ---------- 干活状态：DSH 会话事件 → 动画 + 结束提醒 ----------
-        h(Card, { title: '干活状态与提醒', desc: 'ta在桌面上跟着 DSH 的进度演：思考时托腮想事，干活时忙碌，等你确认时张望，完成后雀跃一下——顺手弹一句、发个系统通知。' },
+        h(Card, { fold: 'pet-reminders', title: '干活状态与提醒', desc: 'ta在桌面上跟着 DSH 的进度演：思考时托腮想事，干活时忙碌，等你确认时张望，完成后雀跃一下——顺手弹一句、发个系统通知。' },
           h(Row, { label: '状态动画', hint: '思考 / 干活 / 等确认 / 完成 / 出错 跟着会话自动切' },
             h(Switch, { on: workEnabled, onChange: (v) => savePet({ workStatusEnabled: v }) })),
           h(Row, { label: '现在的状态' },
@@ -3408,12 +3609,12 @@ body[data-ds-dark-theme] .ab-root{
       }, [backend])
       // 选了模型直接存进心智设置（和「心智设置」页是同一处）
       const pickMind = async (key, m) => { const r = await post('/mind/settings/save', { patch: { [key]: m } }); if (r && r.ok === false) toast(r.message, 'err'); loadMs() }
-      const privacy = typeof ms?.[shareEveryday] === 'boolean' ? h(Card, { title: '私聊隐私', className: 'ab-privacy' },
+      const privacy = typeof ms?.[shareEveryday] === 'boolean' ? h(Card, { section: 'memory-privacy', title: '私聊隐私', className: 'ab-privacy' },
           h(Row, { className: 'ab-param-row', label: '跨会话使用日常片段', hint: '你们的私聊原话和私密经历留在原会话。关掉后，日常片段也留在原会话。你指定会话的分享仍然有效。' },
             h(Switch, { label: '跨会话使用日常片段', on: ms[shareEveryday], disabled: savingPrivacy, onChange: setPrivacy }))) : null
       return h('div', { className: 'ab-grid' },
         h(MindMemory, { toast, privacy }),
-        h(Card, { title: '想起意思相近的事', desc: '向量可用来找措辞不同但意思相近的记忆。切换方式并保存后，旧记忆会在睡眠整理时分批重算。' },
+        h(Card, { fold: 'memory-vectors', title: '向量检索与精排', desc: '向量可用来找措辞不同但意思相近的记忆。切换方式并保存后，旧记忆会在睡眠整理时分批重算。' },
           h(Row, { label: '向量后端' }, f.select('mind.embedBackend', [
             { value: 'remote', label: '兼容接口', desc: '用设置的接口计算向量' },
             { value: 'local', label: '离线中文模型', desc: '在本机计算，暂停远程精排' },
@@ -3426,7 +3627,7 @@ body[data-ds-dark-theme] .ab-root{
           !offline && ms ? h(Row, { label: '精排模型', hint: '现在用的：' + (ms['memory.rerankModel'] || '—') + (ms['memory.rerank'] ? '' : '（精排没开，在「心智设置 → 记忆」打开）') },
             h('div', { style: { flex: 1 } }, h(ModelPicker, { kind: 'rerank', keyFrom: 'mind', toast, baseUrl: ms['memory.embedUrl'], apiKey: mc.embedKey, value: ms['memory.rerankModel'], onPick: (m) => pickMind('memory.rerankModel', m) }))) : null,
           vp && vp.backend === backend && vp.total ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, vp.done >= vp.total ? '全部 ' + vp.total + ' 条记忆都算好了（' + vp.model + '）。' : '已经按意思算好 ' + vp.done + ' / ' + vp.total + ' 条（' + vp.model + '）。换过向量模型或刚填密钥时，剩下的她每晚睡觉时分批算，没算到的照常按字找。') : null),
-        h(Card, { title: '聊天流水', desc: '聊天中枢自己的近几天流水（空间日记等功能会看今天的）。她的完整经历在心智核心里，和这个无关。' },
+        h(Card, { fold: 'memory-chat-log', title: '聊天流水保留', desc: '聊天中枢自己的近几天流水（空间日记等功能会看今天的）。她的完整经历在心智核心里，和这个无关。' },
           h(Row, { label: '聊天流水留多久', hint: '超过的按天移到废纸篓（不直接删）；-1 = 一直留；0 = 只留今天' }, f.num('memory.keepChatlogDays', { min: -1, max: 3650 }))))
     }
 
@@ -3478,7 +3679,7 @@ body[data-ds-dark-theme] .ab-root{
               b.asleep ? h(Btn, { small: true, onClick: () => act('/mind/wake') }, '叫醒她')
                 : h(Btn, { small: true, onClick: () => { if (confirm('让她现在去睡？')) act('/mind/sleepnow') } }, '让她睡吧')))),
         h('div', { className: 'ab-now-detail' },
-          h(Card, { title: '此刻的感受', className: 'ab-feelings' },
+          h(Card, { fold: 'mind-feelings', title: '此刻的感受（' + emotions.length + ' 项）', className: 'ab-feelings', collapseAtEnd: emotions.length > 5 },
             emotions.length ? h('ul', { className: 'ab-feeling-list' }, emotions.map((e, i) => h('li', { key: i },
               h('span', { className: 'ab-feeling-mark' }, navIcon('pulse')),
               h('div', null, h('b', null, deg(e.intensity) + e.name),
@@ -3498,7 +3699,7 @@ body[data-ds-dark-theme] .ab-root{
                 h('li', null, '在 QQ 发送 ', h('code', null, '/投喂 食物名'), ' 或 ', h('code', null, '/喂 食物名'), '。'),
                 h('li', null, '在这里填食物，点「投喂」。')),
               h('p', null, d.feedOnlyByOwner ? '「只靠主人投喂」已开启。她饿了会来找你。' : '她饿了也会自己找吃的。')))),
-        (d.history || []).length ? h(Card, { title: '最近的情绪变化', className: 'ab-emotion-history' },
+        (d.history || []).length ? h(Card, { fold: 'mood-history', title: '最近的情绪变化', className: 'ab-emotion-history' },
           h('ol', null, d.history.slice(0, 15).map((x, i) => h('li', { key: i },
             h('span', null, timeAgo(x.at)), h('b', null, deg(x.i) + x.name), x.why ? h('small', null, x.why) : null)))) : null)
     }
@@ -3601,7 +3802,7 @@ body[data-ds-dark-theme] .ab-root{
             state?.deferredThoughts ? h('p', { className: 'ab-muted ab-small' }, state.deferredThoughts + ' 件事排到后面的日子继续想。') : null,
             state?.status?.recovered ? h('p', { className: 'ab-note warn' }, '数据库曾损坏，已从完好的快照恢复。快照之后的部分数据可能需要补回。') : null),
           privacy),
-        h(Card, { title: '她记得的事' },
+        h(Card, { fold: 'memory-entries', title: '她记得的事', collapseAtEnd: items?.length > 5 },
           h('div', { className: 'ab-flex', style: { gap: 8, marginBottom: 10, flexWrap: 'wrap' } },
             h('input', { className: 'ab-input', placeholder: '按字找（大意、细节、原始记录）', value: q, onChange: (e) => setQ(e.target.value), style: { flex: 1, minWidth: 160 } }),
             h(Seg, { value: status, onChange: setStatus, options: [{ value: 'live', label: '记得的' }, { value: 'archived', label: '想不起来的' }] }),
@@ -3632,7 +3833,7 @@ body[data-ds-dark-theme] .ab-root{
                 mindDay(item.at), ' · ', sourceLabel(item.platform), ' · ', ({ source: '来源', similar: '相近', cause: '因果', followup: '后续' })[item.relation] || item.relation, ' · ', item.gist)) : '暂无关联')) : null))),
           next !== null ? h(Btn, { onClick: () => load(next), disabled: loading }, loading ? '读取中…' : '加载更多') : null,
           error && next === null ? h(Btn, { onClick: () => load(), disabled: loading }, '重试') : null),
-        h(Card, { title: '最近的梦', desc: '睡觉整理时做的梦。大部分醒来就忘；情绪强的、被叫醒的会记得，记得的才会变成她的记忆（梦不会被当成真发生过的事）。' },
+        h(Card, { fold: 'memory-dreams', title: '最近的梦', desc: '睡觉整理时做的梦。大部分醒来就忘；情绪强的、被叫醒的会记得，记得的才会变成她的记忆（梦不会被当成真发生过的事）。' },
           (state?.dreams || []).length ? h('div', { className: 'ab-list' }, state.dreams.map((d, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, mindDay(d.at), d.remembered ? ' · 她记得' : ' · 醒来忘了'),
             h('div', { className: 'body' }, d.text)))) : h(Empty, { text: '还没做过梦' })))
@@ -3850,14 +4051,14 @@ body[data-ds-dark-theme] .ab-root{
           : !d ? h('p', { className: 'ab-muted', role: 'status' }, '读取中…')
           : !shown.length ? h(Card, null, h(Empty, { text: needle ? '没有找到匹配的人' : '还没认识谁' }))
           : h('div', { className: 'ab-people-grid' }, shown.map(personCard)),
-        gone.length ? h(Card, { title: '恢复区', desc: '忘掉的人可以在 30 天内恢复。' },
+        gone.length ? h(Card, { fold: 'people-recovery', title: '恢复区', desc: '忘掉的人可以在 30 天内恢复。' },
           h('div', { className: 'ab-list' }, gone.map((g) => h('div', { key: g.id, className: 'ab-li' },
             h('div', { className: 'meta' }, '保留到 ' + mindDay(g.until).slice(0, 10)),
             h('div', { className: 'body' }, h('b', null, g.name || '未命名'), h('div', { className: 'ab-muted ab-small' }, [
               g.id.replace(/^qq:/, 'QQ '), g.episodes + ' 件事、' + g.perception + ' 句原话', g.keepPerson && '已停止记录',
             ].filter(Boolean).join(' · '))),
             h(Btn, { small: true, onClick: () => restorePerson(g) }, '放回来'))))) : null,
-        d?.groups?.length ? h(Card, { title: '她对群的了解' }, h('div', { className: 'ab-people-groups' }, d.groups.map((g) =>
+        d?.groups?.length ? h(Card, { fold: 'people-groups', title: '她对群的了解' }, h('div', { className: 'ab-people-groups' }, d.groups.map((g) =>
           h('article', { key: g.id, className: 'ab-people-group' },
             h('b', null, g.name || '群'),
             h('div', { className: 'ab-person-meta' }, g.id + (g.at ? ' · ' + timeAgo(g.at) : '')),
@@ -3890,7 +4091,7 @@ body[data-ds-dark-theme] .ab-root{
       return h(Fragment, null,
         unread.length ? h(Card, { title: '提醒', right: h(Btn, { small: true, onClick: async () => { await post('/mind/traits/alerts/read', {}); load() } }, '知道了') },
           h('div', { className: 'ab-list' }, unread.map((a, i) => h('div', { key: i, className: 'ab-li' }, h('div', { className: 'meta' }, mindDay(a.at)), h('div', { className: 'body' }, a.text, h('span', { className: 'ab-muted ab-small' }, '  看下面「性格的版本」里的理由，必要时退回')))))) : null,
-        h(Card, { title: '性格（19 项）', desc: '「本来的样子」相当于她的天生气质，从第一版人格卡推出来、由你确认，她改人格卡不会动它。「现在」随经历慢慢变：同一种表现要在不同的日子里出现够多次才走一小步，每晚睡觉时检查。数值只给你看，她看到的是每一档对应的那句话。' + (ps.shadowMode ? ' 影子模式开着：变化只计算、不生效。' : ''),
+        h(Card, { fold: 'self-traits', title: '性格（19 项）', desc: '「本来的样子」相当于她的天生气质，从第一版人格卡推出来、由你确认，她改人格卡不会动它。「现在」随经历慢慢变：同一种表现要在不同的日子里出现够多次才走一小步，每晚睡觉时检查。数值只给你看，她看到的是每一档对应的那句话。' + (ps.shadowMode ? ' 影子模式开着：变化只计算、不生效。' : ''),
           right: h('div', { className: 'ab-flex', style: { gap: 6 } }, h(Btn, { small: true, onClick: infer, disabled: busy }, busy ? '推算中…' : '从人格卡推一份'), h(Btn, { small: true, kind: 'primary', onClick: confirmBase }, ps.confirmed ? '保存本来的样子' : '确认这就是她')) },
           !ps.confirmed ? h('div', { className: 'ab-note', style: { marginBottom: 10 } }, ps.inferred ? '下面「本来的样子」是从人格卡推出来的，括号里是依据。看看像不像她，不像就拖一下，再点「确认这就是她」。' : '还没推过：点「从人格卡推一份」（会调用一次模型），或者直接拖滑块设好再确认。') : null,
           groups.map(([g, label]) => h('div', { key: g, style: { marginBottom: 8 } },
@@ -3899,7 +4100,7 @@ body[data-ds-dark-theme] .ab-root{
               h('div', { className: 'ab-flex', style: { gap: 8, minWidth: 260 } },
                 h(Range, { value: draft ? draft[t.id] : t.base, min: 0.02, max: 0.98, step: 0.01, onChange: (v) => setDraft({ ...draft, [t.id]: v }), fmt: (v) => '本来 ' + Math.round(v * 100) }),
                 h('span', { className: 'ab-small', title: '现在的值' }, '现在 ' + Math.round(t.cur * 100) + (t.shadow !== null && t.shadow !== undefined && t.shadow !== t.cur ? '（影子 ' + Math.round(t.shadow * 100) + '）' : '')))))))),
-        h(Card, { title: '小习惯', desc: '同一类场合里反复出现、又被正面回应的反应会变成习惯；被冷落、被责怪的慢慢消失。' },
+        h(Card, { fold: 'self-habits', title: '小习惯', desc: '同一类场合里反复出现、又被正面回应的反应会变成习惯；被冷落、被责怪的慢慢消失。' },
           (ps.habits || []).length ? h('div', { className: 'ab-list' }, ps.habits.map((x) => h('div', { key: x.id, className: 'ab-li' },
             h('div', { className: 'meta' }, (x.active ? '已经是习惯' : '还在形成') + ' · 出现过 ' + x.count + ' 次'),
             h('div', { className: 'body' }, x.sit + '时，' + x.act)))) : h(Empty, { text: '还没有' })),
@@ -3912,26 +4113,26 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '对你的称呼', hint: '她现在叫你「' + (d.ownerCall || '主人') + '」' + (d.profile.ownerCall ? '' : '（你一开始设的）') + '。' + (d.ownerCallOk === true ? '她可以自己换个叫法，会通知你。' : '她现在不能自己改：' + d.ownerCallOk + '。') + '开关在「心智设置 → 身份」。' },
             h(Btn, { small: true, onClick: () => changeSelf('ownerCall', '对你的称呼') }, '改')),
           h(Row, { label: '想变成的样子', hint: (d.profile.goals || []).length ? d.profile.goals.map((g) => g.text).join('；') : '（没有）' }, (d.profile.goals || []).length ? h(Btn, { small: true, onClick: async () => { const g = d.profile.goals[0]; if (!confirm('删掉「' + g.text + '」？')) return; await post('/mind/self/goal/drop', { text: g.text }); load() } }, '删一个') : null)),
-        h(Card, { title: '她的故事', desc: '她用自己的话写的「我是怎么变成现在这样的」（叙事身份，McAdams）；有重要的经历时，睡觉整理会更新，重要的经历成为新的一章。', right: h(Btn, { small: true, onClick: () => changeSelf('story', '她的故事', true) }, '改') },
+        h(Card, { fold: 'self-story', title: '她的故事', desc: '她用自己的话写的「我是怎么变成现在这样的」（叙事身份，McAdams）；有重要的经历时，睡觉整理会更新，重要的经历成为新的一章。', right: h(Btn, { small: true, onClick: () => changeSelf('story', '她的故事', true) }, '改') },
           d.profile.story.text ? h('div', { className: 'ab-small', style: { whiteSpace: 'pre-wrap' } }, d.profile.story.text) : h(Empty, { text: '还没写' }),
           (d.profile.story.chapters || []).length ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '章节：' + d.profile.story.chapters.map((c) => mindDay(c.at).slice(0, 10) + ' ' + c.title).join(' · ')) : null),
-        h(Card, { title: '人格卡的版本', desc: '谁改的、为什么改。退回会新存一个版本。人格卡原文在「人设」页编辑。' },
+        h(Card, { fold: 'self-versions', title: '人格卡的版本', desc: '谁改的、为什么改。退回会新存一个版本。人格卡原文在「人设」页编辑。' },
           h('div', { className: 'ab-list' }, d.versions.persona.map((v, i) => h('div', { key: v.id, className: 'ab-li' },
             h('div', { className: 'meta' }, mindDay(v.at) + ' · ' + (BY[v.by] || v.by) + ' · ' + v.data.chars + ' 字' + (v.data.name ? ' · ' + v.data.name : '')),
             h('div', { className: 'body' }, v.reason || '（没写理由）'),
             i > 0 ? h(Btn, { small: true, onClick: () => restore('persona', v.id) }, '退回') : h('span', { className: 'ab-muted ab-small' }, '现在用的'))))),
-        h(Card, { title: '她改过自己的记录' },
+        h(Card, { fold: 'self-changes', title: '她改过自己的记录' },
           d.versions.self.length ? h('div', { className: 'ab-list' }, d.versions.self.map((v) => h('div', { key: v.id, className: 'ab-li' },
             h('div', { className: 'meta' }, mindDay(v.at) + ' · ' + (BY[v.by] || v.by)),
             h('div', { className: 'body' }, v.reason, v.data && v.data.what !== 'persona' && v.data.what !== 'story' ? h('div', { className: 'ab-muted ab-small' }, (v.data.before ? '「' + String(v.data.before).slice(0, 60) + '」→ ' : '') + '「' + String(v.data.after || '').slice(0, 80) + '」') : null),
             v.data && v.data.what !== 'goal' ? h(Btn, { small: true, onClick: () => restore('self', v.id) }, '退回这一项') : null))) : h(Empty, { text: '还没改过' })),
-        h(Card, { title: '性格的版本', desc: '每次不知不觉走了一步、你确认或退回，都存一个版本，写着理由。' },
+        h(Card, { fold: 'self-trait-versions', title: '性格的版本', desc: '每次不知不觉走了一步、你确认或退回，都存一个版本，写着理由。' },
           d.versions.traits.length ? h('div', { className: 'ab-list' }, d.versions.traits.map((v, i) => h('div', { key: v.id, className: 'ab-li' },
             h('div', { className: 'meta' }, mindDay(v.at) + ' · ' + (BY[v.by] || v.by)),
             h('div', { className: 'body ab-small' }, v.reason),
             i > 0 ? h(Btn, { small: true, onClick: () => restore('traits', v.id) }, '退回') : null))) : h(Empty, { text: '还没有' })),
         h(MindVersions, { versions: d.versions, restore, load, toast }),
-        h(Card, { title: '她看到的「她是谁」', desc: '每轮放在系统提示词开头的内容（人格卡 + 她自己写的 + 故事摘要 + 不知不觉的变化）。很少变，所以大多数时候能命中缓存。' },
+        h(Card, { fold: 'self-prompt', title: '她看到的「她是谁」', desc: '每轮放在系统提示词开头的内容（人格卡 + 她自己写的 + 故事摘要 + 不知不觉的变化）。很少变，所以大多数时候能命中缓存。' },
           h('pre', { className: 'ab-small', style: { whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' } }, d.prompt)))
     }
 
@@ -3983,7 +4184,7 @@ body[data-ds-dark-theme] .ab-root{
         if (v.kind === 'traits') return Object.entries(v.data.cur || {}).map(([key, value]) => key + ' · ' + Math.round(value * 100)).join('\n')
         return [v.data.before, v.data.after].filter(Boolean).join('\n\n')
       }
-      return h(Card, { title: '版本对比与清理' },
+      return h(Card, { fold: 'self-versions-manage', title: '版本对比与清理' },
         h(Row, { label: '类别' }, h(Select, { value: kind, options: kinds, onChange: (value) => { setKind(value); setFirst(''); setSecond(''); setComparison(null); setExtra([]); setHasMore(true) }, disabled: loading })),
         h(Row, { label: '两个版本' },
           h(Select, { value: first, options, onChange: (value) => { setFirst(value); setComparison(null) } }),
@@ -4042,20 +4243,32 @@ body[data-ds-dark-theme] .ab-root{
         if (number) onCommit(v === '' ? null : Number(v))
         else onCommit(String(v))
       }
-      return h('span', { className: 'ab-flex', style: { gap: 6 } },
+      return h('span', { className: cx('ab-flex', number && 'ab-number-ctl'), style: { gap: 6 } },
         h('input', { className: 'ab-input', type: number ? 'number' : 'text', 'aria-label': label, disabled, value: v, min, max, step, style: { width: number ? 120 : 280 }, onChange: (e) => setV(e.target.value), onBlur: commit, onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur() } }),
         unit ? h('span', { className: 'ab-muted' }, unit) : null)
     }
 
     /** 心智设置：按参数表生成。每项写着默认值、依据和改了有什么影响，可以单独恢复默认。 */
-    function MindSettings({ toast }) {
+    function MindSettings({ toast, jump }) {
       const [d, setD] = useState(null)
       const [advanced, setAdvanced] = useState(false)
       const [group, setGroup] = useState('')
       const [search, setSearch] = useState('')
+      const [exact, setExact] = useState('')
       const [pending, setPending] = useState('')
       const saving = useRef(false)
       useEffect(() => { get('/mind/settings').then(setD) }, [])
+      useEffect(() => {
+        if (jump?.section === 'mind-local-model') {
+          setGroup('models')
+          setSearch('')
+          setExact('')
+        } else if (jump?.setting) {
+          setSearch(jump.setting.label)
+          setExact(jump.setting.key)
+          if (jump.setting.advanced) setAdvanced(true)
+        }
+      }, [jump])
       if (!d) return h(Card, { title: '心智设置' }, h('p', { className: 'ab-muted' }, '读取中…'))
       if (!d.ok) return h(Card, { title: '心智设置' }, h(Empty, { text: d.message || '心智核心没起来' }))
       const update = async (key, body, reset = false) => {
@@ -4083,7 +4296,7 @@ body[data-ds-dark-theme] .ab-root{
       const groups = d.groups.filter((g) => d.params.some((p) => p.group === g.id && (advanced || !p.advanced)))
       const current = groups.find((g) => g.id === group) || groups[0]
       const panels = (words.length ? groups : [current].filter(Boolean)).flatMap((g) => {
-        const params = d.params.filter((p) => p.group === g.id && (advanced || !p.advanced) && words.every((word) => [g.label, p.label, p.hint, p.key].join(' ').toLowerCase().includes(word)))
+        const params = d.params.filter((p) => p.group === g.id && (advanced || !p.advanced) && (exact ? p.key === exact : words.every((word) => [g.label, p.label, p.hint, p.key].join(' ').toLowerCase().includes(word))))
         return params.length ? [h(Card, { key: g.id, title: g.label }, params.map((p) => h(Row, {
           key: p.key, label: p.label, hint: p.hint, className: 'ab-param-row',
           details: h('details', { className: 'ab-param-details' }, h('summary', null, '默认值与依据'),
@@ -4092,15 +4305,14 @@ body[data-ds-dark-theme] .ab-root{
         }, ctl(p), Object.hasOwn(d.saved || {}, p.key) ? h(Btn, { small: true, kind: 'ghost', disabled: Boolean(pending), onClick: () => update(p.key, { key: p.key }, true) }, '恢复默认') : null)))] : []
       })
       return h('div', { className: 'ab-grid' },
-        h(Card, null, h('div', { className: 'ab-settings-toolbar' },
-          h('input', { className: 'ab-input', type: 'search', value: search, placeholder: '搜索设置，例如跨会话、情绪、预算', 'aria-label': '搜索心智设置', onChange: (e) => setSearch(e.target.value) }),
-          hasAdvanced ? h('div', { className: 'ab-switch-row' }, h('span', null, '显示高级'), h(Switch, { label: '显示高级', on: advanced, onChange: setAdvanced })) : null)),
-        h('div', { className: 'ab-settings-layout' },
-          h('nav', { className: 'ab-card ab-settings-nav', 'aria-label': '心智设置分类' }, groups.map((g) =>
-            h('button', { key: g.id, type: 'button', 'aria-current': !words.length && current?.id === g.id ? 'true' : undefined, onClick: () => { setSearch(''); setGroup(g.id) } }, g.label))),
-          h('div', { className: 'ab-grid ab-settings-body' },
-            !words.length && current?.id === 'models' ? h(MindLocalModel, { toast, settings: d.values }) : null,
-            panels.length ? panels : h(Card, null, h(Empty, { text: '没有找到匹配的设置' })))))
+        h(Card, { className: 'ab-settings-tools' }, h('div', { className: 'ab-settings-toolbar' },
+          h('input', { className: 'ab-input', type: 'search', value: search, placeholder: '搜索设置，例如跨会话、情绪、预算', 'aria-label': '搜索心智设置', onChange: (e) => { setSearch(e.target.value); setExact('') } }),
+          hasAdvanced ? h('div', { className: 'ab-switch-row' }, h('span', null, '显示高级'), h(Switch, { label: '显示高级', on: advanced, onChange: (v) => { setAdvanced(v); setExact('') } })) : null),
+          h('nav', { className: 'ab-settings-nav', 'aria-label': '心智设置分类' }, groups.map((g) =>
+            h('button', { key: g.id, type: 'button', 'aria-current': !words.length && current?.id === g.id ? 'true' : undefined, onClick: () => { setSearch(''); setExact(''); setGroup(g.id) } }, g.label)))),
+        h('div', { className: 'ab-grid ab-settings-body' },
+          !words.length && current?.id === 'models' ? h(MindLocalModel, { toast, settings: d.values }) : null,
+          panels.length ? panels : h(Card, null, h(Empty, { text: '没有找到匹配的设置' }))))
     }
 
     function VoiceImport({ s, toast, onChange }) {
@@ -4266,7 +4478,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '伴奏音量' }, f.range('song.instVolume', 0.1, 2, 0.05, (v) => Math.round(v * 100) + '%')),
           h(Row, { label: '只有主人能点歌' }, f.sw('song.ownerOnly')),
         ),
-        h(Card, { title: '翻唱效果', right: f.sw('song.enhance.enabled'), desc: '换声前后的处理。关掉总开关就是最简单的「整条人声换一遍」。自动定调和音色校正要这个音色有「音色档案」（上面音色列表里生成）。本地接口接管翻唱时，这里的设置不起作用。' },
+        h(Card, { fold: 'song-effects', title: '翻唱效果', right: f.sw('song.enhance.enabled'), desc: '换声前后的处理。关掉总开关就是最简单的「整条人声换一遍」。自动定调和音色校正要这个音色有「音色档案」（上面音色列表里生成）。本地接口接管翻唱时，这里的设置不起作用。' },
           draft.song.enhance && draft.song.enhance.enabled !== false ? h(Fragment, null,
             h(Row, { label: '去混响', hint: '分离出的人声先去掉混响、回声再换声；去完反而变噪的段落自动换回原人声' }, f.sw('song.enhance.dereverb')),
             h(Row, { label: '拆主唱和伴唱', hint: '两个人同时唱（和声、合唱）时各自换声再合起来，不容易破音；多花两三分钟' }, f.sw('song.enhance.splitBacking')),
@@ -4278,7 +4490,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '音量包络', hint: '0 = 跟原唱的音量起伏，1 = 用换声出来的' }, f.range('song.volumeEnvelope', 0, 1, 0.05, (v) => v.toFixed(2))),
           h(Row, { label: '清辅音保护', hint: '保护「s、sh、呼吸声」不被换得发怪；0.5 = 不保护' }, f.range('song.protect', 0, 0.5, 0.01, (v) => v.toFixed(2))),
         ),
-        h(Card, { title: '网易云', desc: '不登录也能唱免费歌；会员歌、版权歌要填网易云的 Cookie。' },
+        h(Card, { fold: 'song-netease', title: '网易云音乐', desc: '不登录也能唱免费歌；会员歌、版权歌要填网易云的 Cookie。' },
           h(Row, { label: 'Cookie（MUSIC_U）', hint: '电脑浏览器登录 music.163.com → F12 → 应用 / 存储 → Cookie → 复制 MUSIC_U 的值。只存在本机，不显示' },
             f.text('song.neteaseCookie', { type: 'password', size: 'wide', placeholder: draft.song.neteaseCookieSet ? '已保存（不改就留空）' : '没有就留空' })),
           h('div', { className: 'ab-flex', style: { marginTop: 6 } },
@@ -4421,7 +4633,7 @@ body[data-ds-dark-theme] .ab-root{
         setTout(r)
       }
       const sentList = (sent) => (sent && sent.length ? h('div', { className: 'ab-code' }, sent.map((s) => '→ ' + s.chatId + '：' + s.text).join('\n')) : h('div', { className: 'ab-small ab-muted', style: { marginTop: 6 } }, '没有发出任何消息'))
-      return h(Card, { title: '模拟测试', desc: '不用上 QQ 就能试模块：这里发出去的消息只截下来显示，不会真发到 QQ。（模块直接调 api.onebot 的操作，比如禁言、发空间，是真的会执行的；会改设置的内置命令不执行。）' },
+      return h(Card, { fold: 'modules-simulate', title: '模拟测试', desc: '不用上 QQ 就能试模块：这里发出去的消息只截下来显示，不会真发到 QQ。（模块直接调 api.onebot 的操作，比如禁言、发空间，是真的会执行的；会改设置的内置命令不执行。）' },
         h(Row, { label: '假装是', hint: '谁在说话、在哪儿说' },
           h('div', { className: 'ab-flex' },
             h(Seg, { value: as, options: [{ value: 'owner', label: '主人' }, { value: 'other', label: '别人' }], onChange: setAs }),
@@ -4603,7 +4815,7 @@ body[data-ds-dark-theme] .ab-root{
           h('summary', { style: { cursor: 'pointer', fontWeight: 620 } }, '写模块的工具'),
           h('p', { className: 'ab-desc', style: { marginTop: 8 } }, '自己写模块或排查问题时才用得上。'),
           h('div', { className: 'ab-grid' },
-        h(Card, { title: '新建一个模块', desc: '从模板建一个能直接跑的例子（关键词自动回复 + 一个命令 + 一个工具），在它上面改。id 用小写英文，比如 weather。想改内置的本事，用下面内置模块那一行的「复制一份来改」。' },
+        h(Card, { fold: 'modules-create', title: '新建一个模块', desc: '从模板建一个能直接跑的例子（关键词自动回复 + 一个命令 + 一个工具），在它上面改。id 用小写英文，比如 weather。想改内置的本事，用下面内置模块那一行的「复制一份来改」。' },
           h('div', { className: 'ab-flex' },
             h('input', { className: 'ab-input', style: { maxWidth: 180 }, placeholder: 'id，如 weather', value: newId, onChange: (e) => setNewId(e.target.value.toLowerCase()) }),
             h('input', { className: 'ab-input', placeholder: '名字，如 查天气', value: newName, onChange: (e) => setNewName(e.target.value) }),
@@ -4720,17 +4932,17 @@ body[data-ds-dark-theme] .ab-root{
               h(Btn, { small: true, onClick: act('/douyin/window', 'win', { visible: false }), disabled: !!busy }, '收起窗口'))),
           h(Row, { label: '浏览器路径', hint: '留空 = 自动找 Edge（找不到再找 Chrome / Chromium）' }, f.text('douyin.browserPath', { size: 'wide', placeholder: '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge' })),
         ),
-        h(Card, { title: '主人抖音号', desc: '填你的抖音号或主页链接，点「核对」。核对过之后，ta刷到特别想让你看的视频，会在评论里真的 @你（用抖音自己的 @ 选人，按你的账号 id 认人，你会收到抖音通知；认不出你就不发，不会发假 @）。改了输入要重新核对。' },
+        h(Card, { fold: 'douyin-owner', title: '主人抖音号', desc: '填你的抖音号或主页链接，点「核对」。核对过之后，ta刷到特别想让你看的视频，会在评论里真的 @你（用抖音自己的 @ 选人，按你的账号 id 认人，你会收到抖音通知；认不出你就不发，不会发假 @）。改了输入要重新核对。' },
           h(Row, { label: '你的抖音号 / 主页链接' }, f.text('douyin.owner.input', { size: 'wide', placeholder: '抖音号，或 https://www.douyin.com/user/…' })),
           h('div', { className: 'ab-flex', style: { marginTop: 4 } },
             h(Btn, { small: true, kind: 'primary', onClick: act('/douyin/confirm-owner', 'confirm', { input: ((draft.douyin || {}).owner || {}).input || '' }), disabled: !!busy }, busy === 'confirm' ? '核对中…' : '核对'),
             s && s.owner ? h('span', { className: 'ab-small', style: { color: 'var(--ab-ok)' } }, '已核对：' + s.owner.nickname) : h('span', { className: 'ab-small ab-muted' }, '还没核对（不核对就不会 @你）')),
         ),
-        h(Card, { title: '抖音私信', desc: '你在抖音上私信ta，ta会用自己的口气回（只认上面核对过的你，别人的私信不理）。让ta找视频的话，ta会尝试刷一轮再私信分享给你；这条流程仍需实际环境验证。只在「主动搭话」里设的醒着时间内回。' },
+        h(Card, { fold: 'douyin-dm', title: '抖音私信', desc: '你在抖音上私信ta，ta会用自己的口气回（只认上面核对过的你，别人的私信不理）。让ta找视频的话，ta会尝试刷一轮再私信分享给你；这条流程仍需实际环境验证。只在「主动搭话」里设的醒着时间内回。' },
           h(Row, { label: '回你的抖音私信' }, f.sw('douyin.ownerDm')),
           h(Row, { label: '多久看一次' }, f.num('douyin.dmPollMinutes', { min: 1, max: 60 }), h('span', { className: 'ab-muted' }, '分钟'), h(Btn, { small: true, onClick: act('/douyin/dms', 'dms'), disabled: !!busy }, busy === 'dms' ? '正在看…' : '现在看一次')),
         ),
-        h(Card, { title: '怎么刷', desc: '只在「主动搭话」里设的醒着时间内自己刷。主人在 QQ 里让ta「去刷会儿抖音」也行。' },
+        h(Card, { fold: 'douyin-browse', title: '自动浏览', desc: '只在「主动搭话」里设的醒着时间内自己刷。主人在 QQ 里让ta「去刷会儿抖音」也行。' },
           h(Row, { label: '定时自己去刷' }, f.sw('douyin.autoBrowse')),
           h(Row, { label: '多久刷一轮' }, f.range('douyin.intervalHours', 1, 24, 1, (v) => v + ' 小时')),
           h(Row, { label: '每天最多刷' }, f.range('douyin.maxRunsPerDay', 0, 12, 1, (v) => v + ' 轮')),
@@ -4748,7 +4960,7 @@ body[data-ds-dark-theme] .ab-root{
             { value: 'stingy', label: '少分享', desc: '拿不准就不发' },
           ])),
         ),
-        h(Card, { title: '每天上限', desc: '刚登录的号前几天上限自动减半（新号猛点赞最容易被风控）。遇到验证码 / 操作频繁当天就停手，看还能看。试运行开着时只记日志不真点。权限在「权限」页单独设（默认仅主人）。' },
+        h(Card, { fold: 'douyin-limits', title: '每天上限', desc: '刚登录的号前几天上限自动减半（新号猛点赞最容易被风控）。遇到验证码 / 操作频繁当天就停手，看还能看。试运行开着时只记日志不真点。权限在「权限」页单独设（默认仅主人）。' },
           h(Row, { label: '点赞' }, f.num('douyin.caps.like', { min: 0, max: 300 })),
           h(Row, { label: '评论' }, f.num('douyin.caps.comment', { min: 0, max: 30 })),
           h(Row, { label: '分享给你' }, f.num('douyin.caps.share', { min: 0, max: 30 })),
@@ -4757,7 +4969,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '两次点赞 / 评论间隔' }, f.num('douyin.gate.minWriteGapSec', { min: 0, max: 600 }), h('span', { className: 'ab-muted' }, '秒')),
           h(Row, { label: '新号减半' }, f.num('douyin.gate.newAccountDays', { min: 0, max: 30 }), h('span', { className: 'ab-muted' }, '天')),
         ),
-        h(Card, { title: 'ta刷过什么', right: h('div', { className: 'ab-flex' },
+        h(Card, { fold: 'douyin-history', title: '浏览历史', right: h('div', { className: 'ab-flex' },
           h(Btn, { small: true, onClick: load }, '刷新'),
           h(Btn, { small: true, kind: 'primary', onClick: act('/douyin/run', 'run'), disabled: !!busy || Boolean(s && s.busy) }, s && s.busy ? h(Fragment, null, h('i', { className: 'ab-spin' }), ' 正在刷…') : '现在刷一轮')) },
           s && s.pauseReason ? h('div', { className: 'ab-note warn', style: { marginBottom: 8 } }, '今天先不点赞评论了：' + s.pauseReason + '。要验证的话点上面「显示浏览器窗口」处理，明天自动恢复。') : null,
@@ -5009,7 +5221,7 @@ body[data-ds-dark-theme] .ab-root{
         ),
         riskCard(),
         h(Card, {
-          title: 'ta的逛法', desc: '只在「主动搭话」里设的醒着时间内自己逛。主人在 QQ 里让ta「去逛逛小黑盒」也行。逛是只读的，不会乱点赞评论。',
+          fold: 'heybox-browse', title: 'ta的逛法', desc: '只在「主动搭话」里设的醒着时间内自己逛。主人在 QQ 里让ta「去逛逛小黑盒」也行。逛是只读的，不会乱点赞评论。',
         },
           h(Row, { label: '定时自己去逛' }, f.sw('heybox.autoBrowse')),
           h(Row, { label: '只在谷时逛', hint: '避开工作日 9-12、14-18 两个高峰（那会儿模型排队久、单价高，逛一轮很费 token）。峰时ta会等，不占额度' },
@@ -5034,7 +5246,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '每天最多逛' }, f.range('heybox.maxRunsPerDay', 0, 12, 1, (v) => v + ' 轮')),
         ),
         h(Card, {
-          title: '分享给你',
+          fold: 'heybox-share', title: '分享给你',
           desc: '逛到有意思的帖子，ta自己判断值不值得分享，值得就私聊发给你（带帖子链接）。',
         },
           h(Row, { label: '私聊分享给我' }, f.sw('heybox.shareToOwner')),
@@ -5047,7 +5259,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '每天最多分享' }, f.num('heybox.shareDaily', { min: 0, max: 10 }), h('span', { className: 'ab-muted' }, '条/天')),
         ),
         h(Card, {
-          title: '每天上限',
+          fold: 'heybox-limits', title: '每天上限',
           desc: '小黑盒的帖详情和搜索接口查太勤会弹验证码（还可能连坐浏览器登录态），所以额度别设太大。搜索被挡时ta会自动降级去翻信息流，不会反复硬试。',
         },
           h(Row, { label: '点赞' }, f.num('heybox.likeDaily', { min: 0, max: 60 }), h('span', { className: 'ab-muted' }, '次/天')),
@@ -5107,7 +5319,7 @@ body[data-ds-dark-theme] .ab-root{
             : null,
         ),
         h(Card, {
-          title: '每天发多篇：每篇各管各的',
+          fold: 'heybox-post-plan', title: '每天发多篇：每篇各管各的',
           desc: '配了就按篇数来：今天第 1 篇用第 1 项、第 2 篇用第 2 项……排期用完或没配就回到上面的全局设置。每篇可以单独指定风格、分区、话题、字数。',
           right: h('div', { className: 'ab-flex' },
             h('span', { className: 'ab-small ab-muted' }, '已发 ' + ((s && s.postPlan && s.postPlan.done) || 0) + ' / ' + (((draft.heybox && draft.heybox.dailyPosts) || []).length)),
@@ -5161,7 +5373,7 @@ body[data-ds-dark-theme] .ab-root{
         // postPlan 知道（done / current / items 的 empty 标记）。这里补一个只读视图，
         // 免得要自己数「已发了几篇」再去对照上面第几项。
         h(Card, {
-          title: '今天发到第几篇',
+          fold: 'heybox-post-status', title: '今天发到第几篇',
           right: h('div', { className: 'ab-flex' },
             h(Btn, { small: true, onClick: load }, '刷新')),
           desc: '按今天已发了几篇，依次取上面排期里的对应项。字数低于该项下限会被直接拒发，所以这里的数字要和实际想发的长度对得上。',
@@ -5195,7 +5407,7 @@ body[data-ds-dark-theme] .ab-root{
         // state 早就返回 actsList（活动在前、带热度）。上面只有「刷新话题」按钮和数量，
         // 看不到具体有哪些活动可挂，这里补一个可读列表。
         h(Card, {
-          title: '话题库',
+          fold: 'heybox-topics', title: '话题库',
           right: h('div', { className: 'ab-flex' },
             h(Btn, { small: true, kind: 'primary', onClick: () => post('/heybox/acts/refresh').then((r) => { toast(r.message || '已刷新', r.ok === false ? 'err' : 'ok'); load() }).catch(() => toast('刷新失败', 'err')), disabled: !!busy }, busy === 'acts' ? '刷新中…' : '刷新话题'),
             h(Btn, { small: true, onClick: load }, '重新读')),
@@ -5224,7 +5436,7 @@ body[data-ds-dark-theme] .ab-root{
           })(),
         ),
         h(Card, {
-          title: '热榜预览', right: h('div', { className: 'ab-flex' },
+          fold: 'heybox-hot', title: '热榜预览', right: h('div', { className: 'ab-flex' },
             h(Btn, { small: true, onClick: load }, '刷新'),
             h(Btn, { small: true, kind: 'primary', onClick: loadHot, disabled: !!busy }, busy === 'hot' ? '拉取中…' : '看热榜')),
           desc: 'ta写帖前会先看这个（热榜 → 搜社区 → 找具体素材）。这里只是让你看看现在有什么题，热榜里电竞和商业新闻不适合这个号。',
@@ -5235,7 +5447,7 @@ body[data-ds-dark-theme] .ab-root{
               h('div', { className: 'meta' }, String(i + 1)), h('div', { className: 'body' }, x.text, x.tag ? h('span', { className: 'ab-muted' }, '  [' + x.tag + ']') : null)))),
         ),
         h(Card, {
-          title: '发帖自检（ta发之前自己过一遍）',
+          fold: 'heybox-checks', title: '发帖自检（ta发之前自己过一遍）',
           desc: '这几条写在ta的规则里，不满足就不发。你也可以照着看，ta要发的帖哪条对不上就让改。',
         },
           h('div', { className: 'ab-note', style: { marginBottom: 8, whiteSpace: 'pre-line' } },
@@ -5257,7 +5469,7 @@ body[data-ds-dark-theme] .ab-root{
             ].join('\n')),
         ),
         h(Card, {
-          title: 'ta逛过什么', right: h('div', { className: 'ab-flex' },
+          fold: 'heybox-history', title: 'ta逛过什么', right: h('div', { className: 'ab-flex' },
             h(Btn, { small: true, onClick: load }, '刷新'),
             h(Btn, { small: true, kind: 'primary', onClick: act('/heybox/run', 'run'), disabled: !!busy }, busy === 'run' ? '正在逛…' : '现在逛一圈')),
         },
@@ -5305,7 +5517,7 @@ body[data-ds-dark-theme] .ab-root{
       const list = (d && d.list) || []
       const img2imgOff = draft.imageGen && draft.imageGen.img2img === false
       const text = desc === null ? (d && d.description) || '' : desc
-      return h(Card, { title: '她的形象', desc: '导入几张她的图（最多 ' + ((d && d.max) || 8) + ' 张）。她画自己（自拍、她的样子、合照里有她）时会照着画：主图一定用，能一次收好几张参考图的生图服务（gpt-image 系列）其余几张也一起用。下面的形象描述也会加进提示词。' },
+      return h(Card, { fold: 'image-appearance', title: '她的形象', desc: '导入几张她的图（最多 ' + ((d && d.max) || 8) + ' 张）。她画自己（自拍、她的样子、合照里有她）时会照着画：主图一定用，能一次收好几张参考图的生图服务（gpt-image 系列）其余几张也一起用。下面的形象描述也会加进提示词。' },
         img2imgOff ? h('div', { className: 'ab-note warn', style: { marginBottom: 8 } }, '「参考图」现在关着：她画自己时只用形象描述，不用这些图。') : null,
         h('div', { className: 'ab-flex', style: { gap: 8, marginBottom: 8 } },
           h('input', { ref: fileRef, type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif', multiple: true, style: { display: 'none' }, onChange: (e) => upload(e.target.files) }),
@@ -5344,7 +5556,7 @@ body[data-ds-dark-theme] .ab-root{
         load()
       }
       return h(Card, {
-        title: 'ta的画作' + (data ? '（显示最近 ' + data.items.length + ' 张 / 共 ' + data.total + ' 张）' : ''),
+        fold: 'image-library', title: '她的画作' + (data ? '（显示最近 ' + data.items.length + ' 张 / 共 ' + data.total + ' 张）' : ''),
         desc: 'ta画过的图都存在本机（不会自动删），这里只是面板里显示多少张。想看全部或者清理，点「打开文件夹」。',
         right: h('div', { className: 'ab-flex' },
           h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新'),
@@ -5438,7 +5650,7 @@ body[data-ds-dark-theme] .ab-root{
         list[target] = entry
         write(list)
       }
-      return h(Card, { title: '备用生图服务', right: f.sw('imageGen.fallbackEnabled'), desc: '主服务不可用时按顺序尝试。提示词和参考图会发给尝试的备用服务。试运行会实际生成图片并存入画作库。' },
+      return h(Card, { fold: 'image-fallbacks', title: '备用生图服务', right: f.sw('imageGen.fallbackEnabled'), desc: '主服务不可用时按顺序尝试。提示词和参考图会发给尝试的备用服务。试运行会实际生成图片并存入画作库。' },
         rows.map((item, index) => {
           const codex = item.provider === 'codex'
           const set = (key, value) => write(rows.map((row, i) => i === index ? { ...row, [key]: value } : row))
@@ -5512,16 +5724,16 @@ body[data-ds-dark-theme] .ab-root{
         h(Row, { label: '生成步数', hint: '步数越多，生成越慢。保存后应用到聊天里的新任务。' }, f.num('imageGen.localSteps', { min: 4, max: 50 })))
     }
 
-    function LocalDrawChats({ draft, setDraft }) {
-      const selected = draft.imageGen.localDraw || {}
+    function AdultChatPermissions({ draft, setDraft, savedAllow }) {
+      const selected = draft.adultChat || {}
       const owner = String(draft.ownerQQ || '')
       const bot = String(draft.botQQ || '')
       const [names, setNames] = useState({})
       useEffect(() => {
         let active = true
-        get('/image/local/chats').then((result) => { if (active && result.ok) setNames(result) })
+        get('/access/chat-names').then((result) => { if (active && result.ok) setNames(result) })
         return () => { active = false }
-      }, [])
+      }, [savedAllow?.private?.join(','), savedAllow?.groups?.join(',')])
 
       const row = (kind, label, ids, hint) => {
         const checked = selected[kind] || []
@@ -5529,18 +5741,18 @@ body[data-ds-dark-theme] .ab-root{
           ? ids.map((id) => h('button', {
             className: cx('ab-chip', checked.includes(id) && 'on'), key: id, type: 'button', 'aria-pressed': checked.includes(id),
             onClick: () => setDraft((prev) => {
-              const path = 'imageGen.localDraw.' + kind
-              const current = prev.imageGen.localDraw?.[kind] || []
+              const path = 'adultChat.' + kind
+              const current = prev.adultChat?.[kind] || []
               return setPath(prev, path, current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
             }),
           }, names[kind]?.[id] || (kind === 'groups' ? '群' : '好友'), h('span', { className: 'n' }, id)))
           : h('span', { className: 'ab-muted ab-small' }, '白名单里没有可选会话。'))
       }
 
-      return h(Card, { title: '成人生图', desc: '复用已启用的本机生图。发「/色图 画面描述」或「/画图 画面描述」。自然说法也可以，群里先 @ 她，例如「画张色图：画面描述」。' },
-        h(Row, { label: '管理员好友私聊' }, h('span', null, owner ? '默认可用 · ' + owner : '请先设置管理员 QQ 号')),
+      return h(Card, { fold: 'qq-adult-chat', title: '成人话题与生图', desc: '勾选后可讨论成人话题，也可用「/色图 画面描述」。其他会话只能画与她无关的角色，由本地小模型核对对象，再用本机生图。' },
+        h(Row, { label: '主人私聊' }, h('span', null, owner ? '默认开放 · ' + owner : '请先设置主人 QQ 号')),
         row('private', '其他好友私聊', (draft.allow?.private || []).map(String).filter((id) => id !== owner && id !== bot)),
-        row('groups', '开放的 QQ 群', (draft.allow?.groups || []).map(String), '保存后，群内成员都能发起，成品发到同一个群。'))
+        row('groups', '开放的 QQ 群', (draft.allow?.groups || []).map(String), '所选群的成员可发起讨论和生图，成品发回该群。'))
     }
 
     function ImageGen({ draft, setDraft, toast }) {
@@ -5616,7 +5828,6 @@ body[data-ds-dark-theme] .ab-root{
           isCustom ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, '例子：地址填 https://image.pollinations.ai/prompt/{prompt}，再加 model=flux-anime、width=1080、height=1920、nologo=true 四个参数，GET 就会请求 …/prompt/<提示词>?model=flux-anime&width=1080&…') : null,
           !c.enabled ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, isLocal ? '部署完成后，打开右上角开关并保存。' : '填好接口信息后，打开右上角开关并保存。') : null,
         ),
-        h(LocalDrawChats, { draft, setDraft }),
         isLocal ? null : h(ImageFallbacks, { draft, setDraft }),
         h(AppearanceCard, { draft, toast }),
         h(PaintGallery, { draft, setDraft, toast }),
@@ -5662,7 +5873,7 @@ body[data-ds-dark-theme] .ab-root{
         }
         return b
       }
-      return h(Card, { title: '云备份（Gitee / WebDAV）', desc: '每天到点自动打包一份备份，推到你的私有仓库或 WebDAV，换电脑或坏盘时也能找回来。' },
+      return h(Card, { fold: 'backup-cloud', title: '云备份（Gitee / WebDAV）', desc: '每天到点自动打包一份备份，推到你的私有仓库或 WebDAV，换电脑或坏盘时也能找回来。' },
         h(Seg, {
           value: form.provider,
           onChange: (v) => setForm({ ...form, provider: v }),
@@ -5705,7 +5916,7 @@ body[data-ds-dark-theme] .ab-root{
             h(Btn, { small: true, disabled: running, onClick: async () => { if (!confirm('现在就把最新备份推到 ' + (webdav ? 'WebDAV' : 'Gitee') + '？（不会重新打包，推 backups 里最新的一份）')) return; after(await call('/backup/push')) } }, running ? '推送中…' : '立即推送'))),
         job && job.error ? h('div', { className: 'ab-note err', style: { marginTop: 10 } }, '推送失败：' + job.error) : null,
         job && job.result ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 10 } }, '上次推送：' + job.result.message) : null,
-        h('details', { open: webdav ? !(s && s.remote && s.remote.webdav && s.remote.webdav.hasPassword) : !(s && s.remote && s.remote.hasToken), style: { marginTop: 10 } },
+        h('details', { style: { marginTop: 10 } },
           h('summary', { className: 'ab-small', style: { cursor: 'pointer' } }, webdav ? '📖 WebDAV 怎么填（点这里收起）' : '📖 第一次用？跟着下面 4 步做（点这里收起）'),
           webdav
             ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 8, lineHeight: 1.8 } },
@@ -5773,7 +5984,7 @@ body[data-ds-dark-theme] .ab-root{
           s?.ok === false ? h('div', { className: 'ab-note err', role: 'status' }, s.message || '读不到备份状态') : null,
           s?.list?.length ? h('div', { style: { marginTop: 10 } }, s.list.slice(0, 8).map((b) => h('div', { key: b.name, className: 'ab-small' }, b.name + ' · ' + size(b.bytes)))) : null),
         h(RemoteBackup, { toast }),
-        h(Card, { title: '恢复', desc: '在新电脑上先装好 DSH 和 Aurabot，再把备份拖进来。重启 DSH 后自动换上设置和数据、重新下载市场模块、放回 QQ 会话，原来的文件留在 backups 文件夹。' },
+        h(Card, { fold: 'backup-restore', title: '从备份恢复', desc: '在新电脑上先装好 DSH 和 Aurabot，再把备份拖进来。重启 DSH 后自动换上设置和数据、重新下载市场模块、放回 QQ 会话，原来的文件留在 backups 文件夹。' },
           s && s.modules && s.modules.length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 8 } }, '还没装回来的模块：' + s.modules.join('、') + '（下次启动再试）') : null,
           s && s.pending ? h('div', { className: 'ab-note warn' }, '已导入 ' + s.pending.files + ' 个文件（备份于 ' + String(s.pending.createdAt || '').slice(0, 16).replace('T', ' ') + '），重启 DSH 后换上。',
             h('div', { style: { marginTop: 8 } }, h(Btn, { small: true, kind: 'ghost', onClick: async () => { after(await call('/backup/cancel')) } }, '取消恢复'))) : [
@@ -5796,7 +6007,7 @@ body[data-ds-dark-theme] .ab-root{
                     h('span', { className: 'ab-small', style: { flex: 1, minWidth: 0, wordBreak: 'break-all' } }, (name.startsWith('aurabot-config-') ? '仅配置 · ' : '') + name),
                     h(Btn, { small: true, disabled: busy, onClick: () => restoreRemote(name) }, '拉回并恢复'))))),
           ]),
-        h(Card, { title: '不会带过去的', desc: '这些要在新电脑上重新弄一下。' },
+        h(Card, { fold: 'backup-exclusions', title: '备份范围', desc: '这些要在新电脑上重新弄一下。' },
           h('div', { className: 'ab-small ab-muted' }, 'DSH 自己的设置和模型密钥、QQ 网关 SnowLuma 的登录、QQ 工作区以外的 DSH 会话；抖音和小黑盒的浏览器登录要重新扫码；日志和缓存不备份；翻唱环境和桌宠的 Electron 要重新安装；数据目录以外的路径（比如 ffmpeg、本地图片文件夹）在新电脑上要重新填。')))
     }
 
@@ -5821,10 +6032,10 @@ body[data-ds-dark-theme] .ab-root{
       const picked = draft.update && draft.update.unstable
       const unstable = typeof picked === 'boolean' ? picked : String(st.version).includes('-')
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '更新推送', desc: '插件有新版本时，面板会提示并给出更新命令。' },
+        h(Card, { fold: 'security-update', title: '更新推送', desc: '插件有新版本时，面板会提示并给出更新命令。' },
           h(Row, { label: '订阅不稳定版本', hint: '打开后也会收到 beta 和 rc 测试版，能早点用上新功能，但可能有问题；关掉只收正式版' }, h(Switch, { on: unstable, onChange: (v) => setDraft(setPath(draft, 'update.unstable', v)) }))),
         h(Card, { title: '危险命令确认', right: f.sw('security.dangerConfirm'), desc: '打开后，ta在私聊里要执行终端危险命令（删根目录、格式化、关机、下载后直接执行等）之前，会先发 QQ 私聊问你；你回复「确认」才执行，回复「取消」或 60 秒没回就拦下。默认关。只拦真正致命的命令，普通删除/构建/改文件不受影响。' }),
-        h(Card, { title: 'SSRF 防护', desc: '限制 ta 下载图片、语音时能访问哪些地址 —— 防止有人用一条链接诱导 ta 去访问你电脑或内网里的服务（路由器管理页、云服务器的 169.254.169.254、本机端口之类）。' },
+        h(Card, { fold: 'security-download', title: 'SSRF 防护', desc: '限制 ta 下载图片、语音时能访问哪些地址 —— 防止有人用一条链接诱导 ta 去访问你电脑或内网里的服务（路由器管理页、云服务器的 169.254.169.254、本机端口之类）。' },
           h(Row, { label: '防护强度', hint: '部署在服务器上、或者群里有陌生人时，用「严格」' },
             h(Seg, {
               value: mode,
@@ -5836,7 +6047,7 @@ body[data-ds-dark-theme] .ab-root{
             : h('div', { className: 'ab-note warn' }, '宽松：只有解析结果全部是内网才拒绝。适合本机开着 fake-ip 代理、DNS 会给公网域名同时返回公网地址和 IPv6 ULA（fd00::/8）的情况。代价是「公网 + 内网混合返回」的域名会被放行 —— 别在服务器上开。'),
           h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '严格模式下图片老是下不来时，先查一下这个域名是不是解析出了内网地址：nslookup -type=AAAA multimedia.nt.qq.com.cn'),
         ),
-        h(Card, { title: '远端管理（反代部署）', desc: '默认只有本机能打开面板、调管理接口——能改配置、装模块、取联动密钥、下载桌宠客户端包（里面有令牌），所以默认不外放。要做远端管理必须在这里显式打开，并且务必在反向代理层再加一道认证（Basic Auth / OAuth）。' },
+        h(Card, { fold: 'security-remote', title: '远端管理（反代部署）', desc: '默认只有本机能打开面板、调管理接口——能改配置、装模块、取联动密钥、下载桌宠客户端包（里面有令牌），所以默认不外放。要做远端管理必须在这里显式打开，并且务必在反向代理层再加一道认证（Basic Auth / OAuth）。' },
           h(Row, { label: '允许远端访问管理接口', hint: '⚠ 打开后任何能连到插件端口的人都能改你的配置。只在反代已加认证时才开' },
             h(Switch, {
               on: (draft.security && draft.security.panelRemoteAccess) === true,
@@ -5864,7 +6075,7 @@ body[data-ds-dark-theme] .ab-root{
             + '放在反代后面时连接对端永远是反代自己，所以要把反代地址填进上面，插件才会采信 X-Forwarded-For 的最后一跳。'
             + '留空 = 从不相信任何转发头（最安全，适合直连暴露或纯同机）。'),
         ),
-        h(Card, { title: '其它内置防护', desc: '这些是固定行为，暂时没有开关。' },
+        h(Card, { fold: 'security-basics', title: '其它内置防护', desc: '这些是固定行为，暂时没有开关。' },
           h('div', { className: 'ab-muted ab-small', style: { whiteSpace: 'pre-wrap' } },
             ['· 只下载 http / https，并限制单张图片大小', '· 只从白名单里的会话收表情', '· 群管操作只认主人，对象不能是主人自己', '· 联动（bridge）默认关闭，开放时必须带密钥', '· 表情的改名 / 删除只对主人开放'].join('\n')),
         ),
@@ -5971,9 +6182,11 @@ body[data-ds-dark-theme] .ab-root{
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,
       modules: Modules, market: Market, pet: PetPage, douyin: Douyin, heybox: Heybox,
     }
+    const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'subagentBackground'],
-      group: ['group', 'merge', 'titleFilter', 'chat', 'files'], model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice'], stickers: ['stickers'],
+      connect: ['snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'adultChat', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
+      model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'], douyin: ['douyin'], heybox: ['heybox'],
       local: ['local'], video: ['local'], browser: ['browser'], security: ['security', 'update'], modules: ['modules', 'safeMode'],
     }
@@ -5993,6 +6206,8 @@ body[data-ds-dark-theme] .ab-root{
         } catch { return 'overview' }
       })
       const [toastMsg, setToastMsg] = useState(null)
+      const [jump, setJump] = useState(null)
+      const [collapsedGroup, setCollapsedGroup] = useState(null)
       const [wizardOpen, setWizardOpen] = useState(false)
       const [saving, setSaving] = useState(false)
       const toastTimer = useRef(null)
@@ -6021,11 +6236,34 @@ body[data-ds-dark-theme] .ab-root{
         if (!dirtyRef.current) setDraft(clone(r.config))
       }, [])
       useEffect(() => { reload(); const t = setInterval(reload, 5000); return () => { clearInterval(t); stateRevision.current++ } }, [reload])
-      const go = (id) => {
+      const go = (id, target) => {
         setTab(id)
-        scrollRef.current?.scrollTo(0, 0)
+        setCollapsedGroup(null)
+        setJump(target?.section || target?.setting ? { ...target } : null)
+        if (!target?.section) scrollRef.current?.scrollTo(0, 0)
         try { localStorage.setItem('aurabot.tab', id) } catch {}
       }
+      useEffect(() => {
+        if (!jump?.section) return
+        const root = scrollRef.current
+        if (!root) return
+        function reveal() {
+          const section = document.getElementById('ab-section-' + jump.section)
+          if (!root.contains(section)) return false
+          for (let parent = section; parent && parent !== root; parent = parent.parentElement) {
+            if (parent.tagName === 'DETAILS') parent.open = true
+          }
+          const focus = section.tagName === 'DETAILS' ? section.querySelector('summary') : section
+          focus?.focus({ preventScroll: true })
+          section.scrollIntoView({ block: 'start' })
+          return true
+        }
+        if (reveal()) return
+        const observer = new MutationObserver(() => { if (reveal()) observer.disconnect() })
+        observer.observe(root, { childList: true, subtree: true })
+        const timer = setTimeout(() => observer.disconnect(), 8000)
+        return () => { observer.disconnect(); clearTimeout(timer) }
+      }, [jump])
       const dirty = useMemo(() => !!(st && draft) && JSON.stringify(draft) !== JSON.stringify(st.config), [st, draft])
       dirtyRef.current = dirty
       const save = async (body = draft, immediate = false) => {
@@ -6075,7 +6313,7 @@ body[data-ds-dark-theme] .ab-root{
         : { cls: cfg.enabled && st.onebot.state === 'connecting' ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? 'QQ 未就绪' : 'QQ 未连接' }
       const persona = st.personas.find((p) => p.id === cfg.persona.current)
       const displayName = st.onebot.login?.nickname || persona?.name || '大肥鱼'
-      const props = { st, draft, setDraft, toast, reload, go, connection, displayName, openWizard: () => setWizardOpen(true) }
+      const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true) }
       const showWizard = !cfg.setupDone || wizardOpen
 
       const mods = st.modules || []
@@ -6087,8 +6325,9 @@ body[data-ds-dark-theme] .ab-root{
         ? Boolean((m.settings || []).length || m.panel)
         : m.running === 'builtin' && Boolean(m.panel)))
       const embedded = (m) => tabs.some((t) => t.id === tabOf(m))
+      const embeddedModules = Object.groupBy(customUi.filter(embedded), tabOf)
       const extTabs = customUi.filter((m) => !embedded(m))
-        .map((m) => ({ id: 'ext:' + m.id, label: m.name, ext: m.id, group: 'extensions', search: m.description }))
+        .map((m) => ({ id: 'ext:' + m.id, label: m.name, ext: m.id, group: 'extensions', search: moduleSearchText(m) }))
       const groups = NAV_GROUPS.map((g) => ({ ...g, pages: [...tabs, ...extTabs].filter((t) => t.group === g.id) }))
       const current = [...tabs, ...extTabs].find((t) => t.id === tab) || tabs[0]
       const group = groups.find((g) => g.id === current.group)
@@ -6097,7 +6336,7 @@ body[data-ds-dark-theme] .ab-root{
         if (!dirty) return false
         const differs = (a, b) => JSON.stringify(a) !== JSON.stringify(b)
         if (id.startsWith('ext:')) return differs(draft.ext?.[id.slice(4)], cfg.ext?.[id.slice(4)])
-        return (TAB_KEYS[id] || []).some((k) => differs(draft[k], cfg[k]))
+        return (TAB_KEYS[id] || []).some((k) => differs(getPath(draft, k), getPath(cfg, k)))
           || customUi.some((m) => tabOf(m) === id && differs(draft.ext?.[m.id], cfg.ext?.[m.id]))
       }
       if (showWizard) {
@@ -6105,29 +6344,28 @@ body[data-ds-dark-theme] .ab-root{
           h(Wizard, { st, draft, setDraft, save, toast, reload, onClose: () => setWizardOpen(false) }),
           toastMsg ? h('div', { className: cx('ab-toast', toastMsg.kind), role: 'status' }, toastMsg.text) : null))
       }
-      const markDirty = (id) => tabDirty(id) ? h('i', { className: 'ab-unsaved-dot', title: '有未保存的设置' }) : null
       return h('div', { className: 'ab-root', ref: scrollRef },
         h('div', { className: 'ab-workspace' },
-          h(WorkspaceNav, { groups, current, go, dirtyOf: tabDirty, version: st.version }),
+          h(WorkspaceNav, {
+            groups, current, go, dirtyOf: tabDirty, version: st.version, collapsedGroup,
+            toggleGroup: (id) => setCollapsedGroup((old) => old === id ? null : id),
+          }),
           h('div', { className: 'ab-stage' },
             h('header', { className: 'ab-topbar' },
               h('div', { className: 'ab-breadcrumb' }, navIcon(group.icon), group.label,
                 current.id === 'overview' ? null : h(Fragment, null, h('span', { 'aria-hidden': true }, '/'), h('b', null, current.label))),
               h('div', { className: 'ab-top-actions' },
-                h(FeatureFinder, { groups, go }),
+                h(FeatureFinder, { groups, go, st, embeddedModules }),
                 h(RunControls, { cfg, busy: saving,
                   onToggle: (enabled) => save({ enabled }, true),
                   onMode: (mode) => save({ debug: mode === '调试模式', dryRun: mode !== '正式模式' }, true) }))),
-            group.pages.length > 1 ? h('nav', { className: 'ab-page-nav', 'aria-label': group.label + '页面' },
-              group.pages.map((t) => h('button', {
-                key: t.id, type: 'button', 'aria-current': t.id === current.id ? 'page' : undefined, onClick: () => go(t.id),
-              }, t.label, markDirty(t.id)))) : null,
-            h('div', { className: 'ab-content', role: 'region', 'aria-label': current.label },
+            group.pages.length > 1 ? h(PageNav, { key: group.id, group, current, go, dirtyOf: tabDirty, expanded: collapsedGroup !== group.id }) : null,
+            h('div', { key: current.id, className: 'ab-content', role: 'region', 'aria-label': current.label },
               current.id === 'overview' || current.id === 'now' ? null : h('h1', { className: 'ab-page-title' }, current.label),
               err ? h('div', { className: 'ab-note warn', role: 'status' }, err) : null,
               h(TabBoundary, { key: current.id, onHome: () => go('overview') }, h(body, { ...props, mod: current.ext, slot: current.id === 'video' ? 'video' : undefined })),
-              current.ext ? null : customUi.filter((m) => tabOf(m) === current.id).map((m) =>
-                h(ExtPage, { key: m.id, ...props, mod: m.id, embedded: true })),
+              (embeddedModules[current.id] || []).map((m) => h(Card, { key: m.id, fold: 'module-' + m.id, title: m.name },
+                h(ExtPage, { ...props, mod: m.id, embedded: true }))),
               dirty ? h('div', { className: 'ab-savebar' }, h('span', { className: 'msg' }, '有改动还没保存'),
                 h('kbd', { className: 'ab-kbd' }, /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ S' : 'Ctrl S'),
                 h(Btn, { kind: 'ghost', disabled: saving, onClick: () => setDraft(clone(cfg)) }, '撤销'),

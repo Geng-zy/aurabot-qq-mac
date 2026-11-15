@@ -20,7 +20,8 @@ import { registerSecret, redact } from './core/redact.js'
 import { createChannels, LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createQqChannel } from './channels/qq/index.js'
 import { LOCAL_DRAW_NAMES, localDrawLabel, isLocalDrawMessage, localDrawPrompt } from './channels/qq/inbound.js'
-import { isOwner } from './chat/access.js'
+import { adultChatSelected, isOwner } from './chat/access.js'
+import { guestImageSubject } from './features/guest-image.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
@@ -217,7 +218,7 @@ export function apply(ctx) {
   const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
-  const localDrawCommands = LOCAL_DRAW_NAMES.map((name) => ({ name, desc: `/${name} 画面描述（管理员好友私聊与已授权的 QQ 会话，本机生成）`, module: 'imagegen' }))
+  const localDrawCommands = LOCAL_DRAW_NAMES.map((name) => ({ name, desc: `/${name} 画面描述（主人好友私聊及勾选的 QQ 会话，本机生成；其他会话的画面不能包含她本人）`, module: 'imagegen' }))
   const localDrawModule = () => mods?.running('imagegen') === 'builtin' ? mods.use('imagegen') : null
   const listedCommands = () => [...mods.commands(), ...(localDrawModule() ? localDrawCommands : [])]
 
@@ -232,22 +233,21 @@ export function apply(ctx) {
     if (chat.kind === 'private' && (chat.id !== msg.userId || msg.subType !== 'friend' || msg.sourceGroupId ||
         Number(raw.group_id || raw.sender?.group_id || 0) || (raw.target_id != null && String(raw.target_id) !== before.botQQ))) return
     if (chat.kind === 'group' && (chat.id !== msg.groupId || msg.subType !== 'normal' || raw.anonymous || msg.atOthers)) return
-    const list = chat.kind === 'private' ? 'private' : 'groups'
-    const permits = (current) => (chat.kind === 'private' && isOwner(current, msg.userId, msg.chatId)) ||
-      (current.allow[list].includes(chat.id) && current.imageGen.localDraw[list].includes(chat.id))
+    const ownerPrivate = chat.kind === 'private' && isOwner(before, msg.userId, msg.chatId)
     const revision = ownerAuthorizationRevision(before)
     const authorized = () => {
       const current = getConfig()
-      return current.botQQ === before.botQQ && ownerAuthorizationRevision(current) === revision && permits(current) && !mutes.muted(msg.chatId)
+      const permitted = ownerPrivate ? isOwner(current, msg.userId, msg.chatId) : adultChatSelected(current, msg.chatId)
+      return permitted && current.botQQ === before.botQQ && ownerAuthorizationRevision(current) === revision && !mutes.muted(msg.chatId)
     }
     if (!authorized() || before.debug) return
     if (chat.kind === 'group' && await hub.titleFilter.shouldIgnore(raw)) return
     if (!authorized()) return
-    const cfg = getConfig()
     const label = localDrawLabel(chat.kind)
     const reply = (status) => hub.sendSegments(msg.chatId, [{ type: 'text', data: { text: label + ' ' + status } }], label, {
       force: true, directDelivery: true, isCurrent: authorized,
     })
+    const cfg = getConfig()
     if (cfg.debug) return
     if (!cfg.enabled || cfg.dryRun) return reply('请先打开总开关并关闭试运行。')
     if (!prompt) return reply('请附上画面描述，例如「/色图 画面描述」。')
@@ -255,7 +255,7 @@ export function apply(ctx) {
     if (!imagegen) return reply('请先启用内置生图模块。')
     if (!imagegen.localReady()) return reply('请先在「生图」页部署并启用本地模型，或在「本地接口」配置并开启生图。')
     try {
-      const result = imagegen.queueLocalDraw({ prompt, chatId: msg.chatId, kind: chat.kind, userId: msg.userId, authorized, reply })
+      const result = imagegen.queueLocalDraw({ prompt, chatId: msg.chatId, kind: chat.kind, userId: msg.userId, ownerPrivate, authorized, reply })
       await reply(result.message)
     } catch {
       await reply('生图任务未能启动。')
@@ -669,6 +669,11 @@ export function apply(ctx) {
     defaultModel: () => defaultModel(ctx, { model: {} }),
     http: { body: readBody, raw: readRaw, query, send },
     media: createMediaAccess({ root: ROOT, use, config: getConfig }),
+    guestImageSubject: (prompt, { appearance }) => guestImageSubject(prompt, {
+      aliases: [...(mind?.wakeWords?.(getConfig().group.wakeWords) || getConfig().group.wakeWords), getConfig().botQQ].filter(Boolean),
+      appearance: [appearance, mind?.mind.self.profile().looks].filter(Boolean).join('\n'),
+      chat: mind?.local?.chat ? (...args) => mind.local.chat(...args) : undefined,
+    }),
     // 要告诉人一件事（点的歌没唱成之类）：由她用自己的话说，见 features/her-voice.js
     herVoice: { tell: (o) => herVoice.tell(o) },
     personas: { list: listPersonas, read: readPersona, current: () => currentPersonaText(cfg.persona.current) },
@@ -1337,7 +1342,7 @@ export function apply(ctx) {
   })
 
   route('/commands', async () => ({ ok: true, list: commandList(listedCommands()) }))
-  route('/image/local/chats', async () => {
+  route('/access/chat-names', async () => {
     const namesOf = async (action, idKey, nameKey, kind) => {
       if (!cfg.allow[kind].length || !qq.ready()) return {}
       const bot = cfg.botQQ

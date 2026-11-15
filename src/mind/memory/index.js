@@ -783,8 +783,8 @@ export function createMemory(deps) {
    * 到时候该问一问的事：这几个人的、没放下的、还没问够的、到了该问的时间的。
    * deps.care(人) 0～1：她有多在乎这个人（心疼人的程度 + 亲近），决定问不问、问几次、隔多久。
    */
-  function pendingRows({ open = false } = {}) {
-    return store.prep(`SELECT * FROM episodes WHERE kind = 'pending' AND status = 'live'${open ? " AND json_extract(json, '$.followup.done') IS NULL" : ''} ORDER BY at DESC LIMIT 200`).all()
+  function pendingRows({ open = false, sourceWindow } = {}) {
+    return store.prep(`SELECT * FROM episodes WHERE kind = 'pending' AND status = 'live'${open ? " AND json_extract(json, '$.followup.done') IS NULL" : ''} AND (? IS NULL OR window = ?) ORDER BY at DESC LIMIT 200`).all(sourceWindow ?? null, sourceWindow ?? null)
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
   }
   const followupMaxAsks = (care) => Math.max(1, Math.round((Number(S('followupMaxAsks')) || 3) * (0.4 + 0.6 * care)))
@@ -823,17 +823,17 @@ export function createMemory(deps) {
     return true
   }
   /** 还惦记着的（面板用）：某个人的，或者全部。 */
-  function followups({ person: pid = '', all = false, audienceWindow } = {}) {
-    return pendingRows({ open: !all })
+  function followups({ person: pid = '', all = false, audienceWindow, sourceWindow } = {}) {
+    return pendingRows({ open: !all, sourceWindow })
       .filter((e) => (all || !e.data.followup?.done) && (!pid || e.data.about === pid) && visibleIn(e, audienceWindow))
       .map((e) => ({ id: e.id, at: e.at, gist: e.gist, about: e.data.about, due: e.data.due || null, asks: e.data.followup?.asks || 0, nextAt: e.data.followup?.nextAt || 0, done: e.data.followup?.done || 0 }))
   }
 
   // ---------- 工作记忆 ----------
   /** 到期或快到期的要做的事（前瞻记忆）。 */
-  function dueIntentions({ window = '', audienceWindow, within = 2 * 3600000 } = {}) {
+  function dueIntentions({ window = '', audienceWindow, sourceWindow, within = 2 * 3600000 } = {}) {
     const at = now()
-    return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL ORDER BY at DESC LIMIT 50").all()
+    return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL AND (? IS NULL OR window = ?) ORDER BY at DESC LIMIT 50").all(sourceWindow ?? null, sourceWindow ?? null)
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))
       // 到期或快到期的；过期三天还没做的慢慢就不惦记了（还在记忆里，只是不再每轮提醒）。
       // 没说时间的：答应后（或上次想起后）一周内每轮记着，之后就不再时时挂在心上，聊到了还想得起来

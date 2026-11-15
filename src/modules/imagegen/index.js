@@ -13,7 +13,8 @@ import { SIZE_OPTIONS } from '../../features/image-shape.js'
 import { dataDir } from '../../core/store.js'
 import { hasActionPhrase } from '../../mind/motivation/index.js'
 import { mimeOf } from '../../core/image-info.js'
-import { isOwner } from '../../chat/access.js'
+import { adultChatSelected, isOwner } from '../../chat/access.js'
+import { isAdultImage } from '../../features/guest-image.js'
 import { localDrawLabel } from '../../channels/qq/inbound.js'
 import { createLocalImage } from '../../features/local-image.js'
 
@@ -23,7 +24,7 @@ export default {
   version: '1.0.0',
   description: '画一张图发到聊天里（qq_draw_image）',
   tab: 'imagegen',
-  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js', 'features/local-image.js'],
+  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js', 'features/local-image.js', 'features/guest-image.js'],
   setup(api) {
     const { hub, local } = api.core
     const localImage = createLocalImage({ log: api.log, mirror: () => api.config().song?.pypiMirror || 'auto' })
@@ -33,7 +34,7 @@ export default {
     api.onDispose?.(() => { lifetime.abort(); localImage.dispose(); gen.dispose() })
     const closed = () => lifetime.signal.aborted
 
-    function queueLocalDraw({ prompt, chatId, kind, userId, authorized, reply }) {
+    function queueLocalDraw({ prompt, chatId, kind, userId, ownerPrivate, authorized, reply }) {
       const label = localDrawLabel(kind)
       const enabled = () => {
         const cfg = api.config()
@@ -44,6 +45,18 @@ export default {
         run: async (task) => {
           const isCurrent = () => enabled() && task.isCurrent()
           if (!isCurrent()) return { ok: false }
+          if (!ownerPrivate) {
+            task.checkpoint('核对画面对象')
+            const subject = await api.core.guestImageSubject?.(prompt, { appearance: looks.description() })
+            if (!isCurrent()) return { ok: false }
+            if (subject !== 'other') {
+              const notice = subject === 'self' ? '这个会话里不能画关于我本人的成人图。'
+                : subject === 'unclear' ? '请写清楚画的是哪位其他角色，单说「她」或「跟刚才一样」不够。'
+                  : '本机暂时无法核对画面对象，请在心智设置中检查本地小模型。'
+              await reply(notice)
+              return { ok: false }
+            }
+          }
           task.checkpoint('生成图片')
           const signal = AbortSignal.any([task.signal, lifetime.signal])
           let buf
@@ -194,13 +207,20 @@ export default {
       // 能看图时把原图放进工具结果（image 块），她当轮就能看见自己画了什么
       render: drawResultBlocks,
       execute: async ({ prompt, shape, image, size, self, background }) => {
+        const cfg = api.config()
         const ownerTurn = hub.turnSendersAllOwner(sessionId)
-        if (api.config().imageGen.ownerOnly && !ownerTurn) return { ok: false, message: '画图只给主人画哦' }
-        if (image && api.config().imageGen.img2img === false) return { ok: false, message: '参考图功能已关闭' }
+        const ownerPrivate = ownerTurn && chat.kind === 'private' && isOwner(cfg, chat.userId, chat.chatId)
+        if (!ownerPrivate && [prompt, cfg.imageGen.stylePrompt, hub.lastTextOf?.(sessionId)].some(isAdultImage)) {
+          const message = adultChatSelected(cfg, chat.chatId)
+            ? '成人图请使用 /色图 并写清楚画的是哪位其他角色，只接收文字描述。'
+            : '当前会话未开放成人生图。'
+          return { ok: false, message }
+        }
+        if (cfg.imageGen.ownerOnly && !ownerTurn) return { ok: false, message: '画图只给主人画哦' }
+        if (image && cfg.imageGen.img2img === false) return { ok: false, message: '参考图功能已关闭' }
         if (hub.containsProtectedText?.(chat.chatId, prompt)) return { ok: false, message: '画面描述含私密内容' }
         const startedAt = Date.now()
-        const allowGlobalPaintings = ownerTurn && chat.kind === 'private' && isOwner(api.config(), chat.userId, chat.chatId)
-        let reference = await resolveDrawImage(image, { hub, chat, allowGlobalPaintings })
+        let reference = await resolveDrawImage(image, { hub, chat, allowGlobalPaintings: ownerPrivate })
         // 画她自己：有形象图就照着画（没指定别的参考图时用主图，其余几张能收的服务也一起给）；
         // 形象描述总是加进提示词，生图服务不收参考图、或者这次参考的是别的图时也画得像她
         let drawPrompt = String(prompt || '')
