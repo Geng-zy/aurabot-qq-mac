@@ -13,9 +13,8 @@ import { SIZE_OPTIONS } from '../../features/image-shape.js'
 import { dataDir } from '../../core/store.js'
 import { hasActionPhrase } from '../../mind/motivation/index.js'
 import { mimeOf } from '../../core/image-info.js'
-import { adultChatSelected, isOwner } from '../../chat/access.js'
-import { isAdultImage } from '../../features/guest-image.js'
-import { localDrawLabel } from '../../channels/qq/inbound.js'
+import { drawChatAllowed, isOwner } from '../../chat/access.js'
+import { ownerAuthorizationRevision } from '../../core/config.js'
 import { createLocalImage } from '../../features/local-image.js'
 
 export default {
@@ -24,7 +23,7 @@ export default {
   version: '1.0.0',
   description: '画一张图发到聊天里（qq_draw_image）',
   tab: 'imagegen',
-  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js', 'features/local-image.js', 'features/guest-image.js'],
+  files: ['features/imagegen.js', 'features/image-shape.js', 'features/paintings.js', 'features/codex-auth.js', 'features/codex-image.js', 'features/appearance.js', 'features/local-image.js'],
   setup(api) {
     const { hub, local } = api.core
     const localImage = createLocalImage({ log: api.log, mirror: () => api.config().song?.pypiMirror || 'auto' })
@@ -34,49 +33,6 @@ export default {
     api.onDispose?.(() => { lifetime.abort(); localImage.dispose(); gen.dispose() })
     const closed = () => lifetime.signal.aborted
 
-    function queueLocalDraw({ prompt, chatId, kind, userId, ownerPrivate, authorized, reply }) {
-      const label = localDrawLabel(kind)
-      const enabled = () => {
-        const cfg = api.config()
-        return !closed() && authorized() && cfg.enabled && !cfg.dryRun && !cfg.debug && gen.localReady()
-      }
-      return api.core.tasks.start({
-        kind: '生图', chatId, requesters: [userId],
-        run: async (task) => {
-          const isCurrent = () => enabled() && task.isCurrent()
-          if (!isCurrent()) return { ok: false }
-          if (!ownerPrivate) {
-            task.checkpoint('核对画面对象')
-            const subject = await api.core.guestImageSubject?.(prompt, { appearance: looks.description() })
-            if (!isCurrent()) return { ok: false }
-            if (subject !== 'other') {
-              const notice = subject === 'self' ? '这个会话里不能画关于我本人的成人图。'
-                : subject === 'unclear' ? '请写清楚画的是哪位其他角色，单说「她」或「跟刚才一样」不够。'
-                  : '本机暂时无法核对画面对象，请在心智设置中检查本地小模型。'
-              await reply(notice)
-              return { ok: false }
-            }
-          }
-          task.checkpoint('生成图片')
-          const signal = AbortSignal.any([task.signal, lifetime.signal])
-          let buf
-          try {
-            buf = await gen.generateDirect(prompt, { signal })
-          } catch {
-            if (isCurrent()) await reply('本地生图未完成。请在生图设置中检查环境或脚本。')
-            return { ok: false }
-          }
-          if (!isCurrent()) return { ok: false }
-          task.beginDelivery()
-          const sent = await hub.sendSegments(chatId, [
-            { type: 'text', data: { text: label } },
-            { type: 'image', data: { file: 'base64://' + buf.toString('base64') } },
-          ], label, { directDelivery: true, isCurrent })
-          if (!sent && isCurrent()) await reply('图片已生成，QQ 发送结果未确认。')
-          return { ok: Boolean(sent && !sent.queued && !sent.simulated) }
-        },
-      })
-    }
     const accountAction = (fn) => async (req) => {
       if (req?.method !== 'POST' || !/^application\/json(?:\s*;|$)/i.test(String(req.headers?.['content-type'] || ''))) return { ok: false, message: '账号操作需要 POST JSON 请求' }
       return fn(req)
@@ -193,34 +149,39 @@ export default {
 
     api.tool(({ chat, sessionId }) => (gen.enabled() && chat.kind !== 'system' ? defineTool({
       name: 'qq_draw_image',
-      description: '画一张图并发到当前 QQ 聊天里。prompt 详细描述画面；可以用 image 参考当前聊天最近收到的图（last）、引用消息里的图（quote）或自己画作的文件名来改画；shape 可按用途选择方图、竖图、横图或宽幅；size 可显式指定常用尺寸（含 2K/4K），不填就沿用 shape / 面板默认。画好会直接发出去，并给你一个画作编号（换头像、收成表情时用这个编号）。回复里简单说一句就行。',
+      description: '画一张图并发到当前 QQ 聊天里。prompt 详细描述画面；可以用 image 参考当前聊天最近收到的图（last）、引用消息里的图（quote）或自己画作的文件名来改画；shape 可按用途选择方图、竖图、横图或宽幅；size 可显式指定常用尺寸（含 2K/4K），不填就沿用 shape / 面板默认。画好会直接发出去，并给你一个画作编号（换头像、收成表情时用这个编号）。回复里用自己的话简单说一句。对方先发图然后让你画这个，用 last。引用带图的消息，用 quote。想重画同一角色时具体描述新的构图，并设置 redraw；局部改图不用 redraw。任务排队时只能说正在画，以成品实际发出为准。',
       properties: {
-        prompt: str('画面描述'),
+        prompt: str('画面描述，保留对方说的角色原名'),
         image: str('可选参考图：last = 当前聊天最近收到的一张图；quote = 当前聊天引用消息里的图；也可用画作文件名。禁止本地路径、网址'),
         self: { type: 'boolean', description: '画的是你自己（自拍、你的样子、你穿什么、合照里有你）时填 true：会照着主人给你导入的形象图和形象描述画，画出来才像你' },
         shape: { type: 'string', enum: ['square', 'portrait', 'landscape', 'wide'], description: 'square 方图 1:1；portrait 竖图 2:3；landscape 横图 3:2；wide 宽幅 16:9。可不填' },
         size: { type: 'string', enum: SIZE_OPTIONS, description: '可选尺寸，例如 2048x2048（2K）、4096x4096（4K）；优先于 shape / 面板默认，不填沿用原逻辑' },
+        redraw: { type: 'boolean', description: '以参考图的角色为基础重新设计构图和场景时填 true；仅改局部时留空' },
         background: { type: 'boolean', description: '默认后台画好直接发。本轮还要看成品、换头像或收表情时填 false' },
       },
       required: ['prompt'],
-      slow: '好，我这就去画，画好了发你。',
       // 能看图时把原图放进工具结果（image 块），她当轮就能看见自己画了什么
       render: drawResultBlocks,
-      execute: async ({ prompt, shape, image, size, self, background }) => {
+      execute: async ({ prompt, shape, image, size, self, redraw, background }) => {
         const cfg = api.config()
         const ownerTurn = hub.turnSendersAllOwner(sessionId)
         const ownerPrivate = ownerTurn && chat.kind === 'private' && isOwner(cfg, chat.userId, chat.chatId)
-        if (!ownerPrivate && [prompt, cfg.imageGen.stylePrompt, hub.lastTextOf?.(sessionId)].some(isAdultImage)) {
-          const message = adultChatSelected(cfg, chat.chatId)
-            ? '成人图请使用 /色图 并写清楚画的是哪位其他角色，只接收文字描述。'
-            : '当前会话未开放成人生图。'
-          return { ok: false, message }
+        const ownerRevision = ownerAuthorizationRevision(cfg)
+        const allowed = () => {
+          const active = api.config()
+          const verifiedOwner = ownerPrivate && ownerAuthorizationRevision(active) === ownerRevision && isOwner(active, chat.userId, chat.chatId)
+          return active.botQQ === cfg.botQQ && (verifiedOwner || drawChatAllowed(active, chat.chatId))
         }
-        if (cfg.imageGen.ownerOnly && !ownerTurn) return { ok: false, message: '画图只给主人画哦' }
+        if (!allowed()) return { ok: false, message: '这个会话未开放生图，请在生图白名单勾选。' }
         if (image && cfg.imageGen.img2img === false) return { ok: false, message: '参考图功能已关闭' }
         if (hub.containsProtectedText?.(chat.chatId, prompt)) return { ok: false, message: '画面描述含私密内容' }
         const startedAt = Date.now()
-        let reference = await resolveDrawImage(image, { hub, chat, allowGlobalPaintings: ownerPrivate })
+        let reference
+        try {
+          reference = await resolveDrawImage(image, { hub, chat, allowGlobalPaintings: ownerPrivate, quoteId: hub.quoteIdOf?.(sessionId) })
+        } catch (error) {
+          return { ok: false, message: error.message }
+        }
         // 画她自己：有形象图就照着画（没指定别的参考图时用主图，其余几张能收的服务也一起给）；
         // 形象描述总是加进提示词，生图服务不收参考图、或者这次参考的是别的图时也画得像她
         let drawPrompt = String(prompt || '')
@@ -235,12 +196,21 @@ export default {
             usedLooks = true
           }
         }
+        if (redraw && reference) {
+          drawPrompt = '以原图角色为参考绘制新的独立画面。重新设计取景与构图，去掉参考图的文字、白边和原排版。用户指定的细节优先。\n' + drawPrompt
+        }
+        if (hub.containsProtectedText?.(chat.chatId, drawPrompt)) return { ok: false, message: '画面描述含私密内容' }
         const draw = async (task) => {
-          if (closed()) return { ok: false, message: '生图模块已关闭' }
+          const isCurrent = () => !closed() && allowed() && api.config().enabled !== false && (!task || task.isCurrent())
+          if (!isCurrent()) return { ok: false, message: '生图目前不可用' }
+          const signal = task?.signal ? AbortSignal.any([task.signal, lifetime.signal]) : lifetime.signal
+          const renderImage = () => gen.generate(drawPrompt, {
+            shape, image: reference, size, extra, redraw: Boolean(redraw && reference), signal,
+          })
           task?.checkpoint('生成图片')
           let buf
           try {
-            buf = await gen.generate(drawPrompt, { shape, image: reference, size, extra, signal: task?.signal })
+            buf = await renderImage()
           } catch (error) {
             // 生图服务不收参考图：形象图不用了，只靠形象描述再画一次（她自己要的参考图出错就照常报错）
             if (!(usedLooks && !image && /参考图|reference|edit/i.test(String(error.message)))) throw error
@@ -248,14 +218,15 @@ export default {
             reference = null
             usedLooks = false
             task?.checkpoint('生成图片')
-            buf = await gen.generate(drawPrompt, { shape, size, signal: task?.signal })
+            extra = []
+            buf = await renderImage()
           }
           task?.checkpoint('准备发送')
-          if (closed()) return { ok: false, message: '生图模块已关闭' }
+          if (!isCurrent()) return { ok: false, message: '生图目前不可用' }
           const cfg = api.config()
           const dryRun = cfg.dryRun && !cfg.debug
           if (!dryRun) task?.beginDelivery()
-          const sent = dryRun ? null : await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`, task ? { isCurrent: () => !closed() && task.isCurrent(), allowQueue: false } : undefined)
+          const sent = dryRun ? null : await hub.sendSegments(chat.chatId, [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[生图] ${String(prompt).slice(0, 30)}`, { isCurrent, allowQueue: !task })
           if (!sent && !dryRun) {
             const message = '画好了，但未确认图片已发到 QQ。'
             return { ok: false, message, summary: message, deliveryFailed: true }
@@ -309,22 +280,25 @@ export default {
           if (shown && saved) out.message += `\n已保存到本机：${saved}（要收录表情包、存素材时可以用这个路径）`
           return out
         }
-        if (background === false || !api.core.tasks || api.config().debug) return draw()
-        return api.core.tasks.start({
-          kind: '生图', chatId: chat.chatId, requesters: api.core.taskRequesters?.({ chat, sessionId }) || [],
-          run: async (task) => {
-            let result
-            try { result = await draw(task) }
-            catch (error) {
-              if (!closed() && task.isCurrent()) await hub.sendText(chat.chatId, '这张图没画成，可以问我当前进度。')
-              throw error
-            }
-            if (result.deliveryFailed && !closed() && task.isCurrent()) await hub.sendText(chat.chatId, result.message)
-            return result
-          },
+        const run = async (task) => {
+          const current = () => !closed() && allowed() && api.config().enabled !== false && task?.isCurrent()
+          let result
+          try { result = await draw(task) }
+          catch (error) {
+            const detail = error?.safeDetail || '生图服务未能完成这张图。'
+            if (current()) await hub.sendText(chat.chatId, detail).catch(() => {})
+            return { ok: false, message: detail, detail }
+          }
+          if (current() && result.deliveryFailed) await hub.sendText(chat.chatId, result.message).catch(() => {})
+          return result
+        }
+        if (background === false || !api.core.tasks || api.config().debug) return run()
+        const scheduled = api.core.tasks.start({
+          kind: '生图', chatId: chat.chatId, requesters: api.core.taskRequesters?.({ chat, sessionId }) || [], run,
         })
+        return scheduled.ok ? { ...scheduled, message: '图片已排队，画好会发到当前聊天。请用你自己的话回应。' } : scheduled
       },
     }) : []))
-    return { ...gen, queueLocalDraw }
+    return gen
   },
 }

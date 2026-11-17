@@ -1,6 +1,6 @@
 // 合并转发：把聊天记录展开成文字，顺带收集里面的图片。转发里可以再套转发，所以按层往下拉。
 
-import { isLocalDrawMessage, parseMessageEvent } from './inbound.js'
+import { isLegacyDirectRecord, parseMessageEvent } from './inbound.js'
 
 export const MAX_FORWARD_DEPTH = 5 // 最多展开几层
 export const MAX_FORWARD_LINES = 200 // 一条消息里所有层加起来最多几行
@@ -28,7 +28,7 @@ export async function readForward(onebot, id, { selfId, faceName, log, depth = 1
     if (st.count >= MAX_FORWARD_LINES) break
     st.count++
     const message = node.message ?? node.content ?? node.raw_message ?? []
-    if (isLocalDrawMessage(message)) continue
+    if (isLegacyDirectRecord(message)) continue
     const who = node.sender?.card || node.sender?.nickname || String(node.sender?.user_id ?? node.user_id ?? '某人')
     const m = parseMessageEvent({ message_type: 'private', user_id: node.sender?.user_id ?? node.user_id, message }, selfId, { faceName })
     st.lines.push(`${pad}${who}：${(m.text || '（图片/表情）').slice(0, MAX_LINE)}`)

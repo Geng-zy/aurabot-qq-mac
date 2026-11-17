@@ -191,7 +191,17 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
     const agent = [...fake.agents.values()].at(-1)
     const expected = chat.chatId === 'private:10001' ? [] : purge
     assert.deepEqual([...agent.denied], expected, chat.chatId)
-    if (expected.length) assert.match(agent.guard({ name: 'purge_apply' }), /仅限主人私聊/)
+    if (expected.length) assert.match(agent.guard({ name: 'purge_apply' }), /仅限完整权限的主人私聊/)
+    else {
+      assert.equal(agent.guard({ name: 'purge_status' }), undefined)
+      cfg.ownerLevel = 'social'
+      assert.match(agent.guard({ name: 'purge_apply' }), /仅限完整权限的主人私聊/)
+      cfg.ownerLevel = 'full'
+      cfg.ownerAuthorization = { owner: cfg.ownerQQ, revision: 'c06d7781-9788-4c5a-9cbb-e8b81b2c8432' }
+      assert.match(agent.guard({ name: 'purge_apply' }), /仅限完整权限的主人私聊/)
+      await hub.pushToSession(chat, [{ type: 'text', text: '用新权限进入下一轮' }], chat.userId)
+      assert.equal([...fake.agents.values()].at(-1).guard({ name: 'purge_status' }), undefined)
+    }
   }
   const groupAgent = [...fake.agents.values()].at(-1)
   assert.equal(definitionsRead, 1, '有公开定义接口的宿主直接查询 Purge 工具')

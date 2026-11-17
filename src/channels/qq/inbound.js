@@ -1,5 +1,7 @@
 // 把一条 OneBot v11 消息事件拆成壳要的通用形状。纯函数。
 
+import { parseChat } from '../ids.js'
+
 /** 消息段数组（兼容字符串 CQ 码：只取纯文字）。 */
 export function segmentsOf(event) {
   const m = event && event.message
@@ -8,26 +10,11 @@ export function segmentsOf(event) {
   return []
 }
 
-// 用固定的文字段标记直出的图片和回执。旧的私聊标记也继续从历史中过滤。
-export const LOCAL_DRAW_NAMES = ['画图', '色图']
-export const localDrawLabel = (kind) => kind === 'group' ? '［群聊生图］' : '［私聊生图］'
-const LOCAL_DRAW_COMMAND = new RegExp(`^[/／]\\s*(?:${LOCAL_DRAW_NAMES.join('|')})(?:(?:\\s+|[:：]\\s*)([\\s\\S]*))?$`, 'u')
-const LOCAL_DRAW_REQUEST = /^(?:请\s*)?(?:帮我|给我|帮忙)?\s*(?:画|来|生成)\s*(?:一?(?:张|幅|个))?\s*(?:色图|涩图|成人图|裸图)(?:[吧呗呀吗])?(?:[。！!？?]|(?:[：:，,]\s*|\s+)([\s\S]*))?$/u
-
-const messageText = (message) => segmentsOf({ message })
-  .filter((seg) => seg.type === 'text').map((seg) => String(seg.data?.text ?? '')).join('').trim()
-
-/** null 表示不是命令。仅取用户实际发来的文字段，引用和转发不作为参数。 */
-export function localDrawPrompt(message, { natural = false } = {}) {
-  const text = messageText(message)
-  const match = LOCAL_DRAW_COMMAND.exec(text) || (natural && LOCAL_DRAW_REQUEST.exec(text))
-  return match ? (match[1] || '').trim() : null
-}
-
-export function isLocalDrawMessage(message) {
-  const text = messageText(message)
-  return LOCAL_DRAW_COMMAND.test(text) || LOCAL_DRAW_REQUEST.test(text) ||
-    text.startsWith(localDrawLabel('private')) || text.startsWith(localDrawLabel('group'))
+/** 旧版直出记录曾明确排除在模型历史之外。仅识别旧命令格式和回执标记。 */
+export function isLegacyDirectRecord(message) {
+  const text = segmentsOf({ message }).filter(({ type }) => type === 'text')
+    .map(({ data }) => String(data?.text ?? '')).join('').trim()
+  return /^[/／]\s*(?:画图|色图)(?:$|[\s:：])/u.test(text) || /^［(?:私聊|群聊)生图］/u.test(text)
 }
 
 /** 这个段是不是「表情包」（不是普通照片）。判定必须严格。 */

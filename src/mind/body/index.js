@@ -228,15 +228,17 @@ export function createBody(deps) {
   }
 
   /** 给她看的身体状态。 */
-  function describe(v = state()) {
+  function describe(v = state(), { includeHunger = true } = {}) {
     const parts = []
     parts.push(v.energy >= 0.7 ? '精力挺足' : v.energy >= 0.45 ? '精力还行' : v.energy >= 0.25 ? '有点累' : '很累')
     if (v.groggy) parts.push('刚睡醒，还迷迷糊糊的')
     else if (v.sleepiness >= 0.75) parts.push('很困')
     else if (v.sleepiness >= 0.6) parts.push('有点困')
-    if (v.hunger >= 0.8) parts.push('很饿')
-    else if (v.hunger >= 0.6) parts.push('饿了')
-    else if (v.hunger >= 0.45) parts.push('有点饿')
+    if (includeHunger) {
+      if (v.hunger >= 0.8) parts.push('很饿')
+      else if (v.hunger >= 0.6) parts.push('饿了')
+      else if (v.hunger >= 0.45) parts.push('有点饿')
+    }
     if (v.shift && Math.abs(v.shift) >= 1) parts.push('还在倒时差')
     return '【身体】' + parts.join('，')
   }

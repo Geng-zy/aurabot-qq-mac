@@ -26,6 +26,7 @@ import { LEGACY_PLATFORM, parseChat, parsePerson, privateChatOf, refOfChat } fro
 import { shortId } from '../mind/place.js'
 import { isSilence } from '../chat/reply.js'
 import { checkAllowed } from '../chat/access.js'
+import { isFoodTopic } from '../chat/reply-style.js'
 import { migrateLegacy, LEGACY_TAG } from './migrate.js'
 import { acceptsFood, naturalFoodOffer } from './feeding.js'
 import { inspectionTools } from './inspection.js'
@@ -338,16 +339,17 @@ export function createMindAdapter(opts) {
     try {
       const id = mind.identity()
       const parts = [`【此刻】${mind.nowText()}（${id.timezone}）`]
+      const includeHunger = args.chat?.kind === 'system' || args.userText === undefined || isFoodTopic(args.userText)
       if (args.publicOnly) {
         const { body, mood } = mind.feeling()
-        return [...parts, mind.body.describe(body), `【心情】${mood.label}`].join('\n')
+        return [...parts, mind.body.describe(body, { includeHunger }), `【心情】${mood.label}`].join('\n')
       }
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)
       // 身体和心情：QQ 聊天、她自己去做事的后台会话（读热榜、写空间……）都带上，哪里都是同一个她
       if (args.chat) {
         const b = mind.body.state({ persist: false })
-        parts.push(mind.body.describe(b))
+        parts.push(mind.body.describe(b, { includeHunger }))
         const people = args.chat.kind === 'system' ? [] : speakersOf.get(chatId) || [personIn(chatId, args.chat.userId)].filter(Boolean)
         parts.push(mind.emotion.describe({ window: chatId, people, body: b, name: (pid) => (mind.isOwner(pid) ? '主人' : mind.person(pid)?.name || shortId(pid)) }))
       }

@@ -1119,7 +1119,7 @@ body[data-ds-dark-theme] .ab-root{
       ] },
       { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
         { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
-        { id: 'access', label: '白名单与权限', search: '主人 群管 改资料 QQ 命令 好友申请 成人话题 色情讨论 成人生图 色图' },
+        { id: 'access', label: '白名单与权限', search: '主人 群管 改资料 QQ 命令 好友申请 生图白名单' },
         { id: 'group', label: '回复规则', search: '群聊 私聊 插话 连发 合并 转发' },
         { id: 'model', label: '聊天模型', search: 'AI 大模型 视觉 看图 图片 思考强度' },
         { id: 'asr', label: '语音识别', modules: ['voice'], search: '听语音 转文字 ASR' },
@@ -1154,7 +1154,7 @@ body[data-ds-dark-theme] .ab-root{
       connect: [['qq-workspace', '工作区与会话维护', '归档 重开 重置 搬家 目录 所有会话'], ['qq-endpoint', 'QQ 网关配置', 'WebSocket HTTP 令牌 OneBot 机器人号']],
       access: [
         ['qq-allowlist', '私聊与群白名单', '加好友 接待 谁可以聊天 群号 QQ 号'],
-        ['qq-adult-chat', '成人话题与生图', '色图 色情 涩图 18+ 成人图片'],
+        ['qq-draw-allow', '生图白名单', '画图权限 会话生图 谁能请求画图'],
         ['qq-owner', '主人与私聊权限', '管理员 QQ号 给她自由 完整 受限 纯聊天 称呼'],
         ['qq-notices', 'DSH 授权与通知', '审批 批准 提问 工作区'],
         ['qq-host-tools', '本机工具与发文件', '群里的本机工具 终端 文件 下载口 长任务 子智能体'],
@@ -1318,7 +1318,7 @@ body[data-ds-dark-theme] .ab-root{
           h('input', {
             className: 'ab-input', autoFocus: true, role: 'combobox', 'aria-label': '搜索功能', 'aria-expanded': true, 'aria-controls': 'ab-finder-list',
             'aria-activedescendant': hits[hi] ? 'ab-hit-' + hi : undefined,
-            placeholder: '例如：精排、色图、群聊必回',
+            placeholder: '例如：精排、生图、群聊必回',
             value: find,
             onChange: (e) => { setFind(e.target.value); setHi(0) },
             onKeyDown: (e) => {
@@ -1953,6 +1953,38 @@ body[data-ds-dark-theme] .ab-root{
               h('span', { className: 'ab-small ab-muted' }, '提问'), h(Switch, { on: w.question, onChange: (v) => toggle('question', w.path, v) })))))
     }
 
+    function DrawChatPermissions({ st, draft, setDraft }) {
+      const owner = String(draft.ownerQQ || '')
+      const bot = String(draft.botQQ || '')
+      const [names, setNames] = useState({})
+      const savedAllow = st.config?.allow
+      useEffect(() => {
+        let active = true
+        get('/access/chat-names').then((result) => {
+          if (active && result.ok) setNames(result)
+        }).catch(() => {})
+        return () => { active = false }
+      }, [savedAllow?.private?.join(','), savedAllow?.groups?.join(',')])
+
+      const row = (kind, label, ids, fallback) => {
+        const selected = draft.drawAllow?.[kind] || []
+        return h(Row, { label }, ids.length
+          ? ids.map((id) => h('button', {
+            className: cx('ab-chip', selected.includes(id) && 'on'), key: id, type: 'button',
+            'aria-pressed': selected.includes(id),
+            onClick: () => setDraft((prev) => {
+              const current = prev.drawAllow?.[kind] || []
+              return setPath(prev, 'drawAllow.' + kind, current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
+            }),
+          }, names[kind]?.[id] || fallback, h('span', { className: 'n' }, id)))
+          : h('span', { className: 'ab-muted ab-small' }, '暂无可选会话。'))
+      }
+
+      return h(Card, { fold: 'qq-draw-allow', title: '生图白名单', desc: '生图启用后，主人有权限画图。其他人只能在这里勾选的会话里请求画图。' },
+        row('private', '其他好友私聊', (draft.allow?.private || []).map(String).filter((id) => id !== owner && id !== bot), '好友'),
+        row('groups', 'QQ 群', (draft.allow?.groups || []).map(String), '群'))
+    }
+
     function Access({ st, draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       return h('div', { className: 'ab-grid' },
@@ -1960,7 +1992,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '私聊白名单', hint: '主人默认就在里面。' }, f.list('allow.private', { placeholder: '每行一个 QQ 号', numbers: true })),
           h(Row, { label: '群白名单', hint: '把机器人拉进群后，把群号加到这里。' }, f.list('allow.groups', { placeholder: '每行一个群号', numbers: true })),
         ),
-        h(AdultChatPermissions, { draft, setDraft, savedAllow: st.config?.allow }),
+        h(DrawChatPermissions, { st, draft, setDraft }),
         h(Card, { fold: 'qq-owner', title: '主人与私聊权限', desc: '主人的 QQ 号。群管、点歌、电脑上的操作只听主人的。' },
           h(Row, { label: '主人 QQ 号' }, f.text('ownerQQ')),
           h(Row, { label: 'ta怎么称呼你', hint: '一开始她这么叫你；之后她可以自己换个叫法（会通知你，「人格与自我」页能看、能退回）。你在这里改了，就以你改的为准。' }, f.text('ownerName', { placeholder: '主人' })),
@@ -5724,37 +5756,6 @@ body[data-ds-dark-theme] .ab-root{
         h(Row, { label: '生成步数', hint: '步数越多，生成越慢。保存后应用到聊天里的新任务。' }, f.num('imageGen.localSteps', { min: 4, max: 50 })))
     }
 
-    function AdultChatPermissions({ draft, setDraft, savedAllow }) {
-      const selected = draft.adultChat || {}
-      const owner = String(draft.ownerQQ || '')
-      const bot = String(draft.botQQ || '')
-      const [names, setNames] = useState({})
-      useEffect(() => {
-        let active = true
-        get('/access/chat-names').then((result) => { if (active && result.ok) setNames(result) })
-        return () => { active = false }
-      }, [savedAllow?.private?.join(','), savedAllow?.groups?.join(',')])
-
-      const row = (kind, label, ids, hint) => {
-        const checked = selected[kind] || []
-        return h(Row, { label, hint }, ids.length
-          ? ids.map((id) => h('button', {
-            className: cx('ab-chip', checked.includes(id) && 'on'), key: id, type: 'button', 'aria-pressed': checked.includes(id),
-            onClick: () => setDraft((prev) => {
-              const path = 'adultChat.' + kind
-              const current = prev.adultChat?.[kind] || []
-              return setPath(prev, path, current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
-            }),
-          }, names[kind]?.[id] || (kind === 'groups' ? '群' : '好友'), h('span', { className: 'n' }, id)))
-          : h('span', { className: 'ab-muted ab-small' }, '白名单里没有可选会话。'))
-      }
-
-      return h(Card, { fold: 'qq-adult-chat', title: '成人话题与生图', desc: '勾选后可讨论成人话题，也可用「/色图 画面描述」。其他会话只能画与她无关的角色，由本地小模型核对对象，再用本机生图。' },
-        h(Row, { label: '主人私聊' }, h('span', null, owner ? '默认开放 · ' + owner : '请先设置主人 QQ 号')),
-        row('private', '其他好友私聊', (draft.allow?.private || []).map(String).filter((id) => id !== owner && id !== bot)),
-        row('groups', '开放的 QQ 群', (draft.allow?.groups || []).map(String), '所选群的成员可发起讨论和生图，成品发回该群。'))
-    }
-
     function ImageGen({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const c = draft.imageGen
@@ -5822,7 +5823,6 @@ body[data-ds-dark-theme] .ab-root{
           !isCodex && (!c.shape || c.shape === 'her') ? h(Row, { label: '图片尺寸', hint: isCustom ? '接口地址 / 参数里可以用 {size} 或 {width}/{height}' : '未指定构图时沿用这个尺寸' },
             f.select('imageGen.size', [{ value: '1024x1024', label: '1024 × 1024', desc: '方图' }, { value: '768x1024', label: '768 × 1024', desc: '竖图' }, { value: '1024x768', label: '1024 × 768', desc: '横图' }, { value: '512x512', label: '512 × 512', desc: '小图，更快' }, { value: '2048x2048', label: '2K · 2048 × 2048', desc: '2K 方图' }, { value: '4096x4096', label: '4K · 4096 × 4096', desc: '4K 方图' }].filter((size) => !isLocal || Number(size.value.split('x')[0]) <= 1024), { width: 230 })) : null,
           h(Row, { label: '固定风格', hint: '每次画都会加在描述前面' }, f.text('imageGen.stylePrompt', { size: 'wide', placeholder: '例如：日系二次元，柔和光线，蓝白配色' })),
-          h(Row, { label: '只给主人画', hint: isLocal ? '关闭后，白名单内的其他会话也能请求本机生图。' : '关掉后群友也能让ta画（会花你的额度）' }, f.sw('imageGen.ownerOnly')),
           h(Row, { label: '允许参考图改画', hint: '默认开启，只接受当前聊天收到的图、引用图或图库文件名；Codex 订阅暂不支持' }, f.sw('imageGen.img2img')),
           h(Row, { label: '让ta画完自己看一眼', hint: '开着才把画好的图传给ta看（模型不支持看图时自动不传）；关掉就只回一句「画好了」，不传图' }, f.sw('imageGen.seeOwn')),
           isCustom ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, '例子：地址填 https://image.pollinations.ai/prompt/{prompt}，再加 model=flux-anime、width=1080、height=1920、nologo=true 四个参数，GET 就会请求 …/prompt/<提示词>?model=flux-anime&width=1080&…') : null,
@@ -6184,7 +6184,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'adultChat', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'], douyin: ['douyin'], heybox: ['heybox'],

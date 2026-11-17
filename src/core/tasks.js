@@ -66,7 +66,7 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
       if (item.state === 'cancelling') update(item, 'cancelled')
       else if (result?.simulated && item.state === 'running') update(item, 'simulated')
       else if (result?.ok && item.state === 'delivering') update(item, 'completed')
-      else update(item, item.state === 'delivering' ? 'unconfirmed' : 'failed')
+      else update(item, item.state === 'delivering' ? 'unconfirmed' : 'failed', result?.detail || '')
     } catch (error) {
       if (!closed) {
         try { update(item, item.state === 'cancelling' ? 'cancelled' : item.state === 'delivering' ? 'unconfirmed' : 'failed') }

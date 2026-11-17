@@ -36,7 +36,7 @@ test('防漏只滤思考，保留代码、缩进和里面的字面动作', () =>
   const { items } = parseReply(clean)
   assert.ok(items.some((item) => item.value === code && item.code))
   assert.ok(!items.some((item) => item.kind === 'poke'))
-  assert.equal(guardReply('NSFW image + 筹集 joke. Not addressed to me. Silence.[沉默]'), '[沉默]')
+  assert.equal(guardReply('Picture comment + 筹集 joke. Not addressed to me. Silence.[沉默]'), '[沉默]')
   assert.equal(guardReply('草稿：先解释一下她的想法'), '')
   assert.equal(guardReply('这条要分两步执行。'), '这条要分两步执行。')
   assert.equal(guardReply('There is one line missing. The silence was peaceful.'), 'There is one line missing. The silence was peaceful.')

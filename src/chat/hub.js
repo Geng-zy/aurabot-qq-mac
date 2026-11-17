@@ -13,9 +13,10 @@ import { ownerAuthorizationRevision } from '../core/config.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { gifFrames } from '../core/image-info.js'
 import { parseReply, bubbleDelay, wantsVoice, itemsToLine, deliveredItems, cleanOutboundText, cleanOutboundSegments, capOutboundText, isSilence } from './reply.js'
+import { CHAT_STYLE_INSTRUCTION, polishChatProse } from './reply-style.js'
 import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, topicRelevance } from './group-policy.js'
 import { guardReply, extractReply, CODE_INSTRUCTION, DIRECT_REPLY_INSTRUCTION, MARKER_INSTRUCTION } from './output-guard.js'
-import { adultChatContext, checkAllowed, levelFor, presetFor, isOwner } from './access.js'
+import { checkAllowed, levelFor, presetFor, isOwner } from './access.js'
 import { fetchImage, segmentBytes } from '../core/net.js'
 import { toMono16k } from '../voice/wav.js'
 import { asrConfigured, transcribeAudio } from '../voice/asr.js'
@@ -126,7 +127,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     'qq_read_file', 'qq_send_qzone', 'qq_group_admin', 'mind_change_self',
   ])
   const groupGates = new Map() // sessionKey → { agent, off }
-  const isPurgeTool = (name) => name.startsWith('purge_')
+  const isPurgeTool = (name) => typeof name === 'string' && name.startsWith('purge_')
   // 会话也能继承预设注册的工具，因此放行名单要以会话能限制的名称为准。
   function knownGlobalNames(agent) {
     try {
@@ -602,25 +603,70 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const failure = [sessionFailure(chatId), systemFailures.get(chatId)].find((item) => item && Date.now() < item.until)
     return failure ? { ...failure, chatId, retryAt: failure.until } : null
   }
-  /** 只处理 create 明确报告的新建孤儿；不能拿恢复失败或普通错误里的 id 去删会话。 */
-  async function cleanOrphan(error, ws, c) {
-    const match = String(error?.message || '').match(/session ["']([^"']+)["'] was created but could not attach to workspace ["']([^"']+)["']/i)
-    const details = error?.data || error?.details
-    const sid = match?.[1] || (error?.code === 'session/workspace-attach-failed' ? details?.sessionId : '')
-    const workspaceId = match?.[2] || details?.workspaceId
+  function freshSessionId(error, ws) {
+    const details = error?.details ?? error?.data
+    const structured = error?.code === 'session/workspace-attach-failed'
+    const match = structured ? null : String(error?.message || '').match(/session ["']([^"']+)["'] was created but could not attach to workspace ["']([^"']+)["']/i)
+    const sid = structured ? details?.sessionId : match?.[1]
+    if (typeof sid !== 'string' || !sid || (structured ? details?.workspaceId : match?.[2]) !== ws.id) return ''
+    if (sessionToChat.has(sessionKey(sid)) || Object.values(map().chats).some((entry) =>
+      [entry.sessionId, ...Object.values(entry.sessions || {})].some((id) => sessionKey(id) === sessionKey(sid)))) return ''
+    return sid
+  }
+
+  function workspaceHasSession(workspace, sid) {
+    return (workspace.sessionIds || []).some((id) => sessionKey(id) === sessionKey(sid))
+  }
+
+  function recoveryWorkspace(ws, sid) {
     const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
-    const attached = sid && (reg?.list?.() || []).some((workspace) => (workspace.sessionIds || []).some((id) => sessionKey(id) === sessionKey(sid)))
-    if (!sid || workspaceId !== ws.id || attached || Object.values(map().chats).some((entry) => sessionKey(entry.sessionId) === sessionKey(sid)) || sessionToChat.has(sessionKey(sid))) {
+    const workspaces = reg?.list?.() || []
+    const current = workspaces.find((entry) => entry.id === ws.id && entry.path === ws.path)
+    if (!current ||
+        workspaces.some((entry) => entry.id !== ws.id && workspaceHasSession(entry, sid)) ||
+        (reg.archivedSessionIds || []).some((id) => sessionKey(id) === sessionKey(sid))) return null
+    return current
+  }
+
+  function recoveredAttachStillCurrent(ws, sid, workspacePath) {
+    if (workspaceDirOf(getConfig()) !== workspacePath) return false
+    const current = recoveryWorkspace(ws, sid)
+    return Boolean(current && workspaceHasSession(current, sid))
+  }
+
+  async function recoverSessionAttach(error, ws, workspacePath, assertCurrent) {
+    if (error?.code !== 'session/workspace-attach-failed' || workspaceDirOf(getConfig()) !== workspacePath) return ''
+    const sid = freshSessionId(error, ws)
+    if (!sid) return ''
+    const current = recoveryWorkspace(ws, sid)
+    if (!current) return ''
+    assertActive()
+    assertCurrent?.()
+    if (!workspaceHasSession(current, sid) && typeof current.attachSession === 'function') {
+      try { await current.attachSession(sid) }
+      catch (cause) { log.debug?.('重试挂载新会话失败：', cause.message) }
+    }
+    assertActive()
+    assertCurrent?.()
+    return recoveredAttachStillCurrent(ws, sid, workspacePath) ? sid : ''
+  }
+
+  /** 只处理 create 确认的新会话，已有归属或已归档的会话交给宿主管理。 */
+  async function cleanOrphan(error, ws, c) {
+    const sid = freshSessionId(error, ws)
+    const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
+    if (!sid || (reg?.list?.() || []).some((workspace) => workspaceHasSession(workspace, sid)) ||
+        (reg?.archivedSessionIds || []).some((id) => sessionKey(id) === sessionKey(sid))) {
       log.debug?.('新会话挂载失败：无法确认孤儿会话身份，未清理')
       return
     }
-    // DSH 的会话控制器有删除 / 关闭入口才清；绝不直接删宿主文件
     const cleanup = typeof c.delete === 'function' ? c.delete : typeof c.close === 'function' ? c.close : null
-    if (!cleanup) { log.debug?.(`孤儿会话 ${sid} 无法清理：宿主 sessionController 没有删除或关闭接口`); return }
+    const archive = !cleanup && error?.code === 'session/workspace-attach-failed' && typeof reg?.archiveSession === 'function'
+    if (!cleanup && !archive) { log.debug?.(`孤儿会话 ${sid} 无法清理：宿主 sessionController 没有删除或关闭接口`); return }
     try {
-      const result = await cleanup.call(c, { sessionId: sid })
+      const result = cleanup ? await cleanup.call(c, { sessionId: sid }) : await reg.archiveSession(sid)
       if (result === false || result?.ok === false) throw new Error(result?.message || '宿主拒绝清理')
-      log.debug?.(`已清理未挂上工作区的孤儿会话 ${sid}`)
+      log.debug?.(`已${archive ? '归档' : '清理'}未挂上工作区的孤儿会话 ${sid}`)
     } catch (cleanupError) {
       log.debug?.(`孤儿会话 ${sid} 清理失败：${cleanupError.message}`)
     }
@@ -637,29 +683,40 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     try { return await task } finally { if (sessionCreating.get(creatingKey) === task) sessionCreating.delete(creatingKey) }
   }
 
+  async function recordAttachFailure(chat, workspacePath, ws, c, error) {
+    const previous = sessionFailure(chat.chatId)
+    const count = (previous?.count || 0) + 1
+    const tier = Math.min(count - 1, chat.kind === 'system' ? SESSION_BACKOFF_MS.length - 1 : 1)
+    const delay = SESSION_BACKOFF_MS[tier]
+    const message = `DSH 无法把新会话挂到工作区 ${workspacePath}，可在 DSH 里检查该工作区或删掉重建`
+    const failure = { count, tier, until: Date.now() + delay, workspacePath, message, error: String(error?.message || error) }
+    sessionFailures.set(chat.chatId, failure)
+    if (!previous || tier > previous.tier) log.warn(`${chat.chatId}：${message}；${delay / 60_000} 分钟后再试${chat.kind === 'system' ? '' : '；QQ 消息已保留，下次消息到来时重试'}`)
+    try { await cleanOrphan(error, ws, c) } catch (cleanupError) { log.debug?.(`检查孤儿会话失败，未清理：${cleanupError.message}`) }
+    assertActive()
+    throw backoffError(chat.chatId, failure, error)
+  }
+
   async function createSessionNow(chat, level, assertCurrent) {
     const workspacePath = workspaceDirOf(getConfig())
     const ws = await ensureWorkspace()
     assertActive()
     const preset = presetFor(level, getConfig())
     const c = controller()
-    let r
+    let r, recoveredFrom
     try {
       r = await c.create({ workspaceId: ws.id, agentPreset: preset })
     } catch (error) {
       if (disposed || !(error?.code === 'session/workspace-attach-failed' || /could not attach to workspace/i.test(String(error?.message || '')))) throw error
-      const previous = sessionFailure(chat.chatId)
-      const count = (previous?.count || 0) + 1
-      const tier = Math.min(count - 1, chat.kind === 'system' ? SESSION_BACKOFF_MS.length - 1 : 1)
-      const delay = SESSION_BACKOFF_MS[tier]
-      const message = `DSH 无法把新会话挂到工作区 ${workspacePath}，可在 DSH 里检查该工作区或删掉重建`
-      sessionFailures.set(chat.chatId, { count, tier, until: Date.now() + delay, workspacePath, message, error: String(error?.message || error) })
-      if (!previous || tier > previous.tier) log.warn(`${chat.chatId}：${message}；${delay / 60_000} 分钟后再试${chat.kind === 'system' ? '' : '；QQ 消息已保留，下次消息到来时重试'}`)
-      try { await cleanOrphan(error, ws, c) } catch (cleanupError) { log.debug?.(`检查孤儿会话失败，未清理：${cleanupError.message}`) }
+      const recovered = await recoverSessionAttach(error, ws, workspacePath, assertCurrent)
       assertActive()
-      throw backoffError(chat.chatId, sessionFailures.get(chat.chatId), error)
+      if (recovered) {
+        r = { sessionId: recovered }
+        recoveredFrom = error
+      } else {
+        await recordAttachFailure(chat, workspacePath, ws, c, error)
+      }
     }
-    sessionFailures.delete(chat.chatId)
     assertActive()
     // 调试会话和正式会话分开，标题也标出来，免得在侧栏里点错
     const debug = getConfig().debug
@@ -673,6 +730,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 旧实例在创建或改名期间卸载时，不能覆盖新实例的会话映射。
     assertActive()
     assertCurrent?.()
+    if (recoveredFrom) {
+      if (!recoveredAttachStillCurrent(ws, sid, workspacePath)) await recordAttachFailure(chat, workspacePath, ws, c, recoveredFrom)
+      log.info(`${chat.chatId}：已将原会话重新挂到工作区`)
+    }
+    sessionFailures.delete(chat.chatId)
     const m = map()
     const prev = m.chats[chat.chatId] || {}
     const mode = debug ? 'debug' : 'live'
@@ -939,13 +1001,17 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const tools = level !== 'chat' && typeof buildTools === 'function' ? buildTools({ chat, level, sessionId: sid }) : []
     const denied = (() => { try { return hooks?.deniedTools?.() || [] } catch (error) { return [] } })()
     // Purge 把宿主维护工具注册成全局工具，社交预设也会继承。只有完整权限的主人私聊可以用它们。
-    const ownerMaintenance = chat.kind === 'private' && level === 'full' && isOwner(getConfig(), chat.userId, chat.chatId)
+    const configAtMount = getConfig()
+    const ownerMaintenance = chat.kind === 'private' && level === 'full' && levelFor(configAtMount, chat) === 'full'
+    const maintenanceRevision = ownerMaintenance ? ownerAuthorizationRevision(configAtMount) : ''
+    const maintenanceBot = configAtMount.botQQ
     const maintenance = ownerMaintenance ? [] : purgeToolNames(agent)
     // 模块（重）启动代际也进 key：热重载后工具名通常不变，但工具对象是旧实例的闭包（issue #73），
     // 只比名字会一直 return，会话里永远用旧实现/旧状态；带上代际就整套重挂。
     let gen = 0
     try { gen = typeof toolsGeneration === 'function' ? Number(toolsGeneration()) || 0 : 0 } catch (error) { gen = 0 }
-    const toolsKey = tools.map((t) => t.name).sort().join(',') + '|' + denied.join(',') + '|' + maintenance.join(',') + '|gen:' + gen
+    const maintenanceKey = ownerMaintenance ? `owner:${maintenanceBot}:${maintenanceRevision}` : maintenance.join(',')
+    const toolsKey = tools.map((t) => t.name).sort().join(',') + '|' + denied.join(',') + '|' + maintenanceKey + '|gen:' + gen
     const prev = mounted.get(sid)
     // 工具清单变了（比如面板里开了生图）就整套重挂；同一个 agent 且没变就别动（改工具会让前缀缓存失效）
     if (prev && prev.agent === agent && prev.chatId === chat.chatId && prev.toolsKey === toolsKey) return
@@ -1022,14 +1088,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
           const sources = active?.chatId === chat.chatId ? active : sourcesFor(chat.chatId)
           for (const p of contextProviders || []) {
             try {
-              const t = p({ chat, sessionId: sid, publicOnly: sources.publicOnly === true })
+              const t = p({ chat, sessionId: sid, publicOnly: sources.publicOnly === true, userText: sources.userText })
               if (t) parts.push(t)
             } catch (error) {}
           }
           if (chat.kind !== 'system') {
             const cfg = getConfig()
-            const adultContext = adultChatContext(cfg, chat.chatId)
-            if (adultContext) parts.push(adultContext)
+            parts.push(CHAT_STYLE_INSTRUCTION)
             if (cfg.chat?.thinkingGuard !== false) parts.push(CODE_INSTRUCTION, DIRECT_REPLY_INSTRUCTION)
             if (cfg.chat?.replyMarker) parts.push(MARKER_INSTRUCTION)
           }
@@ -1045,12 +1110,17 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (chat.kind !== 'system' && !ownerMaintenance && level !== 'group-full') {
       offs.push(restrictGuest(agent))
     }
-    if (!ownerMaintenance && typeof agent.ctx.tools.guard === 'function') {
+    if (typeof agent.ctx.tools.guard === 'function') {
       const localNames = new Set(tools.map((tool) => tool.name))
       offs.push(agent.ctx.tools.guard((exec) => {
         const name = String(exec?.name || '')
-        if (isPurgeTool(name)) return '宿主维护工具仅限主人私聊。'
-        if (localNames.has(name)) return
+        if (isPurgeTool(name)) {
+          const current = getConfig()
+          if (!ownerMaintenance || levelFor(current, chat) !== 'full' || current.botQQ !== maintenanceBot
+            || ownerAuthorizationRevision(current) !== maintenanceRevision) return '宿主维护工具仅限完整权限的主人私聊。'
+          return
+        }
+        if (ownerMaintenance || localNames.has(name)) return
         if (chat.kind === 'group' && level === 'group-full' && turnSendersAllOwner(sid)) return
         if (chat.kind !== 'system' && !GROUP_GUEST_SAFE.some((re) => re.test(name))) return '当前会话没有本机或宿主工具权限。'
       }))
@@ -1088,11 +1158,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // system：系统通知，不算她说的话。
-  // directDelivery：本地生图直出，跳过改写、临时群路由、补发和心智记录。
   // quiet：额外消息（如语音后的表情）失败只写日志，不进入本轮错误列表。
-  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false, sensitive = false, allowQueue = true, directDelivery = false, transcript, sticker, onReceipt } = {}) {
+  async function sendSegments(chatId, message, note, { force = false, isCurrent = null, throwOnError = false, timeoutMs, quiet = false, system = false, sensitive = false, allowQueue = true, transcript, sticker, onReceipt } = {}) {
     if (disposed) return null
-    const cfg = getConfig()
     const tgt = targetOf(chatId)
     if (!tgt) return null
     const cleaning = cleaningFor(chatId)
@@ -1100,7 +1168,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     message = cleanOutboundSegments(message, cleaning)
     if (!message.length) return null
     // 扩展模块最后改一次（加签名、过滤敏感词、转发到别处……）；返回 null 就不发
-    if (!directDelivery && hooks?.send) {
+    if (hooks?.send) {
       try {
         const next = await hooks.send(message, { chatId, note, force })
         if (next === null) { log.info(`扩展模块拦下了 → ${chatId}：${note}`); return null }
@@ -1129,6 +1197,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       return { message_id: 'sim-' + cap.length, simulated: true }
     }
     // 调试模式什么都不发（连 force 的命令回复也不发），只在日志里能看到
+    const cfg = getConfig()
     if (cfg.debug) {
       log.info(`调试（没真发）→ ${chatId}：${note}`)
       return null
@@ -1144,11 +1213,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     const channel = channelOf(chatId)
     if (!channel) { log.warn(`发不出去：${chatId} 所在的平台没有连接`); return null }
-    const sourceGroupId = !directDelivery && tgt.kind === 'private' ? privateSources.get(normChat(chatId)) : ''
+    const sourceGroupId = tgt.kind === 'private' ? privateSources.get(normChat(chatId)) : ''
     const confirmed = scope || onReceipt ? deliveredItems(message, { transcript, sticker }) : []
-    const replyFeed = !system && !sensitive && !directDelivery && confirmed.some(({ kind }) => kind === 'text' || kind === 'voice') ? scope?.feed : undefined
+    const replyFeed = !system && !sensitive && confirmed.some(({ kind }) => kind === 'text' || kind === 'voice') ? scope?.feed : undefined
     try {
-      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive && !directDelivery, note, system, directDelivery, privacyRevision: audienceRevision(chatId), replyJournal: scope?.journal, replyFeed })
+      const r = await channel.send(chatId, message, { timeoutMs, route: sourceGroupId ? { groupId: sourceGroupId } : undefined, queue: allowQueue && !sensitive, note, system, privacyRevision: audienceRevision(chatId), replyJournal: scope?.journal, replyFeed })
       if (r?.queued) {
         if (scope) scope.queued++
         log.warn(`发到 ${chatId} 时网关还没就绪，已排队补发：${note || r.error?.message || ''}`)
@@ -1158,13 +1227,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (scope) scope.delivered.push(...confirmed)
       if (replyFeed) scope.feed = undefined
       try { onReceipt?.(confirmed) } catch (error) { log.warn('记录发送回执出错：', error.message) }
-      onDelivered({ chatId, message, note, messageId: r?.message_id ?? r?.messageId, system: system || sensitive || directDelivery, replyFeed })
+      onDelivered({ chatId, message, note, messageId: r?.message_id ?? r?.messageId, system: system || sensitive, replyFeed })
       return r
     } catch (error) {
       // 网关预热/短暂不可达：确定没发出去的消息由连接放进补发队列（上面 queued），入不了队的在这里说一声。
-      if (!directDelivery && error?.queueProblem) log.warn(`发到 ${chatId} 失败，且无法入队（${error.queueProblem}）：`, error.message)
+      if (error?.queueProblem) log.warn(`发到 ${chatId} 失败，且无法入队（${error.queueProblem}）：`, error.message)
       bump('errors')
-      const detail = directDelivery ? '本地生图直出发送失败' : sensitive ? '敏感命令回执发送失败' : error.message
+      const detail = sensitive ? '敏感命令回执发送失败' : error.message
       log.warn(`发到 ${chatId} 失败：`, detail)
       if (throwOnError) throw error
       if (!quiet) failStore.getStore()?.push(detail)
@@ -1513,6 +1582,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const r = parseReply(text, cleaningFor(chatId))
     if (r.silent) return silenceTurn(chatId)
     let items = r.items
+    if (opts.own) items = items.map((item) => {
+      if (item.code || !['text', 'voice'].includes(item.kind)) return item
+      return { ...item, value: polishChatProse(item.value, opts.userText) }
+    })
     // 分条发出的中间段（chat.everyStep）：只发她当时说的原话，不做语音转换、不补表情、不按概率改形态，
     // 免得一段闲聊被拆成语音条和表情乱入。标签、markdown 图片照旧解析。
     const interim = Boolean(opts.interim) || items.some((item) => item.code)
@@ -1763,7 +1836,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
           // 这里再记一次会让每个中间段在聊天流水里出现两遍，发送失败时还会把没发出去的话算成说过。
           log.debug(`${chatId}：分条发出上一段（${prev.length} 字）`)
           const receipt = st.deliveryReceipt
-          chainSend(chatId, () => deliver(chatId, prev, { own: true, interim: true, isCurrent: () => turnCurrent(chatId, key, token), confirmDelivery: Boolean(receipt), feed })
+          const userText = st.lastText || ''
+          chainSend(chatId, () => deliver(chatId, prev, { own: true, interim: true, userText, isCurrent: () => turnCurrent(chatId, key, token), confirmDelivery: Boolean(receipt), feed })
             .then((result) => { if (result?.delivered) receipt?.(true) }), '分条发送出错：')
         }
       }
@@ -1833,6 +1907,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // 上一轮还在跑时新消息已经排队给「下一轮」：这一轮 turn/end 不能把下一轮的说话人清掉（#90）
       st.senders = st.pendingSenders || new Set()
       st.pendingSenders = new Set()
+      st.quoteId = st.pendingQuoteId || ''
+      st.pendingQuoteId = ''
       st.directOwner = false
       st.system = null
       st.wantVoice = false
@@ -1929,8 +2005,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     } catch (error) {
       log.debug(`引用消息没拉到（${id}）：`, error.message)
     }
-    if (quoteCache.size >= QUOTE_CACHE_MAX) quoteCache.delete(quoteCache.keys().next().value)
-    quoteCache.set(key, out)
+    if (out.ok) {
+      if (quoteCache.size >= QUOTE_CACHE_MAX) quoteCache.delete(quoteCache.keys().next().value)
+      quoteCache.set(key, out)
+    }
     return out
   }
 
@@ -1978,12 +2056,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   /** 生图复用收到的媒体段和引用缓存，不接受工具传来的路径、URL 或任意消息 ID。 */
-  async function referenceImage(chat, source = 'last') {
+  async function referenceImage(chat, source = 'last', { replyId } = {}) {
     if (disposed) throw disposedError()
     let seg
     if (source === 'quote') {
       const now = Date.now()
-      const q = [...quoteCache.values()].findLast((item) => item.chatId === chat.chatId && item.ok && item.at <= now && now - item.at < 30 * 60_000)
+      const q = replyId === undefined
+        ? [...quoteCache.values()].findLast((item) => item.chatId === chat.chatId && item.ok && item.at <= now && now - item.at < 30 * 60_000)
+        : await quotedInfo(replyId, chat)
       seg = q?.images.at(-1) || q?.stickers.at(-1)
     } else {
       seg = recentMedia.get(chat.chatId).at(-1)?.seg
@@ -2366,7 +2446,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         g = mind.gate({
           chatId: msg.chatId, kind: msg.kind, userId: msg.userId,
           direct: msg.kind === 'private' || mode === 'must',
-          explicitlyAddressed: groupEntry?.direct === true,
+          explicitlyAddressed: groupEntry?.direct === true || (msg.kind === 'private' && isOwner(cfg, msg.userId, msg.chatId)),
           event: msg,
         })
       } catch (error) { log.debug('心智判断回不回失败：', error.message) }
@@ -2418,7 +2498,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     onActivity?.({ kind: 'in', chatId: msg.chatId, userId: msg.userId, nickname: msg.nickname, text, direct: msg.kind === 'private' || msg.mentioned || mode === 'must', owner: isOwner(cfg, msg.userId, msg.chatId) })
 
     const observedText = [msg.text, voiceText].filter(Boolean).join(' ')
-    enqueue({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, groupId: msg.groupId, nickname: msg.nickname }, content, msg.userId, wantsVoice(msg.text), mode, { stickerPick, observedText })
+    enqueue({ chatId: msg.chatId, kind: msg.kind, userId: msg.userId, groupId: msg.groupId, nickname: msg.nickname }, content, msg.userId, wantsVoice(msg.text), mode, { stickerPick, observedText, replyId: msg.replyId })
   }
 
   /** 把消息里的「[合并转发]」换成里面的聊天记录，里面的图片并进这条消息一起给她看。 */
@@ -2546,7 +2626,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       return `[${i + 1 + refOffset}] ${line(x)}\n【本条来源】${x.mid && x.mid !== '0' ? '平台收到的' + senderLabel(chat.chatId, x.uid) + '的消息' : '会话事件'}`
     })
     groupRefs.set(chat.groupId, refs)
-    const observations = fresh.filter((x) => x.uid && x.observedText).map((x) => ({ speaker: x.uid, text: x.observedText }))
+    const observations = fresh.filter((x) => x.uid && x.observedText).map((x) => ({ speaker: x.uid, text: x.observedText, replyId: x.replyId }))
     const query = fresh.map((x) => x.observedText ?? x.text).filter(Boolean).join('\n')
     // 按每个人最后一次发言的先后排列，供记忆挑选最近的说话人。
     const speakers = [...new Set(fresh.map((x) => String(x.uid || '')).filter(Boolean).reverse())].reverse()
@@ -2677,7 +2757,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const abort = new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))
       const out = await Promise.race([askModel(dsh, {
         cfg: getConfig(), model: request.model, system: request.persona + '\n' + context +
-          '\n按人设回答对方刚说的话。只输出要交给对方的正文。不要声称执行了任何操作。',
+          '\n' + CHAT_STYLE_INSTRUCTION + '\n按人设回答对方刚说的话。只输出要交给对方的正文。不要声称执行了任何操作。',
         text: request.text, maxTokens: 400, reasoningEffort: 'low', module: 'chat-recovery', signal, retryEmpty: false,
       }), abort]).catch((error) => {
         log.debug('补写回复失败：', error?.code || error.name)
@@ -2697,7 +2777,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         ])
       }
       if (!active()) return
-      let text = await generate(String(mind.contextFor?.({ chat: request.chat }) || '').slice(0, 1400))
+      let text = await generate(String(mind.contextFor?.({ chat: request.chat, userText: request.text }) || '').slice(0, 1400))
       if (text === '' && active()) {
         if (activeKey === key) await rotate()
         if (active()) text = await generate('')
@@ -2776,7 +2856,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       else if (c.type === 'image' && p.images.length < MAX_MESSAGE_IMAGES) p.images.push(c)
     }
     if (extra.stickerPick) p.stickerPick = (p.stickerPick || 0) + extra.stickerPick
-    if (chat.kind === 'private' && senderId && extra.observedText) p.observations.push({ speaker: senderId, text: extra.observedText })
+    if (chat.kind === 'private' && senderId && extra.observedText) p.observations.push({ speaker: senderId, text: extra.observedText, replyId: extra.replyId })
     if (senderId) p.senders.add(String(senderId))
     if (mode === 'must' && senderId && mind?.mustReplyOwner?.(chat.chatId, senderId)) p.mustReply = true
     if (mode === 'must' && chat.kind === 'group' && senderId && !isOwner(getConfig(), senderId, chat.chatId)) p.nonOwnerCall = true
@@ -2808,7 +2888,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const query = p.observations.map((x) => x.text).join('\n')
       const [first, ...rest] = [...p.senders]
       try {
-        await pushToSession(p.chat, content, first, { wantVoice: p.wantVoice, extraSenders: rest, queryText: query, mustReply: p.mustReply, steer: true })
+        await pushToSession(p.chat, content, first, { wantVoice: p.wantVoice, extraSenders: rest, queryText: query, observations: p.observations, mustReply: p.mustReply, steer: true })
       } catch (error) {
         bump('errors')
         log.error(`插话进 DSH 失败（${chatId}）：`, error.message)
@@ -3201,6 +3281,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 上一句也留着：这一句太短（「嗯嗯」「然后呢」）时一起拿去想起相关的事
     if (st.lastText) st.prevText = st.lastText
     st.lastText = String(opts.queryText ?? content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')).slice(-600)
+    const quoteId = opts.observations?.findLast(({ replyId }) => replyId)?.replyId || ''
+    if (queuedNextTurn) st.pendingQuoteId = quoteId
+    else if (!opts.steer || quoteId) st.quoteId = quoteId
     st.speakers = opts.speakers || (senderId ? [String(senderId), ...(opts.extraSenders || []).map(String)] : [])
     if (opts.wantVoice) st.wantVoice = true
     if (!opts.steer) st.autoReply = opts.autoReply || null
@@ -3840,9 +3923,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     chatOfSession,
     isOwnedSession,
     canSeeImages: canSeeFor,
+    modelFor: targetModel,
     resetSessions,
     ensureDebugSession,
     lastTextOf: (sessionId) => turnState.get(sessionKey(sessionId))?.lastText || '',
+    quoteIdOf: (sessionId) => turnState.get(sessionKey(sessionId))?.quoteId || '',
     prevTextOf: (sessionId) => turnState.get(sessionKey(sessionId))?.prevText || '',
     speakersOf: (sessionId) => turnState.get(sessionKey(sessionId))?.speakers || [],
     logChat,

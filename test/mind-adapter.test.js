@@ -7,6 +7,8 @@ import { join } from 'node:path'
 import { createMindAdapter, segmentsText, windowOf } from '../src/mind-adapter/index.js'
 import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
+import { createFakeDsh } from './helpers/fake-dsh.js'
+import { qqIn } from './helpers/qq-in.js'
 
 const T0 = Date.UTC(2026, 10, 10, 2, 0, 0) // 上海 10:00
 
@@ -141,6 +143,44 @@ test('hub 的统一出口：真发出去才记成她说的话，被拦下的不�
   assert.equal(said[0].chatId, 'group:9')
   assert.equal(said[0].messageId, 77)
   assert.equal(segmentsText(said[0].message), '你好')
+})
+
+test('主人发来的私聊直接进入回复轮次，精力不足时仍可少回普通好友', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'aurabot-mind-hub-'))
+  const previous = process.env.AURABOT_DATA_DIR
+  process.env.AURABOT_DATA_DIR = dir
+  const cfg = normalize({
+    enabled: true, dryRun: true, setupDone: true, ownerQQ: '1', botQQ: '10', workspaceDir: dir,
+    allow: { private: ['2'] }, merge: { enabled: false }, stickers: { autoChance: 0, collect: false },
+  })
+  const mind = createMindAdapter({ memoryDb: true, getConfig: () => cfg, now: () => T0, random: () => 0 })
+  mind.mind.body.spend(1)
+  assert.equal(mind.mind.setting('identity.mustReplyOwner'), false)
+  assert.equal(mind.mind.body.state().energy, 0)
+  const fake = createFakeDsh({ brain: async () => '我在。' })
+  const hub = createHub({
+    dsh: fake.ctx, getConfig: () => cfg, mind, log: { info() {}, debug() {}, error() {}, warn() {} },
+    onebot: { async call() { return { message_id: 1 } } },
+  })
+  fake.ctx.effect(() => fake.ctx.on('session/event', hub.onSessionEvent))
+  t.after(() => {
+    hub.dispose()
+    mind.close()
+    fake.dispose()
+    if (previous === undefined) delete process.env.AURABOT_DATA_DIR
+    else process.env.AURABOT_DATA_DIR = previous
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  const send = (sender, text) => qqIn(hub, {
+    message_type: 'private', sub_type: 'friend', self_id: 10, user_id: sender, message_id: sender,
+    sender: { user_id: sender, nickname: '好友' }, message: [{ type: 'text', data: { text } }],
+  })
+  await send(2, '好友问在吗')
+  await send(1, '主人直接问在吗')
+  for (let i = 0; i < 20; i++) await new Promise(setImmediate)
+  assert.deepEqual(fake.turns.map((turn) => turn.reply), ['我在。'])
+  assert.match(fake.turns[0].userText, /主人直接问在吗/)
 })
 
 test('接上之前的聊天：她还在分段发、新消息已经到了，也只去掉这一轮正文里的那条', () => {

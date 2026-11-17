@@ -21,6 +21,21 @@ test('文字里的 <face:名字> 换成系统表情段，和文字在同一条�
   assert.equal(stripFaceTags('好<face:捂脸> 呀'), '好 呀')
 })
 
+test('方括号表情标记与原格式共用转换，关闭表情和语音时不读出标签', () => {
+  const sentence = '这锅我不接[表情:无语]，继续说吧［表情：呲牙］'
+  assert.deepEqual(textToSegments(sentence, idOf), [
+    { type: 'text', data: { text: '这锅我不接' } },
+    { type: 'face', data: { id: '462' } },
+    { type: 'text', data: { text: '，继续说吧' } },
+    { type: 'face', data: { id: '13' } },
+  ])
+  assert.equal(stripFaceTags(sentence), '这锅我不接，继续说吧')
+  assert.deepEqual(splitSpeakable(sentence), { spoken: '这锅我不接，继续说吧', extras: '<face:无语><face:呲牙>' })
+  assert.deepEqual(textToSegments('保留[无语]和【普通备注】[表情:不存在]', idOf), [
+    { type: 'text', data: { text: '保留[无语]和【普通备注】' } },
+  ])
+})
+
 test('网关目录：只认数字编号（emoji 分组不算），同名优先普通表情，别名也认', () => {
   const idx = buildFaceIndex({ packs: [
     { pack_name: '超级表情', emojis: [{ q_sid: '5', q_des: '/流泪', is_super: true }, { q_sid: '319', q_des: '/比心', is_super: true }] },

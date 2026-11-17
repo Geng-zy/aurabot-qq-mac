@@ -5,7 +5,7 @@
 import { createOneBotClient, isDefiniteFailure } from './client.js'
 import { createOutbox } from './outbox.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
-import { isLocalDrawMessage, parseMessageEvent } from './inbound.js'
+import { isLegacyDirectRecord, parseMessageEvent } from './inbound.js'
 import { createFaces, textToSegments, stripFaceTags } from './faces.js'
 import { readForward } from './forward.js'
 import { noticeText } from './notices.js'
@@ -141,7 +141,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   /** 核对通过后，普通事件先发给原始事件监听器，再拆成壳认识的几种。 */
   function dispatch(ev) {
     if (ev.post_type === 'message' && !inbox.accept(ev)) return
-    if (!isLocalDrawMessage(ev.message ?? ev.raw_message)) emit({ type: 'raw', event: ev })
+    emit({ type: 'raw', event: ev })
     if (ev.post_type === 'message') emit({ type: 'message', msg: channel.parse(ev) })
     else if (ev.post_type !== 'notice') return
     else if (ev.notice_type === 'bot_offline') {
@@ -205,13 +205,23 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       && (/^https?:\/\//i.test(x) || x.startsWith('base64://') || x.startsWith('file://') || /^[a-zA-Z]:[\\/]/.test(x)))
   }
   const quoteNeedsHistory = (parsed) => [...(parsed.images || []), ...(parsed.stickers || [])].some((seg) => !quoteSegUsable(seg))
+  async function fetchHistory(chatId, count, { timeoutMs = 8000, retries, anchor } = {}) {
+    const tgt = qqTarget(chatId)
+    if (!tgt) return []
+    const base = tgt.kind === 'group' ? { group_id: Number(tgt.id) } : { user_id: Number(tgt.id) }
+    const params = anchor ? { ...base, message_id: anchor, count, reverse_order: false } : { ...base, count }
+    const rows = await gw.call(tgt.kind === 'group' ? 'get_group_msg_history' : 'get_friend_msg_history', params, { timeoutMs, ...(retries !== undefined ? { retries } : {}) })
+    return (Array.isArray(rows) ? rows : rows?.messages || [])
+      .filter((row) => !isLegacyDirectRecord(row?.message ?? row?.raw_message))
+  }
+
   async function quoteFromHistory(chatId, id) {
     // 先用引用 id 当锚点（能取到更早的消息），拿不到再退回「最近 30 条」
     const anchor = /^-?\d+$/.test(id) ? Number(id) : 0
     const attempts = anchor ? [{ anchor, count: 5 }, { count: 30 }] : [{ count: 30 }]
     for (const a of attempts) {
       try {
-        const list = await channel.history(chatId, a.count, { anchor: a.anchor, retries: 0 })
+        const list = await fetchHistory(chatId, a.count, { anchor: a.anchor, retries: 0 })
         const hit = list.find((m) => String(m?.message_id ?? '') === id || String(m?.real_id ?? '') === id)
         if (hit) return hit
       } catch (error) {
@@ -273,16 +283,14 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
      * 发一条消息。route.groupId：私聊是从群里临时会话来的，回的时候带上群号。
      * queue：确定没发出去（网关还没就绪）时放进补发队列，返回 { queued:true }；入不了队把原因写在 error.queueProblem 上再抛。
      */
-    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '', directDelivery = false, replyJournal, replyFeed } = {}) {
+    async send(chatId, message, { timeoutMs, route, queue = false, note = '', system = false, privacyRevision = '', replyJournal, replyFeed } = {}) {
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error(`不是 QQ 的聊天：${chatId}`)
       const action = tgt.kind === 'group' ? 'send_group_msg' : 'send_private_msg'
       const sourceGroupId = tgt.kind === 'private' ? String(route?.groupId || '') : ''
       const params = tgt.kind === 'group' ? { group_id: Number(tgt.id), message } : { user_id: Number(tgt.id), ...(sourceGroupId ? { group_id: Number(sourceGroupId) } : {}), message }
       try {
-        if (directDelivery && (sourceGroupId || !ready())) throw new Error('没有已核对的 QQ 连接')
-        // 本地生图直出使用接收消息的已核对连接，不在其他连接上重试。
-        const r = await gw.call(action, params, directDelivery ? { timeoutMs, wsOnly: true } : timeoutMs ? { timeoutMs } : undefined)
+        const r = await gw.call(action, params, timeoutMs ? { timeoutMs } : undefined)
         return { ...(r && typeof r === 'object' ? r : {}), ...(r && r.message_id !== undefined ? { messageId: String(r.message_id) } : {}) }
       } catch (error) {
         // 只补发没连上网关的消息。网关明确拒绝了内容，或超时结果不明，都不重发。
@@ -389,15 +397,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       if (!tgt || tgt.kind !== 'private') return
       await gw.call('set_input_status', { user_id: Number(tgt.id), event_type: 1 }, { timeoutMs: 5000 })
     },
-    /** 最近的消息（保留原格式，滤掉直出生图）。 */
-    async history(chatId, count, { timeoutMs = 8000, retries, anchor } = {}) {
-      const tgt = qqTarget(chatId)
-      if (!tgt) return []
-      const base = tgt.kind === 'group' ? { group_id: Number(tgt.id) } : { user_id: Number(tgt.id) }
-      const params = anchor ? { ...base, message_id: anchor, count, reverse_order: false } : { ...base, count }
-      const r = await gw.call(tgt.kind === 'group' ? 'get_group_msg_history' : 'get_friend_msg_history', params, { timeoutMs, ...(retries !== undefined ? { retries } : {}) })
-      return (Array.isArray(r) ? r : r?.messages || []).filter((m) => !isLocalDrawMessage(m?.message ?? m?.raw_message))
-    },
+    history: fetchHistory,
     /**
      * 被引用的那条消息：{ time, userId, nickname, msg }（msg 是通用形状）。
      * get_msg 对「她发出的表情包/图片」可能只回空 url + 裸文件名（下载不了），这时退回消息历史，里面带可用 url。
@@ -405,8 +405,9 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     async quote(chatId, id) {
       const tgt = qqTarget(chatId)
       if (!tgt) throw new Error('引用没有对应的聊天')
-      let m = await gw.call('get_msg', { message_id: Number(id) || id }, { timeoutMs: 5000, retries: 0 })
-      if (isLocalDrawMessage(m?.message ?? m?.raw_message)) throw new Error('这条消息不对聊天模型开放')
+      const number = Number(id)
+      let m = await gw.call('get_msg', { message_id: Number.isSafeInteger(number) ? number : id }, { timeoutMs: 5000, retries: 0 })
+      if (isLegacyDirectRecord(m?.message ?? m?.raw_message)) throw new Error('这条历史记录不对聊天模型开放')
       const group = m?.group_id && String(m.group_id) !== '0' ? String(m.group_id) : ''
       const author = String(m?.sender?.user_id ?? m?.user_id ?? '')
       const peer = String(m?.target_id ?? m?.peer_id ?? '')

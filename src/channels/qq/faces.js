@@ -18,7 +18,9 @@ export const COMMON_FACES = (() => {
 /** 给她看的几个例子（提示词里用，别太长）。 */
 export const FACE_EXAMPLES = ['微笑', '呲牙', '偷笑', '捂脸', '斜眼笑', '笑哭', '吃瓜', '白眼', '委屈', '裂开', '摸鱼', '抱拳', '赞', 'OK']
 
-const FACE_TAG = /<face:\s*([^>]{1,12}?)\s*>(?:\s*<\/face>)?/g
+// 模型也会把系统表情写成方括号里的文字标记。
+const FACE_TAG = /<face:\s*([^>]{1,12}?)\s*>(?:\s*<\/face>)?|[\[［【]表情[ \t]*[:：][ \t]*([^\]］】\r\n]{1,12}?)[ \t]*[\]］】]/g
+const faceTagName = (match) => (match[1] ?? match[2]).trim()
 
 /**
  * 网关目录（{ packs: [{ pack_name, emojis: [{ q_sid, q_des, emoji_name_alias, is_super }] }] }）→ 名字 / 编号对照。
@@ -52,7 +54,7 @@ const COMMON_INDEX = (() => {
 })()
 
 /**
- * 把文字里的 <face:名字> 换成 QQ 消息段（文字段和表情段交替）；认不出的名字直接去掉，不把标签原样发出去。
+ * 把 <face:名字> 和 [表情:名字] 换成 QQ 消息段（文字段和表情段交替）；认不出的名字直接去掉。
  * idOf(name) → 编号或 undefined。
  */
 export function textToSegments(text, idOf) {
@@ -61,7 +63,7 @@ export function textToSegments(text, idOf) {
   let last = 0
   for (const m of s.matchAll(FACE_TAG)) {
     if (m.index > last) out.push({ type: 'text', data: { text: s.slice(last, m.index) } })
-    const id = idOf(m[1])
+    const id = idOf(faceTagName(m))
     if (id !== undefined && id !== null) out.push({ type: 'face', data: { id: String(id) } })
     last = m.index + m[0].length
   }
@@ -76,7 +78,7 @@ export function textToSegments(text, idOf) {
   return merged.filter((seg) => seg.type !== 'text' || seg.data.text.trim())
 }
 
-/** 去掉文字里的 <face:…> 标签（系统表情关着时用）。 */
+/** 去掉系统表情标签（系统表情关着时用）。 */
 export const stripFaceTags = (text) => String(text ?? '').replace(FACE_TAG, '').replace(/[ \t]{2,}/g, ' ').trim()
 
 /** 语音文本收尾：去掉 <voice> 标签、连续空格、首尾空白。 */
@@ -94,22 +96,22 @@ export function speakableText (text) {
 /**
  * 把一条语音拆成「要念的」和「只剩表情/符号的」两半：表情不念出来，但单独补一条文字发出去
  * （用户反馈：发语音时表情直接消失，希望表情和语音分开发）。
- * extras 里保留 <face:名字> 原文，交给 sendText 换成真的 QQ 表情；表情包 / 戳一戳没有「单独发一条」的说法，只从语音里去掉。
+ * extras 里用 <face:名字> 表示系统表情，交给 sendText 换成真的 QQ 表情；表情包 / 戳一戳只从语音里去掉。
  * 例：'<face:呲牙>晚安😁' → { spoken: '晚安', extras: '<face:呲牙>😁' }
  */
 export function splitSpeakable (text) {
   const raw = String(text ?? '')
   // emoji 的那一段：图形符号之外还要算上区域指示符（🇨🇳 这类国旗不在 Extended_Pictographic 里，单列会漏掉、被 TTS 念出来）、
   // 键帽（1️⃣ 要连前面的数字一起拆走）、连接符 / 变体选择符、肤色修饰符（👋🏽）、标签字符（🏴󠁧󠁢󠁳󠁣󠁴󠁿 的尾巴）。
-  const re = /<face:[^>]{1,12}?>(?:\s*<\/face>)?|<sticker:[^>]*>(?:\s*<\/sticker>)?|<poke\s*\/?>|[#*0-9]\uFE0F?\u20E3|[\p{Extended_Pictographic}\p{Regional_Indicator}\u200D\uFE0F\u20E3\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]/gu
+  const others = /<sticker:[^>]*>(?:\s*<\/sticker>)?|<poke\s*\/?>|[#*0-9]\uFE0F?\u20E3|[\p{Extended_Pictographic}\p{Regional_Indicator}\u200D\uFE0F\u20E3\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]/u
+  const re = new RegExp(`${FACE_TAG.source}|${others.source}`, 'gu')
   let spoken = ''
   let extras = ''
   let last = 0
-  let m
-  while ((m = re.exec(raw)) !== null) {
+  for (const m of raw.matchAll(re)) {
     spoken += raw.slice(last, m.index)
-    if (!m[0].startsWith('<')) extras += m[0] // 不是标签：emoji / 国旗 / 键帽，要补发
-    else if (m[0].startsWith('<face:')) extras += m[0].replace(/\s*<\/face>\s*$/i, '') // 只留开头标签，</face> 不补发
+    if (m[1] !== undefined || m[2] !== undefined) extras += `<face:${faceTagName(m)}>`
+    else if (!m[0].startsWith('<')) extras += m[0] // emoji / 国旗 / 键帽
     last = m.index + m[0].length
   }
   spoken += raw.slice(last)

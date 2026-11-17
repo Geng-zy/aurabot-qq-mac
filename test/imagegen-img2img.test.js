@@ -21,7 +21,7 @@ const OWNER = '10000001', BOT = '20000002'
 const privateChat = { kind: 'private', chatId: `private:${OWNER}`, userId: OWNER }
 const groupChat = { kind: 'group', chatId: 'group:123', groupId: '123' }
 const unsupported = { message: '这个生图服务不支持参考图' }
-const config = (extra = {}) => normalize({ dryRun: false, freedom: false, imageGen: { enabled: true, baseUrl: 'https://image.example/v1', apiKey: 'key', model: 'image-test', stylePrompt: '水彩', ...extra } })
+const config = (extra = {}) => normalize({ ownerQQ: OWNER, enabled: true, dryRun: false, freedom: false, imageGen: { enabled: true, baseUrl: 'https://image.example/v1', apiKey: 'key', model: 'image-test', stylePrompt: '水彩', ...extra } })
 const result = () => new Response(JSON.stringify({ data: [{ b64_json: b64 }] }))
 function sandbox(t) {
   const previous = process.env.AURABOT_DATA_DIR
@@ -219,9 +219,10 @@ test('last 沿用 30 分钟有效期，取不到图就报错', async (t) => {
   await assert.rejects(resolveDrawImage('last', { hub, chat: privateChat }), /最近半小时没有收到图片/)
 })
 
-test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保留短期有效期', async (t) => {
+test('quote 复用已读取的引用，按聊天隔离并保留短期有效期，读取失败可重试', async (t) => {
   sandbox(t)
   let now = 1_800_000_000_000, gets = 0
+  let retries = 0
   t.mock.method(Date, 'now', () => now)
   const cfg = normalize({ freedom: false, enabled: true, botQQ: BOT, ownerQQ: OWNER, dryRun: true,
     merge: { enabled: true, waitSec: 3600, maxSec: 3600 },
@@ -229,8 +230,12 @@ test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保
   })
   const hub = createHub({ dsh: {}, getConfig: () => cfg, log, stickers: {},
     hooks: { groupDecide: () => ({ reply: false }) },
-    onebot: { call: async (action) => {
+    onebot: { call: async (action, params) => {
       assert.equal(action, 'get_msg')
+      if (String(params.message_id) === '43') {
+        if (++retries === 1) throw new Error('网关暂时读不到引用')
+        return { message_type: 'group', group_id: '123', sender: { user_id: OWNER }, message: [{ type: 'image', data: { file: 'base64://' + b64 } }] }
+      }
       gets++
       const source = gets <= 2 ? { message_type: 'group', group_id: gets === 1 ? '123' : '456' } : { message_type: 'private' }
       return { ...source, sender: { user_id: OWNER }, message: [{ type: 'image', data: { file: 'base64://' + (gets === 2 ? OTHER : PNG).toString('base64') } }] }
@@ -254,6 +259,11 @@ test('quote 复用 hub 引用解析缓存，按聊天隔离，支持私聊并保
   assert.deepEqual(hub.recentMedia(privateChat.chatId), [], '引用图仍放原有引用缓存，不另存一份最近媒体')
   now += 30 * 60_000
   await assert.rejects(hub.referenceImage(privateChat, 'quote'), /没有可用的引用图片/)
+  await quote('123', '43')
+  await assert.rejects(hub.referenceImage(groupChat, 'quote'), /没有可用的引用图片/)
+  await quote('123', '43')
+  assert.deepEqual(await hub.referenceImage(groupChat, 'quote'), PNG)
+  assert.equal(retries, 2)
 })
 
 function drawTool(cfg, overrides = {}, tasks) {
@@ -297,10 +307,10 @@ test('qq_draw_image 的 image 可选；quote 来源传递；沿用发送、存�
   assert.equal(s.generated[1].args.image, undefined)
 })
 
-test('ownerOnly 和 img2img 在读图前检查；拒绝时不生成、不发送、不记经历', async (t) => {
+test('生图白名单和 img2img 在读图前检查；拒绝时不生成、不发送、不记经历', async (t) => {
   sandbox(t)
   for (const [cfg, overrides, message] of [
-    [config(), { turnSendersAllOwner: () => false }, /只给主人/],
+    [config(), { turnSendersAllOwner: () => false }, /未开放生图/],
     [config({ img2img: false }), {}, /参考图功能已关闭/],
   ]) {
     const s = drawTool(cfg, overrides)

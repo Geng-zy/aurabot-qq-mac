@@ -11,6 +11,7 @@ import { mimeOf } from '../core/image-info.js'
 
 const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
 const dir = () => dataDir('imagegen')
+const paintingSlug = (prompt) => String(prompt || '图').replace(/[\\/:*?"<>|\s]+/g, '-').slice(0, 20)
 
 /**
  * 把画好的图存一份，返回文件路径；存失败返回 ''。
@@ -22,7 +23,7 @@ export function savePainting (buf, prompt, { now = new Date() } = {}) {
     mkdirSync(d, { recursive: true })
     const p = (n) => String(n).padStart(2, '0')
     const stamp = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`
-    const slug = String(prompt || '图').replace(/[\\/:*?"<>|\s]+/g, '-').slice(0, 20)
+    const slug = paintingSlug(prompt)
     const ext = mimeOf(buf) === 'image/jpeg' ? 'jpg' : 'png'
     const file = join(d, `${stamp}-${slug}.${ext}`)
     writeFileSync(file, buf)

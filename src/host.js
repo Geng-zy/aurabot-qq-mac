@@ -19,9 +19,7 @@ import { createLogger } from './core/logger.js'
 import { registerSecret, redact } from './core/redact.js'
 import { createChannels, LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createQqChannel } from './channels/qq/index.js'
-import { LOCAL_DRAW_NAMES, localDrawLabel, isLocalDrawMessage, localDrawPrompt } from './channels/qq/inbound.js'
-import { adultChatSelected, isOwner } from './chat/access.js'
-import { guestImageSubject } from './features/guest-image.js'
+import { checkAllowed, isOwner } from './chat/access.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
@@ -218,50 +216,6 @@ export function apply(ctx) {
   const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
-  const localDrawCommands = LOCAL_DRAW_NAMES.map((name) => ({ name, desc: `/${name} 画面描述（主人好友私聊及勾选的 QQ 会话，本机生成；其他会话的画面不能包含她本人）`, module: 'imagegen' }))
-  const localDrawModule = () => mods?.running('imagegen') === 'builtin' ? mods.use('imagegen') : null
-  const listedCommands = () => [...mods.commands(), ...(localDrawModule() ? localDrawCommands : [])]
-
-  async function onLocalDraw(msg, prompt) {
-    const chat = parseChat(msg.chatId)
-    const raw = msg.raw
-    const before = getConfig()
-    const validId = (id) => /^[1-9]\d*$/.test(id) && Number.isSafeInteger(Number(id))
-    if (!raw || msg.recovered || chat?.platform !== 'qq' || chat.kind !== msg.kind || !validId(chat.id) ||
-        !validId(msg.userId) || msg.userId === before.botQQ || msg.selfId !== before.botQQ ||
-        (raw.sender?.user_id != null && String(raw.sender.user_id) !== msg.userId)) return
-    if (chat.kind === 'private' && (chat.id !== msg.userId || msg.subType !== 'friend' || msg.sourceGroupId ||
-        Number(raw.group_id || raw.sender?.group_id || 0) || (raw.target_id != null && String(raw.target_id) !== before.botQQ))) return
-    if (chat.kind === 'group' && (chat.id !== msg.groupId || msg.subType !== 'normal' || raw.anonymous || msg.atOthers)) return
-    const ownerPrivate = chat.kind === 'private' && isOwner(before, msg.userId, msg.chatId)
-    const revision = ownerAuthorizationRevision(before)
-    const authorized = () => {
-      const current = getConfig()
-      const permitted = ownerPrivate ? isOwner(current, msg.userId, msg.chatId) : adultChatSelected(current, msg.chatId)
-      return permitted && current.botQQ === before.botQQ && ownerAuthorizationRevision(current) === revision && !mutes.muted(msg.chatId)
-    }
-    if (!authorized() || before.debug) return
-    if (chat.kind === 'group' && await hub.titleFilter.shouldIgnore(raw)) return
-    if (!authorized()) return
-    const label = localDrawLabel(chat.kind)
-    const reply = (status) => hub.sendSegments(msg.chatId, [{ type: 'text', data: { text: label + ' ' + status } }], label, {
-      force: true, directDelivery: true, isCurrent: authorized,
-    })
-    const cfg = getConfig()
-    if (cfg.debug) return
-    if (!cfg.enabled || cfg.dryRun) return reply('请先打开总开关并关闭试运行。')
-    if (!prompt) return reply('请附上画面描述，例如「/色图 画面描述」。')
-    const imagegen = localDrawModule()
-    if (!imagegen) return reply('请先启用内置生图模块。')
-    if (!imagegen.localReady()) return reply('请先在「生图」页部署并启用本地模型，或在「本地接口」配置并开启生图。')
-    try {
-      const result = imagegen.queueLocalDraw({ prompt, chatId: msg.chatId, kind: chat.kind, userId: msg.userId, ownerPrivate, authorized, reply })
-      await reply(result.message)
-    } catch {
-      await reply('生图任务未能启动。')
-    }
-  }
-
   // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
   channels.on((e) => {
     if (e.type === 'state') { if (e.platform === 'qq') mods?.emit('onebot/state', e.state); return }
@@ -270,14 +224,6 @@ export function apply(ctx) {
     if (e.type === 'raw') { if (e.platform === 'qq') mods?.emit('onebot', e.event); return }
     if (e.type === 'message') {
       const msg = e.msg
-      if (e.platform === 'qq') {
-        const message = msg.raw?.message ?? msg.raw?.raw_message
-        if (isLocalDrawMessage(message)) {
-          const prompt = localDrawPrompt(message, { natural: msg.kind === 'private' || msg.mentioned })
-          if (prompt !== null) onLocalDraw(msg, prompt).catch(() => log.warn('本地生图命令处理失败'))
-          return
-        }
-      }
       // 危险命令确认：主人的「确认 / 取消」回复先在这里截住，不交给聊天中枢
       if (dangerGuard && msg.kind === 'private' && !msg.recovered) {
         const raw = msg.raw
@@ -421,7 +367,7 @@ export function apply(ctx) {
     ],
     // 模块声明的能力（module.json capabilities）：子智能体委派这类要本机权限的能力靠它把关（一审 #177）
     capabilitiesOf: (id) => (typeof mods.capabilitiesOf === 'function' ? mods.capabilitiesOf(id) : []),
-    contextProviders: [(args) => mind?.contextFor(args) || '', (args) => args.publicOnly ? '' : mods.contextFor(args)],
+    contextProviders: [(args) => mind?.contextFor(args) || '', ({ chat, sessionId, publicOnly }) => publicOnly ? '' : mods.contextFor({ chat, sessionId, publicOnly })],
     onActivity: (a) => mods.emit('activity', a),
     // 群聊话题和她的记忆有多相关（插话判断用）
     memoryScore: (text) => mind?.mind.memory.topicScore(text) ?? 0,
@@ -433,7 +379,7 @@ export function apply(ctx) {
         if (cmd.ext.sensitive === true && !markSensitive(cmd.name)) return ''
         return String((await cmd.ext.run(cmd.arg, msg)) ?? '')
       }
-      return runCommand(cmd, msg, { getConfig, setConfig, mutes, hub, mind, qzone: use('diary'), song: use('song'), listModels, defaultModel: () => defaultModel(ctx, { model: {} }), extraCommands: listedCommands() })
+      return runCommand(cmd, msg, { getConfig, setConfig, mutes, hub, mind, qzone: use('diary'), song: use('song'), listModels, defaultModel: () => defaultModel(ctx, { model: {} }), extraCommands: mods.commands() })
     },
     isMuted: (chatId) => mutes.muted(chatId),
     // 心情、精力、困对说话方式的影响（表情包、语音、回复快慢、插话）
@@ -669,11 +615,6 @@ export function apply(ctx) {
     defaultModel: () => defaultModel(ctx, { model: {} }),
     http: { body: readBody, raw: readRaw, query, send },
     media: createMediaAccess({ root: ROOT, use, config: getConfig }),
-    guestImageSubject: (prompt, { appearance }) => guestImageSubject(prompt, {
-      aliases: [...(mind?.wakeWords?.(getConfig().group.wakeWords) || getConfig().group.wakeWords), getConfig().botQQ].filter(Boolean),
-      appearance: [appearance, mind?.mind.self.profile().looks].filter(Boolean).join('\n'),
-      chat: mind?.local?.chat ? (...args) => mind.local.chat(...args) : undefined,
-    }),
     // 要告诉人一件事（点的歌没唱成之类）：由她用自己的话说，见 features/her-voice.js
     herVoice: { tell: (o) => herVoice.tell(o) },
     personas: { list: listPersonas, read: readPersona, current: () => currentPersonaText(cfg.persona.current) },
@@ -1341,7 +1282,7 @@ export function apply(ctx) {
     return { ok: true, entries: logger.recent(Number(q.limit) || 300, { level: q.level || '', area: q.area || '' }) }
   })
 
-  route('/commands', async () => ({ ok: true, list: commandList(listedCommands()) }))
+  route('/commands', async () => ({ ok: true, list: commandList(mods.commands()) }))
   route('/access/chat-names', async () => {
     const namesOf = async (action, idKey, nameKey, kind) => {
       if (!cfg.allow[kind].length || !qq.ready()) return {}
@@ -2096,9 +2037,7 @@ export function apply(ctx) {
     const steps = []
     const msg = { ...chat, nickname: owner ? cfg.ownerName || '主人' : '路人', role: '', messageId: 'sim', text, mentioned: Boolean(b.mentioned), replyId: '', images: [], stickers: [], records: [], forwards: [], raw: { simulated: true } }
     const { sent } = await hub.capture(async () => {
-      if (isLocalDrawMessage(text)) {
-        steps.push('这是本地生图直出请求，面板模拟不会执行。')
-      } else if (text) {
+      if (text) {
         const cmd = owner && /^\s*[/／]/.test(text) ? parseCommand(text, mods.commands()) : null
         if (cmd && cmd.ext) {
           const reply = String((await cmd.ext.run(cmd.arg, msg)) ?? '')

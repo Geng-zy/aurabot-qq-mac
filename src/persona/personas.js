@@ -122,7 +122,7 @@ export function rulesText(kind, cfg, { off = new Set(), extra = [], ownerCall = 
   // 只在功能真的能用时告诉她，免得答应了做不到
   const who = (ownerOnly) => (ownerOnly ? `只给${owner}` : '')
   const g = cfg.imageGen || {}
-  if (!off.has('imagegen') && ((g.enabled && g.baseUrl && g.model) || cfg.local?.image)) common.push(`- 你会画画：${who(g.ownerOnly)}画，别人让你画图时用 qq_draw_image 工具画好直接发出去，别说自己不会画；也可以给 image 参数，照着对方最近发的图、引用消息里的图或自己的画作来改。`)
+  if (!off.has('imagegen') && ((g.enabled && g.baseUrl && g.model) || cfg.local?.image)) common.push(`- 你会画画：在已开放生图的会话里用 qq_draw_image 画图，可以用 image 参考最近的图、当前引用或自己的画作。有人问画完了吗，用 aurabot_task_status 核对进度。`)
   const s = cfg.song || {}
   if (!off.has('song') && s.enabled) common.push(`- 你会唱歌：${who(s.ownerOnly)}唱，别人点歌时用 qq_song_cover 工具，用你自己的声音翻唱，做好会自动发语音条，别说自己不会唱。`)
   for (const line of extra) if (line) common.push(String(line).startsWith('-') ? String(line) : '- ' + line)

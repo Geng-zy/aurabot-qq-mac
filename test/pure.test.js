@@ -1,12 +1,27 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parseReply, stripMarkdown, bubbleDelay } from '../src/chat/reply.js'
+import { isFoodTopic, polishChatProse } from '../src/chat/reply-style.js'
 import { decideGroupReply, engagedHint, policyFor, inQuietHours, DEFAULT_GROUP_POLICY } from '../src/chat/group-policy.js'
 import { parseMessageEvent, isStickerSegment } from '../src/channels/qq/inbound.js'
 import { stickerSizeOk, imageSize } from '../src/core/image-info.js'
 import { checkAllowed, levelFor, presetFor, isOwner, profileToolVisible, profilePermits } from '../src/chat/access.js'
 import { avatarSource } from '../src/modules/profile/index.js'
 import { redact, registerSecret } from '../src/core/redact.js'
+
+test('闲聊去掉空套话，摸摸时不把饥饿状态带进回复', () => {
+  const draft = '这一摸我认，被摸完还是饿，还是那句话：我还没吃饱呢'
+  const comfort = '摸摸(,,´•ω•)ﾉ"(´っω•｀。)'
+  assert.equal(polishChatProse(draft, comfort), '蹭蹭')
+  assert.equal(polishChatProse('这一摸我认，好痒呀，还没吃饱呢', comfort), '好痒呀')
+  assert.equal(polishChatProse('这表情我认，那个眼神像我刚起床。'), '那个眼神像我刚起床。')
+  assert.equal(polishChatProse('我接，明天帮你看看。'), '明天帮你看看。')
+  for (const deliberate of ['我认得你。', '我接了电话。', '我认。', '我不认，这张是昨天发的。', '我不接，表单已截止。']) assert.equal(polishChatProse(deliberate), deliberate)
+  assert.equal(polishChatProse('我接，明天帮你看看。', '请逐字复述'), '我接，明天帮你看看。')
+  assert.equal(polishChatProse('我还没吃饱呢', '饿了吗？\n' + comfort), '我还没吃饱呢')
+  assert.equal(isFoodTopic('那给你个蛋糕吃'), true)
+  assert.equal(isFoodTopic(comfort), false)
+})
 
 test('parseReply 拆 ||| 成多条', () => {
   const r = parseReply('在呢|||刚睡醒 嗯…|||你呢')
@@ -271,7 +286,7 @@ test('规则：画画、唱歌只在功能真的能用时告诉她', async () =>
   const off = rulesText('social', normalize({ imageGen: { enabled: true } }))
   assert.doesNotMatch(off, /你会画画|你会唱歌/, '没配生图服务就不说会画')
   const on = rulesText('social', normalize({ imageGen: { enabled: true, baseUrl: 'https://x/v1', model: 'm' }, song: { enabled: true } }))
-  assert.match(on, /你会画画：只给主人画/)
+  assert.match(on, /你会画画：在已开放生图的会话里/)
   assert.match(on, /你会唱歌/)
 })
 
@@ -339,36 +354,35 @@ test('更新后：会公开发东西的新功能，老用户先关着，新安�
   }
 })
 
-test('旧生图会话授权转换为当前白名单内的成人话题设置', async () => {
-  const { normalize, mergeFromPanel } = await import('../src/core/config.js')
-  const { adultChatContext } = await import('../src/chat/access.js')
-  const allow = { private: ['11', '22', '35'], groups: ['55'] }
-  const raw = { ownerQQ: '11', botQQ: '22', allow, imageGen: { localDraw: { private: ['11', '22', '35', '36'], groups: ['55', '56'] } } }
+test('生图仅开放明确勾选的 QQ 会话，旧授权不会迁入', async () => {
+  const { normalize, mergeFromPanel, publicConfig } = await import('../src/core/config.js')
+  const { drawChatAllowed } = await import('../src/chat/access.js')
+  const allow = { private: ['11', '22', '35', '36'], groups: ['55', '56'] }
+  const removed = { private: ['36'], groups: ['56'] }
+  const raw = {
+    ownerQQ: '11', botQQ: '22', allow, adultChat: removed,
+    imageGen: { ownerOnly: false, provider: 'local', localDraw: removed },
+  }
   const cfg = normalize(raw)
-  assert.deepEqual(cfg.adultChat, { private: ['35'], groups: ['55'] })
-  assert.equal(cfg.imageGen.localDraw, undefined)
-  assert.match(adultChatContext(cfg, 'qq:private:35'), /已开放/)
-  assert.match(adultChatContext(cfg, 'group:55'), /已开放/)
-  assert.match(adultChatContext(cfg, 'group:35'), /未开放/)
-  assert.equal(adultChatContext(cfg, 'mock:group:55'), '')
-  assert.equal(adultChatContext(cfg, 'qq:private:11'), '')
-  assert.equal(adultChatContext(cfg, 'system:diary'), '')
-  const cleared = { private: [], groups: [] }
-  assert.deepEqual(normalize({ ...raw, adultChat: cleared }).adultChat, cleared)
-  assert.deepEqual(mergeFromPanel(cfg, { adultChat: cleared }).adultChat, cleared)
-})
-
-test('额外会话生图先拦截本人和上下文引用，只接受明确的其他角色判定', async () => {
-  const { guestImageSubject, isAdultImage } = await import('../src/features/guest-image.js')
-  const chat = async () => { assert.fail('明确的本人或不明指代应直接处理') }
-  assert.equal(await guestImageSubject('画大．肥．鱼', { chat }), 'self')
-  assert.equal(await guestImageSubject('请画薄 荷', { aliases: ['薄荷'], chat }), 'self')
-  assert.equal(await guestImageSubject('跟刚才一样，把那个角色画出来。', { chat }), 'unclear')
-  assert.equal(await guestImageSubject('一位独立的虚构角色'), 'unavailable')
-  assert.equal(await guestImageSubject('一位独立的虚构角色', { chat: async () => 'OTHER' }), 'other')
-  assert.equal(await guestImageSubject('一位独立的虚构角色', { chat: async () => '答案可能是 OTHER' }), 'unclear')
-  assert.equal(isAdultImage('色 - 图'), true)
-  assert.equal(isAdultImage('海边自拍'), false)
+  for (const config of [cfg, mergeFromPanel(cfg, raw), publicConfig(cfg)]) {
+    assert.equal(Object.hasOwn(config, 'adultChat'), false)
+    assert.equal(Object.hasOwn(config.imageGen, 'localDraw'), false)
+    assert.equal(Object.hasOwn(config.imageGen, 'ownerOnly'), false)
+    assert.deepEqual(config.allow, allow)
+    assert.deepEqual(config.drawAllow, { private: [], groups: [] })
+    assert.equal(config.imageGen.provider, 'local')
+  }
+  const selected = mergeFromPanel(cfg, {
+    drawAllow: { private: ['11', '22', '35', '35', '39'], groups: ['55', '59'] },
+  })
+  assert.deepEqual(selected.drawAllow, { private: ['35'], groups: ['55'] })
+  assert.equal(drawChatAllowed(selected, 'qq:private:35'), true)
+  assert.equal(drawChatAllowed(selected, 'group:55'), true)
+  assert.equal(drawChatAllowed(selected, 'qq:private:36'), false)
+  assert.equal(drawChatAllowed(selected, 'qq:group:56'), false)
+  assert.equal(drawChatAllowed(selected, 'mock:group:55'), false)
+  const removedChat = mergeFromPanel(selected, { allow: { private: [], groups: [] } })
+  assert.deepEqual(removedChat.drawAllow, { private: [], groups: [] })
 })
 
 test('升级只保留旧版 B 站配置里的共享 ffmpeg 路径', async () => {

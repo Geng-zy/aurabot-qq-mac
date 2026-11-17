@@ -223,6 +223,37 @@ test('403 / 429 给人话', async () => {
   await assert.rejects(() => mk(429).generate('猫'), /额度|频繁/)
 })
 
+test('订阅生图 400 仅报告受信任的错误类别，不回显服务商文本或切换备用服务', async () => {
+  const cases = [
+    [{ error: { code: 'content_policy_violation', message: 'secret customer prompt' } }, /内容审核/],
+    [{ detail: { code: 'model_not_found', message: 'secret account ID' } }, /找不到所选模型/],
+    [{ error: { code: 'unknown_parameter', param: 'secret raw value' } }, /不认识的参数/],
+    [{ error: { code: 'secret code', message: 'content_policy_violation secret details' } }, /原因未知/],
+  ]
+  for (const [body, reason] of cases) {
+    const urls = []
+    const gen = createImageGen({
+      getConfig: () => normalize({ imageGen: { enabled: true, provider: 'codex', fallbackEnabled: true,
+        fallbacks: [{ provider: 'openai', baseUrl: 'https://backup.example/v1', model: 'image' }] } }),
+      log: silent,
+      fetchImpl: async (url) => {
+        urls.push(url)
+        return new Response(JSON.stringify(body), { status: 400 })
+      },
+      codexAuth: { status: () => ({ loggedIn: true }), ensureAccess: async () => ({ access: 'T', accountId: 'A' }) },
+    })
+    await assert.rejects(() => gen.generate('橘猫'), (error) => {
+      assert.match(error.message, reason)
+      assert.match(error.message, /HTTP 400/)
+      assert.equal(error.safeDetail, error.message)
+      assert.doesNotMatch(error.message, /secret/)
+      assert.equal(error.fallbackable, false)
+      return true
+    })
+    assert.deepEqual(urls, ['https://chatgpt.com/backend-api/codex/images/generations'])
+  }
+})
+
 test('配置：codex 型号/质量越界会回落', () => {
   const c = normalize({ imageGen: { provider: 'codex', codex: { model: '乱写', quality: 'ultra', background: 'rainbow' } } }).imageGen
   assert.equal(c.codex.model, 'gpt-image-2')

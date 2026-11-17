@@ -26,14 +26,14 @@ Screenshots show AuraBot v1.5.6 using demo data. The panel is in Chinese.
 
 ## Quick start
 
-**You need an Apple silicon Mac, the desktop version of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), a OneBot v11 gateway, and a separate QQ account for the bot.** AuraBot v1.5.6 was verified on DSH `0.2.2-rc.3`. You can run [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) in OrbStack or Docker Desktop, or connect an existing compatible gateway.
+**You need an Apple silicon Mac, the desktop version of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), a OneBot v11 gateway, and a separate QQ account for the bot.** AuraBot v1.5.7 supports DSH `0.2.2-rc.3`. You can run [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) in OrbStack or Docker Desktop, or connect an existing compatible gateway.
 
 1. Open DSH once to initialize it and configure a chat model. Download the `dsh-aurabot-qq-<version>.tgz` asset from the [latest release](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 2. Quit DSH completely. Install the archive in Terminal, replacing the example path with the location and version you downloaded.
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.6.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.7.tgz" --offline
    ```
 
 3. Reopen DSH and select **Aurabot** in the sidebar. The setup wizard asks for your QQ ID, the bot's QQ ID, and the OneBot forward WebSocket URL and token.
@@ -81,6 +81,6 @@ Press **⌥ K** to search for a feature or setting. Click the current group agai
 
 Development and tests require Node.js ≥ 22.13.0. Run `npm test` from the repository root.
 
-[User guide](docs/USER-MANUAL.md) · [Design](docs/DESIGN.md) · [Module tutorial](docs/MODULE-TUTORIAL.md) · [Module API](src/modules/API.md) · [macOS module index](https://github.com/Geng-zy/aurabot-qq-mac-mods)
+[User guide](docs/USER-MANUAL.md) · [Features and implementation](docs/FEATURES-AND-IMPLEMENTATION.md) · [Maintainer handoff](docs/HANDOFF.md) · [Module tutorial](docs/MODULE-TUTORIAL.md) · [Module API](src/modules/API.md) · [macOS module index](https://github.com/Geng-zy/aurabot-qq-mac-mods)
 
 This macOS fork is maintained by Geng-zy and branched from [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq) v1.2.0. QQ chat, voice, stickers, song covers, Qzone, and the module system come from upstream and its contributors. See the [MIT license](LICENSE) and [third-party notices](THIRD-PARTY-NOTICES.md).

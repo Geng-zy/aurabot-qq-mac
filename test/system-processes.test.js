@@ -90,13 +90,15 @@ test('开启调试的开场白期间，面板请求不会拿到开场白的回�
   assert.equal(early.ok, false)
   assert.match(early.message, /等一下/)
   greet('开场白')
-  for (let i = 0; i < 50; i++) {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
     const result = (await fake.call('/debug/say', { text: '测试消息' })).json()
     if (result.ok) {
       assert.equal(result.text, '专门回答测试消息')
       return
     }
-    await delay(10)
+    assert.match(result.message, /等一下/)
+    await delay(25)
   }
   assert.fail('开场白后没有收到测试消息的回复')
 })

@@ -31,7 +31,7 @@ export const DEFAULTS = {
   // 定时任务这类没人应答的场合，只有打开这个开关才允许派活。关着 = 一律拒绝（一审 #177 的审批策略）。
   subagentBackground: false,
   allow: { private: [], groups: [] }, // 主人永远能私聊，不用写进白名单
-  adultChat: { private: [], groups: [] }, // 额外开放成人话题和本地生图的 QQ 会话
+  drawAllow: { private: [], groups: [] }, // 额外开放生图的 QQ 会话
   // 接 QQ：macOS 上没有 SnowLuma 原生版，网关是你自己跑的 OneBot v11（比如 OrbStack 里的 SnowLuma），
   // 插件只按下面 snowluma.httpUrl / wsUrl / token 去连，不启动、不注入任何东西
   gateway: 'onebot',
@@ -82,7 +82,6 @@ export const DEFAULTS = {
     size: '1024x1024',
     shape: 'her', // 工具可选构图；her 时未指定就沿用 size
     stylePrompt: '', // 每次生图自动加在前面的风格描述
-    ownerOnly: true, // 只有主人能让她画
     seeOwn: true, // 「让她画完自己看一眼」：开着才把画好的图交给她看
     img2img: true, // 允许参考聊天图片 / 自己的画作来改画
     galleryShown: 20, // 面板「她的画作」显示最近几张（1~50；只影响显示，不删文件）
@@ -398,12 +397,14 @@ export function normalize(raw) {
   // 旧版 douyinDm 是「回别人私信」的权限，含义已不同（现在是主动发私信），老配置一律回到默认「仅主人」
   if (isObj(raw?.profilePerms) && 'douyinDm' in raw.profilePerms) c.profilePerms.douyinDm = profilePermDefault('douyinDm')
   c.allow = { private: qqList(c.allow.private), groups: qqList(c.allow.groups) }
-  // 迁移旧版勾选的会话。新字段一经写入，以新字段为准。
-  const adultChat = raw?.adultChat === undefined ? raw?.imageGen?.localDraw : raw.adultChat
-  c.adultChat = Object.fromEntries(['private', 'groups'].map((kind) => {
-    const selected = new Set((Array.isArray(adultChat?.[kind]) ? adultChat[kind] : []).map(String))
-    return [kind, c.allow[kind].filter((id) => selected.has(id) && (kind === 'groups' || (id !== c.ownerQQ && id !== c.botQQ)))]
-  }))
+  const drawablePrivate = new Set(qqList(c.drawAllow?.private))
+  const drawableGroups = new Set(qqList(c.drawAllow?.groups))
+  c.drawAllow = {
+    private: c.allow.private.filter((id) => id !== c.ownerQQ && id !== c.botQQ && drawablePrivate.has(id)),
+    groups: c.allow.groups.filter((id) => drawableGroups.has(id)),
+  }
+  // 旧授权规则不自动给会话开放普通生图。
+  delete c.adultChat
   // 发文件：开关、大小上限、额外允许的目录（只认绝对路径；空行忽略）
   if (!isObj(c.files)) c.files = {}
   if (!isObj(c.security)) c.security = {}
@@ -655,7 +656,7 @@ export function normalize(raw) {
     }]
   }).slice(0, 5)
   c.imageGen.enabled = bool(c.imageGen.enabled, false)
-  c.imageGen.ownerOnly = bool(c.imageGen.ownerOnly, true)
+  delete c.imageGen.ownerOnly
   delete c.imageGen.localDraw
   c.imageGen.seeOwn = bool(c.imageGen.seeOwn, true)
   c.imageGen.img2img = bool(c.imageGen.img2img, true)

@@ -72,21 +72,12 @@ export function isOwner(cfg, userId, chatId) {
   return Boolean(person && (!chat || person.platform === chat.platform) && normPerson(userId, chat?.platform) === normPerson(cfg.ownerQQ))
 }
 
-/** 额外权限只跟实际 QQ 会话走，进了白名单还须单独勾选。 */
-export function adultChatSelected(cfg, chatId) {
+/** 主人以外的用户仅能在单独开放生图的 QQ 会话里请求画图。 */
+export function drawChatAllowed(cfg, chatId) {
   const chat = parseChat(chatId)
   if (chat?.platform !== LEGACY_PLATFORM) return false
   const list = chat.kind === 'private' ? 'private' : 'groups'
-  return cfg.allow?.[list]?.includes(chat.id) === true && cfg.adultChat?.[list]?.includes(chat.id) === true
-}
-
-export function adultChatContext(cfg, chatId) {
-  const chat = parseChat(chatId)
-  if (chat?.platform !== LEGACY_PLATFORM || (chat.kind === 'private' && isOwner(cfg, chat.id, chatId))) return ''
-  const topic = adultChatSelected(cfg, chatId)
-    ? '已开放。有人明确提出时，可以用文字讨论色情内容。成人生图走本地 /色图，画面主体须明确为别的角色，不能包含你或使用你的形象。'
-    : '未开放。对方提出色情内容讨论时，简短说明或换个话题，性健康、知情同意与安全常识可正常回答。'
-  return `【本会话的成人话题权限】${topic} 日常聊天时不主动引入这类话题。`
+  return cfg.allow?.[list]?.includes(chat.id) === true && cfg.drawAllow?.[list]?.includes(chat.id) === true
 }
 
 /**

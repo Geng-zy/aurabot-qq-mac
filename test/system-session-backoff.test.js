@@ -143,6 +143,109 @@ test('宿主结构化挂载错误也会退避和清理', async (t) => {
   assert.deepEqual(removed, [{ sessionId: 'orphan-1' }])
 })
 
+test('rc.3 新会话暂时挂不上工作区时，重挂同一个会话并继续投递', async (t) => {
+  const s = setup(t)
+  const workspace = await s.hub.ensureWorkspace()
+  const create = s.c.create.bind(s.c)
+  const attempts = []
+  let sessionId
+  s.mode('success')
+  s.c.create = async (args) => {
+    const created = await create(args)
+    sessionId = created.sessionId
+    workspace.sessionIds.splice(workspace.sessionIds.indexOf(sessionId), 1)
+    throw Object.assign(new Error('workspace attach failed'), {
+      code: 'session/workspace-attach-failed', details: { sessionId, workspaceId: args.workspaceId },
+    })
+  }
+  workspace.attachSession = async function (sid) {
+    assert.equal(this, workspace)
+    attempts.push(sid)
+    this.sessionIds.push(sid)
+  }
+
+  await s.hub.pushToSession(ownerChat, content, OWNER)
+  assert.equal(s.calls.length, 1)
+  assert.deepEqual(attempts, [sessionId])
+  assert.deepEqual(workspace.sessionIds, [sessionId])
+  assert.equal(s.hub.sessions()[ownerChat.chatId].sessionId, sessionId)
+  assert.equal(s.fake.turns.length, 1)
+  assert.deepEqual(s.hub.sessionHealth(), [])
+  assert.deepEqual(s.fake.ctx.workspaceRegistry.archivedSessionIds, [])
+})
+
+test('rc.3 重挂仍失败时只归档本次确认的孤儿，保留挂载故障和退避', async (t) => {
+  const s = setup(t)
+  const workspace = await s.hub.ensureWorkspace()
+  const attachAttempts = []
+  workspace.attachSession = async (sid) => { attachAttempts.push(sid); throw new Error('workspace unavailable') }
+  s.error((args, sessionId) => Object.assign(new Error('workspace attach failed'), {
+    code: 'session/workspace-attach-failed', details: { sessionId, workspaceId: args.workspaceId },
+  }))
+
+  const error = await failed(s.run(), 1)
+  assert.equal(error.cause.code, 'session/workspace-attach-failed')
+  assert.deepEqual(attachAttempts, ['orphan-1'])
+  assert.deepEqual(s.fake.ctx.workspaceRegistry.archivedSessionIds, ['orphan-1'])
+  assert.deepEqual(s.hub.sessions(), {})
+  await failed(s.run(), 1)
+  assert.deepEqual(attachAttempts, ['orphan-1'])
+})
+
+test('rc.3 不把别的工作区已有会话挂回或归档', async (t) => {
+  const s = setup(t)
+  const workspace = await s.hub.ensureWorkspace()
+  const other = await s.fake.ctx.workspaceRegistry.create(join(s.root, 'other'), '其他')
+  other.sessionIds.push('orphan-1')
+  workspace.attachSession = async () => assert.fail('不能抢挂其他工作区的会话')
+  s.error((args, sessionId) => Object.assign(new Error('workspace attach failed'), {
+    code: 'session/workspace-attach-failed', details: { sessionId, workspaceId: args.workspaceId },
+  }))
+  await failed(s.run(), 1)
+  assert.deepEqual(s.fake.ctx.workspaceRegistry.archivedSessionIds, [])
+})
+
+for (const stage of ['挂载', '改名']) test(`rc.3 在${stage}期间被归档的会话不再接收这一轮`, async (t) => {
+  const s = setup(t)
+  const workspace = await s.hub.ensureWorkspace()
+  const registry = s.fake.ctx.workspaceRegistry
+  workspace.attachSession = async (sid) => {
+    workspace.sessionIds.push(sid)
+    if (stage === '挂载') await registry.archiveSession(sid)
+  }
+  s.c.rename = async ({ sessionId }) => {
+    if (stage === '改名') await registry.archiveSession(sessionId)
+  }
+  s.error((args, sessionId) => Object.assign(new Error('workspace attach failed'), {
+    code: 'session/workspace-attach-failed', details: { sessionId, workspaceId: args.workspaceId },
+  }))
+
+  await failed(s.hub.pushToSession(ownerChat, content, OWNER), 1)
+  assert.deepEqual(s.hub.sessions(), {})
+  assert.deepEqual(registry.archivedSessionIds, ['orphan-1'])
+  assert.equal(s.fake.turns.length, 0)
+})
+
+test('rc.3 改名期间换工作区，旧会话不关联，下一次立即用新工作区', async (t) => {
+  const s = setup(t)
+  const original = await s.hub.ensureWorkspace()
+  original.attachSession = async (sid) => { original.sessionIds.push(sid) }
+  const rename = s.c.rename
+  s.c.rename = async () => { s.cfg.workspaceDir = join(s.root, 'new-workspace') }
+  s.error((args, sessionId) => Object.assign(new Error('workspace attach failed'), {
+    code: 'session/workspace-attach-failed', details: { sessionId, workspaceId: args.workspaceId },
+  }))
+
+  await failed(s.hub.pushToSession(ownerChat, content, OWNER), 1)
+  assert.deepEqual(s.hub.sessions(), {})
+  assert.deepEqual(s.hub.sessionHealth(), [])
+  s.c.rename = rename
+  s.mode('success')
+  await s.hub.pushToSession(ownerChat, content, OWNER)
+  assert.notEqual(s.calls[1].workspaceId, original.id)
+  assert.equal(s.fake.turns.length, 1)
+})
+
 test('没有清理入口、清理失败都只记 debug，原始挂载故障和退避保留', async (t) => {
   const s = setup(t)
   const first = await failed(s.run(), 1)

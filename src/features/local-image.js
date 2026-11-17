@@ -154,7 +154,7 @@ export function createLocalImage({
     return { ok: job.ok, message: job.message }
   }
 
-  function generate(prompt, { size = '1024x1024', image, steps = 20, signal } = {}) {
+  function generate(prompt, { size = '1024x1024', image, redraw = false, steps = 20, signal } = {}) {
     const cancel = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal
     if (job.running) return Promise.reject(new Error('本地生图正在部署，请等部署完成。'))
     if (pending >= 4) return Promise.reject(new Error('本地生图队列已满，请稍后再试。'))
@@ -175,6 +175,7 @@ export function createLocalImage({
           const ref = join(dir, 'reference')
           await writeFile(ref, image)
           args.push('--image-paths', ref)
+          if (redraw) args.push('--output-resolution', '512')
         }
         cancel.throwIfAborted()
         await runImpl(python, args, { env: offline, signal: cancel })

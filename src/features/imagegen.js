@@ -4,9 +4,6 @@
 // 地址和密钥由主人在面板里填；生成结果统一成 Buffer 交给 QQ 发出。
 
 import { lstatSync, readFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 import { fetchImage, withTimeoutSignal } from '../core/net.js'
 import { resolvePainting } from './paintings.js'
 import { createCodexAuth } from './codex-auth.js'
@@ -62,7 +59,7 @@ function findImage (obj, depth = 0) {
 /** 这个模型能不能一次收好几张参考图（OpenAI 的 gpt-image 系列可以）。 */
 export const multiReference = (model) => /gpt-image/i.test(String(model || ''))
 
-export async function resolveDrawImage(image, { hub, chat, allowGlobalPaintings = false }) {
+export async function resolveDrawImage(image, { hub, chat, allowGlobalPaintings = false, quoteId }) {
   if (image === undefined || image === null || image === '') return null
   if (typeof image !== 'string') throw new Error('参考图只接受 last、quote 或画作文件名')
   const ref = image.trim()
@@ -70,7 +67,7 @@ export async function resolveDrawImage(image, { hub, chat, allowGlobalPaintings 
   if (/^(last|最近|最近一张|最近发的图|对方最近发的图)$/i.test(ref)) {
     buf = await hub.referenceImage(chat, 'last')
   } else if (/^(quote|引用|引用消息里的图)$/i.test(ref)) {
-    buf = await hub.referenceImage(chat, 'quote')
+    buf = await hub.referenceImage(chat, 'quote', { replyId: quoteId })
   } else {
     if (!ref || /[\\/:\0]/.test(ref)) throw new Error('参考图只接受 last、quote 或画作文件名，不接受路径或网址')
     const path = resolvePainting(chat.chatId, ref, { allowGlobal: allowGlobalPaintings })?.path
@@ -150,31 +147,10 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     if (c.provider === 'local') return Boolean(c.enabled && localImage?.status().ready)
     return Boolean(local?.active('image'))
   }
-  async function generateDirect(prompt, { signal } = {}) {
-    signal?.throwIfAborted()
-    const config = getConfig().imageGen
-    if (!localReady()) throw new Error('本地生图未启用或尚未就绪')
-    if (config.provider === 'local') return localImage.generate(prompt, { signal, size: imageSizeFor(undefined, config), steps: config.localSteps })
-    const outDir = await mkdtemp(join(tmpdir(), 'aurabot-direct-image-'))
-    const cleanup = () => rm(outDir, { recursive: true, force: true })
-    try {
-      const result = await local.call('image', { prompt, size: imageSizeFor(undefined, config) }, {
-        signal, outDir, sensitive: true, onLateFinish: cleanup,
-      })
-      const { toImageBuffer } = await import('../local/local.js')
-      const buf = await toImageBuffer(result, { signal, allowUrl: false })
-      signal?.throwIfAborted()
-      if (!String(mimeOf(buf)).startsWith('image/')) throw new Error('本地生图没有返回有效图片')
-      return buf
-    } finally {
-      await cleanup()
-    }
-  }
-
   /**
    * extra：除了 image 以外的参考图（比如她的形象图的其余几张）。能一次收好几张的服务（gpt-image 系列）都给，别的只用 image 那一张
    */
-  async function generate(prompt, { shape, image, size, extra = [], signal } = {}) {
+  async function generate(prompt, { shape, image, size, extra = [], signal, redraw } = {}) {
     signal?.throwIfAborted()
     const config = getConfig().imageGen
     const requestedSize = size == null || size === '' ? '' : normalizeRequestedSize(size)
@@ -186,7 +162,7 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     if (c.provider === 'local') {
       if (!c.enabled) throw new Error('生图还没开启')
       if (!localImage) throw new Error('内置本地生图不可用')
-      return localImage.generate(full, { size: c.size, image, steps: c.localSteps, signal })
+      return localImage.generate(full, { size: c.size, image, redraw, steps: c.localSteps, signal })
     }
     // 本地接口接管：用用户自己电脑上的画图服务
     if (local?.active('image')) {
@@ -321,7 +297,7 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     return c.provider === 'custom' ? Boolean(c.custom && c.custom.url) : Boolean(c.baseUrl && c.model)
   }
 
-  return { generate, generateDirect, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
+  return { generate, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
 }
 
 /**

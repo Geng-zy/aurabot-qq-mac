@@ -1,6 +1,5 @@
 import { ownerAuthorizationRevision } from '../../core/config.js'
 import { dataDir, readJson, writeJson } from '../../core/store.js'
-import { isLocalDrawMessage } from './inbound.js'
 
 const RESTART_WINDOW_MS = 30_000
 const RECONNECT_WINDOW_MS = 120_000
@@ -36,9 +35,9 @@ function isChatText(event) {
   for (const segment of message) {
     if (segment?.type === 'text' && typeof segment.data?.text === 'string') text += segment.data.text
     else if (group && segment?.type === 'at' && (validId(String(segment.data?.qq)) || segment.data?.qq === 'all')) mention = true
-    else if (!group || !['reply', 'face'].includes(segment?.type)) return false
+    else if (!['reply', 'face'].includes(segment?.type)) return false
   }
-  return Boolean(text.trim() || mention) && !/^\s*[/／]/u.test(text) && !isLocalDrawMessage(message)
+  return Boolean(text.trim() || mention) && !/^\s*[/／]/u.test(text)
 }
 
 function targetsFor(cfg) {
@@ -111,7 +110,7 @@ export function createQqInbox({ getConfig, log }) {
   function accept(event, current = binding()) {
     if (!current) return true
     const chat = identify(event, current.bot)
-    if (!chat || !allowed(getConfig(), chat.kind, chat.peer) || (!isChatText(event) && !isLocalDrawMessage(event.message ?? event.raw_message))) return true
+    if (!chat || !allowed(getConfig(), chat.kind, chat.peer) || !isChatText(event)) return true
     loadFor(current)
     const now = Date.now()
     for (const [oldId, at] of seen) {

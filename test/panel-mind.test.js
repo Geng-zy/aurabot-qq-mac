@@ -10,7 +10,7 @@ function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
   const marker = '    exports.apply = apply'
   assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, AdultChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
+  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
     ...globals,
   })
@@ -108,31 +108,32 @@ test('工作台按实际能力分组，社区模块按运行状态显示', () =>
   for (const tab of panel.TABS) assert.equal(typeof panel.TAB_CONTENT[tab.id], 'function', tab.id)
 })
 
-test('白名单与权限页按会话切换成人话题讨论，生图页没有这项设置', () => {
+test('白名单与权限页可单独选择哪些 QQ 会话有生图权限', () => {
   const { panel, slots, render } = setupPanel()
   slots[0] = { private: { 33: '白名单好友' }, groups: { 33: '白名单群' } }
   const allowed = { private: ['11', '22', '33'], groups: ['33', '44'] }
-  let draft = { ownerQQ: '11', botQQ: '22', allow: allowed, adultChat: { private: ['33'], groups: [] } }
+  let draft = { ownerQQ: '11', botQQ: '22', allow: allowed, drawAllow: { private: ['33'], groups: [] } }
   const props = () => ({ st: { config: { allow: allowed }, modules: [] }, draft, setDraft: (update) => { draft = update(draft) } })
-  const show = () => render(panel.AdultChatPermissions, props())
+  const show = () => render(panel.DrawChatPermissions, props())
   const chips = () => findAll(show(), 'button')
-  assert.equal(findAll(render(panel.TAB_CONTENT.access, props()), panel.AdultChatPermissions).length, 1)
+  assert.equal(findAll(render(panel.TAB_CONTENT.access, props()), panel.DrawChatPermissions).length, 1)
   const imageProps = { ...props(), draft: { ...draft, imageGen: { provider: 'local' } } }
-  assert.equal(findAll(render(panel.TAB_CONTENT.imagegen, imageProps), panel.AdultChatPermissions).length, 0)
+  assert.equal(findAll(render(panel.TAB_CONTENT.imagegen, imageProps), panel.DrawChatPermissions).length, 0)
   const [card] = findAll(show(), panel.Card)
   const folded = render(panel.Card, card.props)
   assert.equal(folded.type, 'details')
-  assert.equal(folded.props.id, 'ab-section-qq-adult-chat')
+  assert.equal(folded.props.id, 'ab-section-qq-draw-allow')
   assert.equal(folded.props.open, undefined)
   assert.equal(folded.children[0].type, 'summary')
-  assert.match(textOf(show()), /默认开放 · 11/)
+  assert.equal(card.props.title, '生图白名单')
+  assert.match(card.props.desc, /主人有权限画图/)
   assert.deepEqual(chips().map(textOf), ['白名单好友33', '白名单群33', '群44'])
   assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [true, false, false])
   chips()[1].props.onClick()
   chips()[0].props.onClick()
   assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [false, true, false])
   assert.equal(JSON.stringify(draft.allow), JSON.stringify(allowed))
-  assert.equal(JSON.stringify(draft.adultChat), JSON.stringify({ private: [], groups: ['33'] }))
+  assert.equal(JSON.stringify(draft.drawAllow), JSON.stringify({ private: [], groups: ['33'] }))
 })
 
 test('心智设置：按分类显示，搜索可跨分类，默认值和依据可展开', () => {
