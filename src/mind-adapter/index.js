@@ -42,6 +42,7 @@ import { createLifecycle } from './lifecycle.js'
 import { createFeel } from './feel.js'
 import { createPrivacy } from './privacy.js'
 import { createSelf } from './self.js'
+import { createTurnPolicy } from './turn-policy.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -151,22 +152,9 @@ export function createMindAdapter(opts) {
   const notRemembered = (person) => Boolean(person) && mind.person(person)?.noMemory === true
   const social = createSocial({ mind, mem, opts, now, windowOf, refOfChat, dayKey, shortTime, LEGACY_TAG, log })
   const { elsewhere, importLegacySocial } = social
+  const turnPolicy = createTurnPolicy({ mind, now, debug, isOwnerChat, ownerOf, notRemembered, parseChat, personIn, refOfChat })
+  const { canSeedHistory, recentUserMessages, shouldRotate, attention, effects } = turnPolicy
 
-  function canSeedHistory(chatId, senderId) {
-    const chat = parseChat(chatId)
-    return Boolean(chat && senderId) &&
-      !(chat.kind === 'private' && notRemembered(refOfChat(chatId))) &&
-      !notRemembered(personIn(chatId, senderId))
-  }
-
-  function recentUserMessages(chat, currentText) {
-    const chatId = windowOf(chat?.chatId)
-    if (debug() || !isOwnerChat(chatId)) return []
-    const current = new Set(String(currentText || '').split('\n').map((line) => line.trim()))
-    return mind.history(chatId, { since: now() - 30 * 60_000, limit: 32 })
-      .filter((row) => row.dir === 'in' && row.who === ownerOf() && !notRemembered(row.who) && !current.has(row.text.trim()))
-      .slice(-8).map((row) => ({ speakerId: row.who, at: row.at, text: row.text.slice(0, 300) }))
-  }
 
   /** 收到的一条渠道消息（已经过白名单）。 */
   function perceive(msg) {
@@ -230,21 +218,6 @@ export function createMindAdapter(opts) {
       log.warn('心智没记下她说的话：', error.message)
       return false
     }
-  }
-
-  /**
-   * 这个会话要不要换新的。
-   * @param {{ lastInput?: number, lastAt?: number, contextWindow?: number }} s
-   * @returns {string} 换的理由；不换返回 ''
-   */
-  function shouldRotate({ lastInput = 0, lastAt = 0, contextWindow = 0 } = {}) {
-    const ratio = Number(mind.setting('session.rotateRatio')) || 0.5
-    // 拿不到上下文长度就按 128K 算（常见模型里偏小的，宁可早换）
-    const limit = Math.floor((contextWindow > 0 ? contextWindow : 128000) * ratio)
-    if (lastInput > 0 && lastInput >= limit) return `上下文到了 ${lastInput} tokens（换新线 ${limit}）`
-    const idleH = Number(mind.setting('session.idleNewSceneHours')) || 6
-    if (lastAt > 0 && now() - lastAt >= idleH * 3600000) return `停了 ${Math.round((now() - lastAt) / 3600000)} 小时，开始新的一段`
-    return ''
   }
 
   /**
@@ -341,16 +314,6 @@ export function createMindAdapter(opts) {
     } catch (error) {
       return ''
     }
-  }
-
-  /** 单一注意力的设置（聊天中枢按它排队）。 */
-  function attention() {
-    return { single: mind.setting('attention.single') !== false, ownerCuts: mind.setting('attention.ownerCutsQueue') !== false }
-  }
-
-  /** 心情和身体对说话方式的影响（表情包、语音、回复快慢、群里插话的倍数）。 */
-  function effects() {
-    try { return mind.emotion.effects(mind.body.state({ persist: false })) } catch { return null }
   }
 
   const speakersOf = new Map() // chatId → 这一轮说话的人
