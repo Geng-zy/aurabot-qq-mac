@@ -31,6 +31,7 @@ import { migrateLegacy, LEGACY_TAG } from './migrate.js'
 import { acceptsFood, naturalFoodOffer } from './feeding.js'
 import { inspectionTools } from './inspection.js'
 import { createPermission } from './permission.js'
+import { createOutreach } from './outreach.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
 
 export { looksLikeRule, LOCAL_DEFAULT, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -176,9 +177,9 @@ export function createMindAdapter(opts) {
         addressed: msg.mentioned || msg.addressed,
       })
       if (isOwnerChat(msg.chatId) && mind.isOwner(who) && recorded) {
-        lastOwnerAt = Math.max(lastOwnerAt, at)
-        resolveOwnerAbsence(msg.recovered ? lastOwnerAt : receivedAt)
-        checkOutreach(lastOwnerAt, !msg.recovered)
+        outreach.noteContact(at)
+        resolveOwnerAbsence(msg.recovered ? outreach.lastContact() : receivedAt)
+        checkOutreach(outreach.lastContact(), !msg.recovered)
         if (!msg.recovered) checkApproval(msg)
       }
       return recorded
@@ -767,11 +768,11 @@ export function createMindAdapter(opts) {
         if (!text || !ownerOf() || debug()) return { ok: false, summary: '没有可分享的' }
         const url = String(e.url || '').trim().slice(0, 200)
         const hint = String(e.hint || '').trim().slice(0, 120)
-        const list = sharesOf().filter((x) => now() - x.at < SHARE_TTL)
+        const list = outreach.sharesOf().filter((x) => now() - x.at < outreach.SHARE_TTL)
         list.unshift({ at: now(), text, url, hint, by: moduleId, shown: 0 })
         mind._store.set('shares', list.slice(0, 8))
         const r = await reachOwner(`刷到了想给他看的：${text}${url ? ' ' + url : ''}${hint ? `（${hint}）` : ''}`, { kind: 'share' }).catch(() => ({ ok: false }))
-        if (r.ok) mind._store.set('shares', sharesOf().filter((x) => !(x.at === list[0].at && x.text === text)))
+        if (r.ok) mind._store.set('shares', outreach.sharesOf().filter((x) => !(x.at === list[0].at && x.text === text)))
         return r.ok ? { ok: true, summary: '她去找管理员说了' } : { ok: true, summary: '先记着，和管理员聊天时再说' }
       },
       /** 管理员有没有批准她这项权限（她通过 QQ 私聊向管理员申请，管理员亲口同意才算）。 */
@@ -932,96 +933,12 @@ export function createMindAdapter(opts) {
     return { ok: true, message: `放回来了：${ids.length} 件事` }
   }
 
-  // ---------- 想给管理员看的东西（模块交来的，她自己决定说不说） ----------
-  const SHARE_TTL = 2 * 86400000
-  const sharesOf = () => { const v = mind._store.get('shares', []); return Array.isArray(v) ? v : [] }
-  /** 和管理员私聊时想起来的「之前想给他看的」：每条最多想起两次，两天后就算了。 */
-  function pendingShares() {
-    // 升级后不再提起旧版内置 B 站模块排队的分享。
-    const list = sharesOf().filter((x) => x.by !== 'bili' && now() - x.at < SHARE_TTL && x.shown < 2)
-    if (!list.length) return ''
-    mind._store.set('shares', list.map((x) => ({ ...x, shown: x.shown + 1 })))
-    return '（你之前刷到、想给他看的：' + list.slice(0, 3).map((x) => x.text + (x.url ? ' ' + x.url : '') + (x.hint ? `（${x.hint}）` : '')).join('；') + '。聊到合适的时候可以提，不提也行。）'
-  }
+  // ---------- 想给管理员看的东西 / 主动联系 ----------
+  const outreach = createOutreach({
+    mind, opts, ownerOf, ownerChat, parseChat, now, debug, isClosed: () => closed,
+  })
+  const { pendingShares, canReachOwner, reachOwner, checkOutreach } = outreach
 
-  // ---------- 主动找你 ----------
-  function outreachState() {
-    return mind._store.get('outreach', { pending: null, day: '', count: 0, log: [] })
-  }
-  /** 能不能找：勿扰时段、每天上限（都是你在面板里设的要求）、上次找你还没回就不追着发。 */
-  function canReachOwner() {
-    if (!ownerOf() || typeof opts.reachOut !== 'function') return '没有管理员'
-    if (opts.getConfig()?.enabled === false || opts.getConfig()?.dryRun || debug()) return '当前模式暂停主动联系'
-    if (reachingOwner) return '正在准备上一条主动消息'
-    const o = outreachState()
-    if (o.pending) return '上次找你还没回'
-    const tz = mind.identity().timezone
-    const quiet = parseRange(mind.setting('motivation.quietHours'))
-    if (quiet && inRange(minuteOfDay(now(), tz), quiet)) return '勿扰时段'
-    const cap = Number(mind.setting('motivation.dailyOutreachCap')) || 0
-    if (cap && o.day === mind.today() && o.count >= cap) return '今天找够了'
-    if (now() - lastOwnerAt < 30 * 60000) return '刚和你聊过'
-    return true
-  }
-  let lastOwnerAt = 0
-  let reachingOwner = false
-  /** 让她主动找你：给她一句由头，话由她自己说（不想说可以不说）。 */
-  async function reachOwner(reason, { kind = 'miss' } = {}) {
-    const chatId = ownerChat()
-    if (!chatId || typeof opts.reachOut !== 'function') return { ok: false, summary: '没有可用的管理员私聊' }
-    if (reachingOwner) return { ok: false, summary: '正在准备上一条主动消息' }
-    if (opts.getConfig()?.enabled === false || opts.getConfig()?.dryRun || debug()) return { ok: false, summary: '当前模式暂停主动联系' }
-    const ok = canReachOwner()
-    if (ok !== true && kind !== 'permission') return { ok: false, summary: ok }
-    const why = String(reason || '想你了').slice(0, 200)
-    const note = kind === 'permission'
-      ? `【心里的打算，不是管理员说的话】${why}`
-      : `【心里的打算，不是管理员说的话】你想主动找管理员说话。由头：${why}。用你自己的口气，一两句就好；只用真实发生过的事，不要编；觉得他在忙或者其实不想说，就只回 [沉默]。`
-    const estimate = estimateTokens(note) + 1600
-    const budget = kind === 'permission' ? null : mind.budget.reserve('action', estimate)
-    if (kind !== 'permission' && !budget) return { ok: false, summary: '今天的后台模型预算不足', deferred: true }
-    const startedAt = now()
-    reachingOwner = true
-    try {
-      const receipt = await opts.reachOut({ chatId, userId: parseChat(chatId).id, note })
-      if (closed) return { ok: false, summary: '主动联系已停止' }
-      if (receipt?.tokens || receipt?.delivered || receipt === true) budget?.(receipt.tokens || estimate)
-      if (receipt !== true && receipt?.delivered !== true) return { ok: false, summary: '没有确认发出主动消息' }
-      const o = outreachState()
-      const at = now()
-      o.day === mind.today() ? o.count++ : (o.day = mind.today(), o.count = 1)
-      if (lastOwnerAt < startedAt) o.pending = { at, reason: why, kind }
-      o.log = [{ at, reason: why, kind }, ...o.log].slice(0, 50)
-      mind._store.set('outreach', o)
-      return { ok: true, summary: why, outcome: 0.5 }
-    } catch (error) {
-      return { ok: false, summary: error.code === 'BUDGET' ? '今天的后台模型预算不足' : '主动消息未发出', deferred: error.code === 'BUDGET' }
-    } finally {
-      if (!closed) budget?.()
-      reachingOwner = false
-    }
-  }
-  /** 你回了：开心，下次更愿意找你；一直没回：有点失落，不再追着发。 */
-  function checkOutreach(contactAt = 0, live = false) {
-    const o = outreachState()
-    if (!o.pending) return
-    const wait = (Number(mind.setting('motivation.outreachWaitHours')) || 2) * 3600000
-    // 网关只给到秒。实时来信与主动联系在同一秒时按到达顺序处理。
-    if (contactAt > 0 && contactAt >= (live ? Math.floor(o.pending.at / 1000) * 1000 : o.pending.at)) {
-      if (o.pending.kind !== 'permission') {
-        mind.motivation.feedback('reach_owner', 0.9)
-        mind.emotion.feel([{ name: '快乐', intensity: 0.4, target: ownerOf(), why: '找他，他回了', importance: 0.4 }], { source: 'outreach' })
-      }
-      o.pending = null
-    } else if (now() - o.pending.at > wait) {
-      if (o.pending.kind !== 'permission') {
-        mind.motivation.feedback('reach_owner', 0.2)
-        mind.emotion.feel([{ name: '失落', intensity: 0.4, target: ownerOf(), why: '找他，他没回', importance: 0.4 }], { source: 'outreach' })
-      }
-      o.pending = null
-    } else return
-    mind._store.set('outreach', o)
-  }
   mind.motivation.offer({
     id: 'reach_owner', label: '找管理员说话', by: 'mind',
     needs: { companion: 1, intimacy: 0.6, care: 0.3 }, effort: 0.1, delayHours: 0.2, cooldownMinutes: 90, payoff: 0.7,
@@ -1503,7 +1420,7 @@ export function createMindAdapter(opts) {
     const owner = ownerOf()
     if (!owner) return null
     const p = mind.relations.get(mind.canon(owner))
-    const last = Math.max(p.rel.lastContact || 0, lastOwnerAt || 0, mind.person(owner)?.lastSeen || 0, mind.lastOwnerMessageAt())
+    const last = Math.max(p.rel.lastContact || 0, outreach.lastContact() || 0, mind.person(owner)?.lastSeen || 0, mind.lastOwnerMessageAt())
     if (!last) return null
     const anx = mind.personality.value('attachAnxiety')
     const hours = (Number(mind.setting('relations.missOwnerHours')) || 24) * (1.3 - 0.6 * anx)
@@ -1575,8 +1492,8 @@ export function createMindAdapter(opts) {
     if (closed) return
     await replayDeletionsAfterRestore()
     if (closed) return
-    lastOwnerAt = Math.max(lastOwnerAt, mind.lastOwnerMessageAt())
-    resolveOwnerAbsence(lastOwnerAt)
+    outreach.noteContact(mind.lastOwnerMessageAt())
+    resolveOwnerAbsence(outreach.lastContact())
     syncPersona('migration')
     try { importLegacySocial() } catch (error) { log.warn('旧的人物印象没并进关系：', error.message) }
     inferTraits().catch((error) => log.warn('从人格卡推特质失败（下次启动再试）：', error.message))
