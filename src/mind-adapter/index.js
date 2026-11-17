@@ -47,6 +47,7 @@ import { createEmbedding } from './embedding.js'
 import { createPerception } from './perception.js'
 import { createPeople } from './people.js'
 import { createTurnFlow } from './turn-flow.js'
+import { createRestore } from './restore.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -415,31 +416,7 @@ export function createMindAdapter(opts) {
   })
   const { feed, feel, rules, confirmReplyFeed, latestFoodOffer, fedSince } = feelings
 
-  /** 恢复备份后：恢复前那份库里删掉的东西，在恢复回来的库里再删一遍。 */
-  async function replayDeletionsAfterRestore() {
-    const dir = opts.legacyDir ? join(opts.legacyDir, 'backups') : ''
-    if (!dir || !existsSync(dir)) return 0
-    const done = new Set(mind._store.get('restore.replayed', []))
-    const found = readdirSync(dir).filter((d) => /^pre-restore-\d+$/.test(d) && !done.has(d) && existsSync(join(dir, d, 'mind', 'mind.sqlite')))
-    let n = 0
-    for (const d of found.sort((a, b) => statSync(join(dir, a)).mtimeMs - statSync(join(dir, b)).mtimeMs)) {
-      try {
-        const { DatabaseSync } = await import('node:sqlite')
-        const db = new DatabaseSync(join(dir, d, 'mind', 'mind.sqlite'), { readOnly: true })
-        try {
-          n += mem.applyDeletions(db.prepare('SELECT id, kind, at FROM deletions').all())
-        } finally {
-          db.close()
-        }
-        done.add(d)
-      } catch (error) {
-        log.warn('恢复后重放删除失败：', error.message)
-      }
-    }
-    mind._store.set('restore.replayed', [...done])
-    if (n) log.info(`恢复备份后，把之前删掉的 ${n} 条记忆再删了一遍`)
-    return n
-  }
+  const { replayDeletionsAfterRestore } = createRestore({ opts, mind, mem, log })
 
   const selfKit = createSelf({ mind, mem, opts, log, ownerOf, outreach, now })
   const { changeSelf, inferTraits, resolveOwnerAbsence, missOwner, syncPersona } = selfKit
