@@ -43,6 +43,7 @@ import { createFeel } from './feel.js'
 import { createPrivacy } from './privacy.js'
 import { createSelf } from './self.js'
 import { createTurnPolicy } from './turn-policy.js'
+import { createEmbedding } from './embedding.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -92,45 +93,9 @@ export function createMindAdapter(opts) {
   const mem = mind.memory
 
   const localEmbedding = opts.localEmbedding || createEmbedder(fileURLToPath(new URL('../../models/', import.meta.url)))
-  const embedBackend = () => opts.getConfig()?.mind?.embedBackend === 'local' ? 'local' : 'remote'
-  const embedUrl = () => String(mind.setting('memory.embedUrl') || '').trim().replace(/\/+$/, '')
-  const localIdentity = 'local:bge-small-zh-v1.5-int8'
-  const embedName = () => embedBackend() === 'local' ? localIdentity : String(mind.setting('memory.embedModel') || '').trim()
-  const embedRemote = createEmbedClient({
-    url: embedUrl,
-    model: () => mind.setting('memory.embedModel'),
-    key: () => opts.embedKey?.() || '',
-    fetch: opts.fetch,
-  })
-  const rerankRemote = createRerankClient({
-    url: () => mind.setting('memory.embedUrl'),
-    model: () => mind.setting('memory.rerankModel'),
-    key: () => opts.embedKey?.() || '',
-    fetch: opts.fetch,
-  })
-  function embeddingStatus() {
-    const backend = embedBackend()
-    const error = backend === 'local' ? localEmbedding.probe() : ''
-    return { backend, error, model: embedName() }
-  }
-  mem.connect({
-    embeddingIdentity: () => {
-      const name = embedName()
-      const url = embedUrl()
-      // 给兼容接口单独的索引。默认服务沿用已有向量，避免升级时重新计算。
-      if (embedBackend() === 'local' || url === paramOf('memory.embedUrl').def) return name
-      return 'endpoint:' + createHash('sha256').update(url + '\0' + name).digest('hex')
-    },
-    embeddingReady: () => !embeddingStatus().error,
-    embed: async (texts, { query = false } = {}) => {
-      if (embedBackend() !== 'local') return embedRemote(texts)
-      const out = []
-      for (const text of texts) out.push(await localEmbedding.embed(text, { query }))
-      return out
-    },
-    // 离线模式的记忆和查询都留在本机。
-    rerank: (cue, candidates, options) => embedBackend() === 'local' ? [] : rerankRemote(cue, candidates, options),
-  })
+  const embedding = createEmbedding({ mind, opts, localEmbedding, createEmbedClient, createRerankClient, paramOf, createHash })
+  embedding.connect(mem)
+  const { embeddingStatus } = embedding
 
   // 本地小模型（内心活动用）：路径来自心智设置；留空就用 Aurabot 的安装位置 ~/Aurabot/mind（和翻唱的 ~/Aurabot/rvc 一样）
   const local = opts.localModel || createLocalModel({
