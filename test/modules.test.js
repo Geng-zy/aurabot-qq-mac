@@ -468,3 +468,11 @@ test('模块面板：panel.js 从模块自己的文件夹读，写成 ../ 想读
   await fake.call('/modules/reload', { id: 'paneltest' })
   assert.equal((await fake.call('/modules/panel?id=paneltest')).status, 404)
 })
+
+test('模块代际：重载会让 generation 递增，会话工具缓存能失效', async () => {
+  const before = api.modules.generation()
+  await fake.call('/modules/reload', { id: 'echo' })
+  const after = api.modules.generation()
+  assert.ok(after > before, `generation 应递增：${before} → ${after}`)
+  assert.equal((await mod('echo')).running, 'user')
+})
