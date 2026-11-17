@@ -45,6 +45,7 @@ import { createSelf } from './self.js'
 import { createTurnPolicy } from './turn-policy.js'
 import { createEmbedding } from './embedding.js'
 import { createPerception } from './perception.js'
+import { createPeople } from './people.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -317,34 +318,8 @@ export function createMindAdapter(opts) {
   const { noteChatActivity, canThink, innerTick, runAction, reserveActionModel, actionBudget } = inner
 
   // ---------- 忘掉一个人（面板「关系」页） ----------
-  /**
-   * @param {string} ref 渠道账号或旧 QQ 号
-   * @param {'delete'|'stop'|'resume'} mode delete = 连人带关系和关于他的记忆一起移进恢复区；
-   *   stop = 以后不记他（clear 时以前的也移进恢复区）；resume = 撤销「以后不记」
-   */
-  function forgetPerson(ref, mode, { clear = false } = {}) {
-    syncOwner()
-    const pid = personOf(ref)
-    if (!pid) return { ok: false, message: '要忘掉谁？' }
-    if (mind.isOwner(pid)) return { ok: false, message: '管理员不能忘' }
-    if (mode === 'delete' || (mode === 'stop' && clear)) { preparing.clear(); working.clear() }
-    const windows = mind.idsOf(pid).map((id) => privateChatOf(id))
-    if (mode === 'delete') return { ...mind.forgetPerson(pid, { windows }), message: '忘掉了：关于他的事都移进了恢复区，30 天内能放回来' }
-    if (mode === 'stop') {
-      if (clear) return { ...mind.forgetPerson(pid, { keepPerson: true, windows }), message: '以后不记他了，以前的也移进了恢复区（30 天内能放回来）' }
-      mind.setNoMemory(pid, true)
-      return { ok: true, message: '以后不记他了（以前的记忆还在）' }
-    }
-    if (mode === 'resume') { mind.setNoMemory(pid, false); return { ok: true, message: '又会记他了' } }
-    return { ok: false, message: '不认识的操作' }
-  }
-  /** 从恢复区放回来，向量重新算。 */
-  async function restorePerson(ref) {
-    const ids = mind.restorePerson(personOf(ref))
-    if (!ids) return { ok: false, message: '恢复区里没有这个人（可能已经过了 30 天）' }
-    mem.embedEpisodes(ids).catch(() => {})
-    return { ok: true, message: `放回来了：${ids.length} 件事` }
-  }
+  const people = createPeople({ mind, mem, syncOwner, personOf, privateChatOf, clearWorking: () => { preparing.clear(); working.clear() } })
+  const { forgetPerson, restorePerson } = people
 
   // ---------- 想给管理员看的东西 / 主动联系 ----------
   const outreach = createOutreach({
