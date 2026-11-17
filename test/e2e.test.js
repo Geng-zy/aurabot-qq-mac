@@ -225,6 +225,8 @@ test('人格与规则通过提示词变量注入', () => {
   assert.match(fake.variables.get('aurabot_persona')(), /鲸鱼/)
   assert.match(fake.variables.get('aurabot_rules_social')(), /不能跑命令、不能读写电脑上的文件/)
   assert.match(fake.variables.get('aurabot_rules_private')(), /10000001/)
+  assert.match(fake.variables.get('aurabot_identity_lock')(), /身份锁定/)
+  assert.match(fake.variables.get('aurabot_identity_lock')(), /唯一的身份/)
 })
 
 test('主人私聊「在吗」：建会话（完整权限 preset）、按 ||| 拆两条发回', async () => {

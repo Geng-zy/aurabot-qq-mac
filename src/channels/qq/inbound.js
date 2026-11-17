@@ -1,6 +1,5 @@
 // 把一条 OneBot v11 消息事件拆成壳要的通用形状。纯函数。
 
-import { parseChat } from '../ids.js'
 
 /** 消息段数组（兼容字符串 CQ 码：只取纯文字）。 */
 export function segmentsOf(event) {

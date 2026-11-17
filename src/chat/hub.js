@@ -5,7 +5,7 @@
 
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync, renameSync, existsSync, readdirSync, statSync, unlinkSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -39,6 +39,11 @@ import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../
 import { createFileRelay } from './file-relay.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
+import { createToolScope, isGuestSafeTool } from './tool-scope.js'
+import { createStickerStash } from './sticker-stash.js'
+import { createChatLog } from './chat-log.js'
+import { isPrivilegedQqTool } from './privileged-tools.js'
+import { createPurgeScope } from '../integration/purge-scope.js'
 
 // QQ 会话的工作区目录，第一次收到消息时自动创建。面板「连接」页能改（config.workspaceDir，#32）；
 // 没填就用环境变量 AURABOT_WORKSPACE，再没有就是 ~/Aurabot/qq-chats
@@ -91,7 +96,9 @@ export function assistantReplyText (message) {
   return message.content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n').trim()
 }
 
-export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf, mind, trashDir }) {
+export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stickers, tts, buildTools, contextProviders, onActivity, memoryScore, onCommand, isMuted, dislikes, random = Math.random, moodEffects, localApi, hooks, availableModels, toolsGeneration, capabilitiesOf, mind, trashDir, purge }) {
+  const purgeScope = purge || createPurgeScope({ log })
+  const toolScope = createToolScope({ log })
   // 心情对行为的影响（表情 / 语音概率、回复快慢、插话积极程度），没接就是 1
   /** 她现在怎么叫主人：心智核心里她自己改过就用她的，没改过用主人设的。 */
   const ownerLabel = () => { try { return mind?.ownerCall?.() || getConfig().ownerName || '主人' } catch { return getConfig().ownerName || '主人' } }
@@ -112,66 +119,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   const mounted = new Map() // sessionKey → { agent, offs, chatId, toolsKey }  按会话记，agent 对象换了也能清掉旧工具（#90）
 
-  // 群聊「主人本机工具」的闸：level 是 group-full 的会话先收起全局工具，等主人开口那一轮再放开。
-  // 用 allow: [] 而不是 deny 名单：deny 只认 DSH 的全局工具名，改装了哪些 MCP / 团队工具随时会漏，
-  // 而那些工具同样能读写本机（fastctx 的 replace / run、spawn_teammate 之类）。空 allow 集 = 全局工具全部不可见。
-  // 插件自己的工具（qq_* 等）不在全局层，不归 restrict 管。
-  // 非主人那一轮留下哪些全局工具：只留会话内的交互工具。
-  // 用 allow 白名单而不是 deny 名单：deny 只认固定名字，宿主要是装了新的能跑命令/写盘的
-  // MCP（fastctx 的 run / replace 就是），名单里没有就漏出去。
-  const GROUP_GUEST_SAFE = [/^ask_user_question$/, /^todo_write$/]
-  const PRIVILEGED_QQ_TOOLS = new Set([
-    'qq_set_nickname', 'qq_set_signature', 'qq_set_avatar', 'qq_whitelist',
-    'qq_handle_friend_request', 'qq_handle_group_request', 'qq_list_group_requests',
-    'qq_send_file', 'qq_send_message', 'qq_edit_sticker', 'qq_import_qq_stickers',
-    'qq_read_file', 'qq_send_qzone', 'qq_group_admin', 'mind_change_self',
-  ])
-  const groupGates = new Map() // sessionKey → { agent, off }
-  const isPurgeTool = (name) => typeof name === 'string' && name.startsWith('purge_')
-  // 会话也能继承预设注册的工具，因此放行名单要以会话能限制的名称为准。
-  function knownGlobalNames(agent) {
-    try {
-      const names = agent.ctx.tools.view?.(agent)?.restrictableNames
-      if (names instanceof Set) return [...names]
-    } catch (error) {}
-    try {
-      const off = agent.ctx.tools.restrict({ deny: ['aurabot__probe__'] })
-      if (typeof off === 'function') off()
-      return null
-    } catch (error) {
-      const m = /known global tools?\s*[:：]\s*(.+)$/.exec(String((error && error.message) || ''))
-      if (!m) return null
-      return m[1].split(',').map((n) => n.trim().replace(/^"|"$/g, '')).filter((n) => n && n !== '(none)')
-    }
-  }
-  function purgeToolNames(agent) {
-    try {
-      // Purge 注册在根作用域。用宿主公开的定义列表查询，避免依赖当前会话的工具筛选结果。
-      const definitions = agent.ctx.tools.definitions?.()
-      if (Array.isArray(definitions)) return definitions.map(({ name }) => name).filter(isPurgeTool).sort()
-    } catch (error) { log.debug('读取宿主维护工具清单失败：', error.message) }
-    return (knownGlobalNames(agent) || []).filter(isPurgeTool).sort()
-  }
-  function restrictGuest(agent) {
-    const known = knownGlobalNames(agent)
-    // 问不出宿主有哪些工具时，宁可一个都不给，也不能漏
-    const allow = known ? known.filter((name) => GROUP_GUEST_SAFE.some((re) => re.test(name))) : []
-    return agent.ctx.tools.restrict({ allow })
-  }
-  function applyGroupGate(key, allow) {
-    const g = groupGates.get(key)
-    if (!g) return
-    try {
-      if (allow) {
-        if (g.off) { g.off(); g.off = null; log.info(`${key.slice(-8)}：本机工具放开（这一轮是主人）`) }
-      } else if (!g.off) {
-        g.off = restrictGuest(g.agent)
-        log.info(`${key.slice(-8)}：本机工具收起（这一轮不是主人）`)
-      }
-    } catch (error) {
-      log.warn('群聊工具闸切换失败：', error.message)
-    }
-  }
   const mounts = new Set() // 可遍历的挂载记录：插件卸载时要撤掉仍存活会话里的注册
   const toolDisposers = new Map() // `${sessionKey}|${工具名}` → disposer，防注册表里残留同名工具时挂不上（#90）
   const sessionToChat = new Map() // sessionKey → chatId
@@ -198,62 +145,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const privateSources = new Map() // 带渠道的私聊 ID → 最近一次临时会话的来源群
   const recentMedia = createRecentMedia({ log }) // 最近发来的图片和表情，短期落盘恢复
   const recentFiles = new Map() // chatId → 最近发来的文件
-  // 「她挑 / 只听主人的」：这一轮收到的表情先按会话记着，她想收时凭编号来取。
-  // 落盘存一份 —— 只在内存里的话，DSH 一重启就什么都没有了，她只好绕路（拷附件 + qq_add_sticker）。
-  const stickerStash = new Map() // chatId → { at, segs: [seg] }
-  const STICKER_TTL = 30 * 60_000 // 和「最近图片」一个尺度
-  const stashFile = () => dataDir('sticker-stash.json')
-  let stashLoaded = false
-
-  function loadStash () {
-    if (stashLoaded) return
-    stashLoaded = true
-    try {
-      const raw = readJson(stashFile(), () => ({}))
-      const now = Date.now()
-      for (const [chatId, v] of Object.entries(raw && typeof raw === 'object' ? raw : {})) {
-        if (v && Array.isArray(v.segs) && v.segs.length && now - Number(v.at || 0) < STICKER_TTL) {
-          stickerStash.set(chatId, { at: Number(v.at) || now, segs: v.segs })
-        }
-      }
-    } catch (error) {}
-  }
-
-  function saveStash () {
-    const now = Date.now()
-    const out = {}
-    for (const [chatId, v] of stickerStash) if (v && now - v.at < STICKER_TTL) out[chatId] = v
-    try { writeJson(stashFile(), out) } catch (error) {}
-  }
-
-  /** 记下这一轮收到的表情，返回张数。 */
-  function rememberStickers (chatId, segs) {
-    loadStash()
-    const list = (segs || []).slice(0, 4)
-    if (!list.length) return 0
-    stickerStash.set(chatId, { at: Date.now(), segs: list })
-    saveStash()
-    return list.length
-  }
-
-  /** 取第 index 张（从 1 开始）。过期或没有就返回 null。 */
-  function stickerOf (chatId, index) {
-    loadStash()
-    const s = stickerStash.get(chatId)
-    if (!s || Date.now() - s.at > STICKER_TTL) return null
-    const i = Number(index) - 1
-    return Number.isInteger(i) && i >= 0 && i < s.segs.length ? s.segs[i] : null
-  }
-
-  /**
-   * 「她挑」模式那句轻提示。
-   * 措辞要像她自己的念头，不能像发图的人在提醒她 —— 否则每来一张表情她就回报一次
-   * “我收了 / 我已经有了”，完全不像偷偷攒表情。收不收、说不说都随她。
-   */
-  function stickerHint (n) {
-    const range = n > 1 ? `1~${n}` : '1'
-    return `（这轮里夹着 ${n} 张表情，是你自己看到的。有中意的就用 qq_collect_sticker ${range} 收进自己库；收表情是你自己的小爱好，不用每张都跟对方说，偶尔提一句也行。）`
-  }
+  const stickerStash = createStickerStash({ file: () => dataDir('sticker-stash.json'), log })
 
   const slowNoticeSent = new Set() // sessionKey → 这一轮已经发过「正在做」提示（慢工具，issue #74）
   const slowTimers = new Map() // timer → sessionKey，轮次结束、替换挂载、卸载时一并撤销
@@ -432,64 +324,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 聊天流水（给空间日记、主动搭话、面板用） ----------
-  /**
-   * 聊天流水只是近几天的工作文件（她的完整经历在心智核心里）：超过「聊天流水留多久」的按天移到废纸篓，
-   * 不直接删。-1 = 一直留；0 = 只留今天。一天最多整理一次。
-   */
-  let prunedDay = ''
-  function pruneChatLog(today) {
-    if (prunedDay === today) return 0
-    prunedDay = today
-    const keep = Number(getConfig().memory?.keepChatlogDays ?? 7)
-    if (!trashDir || !Number.isFinite(keep) || keep < 0) return 0
-    const cut = new Date(today + 'T00:00:00')
-    cut.setDate(cut.getDate() - keep)
-    const limit = `${cut.getFullYear()}-${String(cut.getMonth() + 1).padStart(2, '0')}-${String(cut.getDate()).padStart(2, '0')}`
-    let n = 0
-    for (const day of chatLogDays()) {
-      if (day >= limit || day === today) continue
-      try {
-        const trash = join(trashDir, 'aurabot-chatlog')
-        mkdirSync(trash, { recursive: true })
-        renameSync(join(dataDir('chatlog'), `${day}.jsonl`), join(trash, `${day}-${Date.now()}.jsonl`))
-        n++
-      } catch (error) { log.debug('移走旧聊天流水失败：', error.message) }
-    }
-    return n
-  }
+  const { logChat, chatLogDays, chatLogOf, canReadChatLog, resetPruneForTest } = createChatLog({
+    getConfig, log, trashDir, mind, hooks, cleaningFor,
+  })
 
-  function logChat(chatId, who, text, uid = '', { via, at, originId } = {}) {
-    // 调试模式：不写聊天流水，只进插件日志（来自原项目 48b36fc）
-    if (getConfig().debug) {
-      log.info(`[调试] ${who}${uid ? '（' + uid + '）' : ''} → ${chatId}：${String(text || '').slice(0, 300)}`)
-      return
-    }
-    try {
-      // noteVia 直接写入其他平台的流水；QQ 回复已在投递路径清洗。
-      if (who === 'bot' && via) {
-        text = cleanOutboundText(text, cleaningFor(chatId))
-        if (!text.trim()) return false
-      }
-      const timestamp = Number(at) > 0 && Number.isFinite(Number(at)) && Number.isFinite(new Date(Number(at)).getTime()) ? Number(at) : Date.now()
-      const d = new Date(timestamp)
-      const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-      const dir = dataDir('chatlog')
-      mkdirSync(dir, { recursive: true })
-      const target = parseChat(chatId)
-      const ownerPrivate = target?.kind === 'private' && isOwner(getConfig(), target.id, chatId)
-      const audienceShares = who === 'bot' ? mind?.shareIdsForChat?.(chatId) || [] : []
-      const row = { t: timestamp, chatId, who, ...(uid ? { uid: String(uid) } : {}), text: redact(String(text).slice(0, 500)), ...(via ? { via } : {}),
-        ...(ownerPrivate ? { ownerPrivate: true } : {}), ...(audienceShares.length ? { audienceShares } : {}) }
-      appendFileSync(join(dir, `${day}.jsonl`), JSON.stringify(row) + '\n', 'utf8')
-      // 模块的 chat/log 通知：落盘成功后的只读快照（移植自原项目 5cdbcd4）
-      try { hooks?.journal?.({ ...row, ...(originId ? { originId } : {}) }) } catch (error) { log.warn('流水通知失败：', error.message) }
-      const n = new Date()
-      pruneChatLog(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`)
-      return true
-    } catch (error) { return false }
-  }
-
-  /** 有聊天流水的日期（升序）。 */
   /** 她在 QQ 之外说的话（桌宠气泡）：记进这个聊天，对方在 QQ 回她时她知道在接哪句（#133）。 */
   function noteSaid(chatId, text) {
     logChat(chatId, 'bot', text)
@@ -517,33 +355,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!note) return
     logChat(note.chatId, '系统', `【系统】${note.text}`)
     noticesFor.set(note.chatId, [...(noticesFor.get(note.chatId) || []), note.text].slice(-8))
-  }
-
-  function chatLogDays() {
-    try {
-      return readdirSync(dataDir('chatlog')).filter((n) => /^\d{4}-\d{2}-\d{2}\.jsonl$/.test(n)).map((n) => n.slice(0, 10)).sort()
-    } catch (error) {
-      return []
-    }
-  }
-
-  function chatLogOf(day) {
-    try {
-      const f = join(dataDir('chatlog'), `${day}.jsonl`)
-      if (!existsSync(f)) return []
-      return readFileSync(f, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l))
-    } catch (error) {
-      return []
-    }
-  }
-
-  function canReadChatLog(row, audience) {
-    const source = parseChat(row.chatId)
-    if (!source) return false
-    if (normChat(row.chatId) !== normChat(audience) && (row.ownerPrivate || mind?.isPrivateHistoryWindow?.(row.chatId) ||
-      (source.kind === 'private' && isOwner(getConfig(), source.id, row.chatId)))) return false
-    if (row.audienceShares?.length && !mind?.canReadShares?.(row.audienceShares, audience)) return false
-    return !cleaningFor(audience).protectedText?.(row.text)
   }
 
   // ---------- 工作区与会话 ----------
@@ -985,11 +796,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   function unmount(rec) {
     mounts.delete(rec)
-    for (const [k, g] of groupGates) {
-      if (g.agent !== rec.agent) continue
-      try { if (typeof g.off === 'function') g.off() } catch (error) {}
-      groupGates.delete(k)
-    }
+    toolScope.releaseAgent(rec.agent)
     for (const off of rec.offs.splice(0).reverse()) {
       try { if (typeof off === 'function') off() } catch (error) { log.warn('注销会话挂载失败：', error.message) }
     }
@@ -1005,7 +812,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const ownerMaintenance = chat.kind === 'private' && level === 'full' && levelFor(configAtMount, chat) === 'full'
     const maintenanceRevision = ownerMaintenance ? ownerAuthorizationRevision(configAtMount) : ''
     const maintenanceBot = configAtMount.botQQ
-    const maintenance = ownerMaintenance ? [] : purgeToolNames(agent)
+    const maintenance = ownerMaintenance ? [] : purgeScope.toolNames(agent)
     // 模块（重）启动代际也进 key：热重载后工具名通常不变，但工具对象是旧实例的闭包（issue #73），
     // 只比名字会一直 return，会话里永远用旧实现/旧状态；带上代际就整套重挂。
     let gen = 0
@@ -1033,7 +840,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
             const state = turnState.get(sid)
             if (state?.rewriting || state?.recovering) return { ok: false, message: '这一步只重写回复正文' }
             if (state) state.retry = null
-            if (PRIVILEGED_QQ_TOOLS.has(tool.name) && !turnSendersAllOwner(sid)) return { ok: false, message: '只有主人开口时才能使用这个工具。' }
+            if (isPrivilegedQqTool(tool.name) && !turnSendersAllOwner(sid)) return { ok: false, message: '只有主人开口时才能使用这个工具。' }
             return tool.execute(args, exec)
           }
           let reg = { ...tool, execute }
@@ -1108,13 +915,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       log.debug('挂上下文失败：', error.message)
     }
     if (chat.kind !== 'system' && !ownerMaintenance && level !== 'group-full') {
-      offs.push(restrictGuest(agent))
+      offs.push(toolScope.restrictGuest(agent))
     }
     if (typeof agent.ctx.tools.guard === 'function') {
       const localNames = new Set(tools.map((tool) => tool.name))
       offs.push(agent.ctx.tools.guard((exec) => {
         const name = String(exec?.name || '')
-        if (isPurgeTool(name)) {
+        if (purgeScope.isTool(name)) {
           const current = getConfig()
           if (!ownerMaintenance || levelFor(current, chat) !== 'full' || current.botQQ !== maintenanceBot
             || ownerAuthorizationRevision(current) !== maintenanceRevision) return '宿主维护工具仅限完整权限的主人私聊。'
@@ -1122,12 +929,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         }
         if (ownerMaintenance || localNames.has(name)) return
         if (chat.kind === 'group' && level === 'group-full' && turnSendersAllOwner(sid)) return
-        if (chat.kind !== 'system' && !GROUP_GUEST_SAFE.some((re) => re.test(name))) return '当前会话没有本机或宿主工具权限。'
+        if (chat.kind !== 'system' && !isGuestSafeTool(name)) return '当前会话没有本机或宿主工具权限。'
       }))
     }
     if (chat.kind === 'group' && level === 'group-full') {
-      groupGates.set(sid, { agent, off: null })
-      applyGroupGate(sid, false) // 先收起，主人开口那一轮再放开
+      toolScope.openGate(sid, agent)
+      toolScope.applyGate(sid, false) // 先收起，主人开口那一轮再放开
     }
     const rec = { agent, chatId: chat.chatId, offs, toolsKey }
     mounted.set(sid, rec)
@@ -2240,7 +2047,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         if (collectMode === 'auto') {
           for (const s of msg.stickers) stickers.collect(s, msg.chatId).then((r) => { if (!r.ok) log.debug('没收这张表情：', r.reason) }).catch(() => {})
         } else {
-          stickerPick = rememberStickers(msg.chatId, msg.stickers)
+          stickerPick = stickerStash.remember(msg.chatId, msg.stickers)
           // 只听主人的：别人发的先悄悄记着（主人之后说「收下那张」还能用），但不提示她
           if (collectMode === 'owner' && !isOwner(cfg, msg.userId, msg.chatId)) stickerPick = 0
         }
@@ -2879,7 +2686,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!p) return
     clearTimeout(p.timer)
     // 「她挑」的提示统一在这里补：私聊、群聊、插话三条路都要带上
-    const hint = p.stickerPick ? '\n\n' + stickerHint(p.stickerPick) : ''
+    const hint = p.stickerPick ? '\n\n' + stickerStash.hint(p.stickerPick) : ''
     // 私聊：她这一轮还在跑（想 / 调工具），新消息直接 steer 进当前这一轮，像在 DSH 界面里插话一样（#7）
     if (isBusy(chatId) && p.chat.kind === 'private' && running.has(chatId) && !turnEpochs.get(chatId)?.st?.rewriting) {
       pending.delete(chatId)
@@ -3277,7 +3084,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     for (const s of opts.extraSenders || []) addSender(s)
     turnState.set(key, st)
     // 群聊本机工具按「这一轮说话的人」开合：全是主人就放开，掺了别人就收回去
-    if (chat.kind === 'group') applyGroupGate(key, turnSendersAllOwner(sessionId))
+    if (chat.kind === 'group') toolScope.applyGate(key, turnSendersAllOwner(sessionId))
     // 上一句也留着：这一句太短（「嗯嗯」「然后呢」）时一起拿去想起相关的事
     if (st.lastText) st.prevText = st.lastText
     st.lastText = String(opts.queryText ?? content.filter((c) => c.type === 'text').map((c) => c.text).join('\n')).slice(-600)
@@ -3843,6 +3650,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     clearSlowNotices()
     slowNoticeSent.clear()
     for (const rec of [...mounts]) unmount(rec)
+    toolScope.closeAll()
     mounted.clear()
     toolDisposers.clear()
     sessionToChat.clear()
@@ -3886,7 +3694,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     recentMedia: (chatId, userId) => recentMedia.get(chatId, userId),
     referenceImage,
     recentFiles: (chatId) => recentFiles.get(chatId) || [],
-    stickerOf,
+    stickerOf: stickerStash.get,
     capture,
     simulateTurn,
     onMessage,
@@ -3936,7 +3744,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     chatLogOf,
     canReadChatLog,
     // 测试用：让下一次写流水时重新整理一遍
-    _resetPruneForTest: () => { prunedDay = '' },
+    _resetPruneForTest: () => { resetPruneForTest() },
     noteSaid,
     chatLogDays,
     sessions: () => map().chats,
