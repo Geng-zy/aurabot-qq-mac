@@ -44,6 +44,7 @@ import { createPrivacy } from './privacy.js'
 import { createSelf } from './self.js'
 import { createTurnPolicy } from './turn-policy.js'
 import { createEmbedding } from './embedding.js'
+import { createPerception } from './perception.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -122,68 +123,19 @@ export function createMindAdapter(opts) {
 
 
   /** 收到的一条渠道消息（已经过白名单）。 */
-  function perceive(msg) {
-    if (debug()) return false
-    try {
-      if (!parseChat(msg.chatId)) return false
-      const who = personIn(msg.chatId, msg.userId)
-      if (notRemembered(who)) return false
-      syncOwner()
-      // 私聊或群里明确 @ 她会拉过注意力，群里旁听不算。
-      if (msg.kind === 'private' || msg.mentioned) noteChatActivity()
-      const receivedAt = now()
-      const eventAt = Number(msg.time) * 1000
-      const at = Number.isFinite(eventAt) && eventAt > 0 ? Math.min(receivedAt, eventAt) : receivedAt
-      const recorded = mind.perceive({
-        window: windowOf(msg.chatId),
-        who,
-        name: msg.nickname || '',
-        text: String(msg.text || '').trim() || (msg.images?.length ? '[图片]' : msg.stickers?.length ? '[表情包]' : ''),
-        msgId: msg.messageId || undefined,
-        at,
-        addressed: msg.mentioned || msg.addressed,
-      })
-      if (isOwnerChat(msg.chatId) && mind.isOwner(who) && recorded) {
-        outreach.noteContact(at)
-        resolveOwnerAbsence(msg.recovered ? outreach.lastContact() : receivedAt)
-        checkOutreach(outreach.lastContact(), !msg.recovered)
-        if (!msg.recovered) checkApproval(msg)
-      }
-      return recorded
-    } catch (error) {
-      log.warn('心智没记下这条消息：', error.message)
-      return false
-    }
-  }
-
-  function noteAddressed(msg) {
-    if (debug() || !msg?.messageId) return
-    const window = windowOf(msg.chatId)
-    if (window) mind.noteAddressed(window, msg.messageId)
-  }
-
-  /** 她真发出去的一条消息。 */
-  function said({ chatId, message, note, messageId, kind = 'reply' }) {
-    if (debug()) return false
-    try {
-      const target = parseChat(chatId)
-      if (!target || (target.kind === 'private' && notRemembered(refOfChat(chatId)))) return false
-      noteChatActivity()
-      const text = segmentsText(message, note)
-      if (!text) return false
-      const window = windowOf(chatId)
-      const recorded = mind.said({ window, text, msgId: messageId !== undefined && messageId !== null ? String(messageId) : undefined, kind })
-      if (recorded && kind === 'reply' && isOwnerChat(chatId) && acceptsFood(text)) {
-        const giver = refOfChat(window)
-        const offer = latestFoodOffer(window, giver)
-        if (offer && !fedSince(offer)) feed(offer.food, giver, chatId)
-      }
-      return recorded
-    } catch (error) {
-      log.warn('心智没记下她说的话：', error.message)
-      return false
-    }
-  }
+  let outreachRef = null
+  const perception = createPerception({
+    mind, log, now, debug, syncOwner, noteChatActivity: (...args) => noteChatActivity(...args),
+    notRemembered, parseChat, personIn, refOfChat, windowOf, isOwnerChat, segmentsText, acceptsFood,
+    getOutreach: () => outreachRef,
+    resolveOwnerAbsence: (...args) => resolveOwnerAbsence(...args),
+    checkOutreach: (...args) => checkOutreach(...args),
+    checkApproval: (...args) => checkApproval(...args),
+    latestFoodOffer: (...args) => latestFoodOffer(...args),
+    fedSince: (...args) => fedSince(...args),
+    feed: (...args) => feed(...args),
+  })
+  const { perceive, noteAddressed, said } = perception
 
   /**
    * 换新会话后接上之前的话：取这个窗口最近的原话。
@@ -399,6 +351,7 @@ export function createMindAdapter(opts) {
     mind, opts, ownerOf, ownerChat, parseChat, now, debug, isClosed: () => closed,
   })
   const { pendingShares, canReachOwner, reachOwner, checkOutreach } = outreach
+  outreachRef = outreach
 
   mind.motivation.offer({
     id: 'reach_owner', label: '找管理员说话', by: 'mind',
