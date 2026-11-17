@@ -14,6 +14,7 @@ import { pathToFileURL, fileURLToPath } from 'node:url'
 import { dataDir } from './store.js'
 import { registerSecretField } from './config.js'
 import { defineTool } from '../tools/tools.js'
+import { createModuleState } from './module-state.js'
 
 /** 扩展接口版本：只加不改。哪天不得不改已有的东西才升到 2，并在更新说明里写清楚怎么迁移。 */
 export const API_VERSION = 1
@@ -200,14 +201,8 @@ export function scopeCoreForModule(core, id) {
 export function createModules({ ctx, core, getConfig, setConfig, logger, version, builtins }) {
   const log = logger.child('modules')
   const builtinDefs = new Map(builtins.map((d) => [d.id, d]))
-  const live = new Map() // id → 运行中的模块（见 start）
-  const errors = new Map() // id → { message, at }  启动失败 / 加载失败
-  const routes = new Map() // 完整路径 → { id, handler }
-  const listeners = new Map() // 事件名 → [{ id, fn }]
-  const revisions = new Map() // id → 停止次数，取消在途 import
-  // 模块每次（重）启动都递增一次「代际」：hub 用它判断会话里挂的工具是不是旧模块实例的闭包。
-  let generation = 0
-  let userSeen = new Map() // id → { dir, file, stamp }
+  const state = createModuleState()
+  const { live, errors, routes, listeners, revisions, userSeen } = state
   let watching = null
   let disposed = false
 
@@ -395,7 +390,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     }
     live.set(id, rec)
     errors.delete(id)
-    generation++ // 新实例：会话里的工具要在下一轮重挂（issue #73）
+    state.generation++ // 新实例：会话里的工具要在下一轮重挂（issue #73）
     try {
       const api = makeApi(id, source, rec)
       const r = def.setup(api)
@@ -422,7 +417,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     const id = def.id
     const rec = { id, def, source: 'builtin', exports: null, offs: [], tools: [], contexts: [], rules: [], commands: [], dshTools: [], errors: [], startedAt: Date.now() }
     live.set(id, rec)
-    generation++ // 内置模块（重）启动也换代际：会话里的工具要在下一轮重挂
+    state.generation++ // 内置模块（重）启动也换代际：会话里的工具要在下一轮重挂
     if (errors.get(id)?.source !== 'user') errors.delete(id) // 替换版的报错留着给面板看
     try {
       const r = def.setup(makeApi(id, 'builtin', rec))
@@ -440,7 +435,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     const rec = live.get(id)
     if (!rec) return false
     live.delete(id)
-    generation++ // 停止或替换也使会话工具缓存失效
+    state.generation++ // 停止或替换也使会话工具缓存失效
     rec.stopped = true
     for (const off of rec.offs.splice(0).reverse()) cleanup(off)
     cleanup(() => rec.exports?.dispose?.())
@@ -864,7 +859,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
 
   return {
     boot, sync, reload, stop, dispose, status, create, fork, promptFor, panelSource,
-    use: exportsOf, has: (id) => live.has(id), running: (id) => live.get(id)?.source || null, generation: () => generation,
+    use: exportsOf, has: (id) => live.has(id), running: (id) => live.get(id)?.source || null, generation: () => state.generation,
     capabilitiesOf,
     emit, claim, filter, filterSync, buildTools,
     // 插件核心自己听事件（不属于任何模块，不会被撤掉）

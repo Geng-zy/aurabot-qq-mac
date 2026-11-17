@@ -6350,6 +6350,8 @@ body[data-ds-dark-theme] .ab-root{
       slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
     }
 
+    // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

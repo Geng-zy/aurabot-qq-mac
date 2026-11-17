@@ -7,10 +7,8 @@ import { GROUPS, PARAMS, defaults } from '../src/mind/params.js'
 
 function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
   const source = readFileSync(new URL('../client/client.js', import.meta.url), 'utf8')
-  const marker = '    exports.apply = apply'
-  assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.mindTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }\n' + marker)).runInNewContext({
+  new Script(source).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
     ...globals,
   })
@@ -31,7 +29,7 @@ function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
     },
     useEffect: onEffect, useCallback: (fn) => fn, useMemo: (fn) => fn(),
   }
-  const panel = loader.factory(() => React).mindTest
+  const panel = loader.factory(() => React).__panelTest
   const render = (component, props) => { hook = 0; return component(props) }
   return { panel, slots, render }
 }

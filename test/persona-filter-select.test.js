@@ -6,10 +6,8 @@ import { Script } from 'node:vm'
 
 function setupPanel() {
   const source = readFileSync(new URL('../client/client.js', import.meta.url), 'utf8')
-  const marker = '    exports.apply = apply'
-  assert.ok(source.includes(marker))
   let loader
-  new Script(source.replace(marker, '    exports.filterTest = { Select }\n' + marker)).runInNewContext({
+  new Script(source).runInNewContext({
     window: { innerWidth: 1200, __ModuleLoader__: { load: (value) => { loader = value } } },
   })
   let hook = 0
@@ -29,7 +27,7 @@ function setupPanel() {
     },
     useEffect() {}, useCallback: (fn) => fn, useMemo: (fn) => fn(),
   }
-  const panel = loader.factory(() => React).filterTest
+  const panel = loader.factory(() => React).__panelTest
   const render = (component, props) => { hook = 0; return component(props) }
   return { panel, slots, render }
 }
