@@ -2020,7 +2020,7 @@ body[data-ds-dark-theme] .ab-root{
     /** 她在每个白名单群里的身份：群主 / 群管理员才能禁言踢人。 */
     function GroupRoles() {
       const [result, setResult] = useState(null)
-      const load = () => { setResult(null); get('/groups/roles').then(setResult) }
+      const load = () => { setResult(null); get('/ext/group-admin/groups/roles').then(setResult) }
       const list = result?.list || []
       useEffect(load, [])
       return h(Card, { fold: 'qq-group-admin', title: '群管权限', desc: 'ta在群里是群主或群管理员时，管理员才能让ta禁言、踢人、发公告；改专属头衔要群主。按已保存的群白名单查。',

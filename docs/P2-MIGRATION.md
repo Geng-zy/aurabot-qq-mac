@@ -31,7 +31,7 @@
 
 ## 3. 兼容层
 
-旧路径 re-export 已删除；外部模块迁移时由 AI 按新路径改 import。`STABLE_ROUTES` 只保留 `group-admin` 一个历史根路由。
+旧路径 re-export 已删除；外部模块迁移时由 AI 按新路径改 import。`STABLE_ROUTES` 已删除，所有社区模块统一走 `/ext/<id>/...`。
 
 ## 4. 这轮实际改动
 

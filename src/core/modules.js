@@ -33,9 +33,6 @@ const ID_RE = /^[a-z][a-z0-9-]{1,39}$/
 const ENTRY = ['index.mjs', 'index.js']
 const DOC = 'API.md'
 const TYPES = 'aurabot.d.ts'
-// 从内置搬到社区库的模块：接口路径不变，面板页照常能用
-const STABLE_ROUTES = new Set(['group-admin'])
-
 export const userDir = () => dataDir('modules')
 
 /** 内部源码全部按「相对 src 的路径」开放出来：lib('features/memory.js') → 那个文件导出的全部东西。 */
@@ -145,7 +142,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
   const isUserOn = () => !getConfig().safeMode
   // 接口挂在哪：内置模块（以及从内置搬到社区库的那几个）沿用原来的根路径，别的模块挂在自己的 /ext/<id>/ 下。
   // 面板里的 call('/x') 要用同一份判断决定基址（见 status().routesAtRoot），两边不能各算各的。
-  const routesAtRoot = (id) => builtinDefs.has(id) || STABLE_ROUTES.has(id)
+  const routesAtRoot = (id) => builtinDefs.has(id)
 
   const apiKit = createModuleApi({
     state, isDisposed: (...args) => isLoaderDisposed(...args), logger, getConfig, setConfig, version, API_VERSION,
