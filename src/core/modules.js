@@ -17,6 +17,7 @@ import { defineTool } from '../tools/tools.js'
 import { createModuleState } from './module-state.js'
 import { createModulePanel } from './module-panel.js'
 import { createModuleApi } from './module-api.js'
+import { createModuleRegistry } from './module-registry.js'
 import { rewriteImports, scopeCoreForModule, lazyProxy, deepMerge } from './module-code.js'
 export { rewriteImports, scopeCoreForModule, lazyProxy } from './module-code.js'
 
@@ -154,6 +155,11 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
   })
   note = apiKit.note
   const { makeApi, exportsOf } = apiKit
+  const registry = createModuleRegistry({
+    state, builtinDefs, getConfig, setConfig, version, API_VERSION, ID_RE, BUILTIN_DIR, SRC,
+    DOC, TYPES, userDir, libKeys, scanUser, routesAtRoot, modCfg,
+  })
+  const { capabilitiesOf, status, installDocs, create, fork, promptFor } = registry
 
   // 卸载接口保持同步；模块自己的同步 / 异步收尾失败只记日志。
   function cleanup(fn) {
@@ -387,145 +393,6 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     routes.clear()
     listeners.clear()
     if (globalThis.aurabot?.modules === publicHandle) delete globalThis.aurabot
-  }
-
-  /**
-   * 模块声明的能力（module.json 的 capabilities 数组）：内置模块没有 module.json 就当未声明（[]）。
-   * 子智能体委派这类「要本机权限」的能力靠它把关（一审 #177）：没声明就不许用。
-   */
-  function capabilitiesOf(id) {
-    const key = String(id || '')
-    if (!ID_RE.test(key)) return []
-    for (const dir of [join(userDir(), key), join(BUILTIN_DIR, key)]) {
-      const file = join(dir, 'module.json')
-      if (!existsSync(file)) continue
-      try {
-        const m = JSON.parse(readFileSync(file, 'utf8'))
-        return Array.isArray(m.capabilities) ? m.capabilities.map(String) : []
-      } catch (error) {
-        return []
-      }
-    }
-    return []
-  }
-
-  // ---------- 面板 ----------
-  function status() {
-    const users = scanUser()
-    // 文件夹刚删掉、还没来得及停的模块也列出来（下一轮检查就停）
-    const ids = [...builtinDefs.keys(), ...[...new Set([...users.map((u) => u.id), ...live.keys()])].filter((id) => !builtinDefs.has(id)).sort()]
-    return ids.map((id) => {
-      const b = builtinDefs.get(id)
-      const u = users.find((x) => x.id === id)
-      const rec = live.get(id)
-      const def = rec?.def || b || {}
-      const m = modCfg(id)
-      const err = errors.get(id)
-      return {
-        id,
-        name: def.name || id,
-        description: def.description || '',
-        version: def.version || '',
-        builtin: Boolean(b),
-        builtinVersion: b?.version || '',
-        hasUser: Boolean(u),
-        community: Boolean(u && existsSync(join(u.dir, '.aurabot-source.json'))),
-        userDir: u?.dir || '',
-        safeSkipped: Boolean(u?.safe),
-        running: rec ? rec.source : null, // 'builtin' | 'user' | null
-        fallback: Boolean(rec?.fallback),
-        enabled: m.enabled !== false,
-        useBuiltin: Boolean(m.useBuiltin),
-        forkedFrom: m.forkedFrom || '',
-        outdated: Boolean(b && rec?.source === 'user' && m.forkedFrom && m.forkedFrom !== b.version),
-        error: err ? err.message : '',
-        errors: rec ? rec.errors : [],
-        tools: rec ? toolNames(rec) : [],
-        commands: rec ? rec.commands.map((c) => c.name) : [],
-        routes: [...routes].filter(([, r]) => r.id === id).map(([p]) => p.replace('/aurabot/api', '')),
-        settings: rec?.source === 'user' || (!rec && u) ? (def.settings || []) : [],
-        defaults: def.defaults || {},
-        // 内置模块也能带面板：内置和用户模块走同一条加载链路，面板只按「定义里有没有声明 panel」判断。
-        // 不再要求 rec.source === 'user'，否则内置模块写了 panel.js 也永远显示不出来。
-        // 仍然要求模块在跑（rec 存在），没跑起来的模块没有面板代码可读。
-        panel: Boolean(rec && def.panel),
-        // 接口是不是挂在根路径（内置模块的老路径）；面板里的 call() 靠它决定加不加 /ext/<id> 前缀
-        routesAtRoot: routesAtRoot(id),
-        tab: def.tab || '',
-        flag: typeof def.flag === 'string' ? def.flag : (def.settings || []).some((f) => f?.key === 'enabled') ? 'enabled' : '',
-        keepPanel: Boolean(def.keepPanel),
-        startedAt: rec?.startedAt || 0,
-      }
-    })
-  }
-  function toolNames(rec) {
-    const names = []
-    for (const b of rec.tools) {
-      try {
-        const r = typeof b === 'function' ? b({ chat: { chatId: 'private:0', kind: 'private', userId: '0' }, level: 'full', sessionId: '' }) : b
-        for (const t of [].concat(r || [])) if (t?.name) names.push(t.name)
-      } catch (error) {}
-    }
-    return names
-  }
-
-  /** 新建一个自己写的模块（从模板）。 */
-  function create(id, name) {
-    if (!ID_RE.test(id)) return { ok: false, message: 'id 要小写字母开头，只能有小写字母、数字和 -，比如 weather' }
-    const dir = join(userDir(), id)
-    if (existsSync(dir)) return { ok: false, message: `modules/${id} 已经有了` }
-    mkdirSync(dir, { recursive: true })
-    const tpl = readFileSync(join(BUILTIN_DIR, '_template', 'index.mjs'), 'utf8')
-    writeFileSync(join(dir, 'index.mjs'), tpl.replaceAll('__TOOL__', id.replace(/-/g, '_')).replaceAll('__ID__', id).replaceAll('__NAME__', String(name || id).replace(/['\\\n]/g, '')), 'utf8')
-    installDocs()
-    return { ok: true, dir, file: join(dir, 'index.mjs'), message: `建好了：${join(dir, 'index.mjs')}` }
-  }
-
-  /** 把内置模块复制一份到 modules/ 里，改了就替换内置的。files 里列的实现文件一起复制。 */
-  function fork(id) {
-    const b = builtinDefs.get(id)
-    if (!b) return { ok: false, message: '没有这个内置模块' }
-    const dir = join(userDir(), id)
-    if (existsSync(dir)) return { ok: false, message: `modules/${id} 已经有了，先挪走它` }
-    const own = new Map() // 源码 key → 复制后的文件名
-    own.set(b.sourcePath || `modules/${id}/index.js`, 'index.mjs')
-    for (const f of b.files || []) own.set(f, f.split('/').pop())
-    mkdirSync(dir, { recursive: true })
-    for (const [key, name] of own) {
-      // 指向插件其他文件的改成走 lib()；一起复制过来的文件之间互相引用的，改成同目录
-      let code = rewriteImports(readFileSync(join(SRC, ...key.split('/')), 'utf8'), key, new Set(own.keys()))
-      for (const [k2, n2] of own) {
-        const relFrom = relative(dirname(join(SRC, ...key.split('/'))), join(SRC, ...k2.split('/'))).split(sep).join('/')
-        const spec = relFrom.startsWith('.') ? relFrom : './' + relFrom
-        code = code.split(`'${spec}'`).join(`'./${n2}'`)
-      }
-      writeFileSync(join(dir, name), `// 从 Aurabot v${version} 的内置模块「${b.name}」复制出来的，改了就替换内置的。\n// 原文件：src/${key}\n` + code, 'utf8')
-    }
-    setConfig({ ...getConfig(), modules: { ...getConfig().modules, [id]: { ...modCfg(id), useBuiltin: false, forkedFrom: b.version || version } } })
-    installDocs()
-    return { ok: true, dir, message: `复制好了：${dir}。改完保存，几秒内就会换成你的版本` }
-  }
-
-  /** 接口说明和类型提示放进 modules/（插件的东西，每次启动都覆盖成当前版本）。 */
-  function installDocs() {
-    try {
-      mkdirSync(userDir(), { recursive: true })
-      const doc = readFileSync(join(BUILTIN_DIR, DOC), 'utf8').replaceAll('{{VERSION}}', version).replaceAll('{{API}}', String(API_VERSION)).replace('{{LIB}}', libKeys().map((k) => '- `' + k + '`').join('\n'))
-      const dest = join(userDir(), DOC)
-      if (!existsSync(dest) || readFileSync(dest, 'utf8') !== doc) writeFileSync(dest, doc, 'utf8')
-      // 类型提示：模块开头写 /** @type {import('../aurabot').AurabotModule} */，编辑器就有补全
-      const types = readFileSync(join(BUILTIN_DIR, TYPES), 'utf8')
-      const tdest = join(userDir(), TYPES)
-      if (!existsSync(tdest) || readFileSync(tdest, 'utf8') !== types) writeFileSync(tdest, types, 'utf8')
-    } catch (error) {}
-  }
-
-  function promptFor(id) {
-    const dir = id ? join(userDir(), id) : userDir()
-    return `帮我修改 Aurabot（大肥鱼 QQ 插件）的扩展模块：${dir}\n`
-      + `先完整读一遍「${join(userDir(), DOC)}」了解模块怎么写、能用哪些接口，再按我的要求改：\n`
-      + '【这里写你想让她多会什么、改成什么样】\n'
-      + `只改 ${userDir()} 里的文件，不要动插件本身的代码；改完保存会自动重新加载，到面板「已安装」页看有没有报错，再告诉我怎么试。`
   }
 
   return {
