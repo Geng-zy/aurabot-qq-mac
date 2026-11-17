@@ -59,31 +59,10 @@ window.__ModuleLoader__.load({
       if (kind === 'system') return '后台 · ' + String(id || '').replace(/^ext-/, '')
       return String(k)
     }
-    // ---------------- DeepSeek 峰谷（前端只读展示，逻辑与 src/core/offpeak.js 保持一致） ----------------
-    const BJ_OFFSET = 8 * 3600_000 // 北京时间 = UTC+8（中国无夏令时）
+    // ---------------- DeepSeek 峰谷（服务端算好，前端只负责显示） ----------------
+    const BJ_OFFSET = 8 * 3600_000
     const pad2 = (n) => String(n).padStart(2, '0')
-    const bjKeyOf = (ms) => { const d = new Date(ms + BJ_OFFSET); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}` }
     const bjPartsOf = (ms) => { const d = new Date(ms + BJ_OFFSET); return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), dow: d.getUTCDay() } }
-    // 峰时：工作日北京时间 09:00–12:00 / 14:00–18:00（= UTC 01–04 / 06–10）；周末和节假日全天谷价
-    const isPeakAt = (ms, holidays) => {
-      const p = bjPartsOf(ms)
-      if (p.dow === 0 || p.dow === 6) return false
-      if ((holidays || []).includes(bjKeyOf(ms))) return false
-      const hh = new Date(ms).getUTCHours()
-      return (hh >= 1 && hh < 4) || (hh >= 6 && hh < 10)
-    }
-    const nextChangeAt = (ms, holidays) => {
-      const nowPeak = isPeakAt(ms, holidays)
-      const p = bjPartsOf(ms)
-      const cands = []
-      for (let off = 0; off <= 8; off++) {
-        const dayStart = Date.UTC(p.y, p.m - 1, p.d + off) - BJ_OFFSET // 北京时间当天 0 点
-        for (const hh of [0, 6, 9, 12, 14, 18]) { const at = dayStart + hh * 3600_000; if (at > ms) cands.push(at) }
-      }
-      cands.sort((a, b) => a - b)
-      for (const at of cands) if (isPeakAt(at, holidays) !== nowPeak) return at
-      return null
-    }
     const fmtNextChange = (at, now) => {
       const bj = new Date(at + BJ_OFFSET)
       const hm = pad2(bj.getUTCHours()) + ':' + pad2(bj.getUTCMinutes())
@@ -2213,7 +2192,7 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     /** 模型页：DeepSeek 峰谷省钱模式（默认关，只影响后台模型调用时机，聊天回复不变）。 */
-    function CostCard({ draft, setDraft }) {
+    function CostCard({ draft, setDraft, st }) {
       const f = useField(draft, setDraft)
       const [now, setNow] = useState(Date.now())
       useEffect(() => {
@@ -2221,9 +2200,8 @@ body[data-ds-dark-theme] .ab-root{
         return () => clearInterval(timer)
       }, [])
       const off = !!getPath(draft, 'cost.offPeak')
-      const holidays = getPath(draft, 'cost.offPeakHolidays') || []
-      const peak = isPeakAt(now, holidays)
-      const next = nextChangeAt(now, holidays)
+      const peak = Boolean(st?.offpeak?.peak)
+      const next = Number(st?.offpeak?.next) || 0
       return h(Card, {
         title: 'DeepSeek 峰谷省钱模式',
         right: f.sw('cost.offPeak'),
@@ -2239,7 +2217,7 @@ body[data-ds-dark-theme] .ab-root{
       )
     }
 
-    function Model({ draft, setDraft, toast }) {
+    function Model({ draft, setDraft, toast, st }) {
       const [list, setList] = useState(null)
       const [ping, setPing] = useState({})
       useEffect(() => { get('/models').then((r) => setList(r.list || [])) }, [])
@@ -2282,7 +2260,7 @@ body[data-ds-dark-theme] .ab-root{
             cur && ping[cur] ? h('span', { className: 'ab-muted ab-small' }, ping[cur]) : null),
         ),
         h(ChatModels, { draft, setDraft, list }),
-        h(CostCard, { draft, setDraft }),
+        h(CostCard, { draft, setDraft, st }),
         h(Card, { fold: 'qq-model-speed', title: '模型列表与测速', desc: '点「测速」会真的问一次模型（花一点点额度），看它回一句话要多久。' },
           list === null ? h(Empty, { icon: '⏳', text: '加载中…' }) : list.length === 0 ? h(Empty, { text: 'DSH 没有列出模型' }) :
             h('table', { className: 'ab-table' }, h('tbody', null, list.map((m) => h('tr', { key: key(m) },

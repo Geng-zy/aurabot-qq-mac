@@ -82,7 +82,7 @@ test('shouldDeferBackground：配置缺失/关闭永远 false，开着且峰时�
 test('面板：模型页有峰谷开关和节假日输入（源码契约）', async () => {
   const { readFileSync } = await import('node:fs')
   const src = readFileSync(new URL('../client/client.js', import.meta.url), 'utf8')
-  for (const text of ['DeepSeek 峰谷省钱模式', "f.sw('cost.offPeak')", "f.list('cost.offPeakHolidays'", '下次切换 ', 'isPeakAt', 'nextChangeAt']) {
+  for (const text of ['DeepSeek 峰谷省钱模式', "f.sw('cost.offPeak')", "f.list('cost.offPeakHolidays'", '下次切换 ', 'st?.offpeak?.peak', 'st?.offpeak?.next']) {
     assert.ok(src.includes(text), '面板缺：' + text)
   }
 })

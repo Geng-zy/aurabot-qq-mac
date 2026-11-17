@@ -35,6 +35,7 @@ import { dataDir, ensureDir } from './core/store.js'
 import { createTasks } from './core/tasks.js'
 import { initUsage, usageReport } from './core/usage.js'
 import { changelogSection } from './core/changelog.js'
+import { isPeak, nextChange } from './core/offpeak.js'
 import { parseCommand, runCommand, createMutes, commandList } from './chat/commands.js'
 import { listPersonas, readPersona, savePersona, deletePersona, currentPersonaText, seedPersonas } from './persona/personas.js'
 import { createModules, API_VERSION } from './core/modules.js'
@@ -657,6 +658,7 @@ export function apply(ctx) {
       onebot: await qq.status(),
       outbox: outbox.status(),
       stats: hub.stats(),
+      offpeak: (() => { const now = new Date(); const holidays = cfg.cost?.offPeakHolidays || []; const next = nextChange(now, { holidays }); return { peak: isPeak(now, { holidays }), next: next?.at || 0 } })(),
       // 模块关着时给个空壳，面板照常显示
       // 概览上的心情（心智核心）：value 把 -1～1 的愉快度换成 0～100 显示
       mood: (() => { try { const f = mind.mind.feeling(); return { value: Math.round((f.mood.v + 1) * 50), label: f.body.asleep ? '睡着了' : f.mood.label, reason: f.emotions[0] ? f.emotions[0].name : '', history: [] } } catch (error) { return { value: 0, label: '心智核心没起来', reason: '', history: [] } } })(),
