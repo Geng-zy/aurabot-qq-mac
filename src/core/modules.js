@@ -8,11 +8,10 @@
 //
 // 接口说明给写模块的人看：src/modules/API.md（每次启动复制到数据目录 modules/ 里）。
 
-import { existsSync, readdirSync, statSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
-import { join, dirname, isAbsolute, relative, resolve, sep } from 'node:path'
+import { existsSync, readdirSync, statSync } from 'node:fs'
+import { join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { dataDir } from './store.js'
-import { registerSecretField } from './config.js'
 import { defineTool } from '../tools/tools.js'
 import { createModuleState } from './module-state.js'
 import { createModulePanel } from './module-panel.js'
