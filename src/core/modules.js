@@ -15,6 +15,7 @@ import { dataDir } from './store.js'
 import { registerSecretField } from './config.js'
 import { defineTool } from '../tools/tools.js'
 import { createModuleState } from './module-state.js'
+import { createModulePanel } from './module-panel.js'
 
 /** 扩展接口版本：只加不改。哪天不得不改已有的东西才升到 2，并在更新说明里写清楚怎么迁移。 */
 export const API_VERSION = 1
@@ -203,6 +204,12 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
   const builtinDefs = new Map(builtins.map((d) => [d.id, d]))
   const state = createModuleState()
   const { live, errors, routes, listeners, revisions, userSeen } = state
+  const panel = createModulePanel({
+    state, isDisposed: () => disposed, note: (...args) => note(...args), log, getConfig,
+    builtinDefs, exportsOf: (...args) => exportsOf(...args), status: (...args) => status(...args),
+    ID_RE, BUILTIN_DIR,
+  })
+  const { emit, claim, filter, filterSync, buildTools, contextFor, rules, commands, dshTools, builtinOff, handle, panelSource, publicHandle } = panel
   let watching = null
   let disposed = false
 
@@ -603,93 +610,6 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     if (globalThis.aurabot?.modules === publicHandle) delete globalThis.aurabot
   }
 
-  // ---------- 事件 ----------
-  function emit(event, ...args) {
-    if (disposed) return
-    for (const { fn } of listeners.get(event) || []) {
-      try { const r = fn(...args); if (r && typeof r.catch === 'function') r.catch(() => {}) } catch (error) {}
-    }
-  }
-  /** 依次问每个模块，第一个返回真值的接管（收到消息时用）。 */
-  async function claim(event, ...args) {
-    for (const { fn } of listeners.get(event) || []) {
-      try { if (await fn(...args)) return true } catch (error) {}
-    }
-    return false
-  }
-  /** 依次让每个模块改写一个值（发回复前用）：返回 undefined 不改，null 拦下。 */
-  async function filter(event, value, ...args) {
-    let v = value
-    for (const { fn } of listeners.get(event) || []) {
-      try {
-        const r = await fn(v, ...args)
-        if (r === null) return null
-        if (r !== undefined) v = r
-      } catch (error) {}
-    }
-    return v
-  }
-  /** 同步版（人格、规则、模型选择这些地方不能等）：监听函数返回 Promise 的不算。 */
-  function filterSync(event, value, ...args) {
-    let v = value
-    for (const { fn } of listeners.get(event) || []) {
-      try {
-        const r = fn(v, ...args)
-        if (r && typeof r.then === 'function') continue
-        if (r === null) return null
-        if (r !== undefined) v = r
-      } catch (error) {}
-    }
-    return v
-  }
-
-  // ---------- 汇总给插件其他部分用 ----------
-  function buildTools(where) {
-    const out = []
-    const names = new Set()
-    for (const rec of live.values()) {
-      for (const b of rec.tools) {
-        let r
-        try { r = typeof b === 'function' ? b(where) : b } catch (error) { note(rec.id, '生成工具', error); continue }
-        for (const t of [].concat(r || [])) {
-          if (!t || !t.name) continue
-          if (names.has(t.name)) { log.debug(`工具 ${t.name} 重名，模块「${rec.id}」的没挂`); continue }
-          names.add(t.name)
-          out.push(t)
-        }
-      }
-    }
-    return out
-  }
-  function contextFor(args) {
-    const parts = []
-    for (const rec of live.values()) {
-      for (const fn of rec.contexts) {
-        try { const t = fn(args); if (t) parts.push(String(t)) } catch (error) {}
-      }
-    }
-    return parts.join('\n\n')
-  }
-  function rules(kind) {
-    const out = []
-    for (const rec of live.values()) {
-      for (const fn of rec.rules) {
-        try { const t = typeof fn === 'function' ? fn(kind, getConfig()) : fn; for (const line of [].concat(t || [])) if (line) out.push(String(line)) } catch (error) {}
-      }
-    }
-    return out
-  }
-  const commands = () => [...live.values()].flatMap((r) => r.commands)
-  const dshTools = () => [...live.values()].flatMap((r) => r.dshTools.map((t) => ({ ...t, module: r.id })))
-  /** 内置模块里没在跑的（关掉的、被替换的）。 */
-  const builtinOff = () => new Set([...builtinDefs.keys()].filter((id) => live.get(id)?.source !== 'builtin'))
-
-  async function handle(path, req, res) {
-    const r = routes.get(path)
-    if (!r || !live.has(r.id)) return { ok: false, message: '这个功能所在的模块没开（面板「已安装」里看看）', moduleOff: true }
-    return r.handler(req, res)
-  }
-
   /**
    * 模块声明的能力（module.json 的 capabilities 数组）：内置模块没有 module.json 就当未声明（[]）。
    * 子智能体委派这类「要本机权限」的能力靠它把关（一审 #177）：没声明就不许用。
@@ -770,32 +690,6 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     return names
   }
 
-  /** file 是不是在 root 目录里面（root 自己不算；越过 root 的 ../ 一律不算）。 */
-  function inside(root, file) {
-    const rel = relative(resolve(root), resolve(file))
-    return Boolean(rel) && !rel.startsWith('..') && !isAbsolute(rel)
-  }
-
-  /**
-   * 模块的面板代码（panel.js），面板拿去执行。
-   * 内置模块也允许带面板：两者本来就是同一条加载链路，面板只需要「定义里声明了 panel」。
-   * 面板文件从模块自己的文件夹读：用户模块在数据目录 modules/<id>，内置模块在 src/modules/<id>；
-   * 两边都要求落在各自的根目录里，防止 panel 写成 ../../xxx 去读根目录外面的文件。
-   */
-  function panelSource(id) {
-    const rec = live.get(id)
-    if (!rec || !rec.def.panel) return null
-    // 内置模块的根目录是 src/modules/<id>；id 先按 ID_RE 校验，别让奇怪的名字把根目录带到外面去。
-    const builtin = rec.source !== 'user'
-    const root = builtin
-      ? (ID_RE.test(String(id)) ? join(BUILTIN_DIR, id) : '')
-      : (rec.dir || userSeen.get(id)?.dir || '')
-    if (!root) return null
-    const file = resolve(root, typeof rec.def.panel === 'string' ? rec.def.panel : 'panel.js')
-    if (!inside(root, file) || !existsSync(file)) return null
-    return readFileSync(file, 'utf8')
-  }
-
   /** 新建一个自己写的模块（从模板）。 */
   function create(id, name) {
     if (!ID_RE.test(id)) return { ok: false, message: 'id 要小写字母开头，只能有小写字母、数字和 -，比如 weather' }
@@ -854,8 +748,6 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
       + '【这里写你想让她多会什么、改成什么样】\n'
       + `只改 ${userDir()} 里的文件，不要动插件本身的代码；改完保存会自动重新加载，到面板「已安装」页看有没有报错，再告诉我怎么试。`
   }
-
-  const publicHandle = { use: exportsOf, has: (id) => live.has(id), list: () => status().map(({ id, name, running }) => ({ id, name, running })), emit }
 
   return {
     boot, sync, reload, stop, dispose, status, create, fork, promptFor, panelSource,
