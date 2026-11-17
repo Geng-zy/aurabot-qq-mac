@@ -1,4 +1,4 @@
-// 好友申请与白名单：权限三档、试运行、请求参数、失败要当失败、主人不能被移出。用假 api / 假 OneBot 测。
+// 好友申请与白名单：权限三档、试运行、请求参数、失败要当失败、管理员不能被移出。用假 api / 假 OneBot 测。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync } from 'node:fs'
@@ -46,7 +46,7 @@ function setup({ cfg = {}, allOwner = true, callImpl } = {}) {
 }
 const friendEv = (over = {}) => ({ post_type: 'request', request_type: 'friend', user_id: 40004, comment: '你好', flag: 'u_abc', ...over })
 
-test('权限：默认仅主人私聊，可开放主人群聊，其他私聊没有工具', () => {
+test('权限：默认仅管理员私聊，可开放管理员群聊，其他私聊没有工具', () => {
   const t = setup()
   assert.deepEqual(Object.keys(t.tools(ownerPm)).sort(), ['qq_handle_friend_request', 'qq_handle_group_request', 'qq_list_group_requests', 'qq_whitelist'])
   assert.deepEqual(Object.keys(t.tools(otherPm)), [])
@@ -81,7 +81,7 @@ test('执行时按最新设置再查：工具已挂出，设置改成关 / 混�
   assert.deepEqual(w.cfg().allow.private, [])
 })
 
-test('收到好友申请：记下 flag、给主人提一句，同一条不重复提；关了权限就不打扰', () => {
+test('收到好友申请：记下 flag、给管理员提一句，同一条不重复提；关了权限就不打扰', () => {
   const t = setup()
   t.event(friendEv())
   t.event(friendEv())
@@ -189,16 +189,16 @@ test('白名单：加 / 移出 私聊和群、去重、写进配置', async () =
   assert.equal(t.calls.length, 0, '改白名单不碰 QQ 接口')
 })
 
-test('白名单：不能把主人移出私聊白名单（哪怕名单里有他）；也不能乱填', async () => {
+test('白名单：不能把管理员移出私聊白名单（哪怕名单里有他）；也不能乱填', async () => {
   const t = setup({ cfg: { allow: { private: [OWNER, '111111'], groups: [] } } })
   const w = t.tools(ownerPm).qq_whitelist
   let r = await w.execute({ action: 'remove', kind: 'private', id: OWNER })
   assert.equal(r.ok, false)
-  assert.match(r.message, /主人/)
+  assert.match(r.message, /管理员/)
   assert.deepEqual(t.cfg().allow.private, [OWNER, '111111'])
   r = await w.execute({ action: 'add', kind: 'private', id: BOT })
   assert.equal(r.ok, false)
-  // 群号和主人 QQ 号撞了也不受影响（两张表互不相干）
+  // 群号和管理员 QQ 号撞了也不受影响（两张表互不相干）
   r = await w.execute({ action: 'remove', kind: 'group', id: OWNER })
   assert.equal(r.ok, true)
   for (const bad of [{ action: 'del', kind: 'private', id: '40004' }, { action: 'add', kind: 'team', id: '40004' }, { action: 'add', kind: 'private', id: '12' }, { action: 'add', kind: 'private', id: '' }, { action: 'add', kind: 'private', id: 'abc' }]) {
@@ -215,7 +215,7 @@ test('白名单试运行：只回话，配置不变', async () => {
   r = await w.execute({ action: 'remove', kind: 'group', id: '555666' })
   assert.match(r.message, /试运行/)
   assert.deepEqual(t.cfg().allow, { private: ['111111'], groups: ['555666'] })
-  // 试运行时主人保护照样生效
+  // 试运行时管理员保护照样生效
   r = await w.execute({ action: 'remove', kind: 'private', id: OWNER })
   assert.equal(r.ok, false)
 })
@@ -228,7 +228,7 @@ test('白名单：保存时用最新配置，不盖掉别处刚改的', async ()
   assert.deepEqual(t.cfg().allow.private, ['222222', '40004'])
 })
 
-test('白名单：即使开启群聊，也要主人亲口发起', async () => {
+test('白名单：即使开启群聊，也要管理员亲口发起', async () => {
   const t = setup({ cfg: { profilePerms: { whitelist: 'all' } }, allOwner: false })
   const args = { action: 'add', kind: 'group', id: '777888' }
   assert.equal((await t.tools(group).qq_whitelist.execute(args)).ok, false)

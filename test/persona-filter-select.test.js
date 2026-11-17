@@ -36,7 +36,7 @@ function setupPanel() {
 
 test('自定义筛选可用键盘选择、离开后收起', () => {
   const { panel, render } = setupPanel()
-  const options = [{ value: '', label: '所有状态' }, { value: 'owner', label: '主人' }]
+  const options = [{ value: '', label: '所有状态' }, { value: 'owner', label: '管理员' }]
   let value = ''
   const select = () => render(panel.Select, { value, options, ariaLabel: '所有状态', onChange: (v) => { value = v } })
   let tree = select()
@@ -52,7 +52,7 @@ test('自定义筛选可用键盘选择、离开后收起', () => {
   assert.equal(value, 'owner')
   tree = select()
   assert.equal(tree.children[0].props['aria-expanded'], false)
-  assert.equal(tree.children[0].children[0].children[0], '主人')
+  assert.equal(tree.children[0].children[0].children[0], '管理员')
   tree.children[0].props.onClick()
   tree = select()
   assert.equal(tree.children[0].props['aria-expanded'], true)

@@ -38,7 +38,7 @@ export default {
         const cfg = api.config()
         // 唱过的歌记成她的经历：私聊记到对方头上
         const target = parseChat(chatId)
-        const who = target?.kind === 'private' ? (refOfChat(chatId) === normPerson(cfg.ownerQQ) ? cfg.ownerName || '主人' : '对方') : '群里'
+        const who = target?.kind === 'private' ? (refOfChat(chatId) === normPerson(cfg.ownerQQ) ? cfg.ownerName || '管理员' : '对方') : '群里'
         api.mind?.experience?.({ text: `给${who}唱了《${title}》`, chatId, tags: ['唱歌'], importance: 0.5, effort: 0.05, emotion: { name: '满足', intensity: 0.4 } })
         api.emit('song/sung', { title, chatId })
       },
@@ -100,7 +100,7 @@ export default {
       required: ['song'],
       slow: '好，我这就去弄，稍等一会儿（做好了发你）。',
       execute: async ({ song: name, pitch, acapella, duet }) => {
-        if (api.config().song.ownerOnly && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能点歌' }
+        if (api.config().song.ownerOnly && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员能点歌' }
         return requestTask({ song: name, pitch, acapella, duet, chatId: chat.chatId }, api.core.taskRequesters?.({ chat, sessionId }) || [])
       },
     }) : []))
@@ -127,7 +127,7 @@ export default {
     })
     api.route('/song/voice/delete', async (req) => song.deleteVoice(String((await http.body(req)).id || '')))
     api.route('/song/voice/profile', async (req) => { const b = await http.body(req); return song.buildProfile(String(b.id || ''), String(b.folder || '')) })
-    // 面板里试唱：发到主人私聊
+    // 面板里试唱：发到管理员私聊
     api.route('/song/request', async (req) => {
       const b = await http.body(req)
       return requestTask({ song: b.song, songId: b.songId, pitch: b.pitch, voice: b.voice, chatId: b.chatId || `private:${api.config().ownerQQ}` }, [String(api.config().ownerQQ)])

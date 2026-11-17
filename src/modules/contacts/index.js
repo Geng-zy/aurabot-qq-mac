@@ -1,8 +1,8 @@
 // 内置模块：好友 / 加群申请与白名单。
 //  · qq_handle_friend_request：通过 / 拒绝别人加她为好友的申请（SnowLuma：set_friend_add_request；被 QQ 过滤的「可能认识的人」走 set_doubt_friends_add_request）。
-//  · qq_whitelist：听主人的话把 QQ 号 / 群号加进、移出白名单（allow.private / allow.groups），写进配置并保存。
+//  · qq_whitelist：听管理员的话把 QQ 号 / 群号加进、移出白名单（allow.private / allow.groups），写进配置并保存。
 // 「她主动加别人为好友」没做：SnowLuma（v2.2.0）没有这个接口，维护者明确说公开版不会加（SnowLuma#480）。
-// 两个工具各一档权限（面板「权限」页）：off 关 / owner 仅主人私聊（默认）/ all 所有人。
+// 两个工具各一档权限（面板「权限」页）：off 关 / owner 仅管理员私聊（默认）/ all 所有人。
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { defineTool, str, bool } from '../../tools/tools.js'
@@ -29,8 +29,8 @@ export function planWhitelist(cfg, { action, kind, id }) {
   const listName = k === 'private' ? '私聊白名单' : '群白名单'
   if (k === 'private' && n === String(cfg.ownerQQ || '')) {
     return act === 'remove'
-      ? { ok: false, message: '主人不能被移出私聊白名单' }
-      : { ok: true, message: '主人本来就能私聊，不用加白名单' }
+      ? { ok: false, message: '管理员不能被移出私聊白名单' }
+      : { ok: true, message: '管理员本来就能私聊，不用加白名单' }
   }
   if (k === 'private' && act === 'add' && n === String(cfg.botQQ || '')) return { ok: false, message: '这是我自己的号，不用加' }
   const list = (k === 'private' ? cfg.allow?.private : cfg.allow?.groups) || []
@@ -85,7 +85,7 @@ export default {
     }
     const groupInFlight = new Set()
 
-    // 要主人拿主意的事（加好友、进群申请）：由她用自己的话跟主人说，说不出来才发固定文字
+    // 要管理员拿主意的事（加好友、进群申请）：由她用自己的话跟管理员说，说不出来才发固定文字
     const tellOwner = (facts, plain) => {
       const cfg = api.config()
       const voice = api.core.herVoice
@@ -111,7 +111,7 @@ export default {
       }
     }
 
-    // 好友申请事件：只记下来（flag 必须原样用，不能自己拼），再给主人提一句
+    // 好友申请事件：只记下来（flag 必须原样用，不能自己拼），再给管理员提一句
     api.on('onebot', (ev) => {
       if (!ev || ev.post_type !== 'request') return
       if (ev.request_type === 'group') return onGroupRequest(ev)
@@ -141,7 +141,7 @@ export default {
 
     const groupOwner = (chat) => chat.kind === 'private' && Boolean(api.config().ownerQQ) && String(chat.userId) === String(api.config().ownerQQ)
     const guardedGroup = (chat, sessionId, run) => guarded('qqFriendRequest', chat, sessionId, async (args, cfg) => {
-      if (!groupOwner(chat) || !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人私聊才能处理加群申请' }
+      if (!groupOwner(chat) || !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员私聊才能处理加群申请' }
       return run(args, cfg)
     })
 
@@ -227,7 +227,7 @@ export default {
       }
       if (profileToolVisible(cfg, 'whitelist', chat)) tools.push(defineTool({
         name: 'qq_whitelist',
-        description: '改白名单：action 填 add（加进）或 remove（移出），kind 填 private（某个 QQ 号可以私聊你）或 group（某个群你会理），id 填 QQ 号或群号。主人不能被移出。',
+        description: '改白名单：action 填 add（加进）或 remove（移出），kind 填 private（某个 QQ 号可以私聊你）或 group（某个群你会理），id 填 QQ 号或群号。管理员不能被移出。',
         properties: { action: str('add 加进 / remove 移出'), kind: str('private 私聊的人 / group 群'), id: str('QQ 号或群号（数字）') },
         required: ['action', 'kind', 'id'],
         execute: guarded('whitelist', chat, sessionId, async (args, c) => {

@@ -50,12 +50,12 @@ test('写入后按天读回；调试模式不落盘', (t) => {
   assert.deepEqual(dbg.chatLog.chatLogDays(), [])
 })
 
-test('隐私：主人私聊流水不对其他会话开放；显式分享按 mind 判断', (t) => {
+test('隐私：管理员私聊流水不对其他会话开放；显式分享按 mind 判断', (t) => {
   const s = setup()
   t.after(() => s.cleanup())
-  s.chatLog.logChat('private:10001', 'user', '主人的悄悄话', '10001')
+  s.chatLog.logChat('private:10001', 'user', '管理员的悄悄话', '10001')
   const row = s.chatLog.chatLogOf(s.chatLog.chatLogDays()[0])[0]
-  assert.equal(s.chatLog.canReadChatLog(row, 'group:555'), false, '主人私聊不对群开放')
+  assert.equal(s.chatLog.canReadChatLog(row, 'group:555'), false, '管理员私聊不对群开放')
   assert.equal(s.chatLog.canReadChatLog(row, 'private:10001'), true, '自己的会话可以读')
 })
 

@@ -121,7 +121,7 @@ test('沉默时可有情绪，别人的认知只用原话和原窗口，删除�
   assert.ok(!mind.feeling().emotions.some((e) => e.name === '难过'))
 })
 
-test('仅主人私聊可见的记忆在摘要中也不会流入群或外部模块', (t) => {
+test('仅管理员私聊可见的记忆在摘要中也不会流入群或外部模块', (t) => {
   const mind = createMind({ memoryDb: true, ownerId })
   t.after(() => mind.close())
   const source = mind.memory.insert({ at: T0, window, gist: '群里提过的纪念计划', kind: 'event' })
@@ -136,7 +136,7 @@ test('仅主人私聊可见的记忆在摘要中也不会流入群或外部模�
   }
 })
 
-test('主人私聊只分享核验过的日常原话，删除或设为私密后停止分享', async (t) => {
+test('管理员私聊只分享核验过的日常原话，删除或设为私密后停止分享', async (t) => {
   const ownerWindow = 'demo:private:owner'
   const ordinary = '下雨以后天气凉快多了'
   const privatePlan = '下雨就按我们俩的约定去琥珀灯塔'
@@ -214,7 +214,7 @@ test('旧版整张公开卡在群聊只留下性格，独立心智私聊仍读�
   assert.match(prompts[2], /琥珀灯塔/)
 })
 
-test('主人允许的一句话仅在指定会话可用，撤回后旧编号失效', async (t) => {
+test('管理员允许的一句话仅在指定会话可用，撤回后旧编号失效', async (t) => {
   const mind = createMind({ memoryDb: true, ownerId, now: () => T0 })
   t.after(() => mind.close())
   const { memory } = mind
@@ -281,7 +281,7 @@ test('旁边的私密约定可以阻止日常字面片段发布，也能撤回�
   assert.doesNotMatch(JSON.stringify(recall), /这部电影的配乐很好听/)
 })
 
-test('深想额度不足时跨日排队，和主人的关系优先于普通念头', async (t) => {
+test('深想额度不足时跨日排队，和管理员的关系优先于普通念头', async (t) => {
   let now = T0
   let thought = '念头：我想弄懂为什么潮水每天会变化\n深想：是'
   const requests = []
@@ -297,7 +297,7 @@ test('深想额度不足时跨日排队，和主人的关系优先于普通念�
   await mind.inner.step()
   mind.perceive({ window: 'qq:private:' + ownerId.split(':').at(-1), who: ownerId, text: '我们聊聊最近相处的问题吧', at: T0 - 1000 })
   const evidence = mind._store.prep('SELECT max(id) AS id FROM perception').get().id
-  thought = '念头：主人提到了我们之间的关系，我有点难过\n感受：难过 0.7\n依据：' + evidence + '\n深想：是'
+  thought = '念头：管理员提到了我们之间的关系，我有点难过\n感受：难过 0.7\n依据：' + evidence + '\n深想：是'
   await mind.inner.step()
   assert.equal(mind.inner.deferredCount(), 2)
   mind.updateSettings({ 'models.deepThinkDaily': 1 })
@@ -307,7 +307,7 @@ test('深想额度不足时跨日排队，和主人的关系优先于普通念�
   mind = createMind(opts)
   const resumed = await mind.inner.step()
   assert.equal(resumed.resumed, true)
-  assert.match(resumed.thought, /主人/)
+  assert.match(resumed.thought, /管理员/)
   assert.equal(mind.inner.deferredCount(), 1)
   assert.equal(mind.budget.spent().byKind.deep.calls, 1)
   now += DAY

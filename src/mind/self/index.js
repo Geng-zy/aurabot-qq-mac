@@ -1,7 +1,7 @@
 // 自我：她自己决定的变化和她的自我故事（设计文档「她自己决定的变化」「自我故事」）。
 // - 什么时候都可以改：人格卡原文、价值观、爱好、名字和小名、外貌描写、自我故事；也可以写「我想变成……」的目标。
 // - 每次改都存一个版本（改了什么、为什么），她改的时候能看到以前改过什么。
-// - 年龄、生日和「专一」由主人在面板里设，她写不进去。
+// - 年龄、生日和「专一」由管理员在面板里设，她写不进去。
 // - 自我故事（McAdams 的叙事身份）：她用自己的话写「我是怎么变成现在这样的」，重要的经历成为其中的章节；睡觉时更新。
 
 import { parseJson } from '../memory/index.js'
@@ -9,7 +9,7 @@ import { TRAIT, TRAITS } from '../personality/traits.js'
 
 const DAY = 86400000
 const WHAT = {
-  persona: '人格卡', name: '名字', nickname: '小名', values: '价值观', hobbies: '爱好', looks: '外貌', story: '自我故事', goal: '想变成的样子', ownerCall: '对主人的称呼',
+  persona: '人格卡', name: '名字', nickname: '小名', values: '价值观', hobbies: '爱好', looks: '外貌', story: '自我故事', goal: '想变成的样子', ownerCall: '对管理员的称呼',
 }
 export const SELF_FIELDS = Object.keys(WHAT)
 
@@ -17,12 +17,12 @@ const ROMANCE = /(喜欢上|爱上|暗恋|心动|恋人|恋爱|男朋友|女朋�
 const NEGATED = /(不想|不会|没有|才不|不要|拒绝|不谈|不喜欢)/
 const sentences = (t) => String(t || '').split(/[。！？!?\n；;]/).map((x) => x.trim()).filter(Boolean)
 /**
- * 新写进去的句子里，有没提主人、却有恋爱说法的（「我不想谈恋爱」这种否定的不算）：「专一」开着时她写不进去。
- * 原来就有的句子不管（人格卡里本来写着的，由主人负责）。
+ * 新写进去的句子里，有没提管理员、却有恋爱说法的（「我不想谈恋爱」这种否定的不算）：「专一」开着时她写不进去。
+ * 原来就有的句子不管（人格卡里本来写着的，由管理员负责）。
  */
-export function romanceElsewhere(text, before = '', ownerWords = ['主人']) {
+export function romanceElsewhere(text, before = '', ownerWords = ['管理员']) {
   const old = new Set(sentences(before))
-  const words = ['主人', ...ownerWords].map((w) => String(w || '').trim()).filter(Boolean)
+  const words = ['管理员', ...ownerWords].map((w) => String(w || '').trim()).filter(Boolean)
   return sentences(text).some((s) => !old.has(s) && ROMANCE.test(s) && !words.some((w) => s.includes(w)) && !NEGATED.test(s))
 }
 /** 新文字里出现了旧文字里没有的年龄、生日说法。 */
@@ -47,17 +47,17 @@ export function createSelf(deps) {
   }
   function saveProfile(p) { store.set('self.profile', p) }
 
-  // ---------- 对主人的称呼 ----------
-  /** 她现在怎么叫主人：她自己改过就用她的，没改过用主人一开始设的。 */
+  // ---------- 对管理员的称呼 ----------
+  /** 她现在怎么叫管理员：她自己改过就用她的，没改过用管理员一开始设的。 */
   function ownerCall() {
-    return String(profile().ownerCall || deps.ownerName?.() || '主人')
+    return String(profile().ownerCall || deps.ownerName?.() || '管理员')
   }
   /**
-   * 她现在能不能自己改对主人的称呼：只看主人开没开这个开关（什么时候改由她自己）。
+   * 她现在能不能自己改对管理员的称呼：只看管理员开没开这个开关（什么时候改由她自己）。
    * @returns {true|string} 能改返回 true，不能返回原因
    */
   function canChangeOwnerCall() {
-    if (setting('identity.ownerCallChange') === false) return '主人没开「她可以自己改对你的称呼」'
+    if (setting('identity.ownerCallChange') === false) return '管理员没开「她可以自己改对你的称呼」'
     return true
   }
 
@@ -67,7 +67,7 @@ export function createSelf(deps) {
   }
 
   /**
-   * 改自己。by：'self' 她自己；'owner' 主人在面板里改。
+   * 改自己。by：'self' 她自己；'owner' 管理员在面板里改。
    * @param {{ what: string, content: string, why?: string, trait?: string, dir?: number }} c
    * @returns {{ ok: boolean, message: string, change?: { what: string, label: string, why: string, before: string, after: string } }}
    */
@@ -91,15 +91,15 @@ export function createSelf(deps) {
       }
     }
     if (by === 'self' && what !== 'ownerCall') {
-      if (id.exclusive && romanceElsewhere(content, before, [ownerCall(), deps.ownerName?.()])) return { ok: false, message: '「专一」是主人设的：你的喜欢只给主人，写不进喜欢别人' }
-      if (touchesAge(before, content)) return { ok: false, message: '年龄和生日只有主人能在面板里改' }
+      if (id.exclusive && romanceElsewhere(content, before, [ownerCall(), deps.ownerName?.()])) return { ok: false, message: '「专一」是管理员设定的：你的喜欢只给管理员，写不进喜欢别人' }
+      if (touchesAge(before, content)) return { ok: false, message: '年龄和生日只有管理员能在面板里改' }
     }
     if (what === 'name' && !content) return { ok: false, message: '名字不能是空的' }
     if ((what === 'name' || what === 'nickname') && [...content].length > 20) return { ok: false, message: '名字太长了' }
     if (what === 'persona' && content.length < 20) return { ok: false, message: '人格卡要写完整的（整段新的人格卡原文）' }
     const limit = what === 'persona' ? 20000 : what === 'story' ? 3000 : what === 'ownerCall' ? 12 : 600
     const after = content.slice(0, limit)
-    const reason = (by === 'self' ? '她自己改的：' : by === 'owner' ? '主人改的：' : '') + (why || WHAT[what])
+    const reason = (by === 'self' ? '她自己改的：' : by === 'owner' ? '管理员改的：' : '') + (why || WHAT[what])
     if (what === 'persona') deps.setPersonaCard(after, { by, reason })
     else if (what === 'name') deps.setPersonaCard(deps.personaCard(), { by, reason: `改名：${before || '（没有）'} → ${after}。${why}`, name: after })
     else if (what === 'nickname') deps.setPersonaCard(deps.personaCard(), { by, reason: `改小名：${before || '（没有）'} → ${after}。${why}`, nickname: after })
@@ -121,7 +121,7 @@ export function createSelf(deps) {
       saveProfile(p)
     }
     deps.addVersion('self', { what, before: String(before).slice(0, 20000), after, ...(what === 'story' ? { beforeSources } : {}) }, { by, reason })
-    log.info(`${by === 'self' ? '她' : '主人'}改了${WHAT[what]}：${why.slice(0, 60)}`)
+    log.info(`${by === 'self' ? '她' : '管理员'}改了${WHAT[what]}：${why.slice(0, 60)}`)
     return { ok: true, message: `改好了（${WHAT[what]}）`, change: { what, label: WHAT[what], why, before: String(before), after } }
   }
 
@@ -214,7 +214,7 @@ export function createSelf(deps) {
     const parts = [deps.personaCard()]
     const nameLine = [id.name ? `你现在的名字是「${id.name}」` : '', id.nickname ? `小名「${id.nickname}」` : ''].filter(Boolean).join('，')
     if (nameLine) parts.push(`【你的名字】${nameLine}（以这里为准）。`)
-    if (p.ownerCall) parts.push(`【你怎么叫主人】你现在叫他「${p.ownerCall}」（这是你自己改的，以这里为准）。`)
+    if (p.ownerCall) parts.push(`【你怎么叫管理员】你现在叫他「${p.ownerCall}」（这是你自己改的，以这里为准）。`)
     if (id.age !== null && id.age !== undefined) parts.push(`【年龄】你 ${id.age} 岁${id.birthday ? `，生日是 ${id.birthday}` : ''}（以这里为准）。`)
     const own = [
       p.values ? `价值观：${p.values}` : '',

@@ -1,4 +1,4 @@
-// qq_send_file 的权限边界（#169）：主人私聊能发；群里只有「这一轮说话的人全是主人」能发；
+// qq_send_file 的权限边界（#169）：管理员私聊能发；群里只有「这一轮说话的人全是管理员」能发；
 // 图片先按图发，明确发不出去才按文件发，结果不确定时绝不发第二份。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -20,7 +20,7 @@ function setup({ level = 'full', kind = 'private', chatId = kind === 'group' ? '
   return { tool: tools.find((t) => t.name === 'qq_send_file'), sent, images, cfg }
 }
 
-test('主人私聊：能发，走 sendFile', async () => {
+test('管理员私聊：能发，走 sendFile', async () => {
   const s = setup()
   const r = await s.tool.execute({ file: '/tmp/a.zip' })
   assert.equal(r.ok, true)
@@ -33,18 +33,18 @@ test('发 QQ 文件的工具只挂在 QQ 会话', () => {
   assert.ok(setup({ chatId: 'qq:private:1' }).tool)
 })
 
-test('群聊里这一轮说话的全是主人：能发到群里', async () => {
+test('群聊里这一轮说话的全是管理员：能发到群里', async () => {
   const s = setup({ kind: 'group', level: 'social' })
   const r = await s.tool.execute({ file: '/tmp/a.zip' })
   assert.equal(r.ok, true)
   assert.deepEqual(s.sent, ['group:9'])
 })
 
-test('群里主人和别人同处这一轮：拒绝，一条都不发', async () => {
+test('群里管理员和别人同处这一轮：拒绝，一条都不发', async () => {
   const s = setup({ kind: 'group', level: 'social', ownerAll: false })
   const r = await s.tool.execute({ file: '/tmp/a.zip' })
   assert.equal(r.ok, false)
-  assert.match(r.message, /只有主人开口时才能发文件/)
+  assert.match(r.message, /只有管理员开口时才能发文件/)
   assert.deepEqual(s.sent, [])
   assert.deepEqual(s.images, [])
 })

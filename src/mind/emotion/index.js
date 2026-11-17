@@ -55,7 +55,7 @@ export function createEmotion(deps) {
    * 她感到了一些情绪。规矩：
    * - 认不出的名字不要；
    * - 没满 18 岁（或没填年龄）没有性欲；
-   * - 「专一」开着时，恋爱式情绪只对主人：对别人的心动 / 爱慕变成喜爱（不超过中等），性欲去掉，嫉妒变成羡慕；
+   * - 「专一」开着时，恋爱式情绪只对管理员：对别人的心动 / 爱慕变成喜爱（不超过中等），性欲去掉，嫉妒变成羡慕；
    * - 被带动的（src=contagion）按「情绪传染强度」打折；
    * - 调节方式改变强度和持续时间（Gross 的情绪调节模型；具体倍数是经验值）。
    * @param {Array<{ name: string, intensity: number, valence?: number, target?: string, why?: string, importance?: number, reg?: string, src?: string }>} items

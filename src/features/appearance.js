@@ -1,5 +1,5 @@
-// 她的形象：主人导入的几张参考图（她长什么样），以后她画自己（自拍、她的样子、合照里有她）时照着画。
-// 图存在 dir 里，删掉的移到废纸篓；另存一份文字描述（看图写的或主人自己写的），
+// 她的形象：管理员导入的几张参考图（她长什么样），以后她画自己（自拍、她的样子、合照里有她）时照着画。
+// 图存在 dir 里，删掉的移到废纸篓；另存一份文字描述（看图写的或管理员自己写的），
 // 生图服务不支持参考图、或者这次还有别的参考图时，靠这段文字让她画得像自己。
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
@@ -82,7 +82,7 @@ export function createAppearance({ dir, trashDir, shrink = async (b) => b, now =
     return list().slice(0, n).map((f) => readFileSync(join(dir, f.file)))
   }
 
-  /** 文字描述（看图写的或主人自己写的）。 */
+  /** 文字描述（看图写的或管理员自己写的）。 */
   const description = () => String(meta().description || '')
   function setDescription(text, by = 'owner') {
     saveMeta({ ...meta(), description: String(text || '').trim().slice(0, 1200), describedBy: by, describedAt: now() })

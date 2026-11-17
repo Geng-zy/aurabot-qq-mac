@@ -47,7 +47,7 @@ test('自动换新、手动重开和侧栏归档都在回复前先整理，已�
   const hub = createHub({ dsh: fake.ctx, getConfig: () => cfg, log: { info() {}, warn() {}, debug() {}, error() {} }, onebot: { async call() { return { message_id: 1 } } }, mind })
   fake.ctx.effect(() => fake.ctx.on('session/event', hub.onSessionEvent))
   t.after(() => { hub.dispose(); fake.dispose(); if (old === undefined) delete process.env.AURABOT_DATA_DIR; else process.env.AURABOT_DATA_DIR = old; rmSync(root, { recursive: true, force: true }) })
-  const chat = { kind: 'private', chatId: 'private:8', userId: '8', nickname: '主人' }
+  const chat = { kind: 'private', chatId: 'private:8', userId: '8', nickname: '管理员' }
   await hub.pushToSession(chat, [{ type: 'text', text: '第一句' }], '8')
   const first = hub.sessions()['private:8'].sessionId
   for (let i = 0; i < 30 && fake.turns.length < 1; i++) await new Promise((r) => setTimeout(r, 20))

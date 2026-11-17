@@ -334,7 +334,7 @@ export function createMemory(deps) {
     return rows.filter((r) => r.last > cursorOf(r.window)).map((r) => ({ window: r.window, lastAt: r.lastAt }))
   }
 
-  // 只有清楚属于日常公共话题、能逐字对回来源的片段，才可以从主人私聊另存一份可分享摘要。
+  // 只有清楚属于日常公共话题、能逐字对回来源的片段，才可以从管理员私聊另存一份可分享摘要。
   const ordinaryTopic = /天气|下雨|下雪|晴天|气温|电影|动画|动漫|电视剧|音乐|歌曲|游戏|球赛|公开新闻|编程|开源|软件|今天吃|早餐|午餐|晚饭/
   const privateCue = /私密|隐私|保密|秘密|不公开|别(?:告诉|提|说给|对外说|在.{0,8}(?:说|提))|不要(?:告诉|提起|外传)|只[跟给和]|只属于|我们俩|咱俩|两个人之间|我和你|你和我|私聊|专属|我家|住址|手机号|身份证|暗号|密码|口令|验证码|银行|账户|病情|检查结果|亲密|表白|感情|纪念日|老地方|那个地方|上(?:次|回)(?:说好|那套|的事)|前面说的是那件事|心里有数就行|(?:到你这儿|知道|懂)就好|到你这儿就行|(?:等我|碰头|碰面|见面)|我喊你的|[路街巷弄][零一二三四五六七八九十百\d]+号|\d{6}|https?:|@/i
   const compact = (text) => String(text ?? '').normalize('NFKC').replace(/[\s\p{Cf}]+/gu, '')
@@ -391,8 +391,8 @@ export function createMemory(deps) {
 - emotion：以对话为依据，记录你当时的感受。name 用一个词，intensity 0~1，valence -1~1（负面到正面）。区分带着期待的紧张和因担忧而焦虑；仅凭话题看不出感受就填 null。
 - who：涉及的人的 id 列表（行首方括号里的 id）。about：这件事主要关于谁（id），speaker：这件事是谁说的（id，你自己是 self）。
 - sources：依据的行号。
-- secret：只有在主人私聊整理私人经历、私密关系、身份信息、承诺或被要求保密的事时才填 true。
-- publicQuote（可选）：主人私聊里明确无隐私的天气、公开影视、音乐、游戏、开源技术或日常饮食，可以从主人原话中选一段独立的连续原文。连同它前后的消息判断用途。代称、暗语、相约、只点到为止的话，以及前后要求只留在这里的原话，就算字面是天气或电影也不分享。不能含姓名、身份、地点、行程、私下关系或承诺。只有清楚属于日常话题时才填，不确定就留空。
+- secret：只有在管理员私聊整理私人经历、私密关系、身份信息、承诺或被要求保密的事时才填 true。
+- publicQuote（可选）：管理员私聊里明确无隐私的天气、公开影视、音乐、游戏、开源技术或日常饮食，可以从管理员原话中选一段独立的连续原文。连同它前后的消息判断用途。代称、暗语、相约、只点到为止的话，以及前后要求只留在这里的原话，就算字面是天气或电影也不分享。不能含姓名、身份、地点、行程、私下关系或承诺。只有清楚属于日常话题时才填，不确定就留空。
 
 只输出 JSON：{"episodes":[{"type":"event|fact|hearsay|belief|intention|pending|date","gist":"","detail":"","importance":0.5,"emotion":{"name":"","intensity":0.5,"valence":0},"who":[],"about":"","speaker":"","due":null,"yearly":null,"sources":[1],"secret":false,"publicQuote":""}]}；没有值得记的就输出 {"episodes":[]}。`
 
@@ -814,7 +814,7 @@ export function createMemory(deps) {
     if (asks >= followupMaxAsks(care)) Object.assign(e.data.followup, { done: at, why: 'asked-limit' })
     save(e)
   }
-  /** 有结果了 / 对方说别问了 / 主人在面板里取消：放下。 */
+  /** 有结果了 / 对方说别问了 / 管理员在面板里取消：放下。 */
   function closeFollowup(id, why = 'done') {
     const e = row(id)
     if (!e || e.data.kind !== 'pending') return false
@@ -919,7 +919,7 @@ export function createMemory(deps) {
       const f = localParts(p.firstSeen, tz)
       const day = ahead.find((a) => a.key === md(f.month, f.day) && a.year > f.year)
       if (!day) continue
-      out.push({ text: `${label(day.i)}：和${p.owner ? '主人' : nameOf(p.id)}认识满 ${day.year - f.year} 年`, about: p.id, inDays: day.i, owner: Boolean(p.owner), self: false, kind: 'met' })
+      out.push({ text: `${label(day.i)}：和${p.owner ? '管理员' : nameOf(p.id)}认识满 ${day.year - f.year} 年`, about: p.id, inDays: day.i, owner: Boolean(p.owner), self: false, kind: 'met' })
     }
     return out.sort((a, b) => a.inDays - b.inDays)
   }
@@ -990,7 +990,7 @@ export function createMemory(deps) {
       if (entries.size) lastRecalled.set(window, [...entries.values()])
       else lastRecalled.delete(window)
     }
-    // 今天和快到的日子（生日、纪念日、认识几周年）：眼前的人的、主人的、她自己的
+    // 今天和快到的日子（生日、纪念日、认识几周年）：眼前的人的、管理员的、她自己的
     const days = specialDays({ within: 3, audienceWindow: window || '' }).filter((d) => d.self || d.owner || people.includes(d.about))
     // readOnly（调试模式）：只想起来，不加强、不重新点燃情绪，不留下痕迹
     if (used.length && !readOnly) {
@@ -1043,7 +1043,7 @@ export function createMemory(deps) {
   }
 
   // ---------- 删除和重算 ----------
-  /** 主人删一条：连同向量、联系一起删，记进删除记录；由它整理出来的「知道的事」重算。 */
+  /** 管理员删一条：连同向量、联系一起删，记进删除记录；由它整理出来的「知道的事」重算。 */
   function deleteEpisode(id, { record = true } = {}) {
     const e = row(id)
     if (!e) return false
@@ -1113,7 +1113,7 @@ export function createMemory(deps) {
     })
     return n
   }
-  /** 主人加强一条（归档的也会回来）。 */
+  /** 管理员加强一条（归档的也会回来）。 */
   function boost(id, factor = 2) {
     const e = row(id)
     if (!e) return false
@@ -1134,10 +1134,10 @@ export function createMemory(deps) {
     return true
   }
 
-  /** 只由宿主的主人设置入口调用。单独保存主人核准的说法，不把原经历的任何字段复制给接收方。 */
+  /** 只由宿主的管理员设置入口调用。单独保存管理员核准的说法，不把原经历的任何字段复制给接收方。 */
   function shareEpisode(id, { text, audience } = {}) {
     const original = row(id)
-    if (!shareSourceAllowed(original)) throw new Error('只有未标为私密的主人私聊经历可以分享')
+    if (!shareSourceAllowed(original)) throw new Error('只有未标为私密的管理员私聊经历可以分享')
     const gist = typeof text === 'string' ? text.trim() : ''
     if (!gist || gist.length > 300) throw new Error('请填写可以分享的内容，最多 300 字')
     const target = typeof audience === 'string' ? audience.trim() : ''

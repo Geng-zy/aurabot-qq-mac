@@ -234,14 +234,14 @@ function innerMind({ reply, ask, random = () => 0.5 } = {}) {
 }
 
 test('想一步：材料里有身体、心情和刚才的事（标明是谁说的）；念头只进内心日记，不进记忆；感受和打算留下', async () => {
-  const { m, calls } = innerMind({ reply: '念头：主人刚才说要加班，他会不会很累\n感受：心疼 0.6\n打算：想找主人说话，问问他吃饭没\n深想：否' })
-  m.perceive({ window: 'qq:private:1', who: 'qq:1', name: '主人', text: '今天要加班到很晚', at: T0 - 600000 })
+  const { m, calls } = innerMind({ reply: '念头：管理员刚才说要加班，他会不会很累\n感受：心疼 0.6\n打算：想找管理员说话，问问他吃饭没\n深想：否' })
+  m.perceive({ window: 'qq:private:1', who: 'qq:1', name: '管理员', text: '今天要加班到很晚', at: T0 - 600000 })
   const before = m.memory.list().length
   const st = await m.inner.step()
-  assert.equal(st.thought, '主人刚才说要加班，他会不会很累')
+  assert.equal(st.thought, '管理员刚才说要加班，他会不会很累')
   const prompt = calls[0][1].content
   assert.match(prompt, /【身体】/)
-  assert.match(prompt, /私聊里（qq:private:1） 主人说：今天要加班到很晚/)
+  assert.match(prompt, /私聊里（qq:private:1） 管理员说：今天要加班到很晚/)
   assert.equal(m.memory.list().length, before, '小模型的念头不进记忆')
   assert.ok(m.emotion.state().active.some((e) => e.name === '心疼'))
   const w = m.motivation.state().wants[0]
@@ -249,7 +249,7 @@ test('想一步：材料里有身体、心情和刚才的事（标明是谁说�
   assert.equal(m.inner.diary()[0].thought, st.thought)
 })
 
-test('本地念头和深想都拿到当前时区、多个会话及完整的近期主人来信计数', async (t) => {
+test('本地念头和深想都拿到当前时区、多个会话及完整的近期管理员来信计数', async (t) => {
   const deep = []
   const { m, set, calls } = innerMind({
     reply: (n) => n === 1 ? '念头：他是不是没回我\n深想：是' : '念头：想到明天的事',
@@ -271,8 +271,8 @@ test('本地念头和深想都拿到当前时区、多个会话及完整的近�
   await m.inner.step()
   for (const input of [calls[0][1].content, deep[0].text, calls[1][1].content]) {
     assert.match(input, /【当前时间】2026年11月14日 周六 02:30（Asia\/Shanghai，24 小时制）/)
-    assert.match(input, /共收到主人 16 条消息，最新一条在 11-14 02:25/)
-    assert.match(input, /私聊里（qq:private:1） 主人说：私聊第 16 条/)
+    assert.match(input, /共收到管理员 16 条消息，最新一条在 11-14 02:25/)
+    assert.match(input, /私聊里（qq:private:1） 管理员说：私聊第 16 条/)
     assert.match(input, /私聊里（wechat:private:pal） 好友说：好友的近况/)
     assert.match(input, /群里（qq:group:7） 群友说：群聊第 30 条/)
     assert.doesNotMatch(input, /群聊第 20 条|未来的记录/)
@@ -281,7 +281,7 @@ test('本地念头和深想都拿到当前时区、多个会话及完整的近�
   assert.doesNotMatch(calls[1][1].content, /他是不是没回我/)
 })
 
-test('主动念头保留较早的主人互动和大量短消息，群里旁听仍可按会话查看', async (t) => {
+test('主动念头保留较早的管理员互动和大量短消息，群里旁听仍可按会话查看', async (t) => {
   const { m, calls } = innerMind({ reply: '念头：想起刚才约好的事' })
   t.after(() => m.close())
   m.perceive({ window: 'qq:private:1', who: 'qq:1', text: '约好明天一起听歌', at: T0 - 45 * 60000 })
@@ -360,7 +360,7 @@ test('群里的普通纠正只产生轻微情绪，既有的满足仍进入念�
 })
 
 test('没有新依据时，换个说法不会再次把低落写进情绪', async (t) => {
-  const replies = ['念头：没收到主人消息，他不会不在线吧\n感受：孤独 0.8', '念头：刚才看着窗口，心里空落落的\n感受：委屈 0.8']
+  const replies = ['念头：没收到管理员消息，他不会不在线吧\n感受：孤独 0.8', '念头：刚才看着窗口，心里空落落的\n感受：委屈 0.8']
   const { m, calls, set } = innerMind({ reply: (n) => replies[n - 1] })
   t.after(() => m.close())
   const first = await m.inner.step()
@@ -380,7 +380,7 @@ test('没装本地小模型：用聊天模型想（受预算限制）；关掉�
 
 // ---------- 对接层：想、做、发呆；主动找你；权限 ----------
 
-function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：思念 0.5\n打算：想找主人说话\n深想：否', deliver = () => true } = {}) {
+function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：思念 0.5\n打算：想找管理员说话\n深想：否', deliver = () => true } = {}) {
   let t = T0
   const sent = []
   const a = createMindAdapter({
@@ -392,7 +392,7 @@ function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：
   return { a, sent, set: (v) => { t = v }, get: () => t }
 }
 
-test('闲着时：按走神比例想一步，想找主人的念头够强就去找；找了你没回之前不再追着发', async () => {
+test('闲着时：按走神比例想一步，想找管理员的念头够强就去找；找了你没回之前不再追着发', async () => {
   const { a, sent, set } = adapter()
   set(T0 + 20 * H) // 一整天没人理
   const r = await a.innerTick()
@@ -400,7 +400,7 @@ test('闲着时：按走神比例想一步，想找主人的念头够强就去�
   await new Promise((x) => setTimeout(x, 10))
   assert.equal(sent.length, 1)
   assert.equal(sent[0].chatId, 'private:1')
-  assert.match(sent[0].note, /你想主动找主人说话/)
+  assert.match(sent[0].note, /你想主动找管理员说话/)
   assert.match(sent[0].note, /不要编/)
   assert.equal(a.mind._store.get('outreach').pending !== null, true)
   set(T0 + 20.5 * H)
@@ -425,7 +425,7 @@ test('后台只生成一个念头，聊天开始后慢结果不能写入情绪�
   assert.equal(await a.innerTick(), null)
   assert.equal(calls, 1)
   a.perceive({ kind: 'private', chatId: 'private:1', userId: '1', text: '在吗', messageId: 'm' })
-  finish('念头：我想找主人。\n感受：快乐 1\n打算：找主人\n深想：否')
+  finish('念头：我想找管理员。\n感受：快乐 1\n打算：找管理员\n深想：否')
   assert.equal(await pending, null)
   assert.deepEqual(a.mind.inner.diary(), [])
   assert.deepEqual(a.mind.emotion.state().active, [])
@@ -435,7 +435,7 @@ test('后台只生成一个念头，聊天开始后慢结果不能写入情绪�
 test('你回了她开心、下次更愿意找你；一直不回她有点失落', async () => {
   const { a, set } = adapter()
   await a.reachOwner('想他了')
-  a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '主人', text: '在呢', messageId: 'r1' })
+  a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '管理员', text: '在呢', messageId: 'r1' })
   assert.equal(a.mind._store.get('outreach').pending, null)
   assert.ok(a.mind.emotion.state().active.some((e) => e.name === '快乐' && e.why === '找他，他回了'))
   set(T0 + 3 * H)
@@ -458,20 +458,20 @@ test('主动联系未收到投递确认时不等待回复，失败的权限通�
   assert.equal(a.mind._store.get('outreach').count, 1)
 })
 
-test('给主人画画不等于找主人聊天；虚拟投喂会清除已经满足的吃饭念头', async (t) => {
-  const { a } = adapter({ reply: '念头：想画点好看的\n打算：给主人画一幅画\n深想：否' })
+test('给管理员画画不等于找管理员聊天；虚拟投喂会清除已经满足的吃饭念头', async (t) => {
+  const { a } = adapter({ reply: '念头：想画点好看的\n打算：给管理员画一幅画\n深想：否' })
   t.after(() => a.close())
   await a.mind.inner.step()
   const meal = a.mind.motivation.want('先点份热乎乎的外卖')
-  const chat = a.mind.motivation.want('找主人说话')
-  const oldSong = a.mind.motivation.want('给主人翻唱一首歌', { action: 'reach_owner' })
+  const chat = a.mind.motivation.want('找管理员说话')
+  const oldSong = a.mind.motivation.want('给管理员翻唱一首歌', { action: 'reach_owner' })
   a.mind.motivation.offer({ id: 'cover', label: '翻唱', keywords: ['翻唱'], run: async () => ({ ok: true }) })
   const get = (id) => a.mind.motivation.motives().find((x) => x.id === id)
   assert.deepEqual(get('reach_owner').wantIds, [chat.id])
   assert.deepEqual(get('cover').wantIds, [oldSong.id])
   assert.deepEqual(get('eat').wantIds, [meal.id])
   a.mind.updateSettings({ 'body.feedOnlyByOwner': true })
-  assert.match((await a.runAction('eat')).summary, /等主人投喂/)
+  assert.match((await a.runAction('eat')).summary, /等管理员投喂/)
   a.feed('奶茶', '1', 'private:1')
   assert.deepEqual(get('eat').wantIds, [])
   assert.deepEqual(get('reach_owner').wantIds, [chat.id])
@@ -545,7 +545,7 @@ test('模块交给她的事：按动力去做；模块停了就撤掉', async ()
   const { a, set } = adapter({ reply: '念头：好无聊\n打算：无' })
   let n = 0
   const off = a.moduleApi('tophub').offer({ id: 'browse', label: '逛热榜', needs: { fun: 1 }, effort: 0.1, run: async () => { n++; return { ok: true, outcome: 0.8 } } })
-  a.mind.updateSettings({ 'motivation.dailyOutreachCap': 0, 'motivation.quietHours': '00:00-23:59' }) // 不让「找主人」抢
+  a.mind.updateSettings({ 'motivation.dailyOutreachCap': 0, 'motivation.quietHours': '00:00-23:59' }) // 不让「找管理员」抢
   set(T0 + 10 * H)
   await a.innerTick()
   await new Promise((x) => setTimeout(x, 10))

@@ -23,7 +23,7 @@ export function noticeText(ev, { botQQ, name = (qq) => String(qq), ownMessage = 
     case 'group_decrease':
       return sub === 'leave' ? group(`${who(ev.user_id)}退群了`) : group(`${by(ev.operator_id)}${who(ev.user_id)}踢出了群`)
     case 'group_admin':
-      return group(sub === 'set' ? `${who(ev.user_id)}成了管理员` : `${who(ev.user_id)}不再是管理员`)
+      return group(sub === 'set' ? `${who(ev.user_id)}成了群管理员` : `${who(ev.user_id)}不再是群管理员`)
     case 'essence':
       return group(`${who(ev.operator_id)}把${who(ev.sender_id ?? ev.user_id)}的消息${sub === 'add' ? '设为精华' : '移出了精华'}`)
     case 'group_card':

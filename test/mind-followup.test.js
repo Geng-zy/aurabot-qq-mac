@@ -45,7 +45,7 @@ test('记成惦记的事：结果出来的时间到了才问，问过往后推�
   m.said({ window, text: '那场面试有消息了吗？', msgId: 'asked-0b' })
   assert.equal(m.memory.followups()[0].asks, 1, '同一轮的重述只算一次')
   assert.doesNotMatch((await ctx(a, 1)).text, /面试/, '刚问过，往后推')
-  // 主人：在乎程度高，最多问 3 次左右；隔几天再问
+  // 管理员：在乎程度高，最多问 3 次左右；隔几天再问
   let asked = 1
   for (let d = 1; d <= 20; d++) {
     set(Date.UTC(2026, 10, 11, 11) + d * DAY)
@@ -60,7 +60,7 @@ test('记成惦记的事：结果出来的时间到了才问，问过往后推�
   assert.equal(m.memory.followups().length, 0)
 })
 
-test('有结果了 / 说别问了：她用工具放下；主人在面板里也能取消', async () => {
+test('有结果了 / 说别问了：她用工具放下；管理员在面板里也能取消', async () => {
   const { a, m, set } = setup(pendingAnswer('qq:1', null))
   m.perceive({ window: 'qq:private:1', who: 'qq:1', text: '我明天下午面试', msgId: 'a', at: T0 })
   await m.memory.encodeWindow('qq:private:1', { force: true })
@@ -92,7 +92,7 @@ test('既有待跟进摘要按原话日期解读，跨会话核对只展示允�
   const group = 'qq:group:5'
   m.perceive({ window: group, who: 'qq:1', text: '今天刚取消订阅，这应该会退回来吧', msgId: 'refund', at: T0 })
   const source = m._store.prep('SELECT id FROM perception WHERE window = ?').get(group).id
-  const id = m.memory.insert({ at: T0, window: group, gist: '主人今天刚取消订阅，问能不能退款',
+  const id = m.memory.insert({ at: T0, window: group, gist: '管理员今天刚取消订阅，问能不能退款',
     kind: 'pending', about: 'qq:1', speaker: 'qq:1', sources: [source], extra: { followup: { asks: 0, nextAt: T0 + DAY } } })
   set(T0 + 2 * DAY)
   const window = 'qq:private:1'

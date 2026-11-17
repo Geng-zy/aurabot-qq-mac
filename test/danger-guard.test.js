@@ -1,4 +1,4 @@
-// 危险命令确认：命中规则才问主人；确认放行、取消/超时/陌生人都不执行。
+// 危险命令确认：命中规则才问管理员；确认放行、取消/超时/陌生人都不执行。
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
@@ -81,7 +81,7 @@ test('开关关着 / 非终端工具 / 非危险命令：直接放行', async ()
   }
 })
 
-test('主人回复「确认」才执行；命令原文发到主人私聊', async () => {
+test('管理员回复「确认」才执行；命令原文发到管理员私聊', async () => {
   const { guard, delivered } = makeGuard()
   const p = guard.preExecute(execOf('Remove-Item -Recurse -Force C:\\'), () => 'NEXT')
   await sleep(10)
@@ -90,7 +90,7 @@ test('主人回复「确认」才执行；命令原文发到主人私聊', async
   assert.match(delivered[0].text, /危险命令确认/)
   assert.match(delivered[0].text, /Remove-Item/)
   assert.equal(guard.pendingCount, 1)
-  // 别人说的不算；闲聊不算；主人确认才算
+  // 别人说的不算；闲聊不算；管理员确认才算
   assert.equal(guard.handleReply(ownerChat, '999', '确认'), false)
   assert.equal(guard.handleReply(ownerChat, owner, '今天吃啥'), false)
   assert.equal(guard.handleReply(ownerChat, owner, '确认'), true)
@@ -98,7 +98,7 @@ test('主人回复「确认」才执行；命令原文发到主人私聊', async
   assert.equal(guard.pendingCount, 0)
 })
 
-test('主人回复「取消」/ 超时没回：都拦下（返回 deny）', async () => {
+test('管理员回复「取消」/ 超时没回：都拦下（返回 deny）', async () => {
   {
     const { guard } = makeGuard()
     const p = guard.preExecute(execOf('rm -rf /'), () => 'NEXT')
@@ -115,7 +115,7 @@ test('主人回复「取消」/ 超时没回：都拦下（返回 deny）', asyn
   }
 })
 
-test('非主人会话里的危险命令：直接拦，不打扰主人；重复请求不叠第二条', async () => {
+test('非管理员会话里的危险命令：直接拦，不打扰管理员；重复请求不叠第二条', async () => {
   const { guard, delivered } = makeGuard()
   const d = await guard.preExecute(execOf('rm -rf /', { sid: 'sid-other' }), () => 'NEXT')
   assert.equal(d.kind, 'deny')
@@ -142,7 +142,7 @@ test('H04：等待确认期间关闭 dangerConfirm，旧确认不能执行', asy
   assert.equal(result.kind, 'deny')
   assert.equal(ran, false, '关闭确认后旧命令不能执行')
 })
-// ---- 回归：进程级钩子不该拦主人自己的 GUI/CLI 会话 ----
+// ---- 回归：进程级钩子不该拦管理员自己的 GUI/CLI 会话 ----
 // 只给一个会话传 isOwnedSession（模拟 aurabot 自己开的 QQ 会话），其余会话不归它管。
 function makeScopedGuard ({ enabled = true, timeoutMs = 5000, owned = () => true } = {}) {
   const delivered = []
@@ -158,12 +158,12 @@ function makeScopedGuard ({ enabled = true, timeoutMs = 5000, owned = () => true
   return { guard, delivered, cfg }
 }
 
-test('主人自己的 GUI/CLI 会话（不归 aurabot 管）：危险命令也直接放行', async () => {
+test('管理员自己的 GUI/CLI 会话（不归 aurabot 管）：危险命令也直接放行', async () => {
   // isOwnedSession 只认 aurabot 自己开的会话；面板里手敲的会话不属于它
   const { guard, delivered } = makeScopedGuard({ owned: (sid) => sid === 'sid-owner' || sid === 'sid-other' })
   assert.equal(await guard.preExecute(execOf('rm -rf /', { sid: 'sid-gui' }), () => 'NEXT'), 'NEXT')
   assert.equal(await guard.preExecute(execOf('mkfs.ext4 /dev/sda1', { sid: 'sid-cli' }), () => 'NEXT'), 'NEXT')
-  assert.equal(delivered.length, 0, '不该给主人发确认消息')
+  assert.equal(delivered.length, 0, '不该给管理员发确认消息')
 })
 
 test('是 aurabot 的会话但认不出 chatId：仍然 fail-closed 拦下', async () => {
@@ -172,7 +172,7 @@ test('是 aurabot 的会话但认不出 chatId：仍然 fail-closed 拦下', asy
   assert.equal(d.kind, 'deny')
 })
 
-test('关闭主人确认也不能在其他私聊执行危险命令', async () => {
+test('关闭管理员确认也不能在其他私聊执行危险命令', async () => {
   const { guard, delivered } = makeScopedGuard({ enabled: false })
   const decision = await guard.preExecute(execOf('rm -rf /', { sid: 'sid-other' }), () => 'NEXT')
   assert.equal(decision.kind, 'deny')
@@ -181,7 +181,7 @@ test('关闭主人确认也不能在其他私聊执行危险命令', async () =>
 
 test('isOwnedSession 抛错：按老逻辑走（仍然拦），不静默放行', async () => {
   const { guard } = makeScopedGuard({ owned: () => { throw new Error('boom') } })
-  // 抛错 → owned=null → 继续往下判断；sid-owner 能映射到主人私聊，所以会走确认流程而不是放行
+  // 抛错 → owned=null → 继续往下判断；sid-owner 能映射到管理员私聊，所以会走确认流程而不是放行
   const p = guard.preExecute(execOf('rm -rf /'), () => 'NEXT')
   await sleep(10)
   assert.equal(guard.pendingCount, 1, '应该进入等确认，而不是直接放行')

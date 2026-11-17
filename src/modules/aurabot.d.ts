@@ -59,7 +59,7 @@ export interface ModelSelection { provider: string; model: string; reasoningEffo
 /** 工具生成函数拿到的「在哪儿」。 */
 export interface Where {
   chat: Chat
-  /** full 主人私聊 / social 群聊和别人 */
+  /** full 管理员私聊 / social 群聊和别人 */
   level: 'full' | 'social' | 'chat'
   sessionId: string
 }
@@ -88,7 +88,7 @@ export interface Command {
   desc?: string
   /** 日志只记录命令名，发送失败时结束本次回执。 */
   sensitive?: boolean
-  /** 返回的文字直接回给主人 */
+  /** 返回的文字直接回给管理员 */
   run(arg: string, msg: Message): string | void | Promise<string | void>
 }
 
@@ -132,7 +132,7 @@ export interface ChatHub {
   sessions(): Record<string, { sessionId: string; title?: string; [key: string]: any }>
   chatLogDays(): string[]
   chatLogOf(day: string): ChatLogRow[]
-  /** 仅供已经验证主人身份的模块使用；仅接收已有且开放的 private/group 会话。 */
+  /** 仅供已经验证管理员身份的模块使用；仅接收已有且开放的 private/group 会话。 */
   receiveOwnerMessage(chatId: string, options?: OwnerMessageOptions): Promise<{ ok: true }>
 }
 
@@ -219,7 +219,7 @@ export interface MindApi {
     payoff?: number; keywords?: string[]; matchWant?: (text: string) => boolean; available?: () => true | string | false
     run: (ctx: { checkpoint: () => Promise<void>; signal: AbortSignal; wants: string[] }) => Promise<{ ok: boolean; summary?: string; outcome?: number; deferred?: boolean; budgetEstimate?: number }>
   }): () => void
-  /** 主人有没有批准她这项权限。 */
+  /** 管理员有没有批准她这项权限。 */
   granted(key: string): boolean
 }
 
@@ -245,7 +245,7 @@ export interface Api {
   sendText(chatId: ChatId | string, text: string): Promise<any>
   /** 回某一条消息：群里以「引用回复」发出（对方能看到在回他），私聊直接发 */
   reply(msg: Message, text: string): Promise<any>
-  /** 这个 QQ 号是不是主人 */
+  /** 这个 QQ 号是不是管理员 */
   isOwner(userId: string | number): boolean
   sendImage(chatId: ChatId | string, src: string): Promise<any>
   /** 发文件：本机绝对路径，或网关能取到的网址 / base64://（网关看不到本机路径时，小文件会自动改用 base64） */

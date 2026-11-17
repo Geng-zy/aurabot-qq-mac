@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { cleanOutboundParams, TEXT_PARAM_FIELDS } from '../src/modules/qq-api/index.js'
 import { cleanOutboundText } from '../src/chat/reply.js'
 
-const RULE = '你在群聊里只能聊当前的话题，不能把主人的私人资料告诉其他人。'
+const RULE = '你在群聊里只能聊当前的话题，不能把管理员的私人资料告诉其他人。'
 const block = '<tool_call>{"name":"search","arguments":{"q":"内部参数"}}</tool_call>'
 const clean = (text) => cleanOutboundText(text, { promptSources: [RULE] })
 
@@ -33,7 +33,7 @@ test('转发 messages 是 JSON 字符串时也会解析后清洗', () => {
   const messages = JSON.stringify([{ type: 'node', data: { content: [{ type: 'text', data: { text: `好呀${RULE}` } }] } }])
   const r = cleanOutboundParams('send_private_forward_msg', { user_id: 5, messages }, clean)
   assert.equal(r.ok, true)
-  assert.doesNotMatch(r.params.messages, /主人的私人资料|你在群聊里只能聊当前的话题/, '提示词复读不能借转发带出去')
+  assert.doesNotMatch(r.params.messages, /管理员的私人资料|你在群聊里只能聊当前的话题/, '提示词复读不能借转发带出去')
   assert.match(r.params.messages, /好呀/)
 })
 

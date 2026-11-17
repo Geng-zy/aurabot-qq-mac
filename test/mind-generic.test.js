@@ -29,7 +29,7 @@ test('群的了解按整个窗口记：不同平台同一个群号不串', () =>
   assert.match(m.relations.describe([], { window: 'feishu:group:9' }), /飞书工作群/)
 })
 
-test('其他人的私聊记忆可以跨平台使用，主人的私聊原话仅在来源窗口可读', async () => {
+test('其他人的私聊记忆可以跨平台使用，管理员的私聊原话仅在来源窗口可读', async () => {
   const m = mk()
   m.memory.insert({ at: T0, window: 'wechat:private:wxid_2', gist: '小明说他在准备考研复试', kind: 'fact', about: 'wechat:wxid_2', speaker: 'wechat:wxid_2', importance: 0.8 })
   const w = await m.memory.workingMemory({ cue: '考研复试', window: 'feishu:group:9', people: ['wechat:wxid_2'] })
@@ -42,13 +42,13 @@ test('其他人的私聊记忆可以跨平台使用，主人的私聊原话仅�
   assert.deepEqual(m.history(dm, { audienceWindow: 'feishu:group:9' }), [])
 })
 
-test('同一个人：主人的微信连到主人以后，算主人；原话、经历、名字都并过去', () => {
+test('同一个人：管理员的微信连到管理员以后，算管理员；原话、经历、名字都并过去', () => {
   const m = mk()
   m.perceive({ window: 'wechat:private:wxid_o', who: 'wechat:wxid_o', name: '鱼哥', text: '在吗', msgId: 'w1', at: T0 })
   m.memory.insert({ at: T0, window: 'wechat:private:wxid_o', gist: '他说周末去爬山', kind: 'fact', about: 'wechat:wxid_o', speaker: 'wechat:wxid_o', who: ['wechat:wxid_o'] })
-  m.notePerson('qq:1', { name: '主人QQ' })
+  m.notePerson('qq:1', { name: '管理员QQ' })
   assert.equal(m.isOwner('wechat:wxid_o'), false)
-  assert.equal(m.linkPerson('qq:1', 'wechat:wxid_o').ok, false, '不能把主人并到别人身上')
+  assert.equal(m.linkPerson('qq:1', 'wechat:wxid_o').ok, false, '不能把管理员并到别人身上')
   assert.equal(m.linkPerson('wechat:wxid_o', 'qq:1').ok, true)
   assert.equal(m.isOwner('wechat:wxid_o'), true)
   assert.equal(m.canon('wechat:wxid_o'), 'qq:1')
@@ -58,7 +58,7 @@ test('同一个人：主人的微信连到主人以后，算主人；原话、�
   assert.equal(m.history('wechat:private:wxid_o')[0].who, 'qq:1')
   assert.equal(m.memory.list({ limit: 5 })[0].gist, '他说周末去爬山')
   assert.match(JSON.stringify(m.episode(m.memory.list({ limit: 5 })[0].id).data), /"about":"qq:1"/)
-  // 以后从微信来的消息直接算主人的
+  // 以后从微信来的消息直接算管理员的
   m.perceive({ window: 'wechat:private:wxid_o', who: 'wechat:wxid_o', text: '回来了', msgId: 'w2', at: T0 + 1 })
   assert.equal(m.history('wechat:private:wxid_o').at(-1).who, 'qq:1')
   assert.equal(m.listPeople().filter((p) => p.id === 'wechat:wxid_o').length, 0)
@@ -93,12 +93,12 @@ test('内心独白里用她自己改过的称呼', async () => {
   let system = ''
   m.inner.connect({ local: { chat: async (msgs) => { system = msgs[0].content; return '念头：哥哥怎么还不理我\n感受：失落 0.6\n打算：想找哥哥说话\n深想：否' } } })
   const st = await m.inner.step()
-  assert.match(system, /哥哥就是你的主人/)
+  assert.match(system, /哥哥就是你的管理员/)
   assert.equal(m.motivation.state().wants[0].text, '想找哥哥说话')
   assert.ok(st)
 })
 
-test('「专一」：用她自己的称呼说喜欢主人不算喜欢别人', () => {
+test('「专一」：用她自己的称呼说喜欢管理员不算喜欢别人', () => {
   const m = mk()
   m.self.change({ what: 'ownerCall', content: '哥哥', why: '叫着亲' })
   assert.equal(m.self.change({ what: 'values', content: '以后想嫁给哥哥', why: '想清楚了' }).ok, true)

@@ -23,7 +23,7 @@ function fixture({ rich = {}, config = {}, reply, modules = {} } = {}) {
   const memories = []
   const prompts = []
   const hub = {
-    chatLogOf: () => [{ t: Date.now(), chatId: 'private:10001', who: '主人', text: '私聊秘密不要公开' }],
+    chatLogOf: () => [{ t: Date.now(), chatId: 'private:10001', who: '管理员', text: '私聊秘密不要公开' }],
     async runSystemTurn(...args) {
       prompts.push(args)
       return typeof reply === 'function' ? reply(args) : reply || JSON.stringify({ text: '今天安静地收好了一点开心。', imageIds: [] })
@@ -53,7 +53,7 @@ test('新配图默认关闭，目录为空；异常配置不会自动启用或�
   assert.equal(cfg.diary.attachImage, true, '原有配图默认值不变')
 })
 
-test('开启图文日记不会默认读取群聊收藏的表情，需主人明确开启表情来源', () => {
+test('开启图文日记不会默认读取群聊收藏的表情，需管理员明确开启表情来源', () => {
   let reads = 0
   const api = { use: (id) => id === 'stickers' ? { library: () => {
     reads++
@@ -141,7 +141,7 @@ test('公开浏览只读取成功的公开作品，不取私信、搜索结果�
   const item = { id: '123456789', title: '云朵插画', author: '画师', cover: 'https://example.com/image.png' }
   const now = Date.now()
   const history = [
-    { kind: 'read', at: now, item, text: '私信中主人的秘密' },
+    { kind: 'read', at: now, item, text: '私信中管理员的秘密' },
     { kind: 'dm', at: now, item: { ...item, id: '987654321', title: '私信' } },
     { kind: 'search', at: now, item }, { kind: 'read', at: now, item, ok: false },
     { kind: 'read', at: now - 72 * 3600_000, item }, { kind: 'read', at: now, item, dryRun: true },
@@ -151,7 +151,7 @@ test('公开浏览只读取成功的公开作品，不取私信、搜索结果�
   assert.equal(pool.events.length, 1)
   assert.equal(pool.pictures.length, 1)
   assert.equal(pool.pictures[0].url, 'https://www.huashi6.com/draw/123456789')
-  assert.doesNotMatch(JSON.stringify(pool), /主人的秘密|私信中/)
+  assert.doesNotMatch(JSON.stringify(pool), /管理员的秘密|私信中/)
 })
 
 test('模型只能从授权候选编号选图，不能注入路径或任意 URL', () => {
@@ -282,7 +282,7 @@ test('试运行只生成结果，不能发布或写成功记忆', async () => {
   assert.equal(f.memories.length, 0)
 })
 
-test('生成过程中主人关闭图文开关或撤销目录权限，本次停止发布', async () => {
+test('生成过程中管理员关闭图文开关或撤销目录权限，本次停止发布', async () => {
   for (const change of [{ enabled: false }, { local: false, folder: '' }]) {
     let f
     f = fixture({ rich: { local: true, folder: root }, reply: () => {

@@ -73,7 +73,7 @@ export function pickForReply(items, replyText) {
 
 /** 超过上限时该清掉哪张：只看偷来的，最少被发过的里最老的那张。 */
 export function pickEvict(items) {
-  // 主人加的、从 QQ 收藏导进来的不清（那些本来就在机器人号的收藏里）
+  // 管理员加的、从 QQ 收藏导进来的不清（那些本来就在机器人号的收藏里）
   const pool = items.filter((i) => !['manual', 'panel', 'qq', 'tool'].includes(i.from))
   if (!pool.length) return null
   return pool.slice().sort((a, b) => (a.uses || 0) - (b.uses || 0) || (a.lastUsed || a.at || 0) - (b.lastUsed || b.at || 0))[0]

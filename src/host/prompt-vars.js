@@ -23,13 +23,13 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
     `aurabot: 变量 ${name}`,
   )
 
-  /** 她现在怎么叫主人：心智核心里她自己改过就用她的，没改过用主人设的。 */
+  /** 她现在怎么叫管理员：心智核心里她自己改过就用她的，没改过用管理员设定的。 */
   const ownerCall = () => {
     try {
       const cfg = getConfig()
-      return (getMind()?.ownerCall?.()) || cfg.ownerName || '主人'
+      return (getMind()?.ownerCall?.()) || cfg.ownerName || '管理员'
     } catch (error) {
-      return getConfig().ownerName || '主人'
+      return getConfig().ownerName || '管理员'
     }
   }
 
@@ -41,7 +41,7 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
         off: mods.builtinOff(),
         extra: [...mods.rules(kind), ...(mind ? mind.rules(kind) : [])],
       } : {}),
-      ownerCall: kind === 'private' ? ownerCall() : '主人',
+      ownerCall: kind === 'private' ? ownerCall() : '管理员',
     }
   }
 
@@ -75,9 +75,9 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
   variable('aurabot_rules_private', () => {
     const cfg = getConfig()
     const base = rewrite('rules', rulesText('private', cfg, rulesOpts('private')), 'private')
-    // 危险命令确认开着时补一句：被拦下要如实告诉主人，别绕着写
+    // 危险命令确认开着时补一句：被拦下要如实告诉管理员，别绕着写
     return base + (cfg.security && cfg.security.dangerConfirm
-      ? '\n【危险命令】终端命令如果被安全策略拦下（删根目录/格式化/关机/下载后直接执行等），把命令原文和原因如实告诉主人，等主人回复「确认」后再重试；不要换一种写法绕过。'
+      ? '\n【危险命令】终端命令如果被安全策略拦下（删根目录/格式化/关机/下载后直接执行等），把命令原文和原因如实告诉管理员，等管理员回复「确认」后再重试；不要换一种写法绕过。'
       : '')
   })
 
@@ -87,7 +87,7 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
 
   variable('aurabot_rules_group_owner', () => {
     return rewrite('rules', rulesText('group-owner', getConfig(), rulesOpts('group-owner')), 'group-owner')
-      + '\n【危险命令】只能在主人私聊里处理，群里不执行。'
+      + '\n【危险命令】只能在管理员私聊里处理，群里不执行。'
   })
 
   return { ownerCall }

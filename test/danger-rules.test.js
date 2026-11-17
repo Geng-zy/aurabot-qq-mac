@@ -134,7 +134,7 @@ function makeScopedGuard ({ owned = () => true, timeoutMs = 5000 } = {}) {
 }
 const execOf = (command, sid = 'sid-owner') => ({ name: 'bash', arguments: { command }, agent: { session: { id: sid } } })
 
-test('#190：宿主 GUI/CLI 会话放行，QQ 群/非主人会话仍拦', async () => {
+test('#190：宿主 GUI/CLI 会话放行，QQ 群/非管理员会话仍拦', async () => {
   const owned = (sid) => sid !== 'sid-host'
   {
     const { guard, delivered } = makeScopedGuard({ owned })
@@ -150,7 +150,7 @@ test('#190：宿主 GUI/CLI 会话放行，QQ 群/非主人会话仍拦', async 
     const { guard } = makeScopedGuard({ owned })
     const p = guard.preExecute(execOf('rm -rf /'), () => 'NEXT')
     await sleep(10)
-    assert.equal(guard.pendingCount, 1, '主人私聊走确认流程')
+    assert.equal(guard.pendingCount, 1, '管理员私聊走确认流程')
     guard.handleReply(ownerChat, OWNER, '取消')
     assert.equal((await p).kind, 'deny')
   }

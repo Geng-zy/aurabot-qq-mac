@@ -1,5 +1,5 @@
 // 子智能体委派：hub.runSubagentTurn 的行为契约 + 一审/复审 #177 的权限边界。
-// 模块只能拿到宿主封装的 subagentFor(真实模块 id)：moduleId 由宿主注入、source 由宿主按最近主人活动判断，
+// 模块只能拿到宿主封装的 subagentFor(真实模块 id)：moduleId 由宿主注入、source 由宿主按最近管理员活动判断，
 // 调用方传的 moduleId / source 一律不认。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -158,7 +158,7 @@ test('来源由宿主判断：调用方伪造 source/moduleId 无效，后台开
   assert.equal(s.calls.length, 0)
 })
 
-test('后台开关：config.subagentBackground 打开后才允许无主人活动的派活', async (t) => {
+test('后台开关：config.subagentBackground 打开后才允许无管理员活动的派活', async (t) => {
   const s = setup(t) // 默认配置已打开
   const out = await s.run('任务书')
   assert.equal(out, '子智能体办好了')

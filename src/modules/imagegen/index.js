@@ -70,7 +70,7 @@ export default {
       ? '你会画图，可以用 qq_draw_image 在当前聊天发图。是否能画由生图权限决定。'
       : '')
 
-    // ---------- 她的形象：主人导入的几张参考图，她画自己时照着画 ----------
+    // ---------- 她的形象：管理员导入的几张参考图，她画自己时照着画 ----------
     const looks = createAppearance({
       dir: dataDir('appearance'),
       trashDir: join(homedir(), '.Trash'),
@@ -153,7 +153,7 @@ export default {
       properties: {
         prompt: str('画面描述，保留对方说的角色原名'),
         image: str('可选参考图：last = 当前聊天最近收到的一张图；quote = 当前聊天引用消息里的图；也可用画作文件名。禁止本地路径、网址'),
-        self: { type: 'boolean', description: '画的是你自己（自拍、你的样子、你穿什么、合照里有你）时填 true：会照着主人给你导入的形象图和形象描述画，画出来才像你' },
+        self: { type: 'boolean', description: '画的是你自己（自拍、你的样子、你穿什么、合照里有你）时填 true：会照着管理员给你导入的形象图和形象描述画，画出来才像你' },
         shape: { type: 'string', enum: ['square', 'portrait', 'landscape', 'wide'], description: 'square 方图 1:1；portrait 竖图 2:3；landscape 横图 3:2；wide 宽幅 16:9。可不填' },
         size: { type: 'string', enum: SIZE_OPTIONS, description: '可选尺寸，例如 2048x2048（2K）、4096x4096（4K）；优先于 shape / 面板默认，不填沿用原逻辑' },
         redraw: { type: 'boolean', description: '以参考图的角色为基础重新设计构图和场景时填 true；仅改局部时留空' },

@@ -84,7 +84,7 @@ export function apply(ctx) {
   let cfg = loadConfig()
   if (cfg.ownerQQ && !ownerAuthorizationRevision(cfg)) {
     try { cfg = saveConfig(cfg, cfg) }
-    catch { log.warn('初始化主人授权记录失败，本次启动使用会话授权') }
+    catch { log.warn('初始化管理员授权记录失败，本次启动使用会话授权') }
   }
   let mods = null
   let bridge = null
@@ -108,9 +108,9 @@ export function apply(ctx) {
     }
     secrets()
     if (bridge && before.bridge.dshTools !== cfg.bridge.dshTools) bridge.refresh()
-    // 主人在面板里改了「ta怎么称呼你」：以主人改的为准（她自己改过的叫法被盖掉，记一个版本）
+    // 管理员在面板里改了「ta怎么称呼你」：以管理员改的为准（她自己改过的叫法被盖掉，记一个版本）
     if (mind && String(before.ownerName || '') !== String(cfg.ownerName || '') && String(cfg.ownerName || '').trim()) {
-      try { mind.mind.self.change({ what: 'ownerCall', content: String(cfg.ownerName).trim(), why: '主人在面板里改了称呼' }, { by: 'owner' }) } catch (error) { log.debug('称呼没跟着改：', error.message) }
+      try { mind.mind.self.change({ what: 'ownerCall', content: String(cfg.ownerName).trim(), why: '管理员在面板里改了称呼' }, { by: 'owner' }) } catch (error) { log.debug('称呼没跟着改：', error.message) }
     }
     if (mods && (JSON.stringify(before.modules) !== JSON.stringify(cfg.modules) || before.safeMode !== cfg.safeMode)) mods.sync().catch(() => {})
     mods?.emit('config', cfg, before)
@@ -142,7 +142,7 @@ export function apply(ctx) {
     return senders.length ? senders : chat?.kind === 'private' && chat.userId ? [String(chat.userId)] : []
   }
   let dangerGuard = null // 危险命令确认（security.dangerConfirm 开着才生效）
-  let approvalRelay = null // DSH 要授权时在 QQ 私聊问主人（approvalViaQQ 开着才生效）
+  let approvalRelay = null // DSH 要授权时在 QQ 私聊问管理员（approvalViaQQ 开着才生效）
   const channels = createChannels()
   const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
@@ -155,7 +155,7 @@ export function apply(ctx) {
     if (e.type === 'raw') { if (e.platform === 'qq') mods?.emit('onebot', e.event); return }
     if (e.type === 'message') {
       const msg = e.msg
-      // 危险命令确认：主人的「确认 / 取消」回复先在这里截住，不交给聊天中枢
+      // 危险命令确认：管理员的「确认 / 取消」回复先在这里截住，不交给聊天中枢
       if (dangerGuard && msg.kind === 'private' && !msg.recovered) {
         const raw = msg.raw
         const text = Array.isArray(raw?.message)
@@ -266,7 +266,7 @@ export function apply(ctx) {
       // 正在翻唱（很吃内存）：本地小模型先让路
       heavyBusy: () => { try { return Boolean(use('song')?.status?.()?.current) } catch (error) { return false } },
       foregroundBusy: () => hub?.foregroundBusy(),
-      // 醒来后把睡着时找她的消息重新交给聊天中枢（一条一条来，主人的先）
+      // 醒来后把睡着时找她的消息重新交给聊天中枢（一条一条来，管理员的先）
       onWakeReplay: async (list) => {
         for (const item of list) {
           if (!hub) return
@@ -304,7 +304,7 @@ export function apply(ctx) {
     onActivity: (a) => mods.emit('activity', a),
     // 群聊话题和她的记忆有多相关（插话判断用）
     memoryScore: (text) => mind?.mind.memory.topicScore(text) ?? 0,
-    // QQ 里的主人命令（模块加的命令优先）
+    // QQ 里的管理员命令（模块加的命令优先）
     onCommand: async (msg, markSensitive) => {
       const cmd = parseCommand(msg.text, mods.commands())
       if (!cmd) return null
@@ -421,14 +421,14 @@ export function apply(ctx) {
     log: logger.child('危险命令'),
     deliver: (chatId, text) => hub.sendText(chatId, text),
     chatOfSession: (sessionId) => { try { return hub.chatOfSession?.(sessionId) || '' } catch (error) { return '' } },
-    // tools/pre-execute 是进程级的，同一个 DSH 里主人自己开的会话也会走到这里；那些会话不归这个守卫管
+    // tools/pre-execute 是进程级的，同一个 DSH 里管理员自己开的会话也会走到这里；那些会话不归这个守卫管
     // 判断不出来（hub.isOwnedSession 缺失 / 抛错）时 safeOwnedSession 返回 true，走原 deny 逻辑；
     // 只有明确 false（宿主自己的 GUI/CLI 会话）才放行给 DSH 自己的权限系统，别在异常时 fail-open。
     isOwnedSession: safeOwnedSession(typeof hub?.isOwnedSession === 'function' ? (sessionId) => hub.isOwnedSession(sessionId) : null),
     ownerQQ: () => cfg.ownerQQ,
   })
   core.dangerGuard = dangerGuard
-  // 要告诉主人的事（授权、提问、QQ 里批没批）由她用自己的话说，不发固定模板（见 features/her-voice.js）
+  // 要告诉管理员的事（授权、提问、QQ 里批没批）由她用自己的话说，不发固定模板（见 features/her-voice.js）
   const ownerChatId = () => mind?.ownerChat() || (getConfig().ownerQQ ? `private:${getConfig().ownerQQ}` : '')
   /** 从渠道会话 ID 得到聊天中枢的会话对象。 */
   const chatOfId = (chatId) => {
@@ -613,7 +613,7 @@ export function apply(ctx) {
       try {
         if (!isChatSession(hub, session)) use('pet')?.onSessionEvent?.(session, event)
       } catch (error) { log.debug?.('桌宠状态联动出错：', error.message) }
-      // 审批请求顺手通知到主人私聊（只通知，不代答）
+      // 审批请求顺手通知到管理员私聊（只通知，不代答）
       if (event && event.type === 'approval/asked') notifyApproval(session, event)
       // 你已经点过了：还在缓冲里的那条撤掉，别等你点完才提醒
       if (event && event.type === 'approval/decided') { try { noticeRelay.cancel(String(event.data?.id || '')) } catch (error) {} }
@@ -710,7 +710,7 @@ export function apply(ctx) {
     if (before.enabled && !cfg.enabled) qq.stop()
     log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun && !cfg.debug ? '开' : '关'}｜调试 ${cfg.debug ? '开' : '关'}`)
     await mods.sync().catch(() => {})
-    // 一开调试就把主人私聊的调试会话建出来，省得你还得先发条 QQ 消息才有会话说
+    // 一开调试就把管理员私聊的调试会话建出来，省得你还得先发条 QQ 消息才有会话说
     let debugNote = ''
     if (cfg.debug) {
       try {
@@ -787,7 +787,7 @@ export function apply(ctx) {
     // 这里是唯一写入通道。
     if (typeof b.allowInsecureRemote === 'boolean') patch.allowInsecureRemote = b.allowInsecureRemote
     if (Number.isFinite(b.tokenTtlDays)) patch.tokenTtlDays = Math.min(3650, Math.max(0, Math.floor(b.tokenTtlDays)))
-    // 行为大脑的模块级设置（AI 自己改不了，只有主人能改）。pet 是**内置模块**，
+    // 行为大脑的模块级设置（AI 自己改不了，只有管理员能改）。pet 是**内置模块**，
     // 它的 settings schema 不会渲染成表单（面板只给「用户自己复制出来的模块」生成），
     // 所以这里是这些开关唯一的写入通道——不补，关窗物理闸就永远打不开。
     for (const k of ['behaviorEnabled', 'behaviorIconMischiefEnabled', 'behaviorCloseWindowEnabled']) {
@@ -1130,9 +1130,9 @@ export function apply(ctx) {
     if (!cfg.enabled) return { ok: false, message: '先打开总开关' }
     if (cfg.debug) return { ok: false, message: '现在是调试模式，先回到正式模式再测' }
     if (cfg.dryRun) return { ok: false, message: '现在是试运行，先关掉试运行再测' }
-    if (!cfg.ownerQQ) return { ok: false, message: '先填写主人 QQ 号' }
+    if (!cfg.ownerQQ) return { ok: false, message: '先填写管理员 QQ 号' }
     const r = await hub.sendText(`private:${cfg.ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～', undefined, undefined, undefined, { allowQueue: false, system: true })
-    return r && !r.queued && !r.simulated ? { ok: true, message: '发给主人了，去 QQ 看看' } : { ok: false, message: '未确认送达，请查看日志' }
+    return r && !r.queued && !r.simulated ? { ok: true, message: '发给管理员了，去 QQ 看看' } : { ok: false, message: '未确认送达，请查看日志' }
   })
 
   route('/sessions/reset', async () => {
@@ -1247,7 +1247,7 @@ export function apply(ctx) {
     if (!mind) return mindOff
     const f = mind.mind.feeling()
     const cfgNow = mind.mind.settings()
-    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '主人' : mind.mind.person(e.target)?.name || shortRef(e.target)) : '', why: e.why, source: e.source, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
+    return { ok: true, body: f.body, mood: f.mood, emotions: f.emotions.map((e) => ({ name: e.name, intensity: e.intensity, target: e.target, targetName: e.target ? (mind.mind.isOwner(e.target) ? '管理员' : mind.mind.person(e.target)?.name || shortRef(e.target)) : '', why: e.why, source: e.source, hidden: e.hidden, at: e.at })), history: mind.mind.emotion.history(30), hunger: cfgNow['body.hunger'], feedOnlyByOwner: cfgNow['body.feedOnlyByOwner'], now: mind.mind.nowText(), ownerQQ: String(getConfig().ownerQQ || '') }
   })
   route('/mind/feed', async (req) => {
     if (!mind) return mindOff
@@ -1351,7 +1351,7 @@ export function apply(ctx) {
     if (r.ok) log.info(`关系：${id} → ${b.mode}${b.clear ? '（清掉以前的）' : ''}`)
     return r
   })
-  // 她惦记着的别人的事（还没结果的）；主人可以让她别问了
+  // 她惦记着的别人的事（还没结果的）；管理员可以让她别问了
   route('/mind/followups', async () => (mind ? { ok: true, list: mind.mind.memory.followups() } : mindOff))
   route('/mind/followups/close', async (req) => {
     if (!mind) return mindOff
@@ -1391,7 +1391,7 @@ export function apply(ctx) {
   route('/mind/self/change', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)
-    const r = await mind.changeSelf({ what: b.what, content: b.content, why: b.why || '主人在面板里改的', trait: b.trait, dir: b.dir }, 'owner')
+    const r = await mind.changeSelf({ what: b.what, content: b.content, why: b.why || '管理员在面板里改的', trait: b.trait, dir: b.dir }, 'owner')
     return r
   })
   route('/mind/self/goal/drop', async (req) => {
@@ -1495,7 +1495,7 @@ export function apply(ctx) {
     log.info(`切换人格 → ${b.id}`)
     return { ok: true, current: b.id, message: '切换好了，下一轮回复起生效' }
   })
-  // 人格页「AI 润色」：只改面板上这一节的文字，不保存；用不用由主人在面板里选
+  // 人格页「AI 润色」：只改面板上这一节的文字，不保存；用不用由管理员在面板里选
   route('/persona/polish', async (req) => {
     const b = await readBody(req)
     const title = String(b.title || '').slice(0, 30) || '开场（她是谁）'
@@ -1531,7 +1531,7 @@ export function apply(ctx) {
     return { ok: true, groups, titles, failed, message: failed.length ? `有 ${failed.length} 个群的成员没拉到（她在群里吗？）` : '' }
   })
 
-  // 面板里的调试对话：走主人私聊的正常链路，但不发 QQ、不写进心智（来自原项目 f476866）
+  // 面板里的调试对话：走管理员私聊的正常链路，但不发 QQ、不写进心智（来自原项目 f476866）
   route('/debug/say', async (req) => {
     const b = await readBody(req)
     try { return await hub.debugSay(String(b.text || '')) } catch (error) { return { ok: false, message: error.message } }
@@ -1789,7 +1789,7 @@ export function apply(ctx) {
     const { owner, userId, chat } = simChat(b)
     const text = String(b.text || '')
     const steps = []
-    const msg = { ...chat, nickname: owner ? cfg.ownerName || '主人' : '路人', role: '', messageId: 'sim', text, mentioned: Boolean(b.mentioned), replyId: '', images: [], stickers: [], records: [], forwards: [], raw: { simulated: true } }
+    const msg = { ...chat, nickname: owner ? cfg.ownerName || '管理员' : '路人', role: '', messageId: 'sim', text, mentioned: Boolean(b.mentioned), replyId: '', images: [], stickers: [], records: [], forwards: [], raw: { simulated: true } }
     const { sent } = await hub.capture(async () => {
       if (text) {
         const cmd = owner && /^\s*[/／]/.test(text) ? parseCommand(text, mods.commands()) : null

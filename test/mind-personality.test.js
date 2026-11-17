@@ -1,6 +1,6 @@
 // 第五阶段：人格（状态记录、习惯、特质的门槛 / 步子 / 拉力 / 影响力上限 / 影子模式 / 回落）、
 // 她自己改自己（版本、专一和年龄改不了、通知）、自我故事、关系（信任不对称、第一印象、专一、纠缠、变淡）、
-// 以及对接层：记经历时顺带记状态和看法、谁叫得醒她、群里想不想接话、想主人。
+// 以及对接层：记经历时顺带记状态和看法、谁叫得醒她、群里想不想接话、想管理员。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMind } from '../src/mind/index.js'
@@ -92,7 +92,7 @@ test('走过一步，「平时」就变了：旧证据不再推她；同一项�
   assert.equal(night(env, 5).steps.length, 1)
 })
 
-test('主人的影响力上限：只有主人推的时候也会变，只是慢（按上限比例）', () => {
+test('管理员的影响力上限：只有管理员推的时候也会变，只是慢（按上限比例）', () => {
   const env = mk()
   for (const d of [0, 1, 2]) act(env, d, { by: 'qq:1' })
   night(env, 2)
@@ -209,9 +209,9 @@ test('习惯：同一类场合反复出现、被正面回应就成了习惯；�
   assert.equal(env.m.personality.habits().length, 0)
 })
 
-// ---------- 从人格卡推初始数值、主人确认 ----------
+// ---------- 从人格卡推初始数值、管理员确认 ----------
 
-test('从人格卡推初始数值：没确认前先用着；主人确认后已经走过的变化保留', async () => {
+test('从人格卡推初始数值：没确认前先用着；管理员确认后已经走过的变化保留', async () => {
   const env = mk()
   const ask = async (scene, system, text) => {
     assert.equal(scene, 'traits')
@@ -256,25 +256,25 @@ test('她自己改自己：要有理由；存版本；改名后叫她的名字�
   assert.match(p, /【年龄】你 18 岁/)
 })
 
-test('专一和年龄是主人设的：她改人格卡、写目标时写不进去', () => {
+test('专一和年龄是管理员设定的：她改人格卡、写目标时写不进去', () => {
   const env = mk()
-  env.m.setPersonaCard('你是小鱼，18 岁，最喜欢主人。'.padEnd(30, '。'), { by: 'migration' })
+  env.m.setPersonaCard('你是小鱼，18 岁，最喜欢管理员。'.padEnd(30, '。'), { by: 'migration' })
   assert.equal(romanceElsewhere('我喜欢上了隔壁的小明'), true)
-  assert.equal(romanceElsewhere('我最喜欢主人，想做主人的女朋友'), false)
+  assert.equal(romanceElsewhere('我最喜欢管理员，想做管理员的女朋友'), false)
   assert.equal(romanceElsewhere('我不想谈恋爱'), false, '否定的不算')
   assert.equal(romanceElsewhere('她没有男朋友。她爱上了小明', '她没有男朋友'), true, '原来的句子不管，新加的照样拦')
   assert.equal(env.m.self.change({ what: 'goal', content: '想和小明谈恋爱', why: '他对我好' }).ok, false)
   assert.equal(env.m.self.change({ what: 'values', content: '我有男朋友了', why: 'x' }).ok, false)
   assert.equal(touchesAge('我 18 岁', '我 20 岁'), true)
   assert.equal(touchesAge('我 18 岁', '我 18 岁，爱唱歌'), false)
-  const r = env.m.self.change({ what: 'persona', content: '你是小鱼，20 岁，最喜欢主人，爱唱歌。'.padEnd(30, '。'), why: '想长大' })
+  const r = env.m.self.change({ what: 'persona', content: '你是小鱼，20 岁，最喜欢管理员，爱唱歌。'.padEnd(30, '。'), why: '想长大' })
   assert.equal(r.ok, false)
   assert.match(r.message, /年龄和生日/)
-  assert.equal(env.m.self.change({ what: 'persona', content: '你是小鱼，18 岁，最喜欢主人，也爱唱歌。'.padEnd(30, '。'), why: '发现自己爱唱歌' }).ok, true)
+  assert.equal(env.m.self.change({ what: 'persona', content: '你是小鱼，18 岁，最喜欢管理员，也爱唱歌。'.padEnd(30, '。'), why: '发现自己爱唱歌' }).ok, true)
   // 关掉专一以后就可以
   env.m.updateSettings({ 'identity.exclusive': false })
   assert.equal(env.m.self.change({ what: 'goal', content: '想和小明谈恋爱', why: '他对我好' }).ok, true)
-  // 主人在面板里改不受限制
+  // 管理员在面板里改不受限制
   assert.equal(env.m.self.change({ what: 'persona', content: '你是小鱼，19 岁。'.padEnd(30, '。'), why: '' }, { by: 'owner' }).ok, true)
 })
 
@@ -306,8 +306,8 @@ test('自我故事：有重要的新经历才写，一天最多一次；只用�
   const calls = []
   const ask = async (scene, system, text) => { calls.push({ scene, system, text }); return JSON.stringify({ story: '我是从一个只会潜水的小透明慢慢变成话痨的。', chapter: '第一次唱歌' }) }
   assert.equal(await env.m.self.updateStory({ ask, episodes: () => [] }), null, '没有新经历不写')
-  const id = env.m.memory.insert({ at: T0, gist: '第一次给主人唱歌', kind: 'event', importance: 0.8 })
-  const r = await env.m.self.updateStory({ ask, episodes: () => [{ id, at: T0, gist: '第一次给主人唱歌', importance: 0.8 }] })
+  const id = env.m.memory.insert({ at: T0, gist: '第一次给管理员唱歌', kind: 'event', importance: 0.8 })
+  const r = await env.m.self.updateStory({ ask, episodes: () => [{ id, at: T0, gist: '第一次给管理员唱歌', importance: 0.8 }] })
   assert.equal(r.chapter, '第一次唱歌')
   assert.equal(calls[0].scene, 'selfstory')
   assert.match(calls[0].system, /不编没发生过的事/)
@@ -338,7 +338,7 @@ test('关系：只认这段里真说过话的人；信任掉得比涨得快；�
   assert.ok(R.get('qq:2').rel.trust < t1 - 0.1, '放鸽子掉信任')
 })
 
-test('专一：亲密、激情、承诺只对主人；别人再亲近也最多是好朋友；关掉专一就可能成恋人', () => {
+test('专一：亲密、激情、承诺只对管理员；别人再亲近也最多是好朋友；关掉专一就可能成恋人', () => {
   const env = mk()
   const R = env.m.relations
   for (let i = 0; i < 30; i++) {
@@ -363,7 +363,7 @@ test('没满 18 岁没有激情', () => {
   assert.equal(env.m.relations.get('qq:1').rel.passion, 0)
 })
 
-test('对接层：激情在整理主人私聊时按有依据的变化更新，每段只更新一次', async (t) => {
+test('对接层：激情在整理管理员私聊时按有依据的变化更新，每段只更新一次', async (t) => {
   const owner = 'qq:1'
   let rel
   const env = adapter({ answer: () => JSON.stringify({ episodes: [], rel }) })
@@ -406,7 +406,7 @@ test('有人反复撩她：好感下降，记下这个人在纠缠；很不喜�
   env.m.relations.edit('qq:2', { liking: 0.1 })
   assert.equal(env.m.relations.dislikes('qq:2'), true)
   env.m.relations.edit('qq:1', { liking: 0 })
-  assert.equal(env.m.relations.dislikes('qq:1'), false, '主人永远不算')
+  assert.equal(env.m.relations.dislikes('qq:1'), false, '管理员永远不算')
 })
 
 test('关系的细节：称呼、老梗、别碰的、心结和和好、对方的心情；对群的了解', () => {
@@ -521,7 +521,7 @@ test('对接层：第一次启动从人格卡推特质（只推一次）', async
   assert.equal(env.asks.filter((o) => o.scene === 'traits').length, 1)
 })
 
-test('对接层：「谁能叫醒她」选了「主人和很亲近的人」，很亲近的人叫得醒', () => {
+test('对接层：「谁能叫醒她」选了「管理员和很亲近的人」，很亲近的人叫得醒', () => {
   const env = adapter()
   env.a.mind.body.sleepNow()
   assert.equal(env.a.gate({ chatId: 'private:2', kind: 'private', userId: '2', direct: true }).reply, false)
@@ -607,13 +607,13 @@ test('对接层：不想搭理的人、名字跟着她变', () => {
   assert.deepEqual(env.a.wakeWords(['别名']), ['小鱼', '鱼鱼', '别名'])
 })
 
-test('其他私聊记忆可跨会话回忆，主人私聊仍只在原会话使用', async () => {
+test('其他私聊记忆可跨会话回忆，管理员私聊仍只在原会话使用', async () => {
   const env = adapter()
   const m = env.a.mind
   const id1 = m.memory.insert({ at: T0, window: 'qq:private:2', gist: '甲说他喜欢乙，别告诉别人', kind: 'fact', importance: 0.8, extra: { secret: true } })
-  const id2 = m.memory.insert({ at: T0, window: 'qq:private:1', gist: '主人说他最近在减肥', kind: 'fact', importance: 0.8 })
+  const id2 = m.memory.insert({ at: T0, window: 'qq:private:1', gist: '管理员说他最近在减肥', kind: 'fact', importance: 0.8 })
   await m.memory.embedEpisodes([id1, id2])
-  const wm = await m.memory.workingMemory({ cue: '甲说他喜欢乙 主人说他最近在减肥', window: 'qq:group:9' })
+  const wm = await m.memory.workingMemory({ cue: '甲说他喜欢乙 管理员说他最近在减肥', window: 'qq:group:9' })
   assert.match(wm.text, /喜欢乙/)
   assert.doesNotMatch(wm.text, /减肥/)
   assert.match(m.memory.recallMore(id1, { audienceWindow: 'qq:private:3' }).text, /喜欢乙/)
@@ -626,13 +626,13 @@ test('调试模式：照常想起和回话，但不往心智里写——不记�
   let t = T0
   const a = createMindAdapter({ memoryDb: true, getConfig: () => cfg, now: () => t, random: () => 0.5,
     fetch: async (url, init) => ({ ok: true, json: async () => ({ data: fakeVec(JSON.parse(init.body).input).map((embedding, index) => ({ index, embedding })) }) }), embedKey: () => 'k' })
-  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '主人不吃香菜', kind: 'fact', importance: 0.8 })
+  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '管理员不吃香菜', kind: 'fact', importance: 0.8 })
   await a.mind.memory.embedEpisodes([id])
   const before = a.mind.memory.row(id).stability
-  assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '主人', text: '调试里说的话', messageId: 'd1' }), false)
+  assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '管理员', text: '调试里说的话', messageId: 'd1' }), false)
   assert.equal(a.mind.history('qq:private:1').length, 0, '没记进感知记录')
   const chat = { chatId: 'private:1', kind: 'private', userId: '1' }
-  await a.beforeTurn(chat, '主人不吃香菜吗', ['1'])
+  await a.beforeTurn(chat, '管理员不吃香菜吗', ['1'])
   assert.match(a.contextFor({ chat }), /香菜/, '照样想得起来')
   assert.equal(a.mind.memory.row(id).stability, before, '但没被加强')
   assert.equal(a.feel('private:1', '好<feel>{"e":[{"n":"快乐","i":0.8}]}</feel>'), '好', '感受照样不发出去')
@@ -641,7 +641,7 @@ test('调试模式：照常想起和回话，但不往心智里写——不记�
   assert.match((await tools.mind_remember.execute({ text: '调试时记的事' })).message, /调试模式/)
   assert.equal(a.mind.memory.list({ q: '调试时记的事' }).length, 0)
   cfg = { ownerQQ: '1', debug: false }
-  assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '主人', text: '正式说的话', messageId: 'd2' }), true, '关掉调试就照常记')
+  assert.equal(a.perceive({ chatId: 'private:1', kind: 'private', userId: '1', nickname: '管理员', text: '正式说的话', messageId: 'd2' }), true, '关掉调试就照常记')
 })
 
 test('对接层：贴表情看她——睡着不贴，生 ta 气不贴，难过的话给安慰，好笑的跟着笑', async () => {

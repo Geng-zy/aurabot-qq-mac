@@ -81,7 +81,7 @@ test('服务拒绝尺寸时透传错误，不静默重试成另一种构图', as
   assert.equal(calls, 1)
 })
 
-test('qq_draw_image 的构图可选，传到生成器；原主人权限在取图前复查', async () => {
+test('qq_draw_image 的构图可选，传到生成器；原管理员权限在取图前复查', async () => {
   let build, owner = true
   const seen = [], c = config()
   imagegenModule.setup({

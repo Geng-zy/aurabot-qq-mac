@@ -17,7 +17,7 @@ const OWNER = '10000001'
 const OTHER = '10000002'
 const BOT = '20000002'
 const CHAT = `private:${OWNER}`
-const ownerChat = { kind: 'private', chatId: CHAT, userId: OWNER, groupId: '', nickname: '主人' }
+const ownerChat = { kind: 'private', chatId: CHAT, userId: OWNER, groupId: '', nickname: '管理员' }
 const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(setImmediate) }
 const deferred = () => {
   let resolve
@@ -45,7 +45,7 @@ const image = (salt) => ({ type: 'image', data: { sub_type: 1, file: `base64://$
 const event = (text = '你好', extra = []) => ({
   post_type: 'message', message_type: 'private', sub_type: 'friend',
   self_id: Number(BOT), user_id: Number(OWNER), message_id: 1,
-  sender: { user_id: Number(OWNER), nickname: '主人' },
+  sender: { user_id: Number(OWNER), nickname: '管理员' },
   message: [{ type: 'text', data: { text } }, ...extra],
 })
 
@@ -432,16 +432,16 @@ test('LA-27 敏感命令发送失败时不记录参数、回执和网关错误�
   })
   await qqIn(hub, event('/news 合成查询地区'))
   const logs = fake.logs.join('\n')
-  assert.match(logs, /主人命令 \/news/)
+  assert.match(logs, /管理员命令 \/news/)
   assert.match(logs, /敏感命令回执发送失败/)
   assert.doesNotMatch(logs, /合成查询地区|合成回执|合成网关错误/)
   assert.equal(outbox.status().count, 0)
 })
 
 for (const [label, owners, shouldSend] of [
-  ['同一主人保存普通配置', [OWNER], true],
-  ['切换主人', [OTHER], false],
-  ['切换主人再切回', [OTHER, OWNER], false],
+  ['同一管理员保存普通配置', [OWNER], true],
+  ['切换管理员', [OTHER], false],
+  ['切换管理员再切回', [OTHER, OWNER], false],
 ]) {
   test(`敏感回执等待发送时${label}`, async (t) => {
     const entered = deferred()
@@ -480,7 +480,7 @@ test('敏感命令执行前发现授权代次已变化', async (t) => {
   let executed = false
   const { hub } = setup(t, {
     cfg,
-    // 本分叉的消息流程不先查好友列表：停在命令里面等，期间把主人换走再换回来（授权代次已经变了）
+    // 本分叉的消息流程不先查好友列表：停在命令里面等，期间把管理员换走再换回来（授权代次已经变了）
     onebot: { connected: true, async call() { return [] } },
     onCommand: async (_msg, markSensitive) => {
       entered.resolve()

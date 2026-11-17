@@ -155,9 +155,9 @@ test('心境一致：开心时更容易先想起开心的事', async () => {
 
 test('特意记下来：很像的旧记忆被加强而不是重复记一条', async () => {
   const s = setup()
-  const a = await s.mem.remember({ text: '主人的生日是三月五号' })
+  const a = await s.mem.remember({ text: '管理员的生日是三月五号' })
   assert.equal(a.merged, false)
-  const b = await s.mem.remember({ text: '主人的生日是三月五号' })
+  const b = await s.mem.remember({ text: '管理员的生日是三月五号' })
   assert.equal(b.merged, true)
   assert.equal(b.id, a.id)
   assert.equal(s.mem.list().length, 1)
@@ -189,7 +189,7 @@ test('从备份恢复后：恢复前删掉的再删一遍，不会复活', () =>
   assert.ok(s.m.deletions().some((d) => d.id === a))
 })
 
-test('主人加强一条：归档的也会回来', () => {
+test('管理员加强一条：归档的也会回来', () => {
   const s = setup()
   const a = s.mem.insert({ at: T0, gist: '很久以前的事', kind: 'event' })
   s.m._store.prep("UPDATE episodes SET status = 'archived' WHERE id = ?").run(a)

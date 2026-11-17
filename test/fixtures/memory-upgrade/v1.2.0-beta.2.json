@@ -4,7 +4,7 @@
     { "id": "beta-auto-2", "text": "小雨给薄荷换了更大的花盆。", "about": "30000002", "aboutName": "小雨", "source": "auto", "chatId": "group:777", "importance": 0.4, "at": 1775952000000, "hits": 0 },
     { "id": "beta-auto-3", "text": "小雨会把薄荷叶放在茶里。", "about": "30000002", "aboutName": "小雨", "source": "auto", "chatId": "group:777", "importance": 0.7, "at": 1776816000000, "hits": 0 },
     { "id": "beta-auto-4", "text": "小雨把薄荷苗分给了朋友。", "about": "30000002", "aboutName": "小雨", "source": "auto", "chatId": "group:777", "importance": 0.75, "at": 1777680000000, "hits": 0 },
-    { "id": "beta-tool", "text": "主人让我记住：晚上不要催他回消息。", "about": "10000001", "aboutName": "主人", "tags": ["边界"], "source": "tool", "chatId": "private:10000001", "importance": 0.3, "at": 1767225600000, "hits": 0 },
+    { "id": "beta-tool", "text": "管理员让我记住：晚上不要催他回消息。", "about": "10000001", "aboutName": "管理员", "tags": ["边界"], "source": "tool", "chatId": "private:10000001", "importance": 0.3, "at": 1767225600000, "hits": 0 },
     { "id": "beta-event", "text": "给小明唱过一首生日歌。", "about": "30000001", "aboutName": "小明", "tags": ["经历"], "source": "event", "chatId": "", "importance": 0.8, "at": 1769904000000, "hits": 0 },
     { "id": "beta-diary", "text": "日记里写下了和大家一起看晚霞的心情。", "about": "", "tags": ["日记"], "source": "diary", "chatId": "", "importance": 0.4, "at": 1772496000000, "hits": 0 },
     { "id": "beta-panel", "text": "面板原文：他不吃香菜，别弄混！🌿", "about": "30000001", "aboutName": "小明", "source": "panel", "chatId": "", "importance": 0.2, "at": 1768089600000, "hits": 0 },

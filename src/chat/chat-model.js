@@ -1,11 +1,11 @@
-// 按聊天选模型：主人在面板 / 配置里指定「哪个私聊、哪个群、所有私聊、所有群」各用哪个模型。纯函数。
+// 按聊天选模型：管理员在面板 / 配置里指定「哪个私聊、哪个群、所有私聊、所有群」各用哪个模型。纯函数。
 //
 // 配置 cfg.chatModels：
 //   privateDefault / groupDefault：{ provider, model, reasoningEffort? }，空 = 不单独指定
 //   privates：{ QQ号: 选择 }   groups：{ 群号: 选择 }
 // 查找顺序（前一级没写或不可用就退到下一级）：
 //   这个私聊（QQ 号）> 这个群（群号）> 所有私聊 / 所有群默认 > 全局模型（面板「聊天用的模型」或 DSH 默认）
-// 只有主人能改这份配置（面板 / config.json）；聊天里的人说什么都不会换模型。
+// 只有管理员能改这份配置（面板 / config.json）；聊天里的人说什么都不会换模型。
 
 export const CHAT_MODEL_EFFORTS = ['', 'low', 'high', 'max']
 

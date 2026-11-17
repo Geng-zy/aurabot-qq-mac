@@ -125,7 +125,7 @@ async function assertPrivate(r) {
   return { exists: true }
 }
 
-/** Gitee 上还没有仓库时帮主人建一个（私有的、不自动初始化，免得首推对不上历史）。异常一律包装并脱敏。 */
+/** Gitee 上还没有仓库时帮管理员建一个（私有的、不自动初始化，免得首推对不上历史）。异常一律包装并脱敏。 */
 async function createRepo(r) {
   const res = await giteeApi(r, '/user/repos', {
     method: 'POST',

@@ -20,10 +20,10 @@ test('群里别人只能查当前群', () => {
   assert.match(check('get_essence_msg_list', { group_id: 9 }, { chat: { kind: 'private', userId: '2' } }), /当前这个群/)
 })
 
-test('写操作只有主人开口才行', () => {
-  assert.match(check('delete_msg', { message_id: 1 }), /主人/)
+test('写操作只有管理员开口才行', () => {
+  assert.match(check('delete_msg', { message_id: 1 }), /管理员/)
   assert.equal(check('delete_msg', { message_id: 1 }, { owner: true }), '')
-  assert.match(check('set_group_whole_ban', { group_id: 9 }), /主人/)
+  assert.match(check('set_group_whole_ban', { group_id: 9 }), /管理员/)
 })
 
 test('试运行不执行写操作，查询照常', () => {
@@ -68,7 +68,7 @@ test('工具接到网关：查询走 onebot，别人写操作被拒', async () =
   assert.equal(build({ chat: { ...group, chatId: 'qq:group:9' }, level: 'social' }).length, 2)
 })
 
-test('主人也不能把转发/点赞/拍一拍/资料操作发到白名单外的人或群', () => {
+test('管理员也不能把转发/点赞/拍一拍/资料操作发到白名单外的人或群', () => {
   const o = (action, params) => check(action, params, { owner: true })
   assert.match(o('forward_friend_single_msg', { message_id: 1, user_id: 5 }), /消息编号/)
   assert.match(o('forward_friend_single_msg', { message_id: 1, user_id: 6 }), /白名单/)

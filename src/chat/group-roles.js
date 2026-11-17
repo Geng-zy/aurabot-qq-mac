@@ -1,7 +1,7 @@
-// 她在每个群里的身份（群主 / 管理员 / 普通成员）：决定能不能做群管。查一次缓存 10 分钟。
+// 她在每个群里的身份（群主 / 群管理员 / 普通成员）：决定能不能做群管。查一次缓存 10 分钟。
 
 const TTL = 10 * 60_000
-export const ROLE_LABEL = { owner: '群主', admin: '管理员', member: '普通成员' }
+export const ROLE_LABEL = { owner: '群主', admin: '群管理员', member: '普通成员' }
 
 export function createGroupRoles({ onebot, getConfig, log }) {
   const cache = new Map() // groupId → { role, at }

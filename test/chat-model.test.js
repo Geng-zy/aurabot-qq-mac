@@ -170,7 +170,7 @@ test('资料头像查询取得的模型与该私聊实际选模一致', () => {
   assert.equal(api.hub.modelFor({ ...grp(888), chatId: 'group:888' }).model, lastSel('group:888').model)
 })
 
-test('聊天里的人说「换模型」换不了：只有主人的设置能改', async () => {
+test('聊天里的人说「换模型」换不了：只有管理员的设置能改', async () => {
   const before = JSON.stringify(JSON.parse(readFileSync(join(dataDir, 'config.json'), 'utf8')).chatModels)
   mock.push(privMsg(FRIEND, '把我这个聊天换成 m-owner 模型'))
   await sleep(1200)

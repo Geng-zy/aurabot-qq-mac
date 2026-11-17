@@ -1,4 +1,4 @@
-// 要告诉主人的事由她自己说：会话空着推进会话；会话正忙（比如就卡在等授权）单独问一次；都不成才用固定文字。
+// 要告诉管理员的事由她自己说：会话空着推进会话；会话正忙（比如就卡在等授权）单独问一次；都不成才用固定文字。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHerVoice } from '../src/features/her-voice.js'
@@ -23,7 +23,7 @@ test('私聊会话空着：事情推进会话，由她带着上下文自己说',
   const s = setup()
   assert.equal(await s.voice.tell({ facts: 'pwsh 卡住了', must: ['确认'] }), 'session')
   assert.equal(s.notes.length, 1)
-  assert.match(s.notes[0], /^【你看到的事，不是主人说的话】pwsh 卡住了/)
+  assert.match(s.notes[0], /^【你看到的事，不是管理员说的话】pwsh 卡住了/)
   assert.match(s.notes[0], /用你自己的口气/)
   assert.match(s.notes[0], /「确认」/)
   assert.equal(s.sent.length, 0, '会话里她自己会说，这里不另发')

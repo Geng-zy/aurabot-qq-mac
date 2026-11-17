@@ -5,7 +5,7 @@
 //    那边的 AI 能让她发 QQ、查她的记忆、调用模块。她自己的 QQ 会话里会屏蔽这些工具。
 // 3. 别的程序：开放 HTTP 接口 /aurabot/api/open/*，要带密钥（请求头 Authorization: Bearer 密钥）
 //
-// 能发给谁：白名单里的人和群（或者只能发给主人，看设置）。总开关、试运行照常管着。
+// 能发给谁：白名单里的人和群（或者只能发给管理员，看设置）。总开关、试运行照常管着。
 
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { defineTool } from '../tools/tools.js'
@@ -30,7 +30,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
     const cfg = getConfig()
     const [kind, id] = String(target || '').split(':')
     if (!id || !['private', 'group'].includes(kind)) return '目标要写成 private:QQ号 或 group:群号'
-    if (cfg.bridge.allowTargets === 'owner') return kind === 'private' && id === cfg.ownerQQ ? '' : '设置成了只能发给主人'
+    if (cfg.bridge.allowTargets === 'owner') return kind === 'private' && id === cfg.ownerQQ ? '' : '设置成了只能发给管理员'
     const ok = kind === 'group' ? cfg.allow.groups : [cfg.ownerQQ, ...cfg.allow.private]
     return ok.includes(id) ? '' : '不在白名单里，不能发'
   }
@@ -47,7 +47,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
         modules: mods.status().map((m) => ({ id: m.id, name: m.name, running: m.running })),
       }
     },
-    /** 让她把一段话发出去（会拆条、可以带 <voice> <sticker:名字>）。target 不填 = 发给主人。 */
+    /** 让她把一段话发出去（会拆条、可以带 <voice> <sticker:名字>）。target 不填 = 发给管理员。 */
     send: async ({ target, text } = {}) => {
       const t = String(target || ownerTarget())
       const why = canSend(t)
@@ -102,8 +102,8 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
     return [
       defineTool({
         name: 'aurabot_qq_send',
-        description: '让 QQ 上的「大肥鱼」（Aurabot 插件里的 AI 伙伴）替你发一条 QQ 消息。target 写 private:QQ号 或 group:群号，不填就发给主人。text 是要发的话，可以用 ||| 分多条、<voice>…</voice> 发语音。',
-        properties: { target: str('private:QQ号 / group:群号，可不填（发给主人）'), text: str('要发的话') },
+        description: '让 QQ 上的「大肥鱼」（Aurabot 插件里的 AI 伙伴）替你发一条 QQ 消息。target 写 private:QQ号 或 group:群号，不填就发给管理员。text 是要发的话，可以用 ||| 分多条、<voice>…</voice> 发语音。',
+        properties: { target: str('private:QQ号 / group:群号，可不填（发给管理员）'), text: str('要发的话') },
         required: ['text'],
         execute: async (args) => ops.send(args),
       }),

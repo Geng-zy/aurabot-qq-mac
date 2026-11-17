@@ -1,5 +1,5 @@
 // SnowLuma 的 OneBot 接口清单：qq_api 工具按这张表放行。
-// 每项是 [谁能用, 参数（! = 必填）, 说明]。open：这一轮谁都能用，只能查当前群；owner：只有主人开口才行。
+// 每项是 [谁能用, 参数（! = 必填）, 说明]。open：这一轮谁都能用，只能查当前群；owner：只有管理员开口才行。
 // 没列的就是不开放：取 Cookie 和凭据、发原始包、读写本机路径、绕过发送闸门的 send_msg、删好友、退群。
 
 export const QQ_API = {
@@ -99,7 +99,7 @@ export const QQ_API = {
   set_friends_category: ['owner', 'uin!,categoryId,categoryName', '将好友移入指定分组'],
   set_group_add_option: ['owner', 'group_id!,add_type,group_question,group_answer', '设置加群方式及验证问题和答案'],
   set_group_add_request: ['owner', 'flag!,sub_type,type,approve,reason', '同意或拒绝指定加群请求'],
-  set_group_admin: ['owner', 'group_id!,user_id!,enable', '设置或取消指定群成员的管理员身份'],
+  set_group_admin: ['owner', 'group_id!,user_id!,enable', '设置或取消指定群成员的群管理员身份'],
   set_group_album_media_like: ['owner', 'group_id!,album_id!,batch_id!,lloc', '给群相册媒体点赞'],
   set_group_card: ['owner', 'group_id!,user_id!,card', '设置指定群成员的群名片'],
   set_group_kick_members: ['owner', 'group_id!,user_id!,reject_add_request', '批量踢出群成员'],

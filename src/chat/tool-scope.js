@@ -1,15 +1,15 @@
-// 会话级的工具闸：群聊里「主人开口才给本机工具」，以及给非完整权限会话
+// 会话级的工具闸：群聊里「管理员开口才给本机工具」，以及给非完整权限会话
 // 收走全局工具。纯宿主 API，不依赖聊天业务。
 //
 // 设计约束：
 // - 用 allow 白名单而不是 deny 名单。deny 只认固定名字，新装的 MCP / 团队工具
 //   随时会漏，而那些工具同样能读写本机。
 // - 问不出宿主有哪些工具时，allow 用空集：一个都不给。
-// - 闸是可开合的：群聊「主人本机工具」档需要按每一轮说话的人切换。
+// - 闸是可开合的：群聊「管理员本机工具」档需要按每一轮说话的人切换。
 
 import { knownGlobalToolNames } from '../integration/host-tools.js'
 
-/** 非主人那一轮仍可用的全局工具：只留会话内的交互工具。 */
+/** 非管理员那一轮仍可用的全局工具：只留会话内的交互工具。 */
 export const GUEST_SAFE_TOOLS = [/^ask_user_question$/, /^todo_write$/]
 
 export function isGuestSafeTool(name) {
@@ -36,7 +36,7 @@ export function createToolScope({ log } = {}) {
     gates.set(key, { agent, off: null })
   }
 
-  /** 切换某个闸：allow 为真表示这一轮说话的人全是主人。 */
+  /** 切换某个闸：allow 为真表示这一轮说话的人全是管理员。 */
   function applyGate(key, allow) {
     const gate = gates.get(key)
     if (!gate) return
@@ -45,11 +45,11 @@ export function createToolScope({ log } = {}) {
         if (gate.off) {
           gate.off()
           gate.off = null
-          log?.info?.(`${String(key).slice(-8)}：本机工具放开（这一轮是主人）`)
+          log?.info?.(`${String(key).slice(-8)}：本机工具放开（这一轮是管理员）`)
         }
       } else if (!gate.off) {
         gate.off = restrictGuest(gate.agent)
-        log?.info?.(`${String(key).slice(-8)}：本机工具收起（这一轮不是主人）`)
+        log?.info?.(`${String(key).slice(-8)}：本机工具收起（这一轮不是管理员）`)
       }
     } catch (error) {
       log?.warn?.('群聊工具闸切换失败：', error.message)

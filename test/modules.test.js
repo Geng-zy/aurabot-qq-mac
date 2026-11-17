@@ -145,7 +145,7 @@ test('模块接管消息、改写回复、加命令；她的规则里有模块�
 
   const rules = fake.variables.get('aurabot_rules_private')()
   assert.match(rules, /你会说回声/)
-  // 主人私聊会话同时带扩展工具和心智工具
+  // 管理员私聊会话同时带扩展工具和心智工具
   const agent = [...fake.agents.values()].find((a) => String(a.preset).startsWith('aurabot-private'))
   assert.ok(agent.tools.has('echo_tool'))
   assert.ok(agent.tools.has('mind_remember'), '心智核心的记忆工具一直在')
@@ -377,9 +377,9 @@ test('只看 API.md 从零写出来的模块（查天气）能直接加载：命
   assert.match(fake.variables.get('aurabot_rules_private')(), /你会查天气/)
 })
 
-test('api.reply 在群里以引用回复发出；api.isOwner 认得主人', async () => {
+test('api.reply 在群里以引用回复发出；api.isOwner 认得管理员', async () => {
   writeMod('reply-demo', `export default { id: 'reply-demo', api: 1, setup(api) {
-    api.on('message', async (msg) => { if (msg.text !== '引用我') return false; await api.reply(msg, api.isOwner(msg.userId) ? '主人好' : '你好'); return true })
+    api.on('message', async (msg) => { if (msg.text !== '引用我') return false; await api.reply(msg, api.isOwner(msg.userId) ? '管理员好' : '你好'); return true })
   } }`)
   await until(async () => (await mod('reply-demo'))?.running === 'user')
   mock.push({ message_type: 'group', sub_type: 'normal', group_id: 777, user_id: 123456, message_id: 4242, sender: { user_id: 123456, nickname: '群友', card: '群友', role: 'member' }, message: [{ type: 'text', data: { text: '引用我' } }] })
@@ -396,7 +396,7 @@ function fakePng(w, h, salt = 0) {
   return b
 }
 
-test('#3 表情：从 QQ 收藏导入（已有的跳过、不再往 QQ 里加一遍）；主人让她存刚发的那张', async () => {
+test('#3 表情：从 QQ 收藏导入（已有的跳过、不再往 QQ 里加一遍）；管理员让她存刚发的那张', async () => {
   const fav = [fakePng(200, 200, 1), fakePng(200, 200, 2)].map((b) => 'base64://' + b.toString('base64'))
   mock.state.favorites = fav
   const adds = mock.calls.filter((c) => c.action === 'add_custom_face').length
@@ -408,7 +408,7 @@ test('#3 表情：从 QQ 收藏导入（已有的跳过、不再往 QQ 里加一
   const lib = (await fake.call('/stickers')).json().items
   assert.equal(lib.filter((i) => i.from === 'qq').length, 2)
 
-  // 主人私聊发来一张表情，再让她存（模拟测试里调工具）
+  // 管理员私聊发来一张表情，再让她存（模拟测试里调工具）
   const png = fakePng(180, 180, 7)
   mock.push(priv('看这个'))
   mock.push({ message_type: 'private', sub_type: 'friend', user_id: Number(OWNER), message_id: 777, sender: { user_id: Number(OWNER), nickname: 'xiaoming' }, message: [{ type: 'image', data: { file: 'base64://' + png.toString('base64'), sub_type: 1, summary: '[动画表情]' } }] })

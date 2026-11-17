@@ -18,7 +18,7 @@ function setup({ over = {}, timeoutMs = 60_000 } = {}) {
 }
 const tick = () => new Promise((r) => setTimeout(r, 5))
 
-test('主人私聊回复「确认」批准这一次，消息不再交给她', async () => {
+test('管理员私聊回复「确认」批准这一次，消息不再交给她', async () => {
   const { relay, sent, req, unavailable } = setup()
   const p = relay.onRequest(req(), unavailable)
   await tick()

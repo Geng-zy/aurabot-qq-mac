@@ -1,7 +1,7 @@
 // 生图：OpenAI 兼容、自定义接口，以及实验性 Codex 订阅接法。
 //   ① openai —— 兼容 OpenAI /v1/images/generations 的服务（硅基流动、通义万相兼容层、本地 ComfyUI / SD WebUI 的 OpenAI 代理……）
 //   ② custom —— 自己填接口：GET / POST、URL 模板（{prompt} 占位）、自定义参数名、从返回 JSON 里按路径取图
-// 地址和密钥由主人在面板里填；生成结果统一成 Buffer 交给 QQ 发出。
+// 地址和密钥由管理员在面板里填；生成结果统一成 Buffer 交给 QQ 发出。
 
 import { lstatSync, readFileSync } from 'node:fs'
 import { fetchImage, withTimeoutSignal } from '../core/net.js'

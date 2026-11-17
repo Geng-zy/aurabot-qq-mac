@@ -12,9 +12,9 @@ Aurabot 不需要重复实现审批、沙箱、工具权限这些事。真正需
    `dsh-purge` 开头的段。身份锁定放在 preset 的 persona 变量（`{{aurabot_identity_lock}}`）里，
    跟着人格卡一起进入 complete 段，所以不会被对方的 rewrite 丢掉；接缝只额外补一段
    只约束执行方式的「执行约束」，人设段本身只读。
-2. **维护工具只在本机主人私聊出现**。宿主把 `purge_*` 注册在根作用域，社交预设
+2. **维护工具只在本机管理员私聊出现**。宿主把 `purge_*` 注册在根作用域，社交预设
    也会继承；按会话 `tools.restrict({ deny })` 收窄，执行入口再用 `tools.guard`
-   复核一次，主人授权版本变化后旧会话立即失效。
+   复核一次，管理员授权版本变化后旧会话立即失效。
 3. **工具名发现要容错**。优先 `tools.definitions()`，其次
    `tools.view(agent).restrictableNames`，最后从探测报错里解析已知名单；
    三条都失败时按「一个都不给」处理。
@@ -27,7 +27,7 @@ Aurabot 不需要重复实现审批、沙箱、工具权限这些事。真正需
 | `purge-scope.js` | 身份锁定文案、执行约束、`system-prompt/assemble` 监听、维护工具名 |
 | `persona-hoist.js` | 模型请求出口的人设前置：按标记把「人格卡 + 规则 + 身份锁定」搬到 system 最前 |
 | `../chat/tool-scope.js` | 会话工具闸：访客白名单、群聊 `group-full` 的开合 |
-| `../chat/privileged-tools.js` | 需要「这一轮全是主人」才执行的 QQ 工具 |
+| `../chat/privileged-tools.js` | 需要「这一轮全是管理员」才执行的 QQ 工具 |
 
 ## 兼容与取舍
 

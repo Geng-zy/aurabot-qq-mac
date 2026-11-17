@@ -3,7 +3,7 @@
 // 规矩（设计文档「注意与意识流」「本地小模型的规矩」）：
 // - 日常念头用本地小模型，只耗电不耗钱；没装本地小模型时用聊天模型，但想得慢得多（省钱）。
 // - 小模型念头里的「事实」一律不进记忆，只留感受和打算。
-// - 连续几步越想越难受，或者涉及和主人的关系又是负面的：按硬规则交给聊天模型认真想一次（深想，每天有次数上限）。
+// - 连续几步越想越难受，或者涉及和管理员的关系又是负面的：按硬规则交给聊天模型认真想一次（深想，每天有次数上限）。
 // - 连续几步在重复：停下来放空，无聊感上升。
 // - 走神比例：闲着时有多少时间在想、多少在发呆（Killingsworth & Gilbert 2010 等，默认 0.4）。
 
@@ -79,8 +79,8 @@ export function createInner(deps) {
   }
   function save(s) { store.set('inner', s) }
 
-  // 她心里怎么叫主人：她自己改过的称呼优先
-  const ownerName = () => String(deps.ownerCall?.() || '主人')
+  // 她心里怎么叫管理员：她自己改过的称呼优先
+  const ownerName = () => String(deps.ownerCall?.() || '管理员')
   const place = deps.place || placeOf
   const nameOf = (pid) => (deps.isOwner(pid) ? ownerName() : deps.person(pid)?.name || shortId(pid))
 
@@ -163,7 +163,7 @@ export function createInner(deps) {
 依据：如果感受来自一条近期收到的原话，只填它的数字编号。来自联想、身体、旧念头或没有感受时写 无。
 打算：从「能做的事」里挑一件，或写无。虚拟进食只写吃点东西，不能真的点外卖、购物或付款。
 深想：是 或 否（涉及${owner}和你们的关系、情绪很强、要做决定、对自己有了新看法时写 是）
-（${owner}就是你的主人。）`
+（${owner}就是你的管理员。）`
   }
 
   function material(s, recalled, current) {
@@ -176,7 +176,7 @@ export function createInner(deps) {
     if (recalled.length) parts.push('【想起的往事】\n' + recalled.map((m) => `- ${shortTime(m.at, deps.tz())} ${m.text}`).join('\n'))
     const todo = deps.memory.dueIntentions({ within: 12 * 60 * MIN }).map((x) => x.gist)
     if (todo.length) parts.push('【惦记着要做的】' + todo.join('；'))
-    // 主人的、自己的生日和纪念日：想着想着可能就想去说一声
+    // 管理员的、自己的生日和纪念日：想着想着可能就想去说一声
     const days = (deps.memory.specialDays?.({ within: 3 }) || []).filter((d) => d.owner || d.self)
     if (days.length) parts.push('【日子】' + days.map((d) => d.text).join('；'))
     const ms = deps.motivation.state(b)
@@ -197,8 +197,8 @@ export function createInner(deps) {
     const spiral = recent.length === 3 && vals.every((v) => v < -0.1) && vals[0] <= vals[1] && vals[1] <= vals[2]
     const call = ownerName()
     const t = String(step.thought || '')
-    const aboutOwner = step.ownerEvidence && (t.includes('主人') || (call && t.includes(call)) || /我们(?:之间|的关系)/.test(t)) && vals[0] < -0.1
-    return spiral ? '越想越难受' : aboutOwner ? '涉及主人和你们的关系' : step.deep ? '小模型觉得要认真想' : ''
+    const aboutOwner = step.ownerEvidence && (t.includes('管理员') || (call && t.includes(call)) || /我们(?:之间|的关系)/.test(t)) && vals[0] < -0.1
+    return spiral ? '越想越难受' : aboutOwner ? '涉及管理员和你们的关系' : step.deep ? '小模型觉得要认真想' : ''
   }
 
   const DEEP_SYSTEM = () => `你是${deps.identity().name || '她'}，现在静下来认真想一件让你在意的事。下面是你刚才一连串的念头、此刻的感受和你记得的相关的事（标着是谁、什么时候）。
@@ -316,7 +316,7 @@ export function createInner(deps) {
       const d = await deepThink(s, st, reason, canCommit)
       if (d?.deferred) {
         const queue = s.deferred || pending
-        const priority = reason === '越想越难受' ? 3 : reason === '涉及主人和你们的关系' ? 2 : 1
+        const priority = reason === '越想越难受' ? 3 : reason === '涉及管理员和你们的关系' ? 2 : 1
         if (!queue.some((item) => overlap(item.step.thought, st.thought) >= 0.7)) {
           s.deferred = [...queue, { day: today, step: st, reason, priority }]
             .sort((a, b) => b.priority - a.priority || a.step.at - b.step.at).slice(0, 50)

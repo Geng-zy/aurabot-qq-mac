@@ -30,7 +30,7 @@ const noopLog = { debug() {}, info() {}, warn() {}, error() {} }
 /**
  * @param {{
  *   dir: string,                         // 数据目录，数据库放在 dir/mind.sqlite
- *   ownerId?: string,                    // 主人的稳定 id，例如 'qq:12345'（平台:账号）
+ *   ownerId?: string,                    // 管理员的稳定 id，例如 'qq:12345'（平台:账号）
  *   publicName?: string,                 // 接入方明确可公开的角色名称
  *   place?: (window: string) => { kind: 'private'|'group'|'other', id?: string, platform?: string }, // 窗口是私聊还是群；不给就按「平台:private|group:id」认
  *   now?: () => number,                  // 取时间，默认系统时间
@@ -50,7 +50,7 @@ export function createMind(opts) {
   const place = makePlace(opts.place)
 
   // ---------- 同一个人在不同平台的 id ----------
-  // 主人或朋友在 QQ、微信、飞书上各有一个 id：连起来以后都算同一个人（记忆、关系、主人身份都通用）。
+  // 管理员或朋友在 QQ、微信、飞书上各有一个 id：连起来以后都算同一个人（记忆、关系、管理员身份都通用）。
   // kv 'person.same'：{ 别的 id → 主 id }，只有一层。
   function sameMap() { return store.get('person.same', {}) || {} }
   /** 这个 id 实际是谁（连过就给主 id）。 */
@@ -88,7 +88,7 @@ export function createMind(opts) {
     for (const [key, value] of Object.entries(patch || {})) {
       const p = paramOf(key)
       if (!p) continue
-      if (p.ownerOnly && by !== 'owner') throw new Error(`「${p.label}」只能由主人设置`)
+      if (p.ownerOnly && by !== 'owner') throw new Error(`「${p.label}」只能由管理员设置`)
       if (key === 'identity.timezone' && !validTimeZone(value)) throw new Error('时区不认识：' + value)
       saved[key] = clampParam(p, value)
       changed.push(key)
@@ -137,7 +137,7 @@ export function createMind(opts) {
   function isOwner(personId) {
     return Boolean(ownerId) && canon(personId) === canon(ownerId)
   }
-  /** 名字和小名（她改名后自动跟着变），加上主人额外加的昵称。 */
+  /** 名字和小名（她改名后自动跟着变），加上管理员额外加的昵称。 */
   function wakeWords(extra = []) {
     const { name, nickname } = identity()
     return [...new Set([name, nickname, ...extra].map((x) => String(x || '').trim()).filter(Boolean))]
@@ -157,7 +157,7 @@ export function createMind(opts) {
     return { card: publicPersonaStyle(lastOwnerPersona().card), name: String(opts.publicName || '').trim() }
   }
   /**
-   * 写人格卡。by：'owner' 主人在面板里改；'self' 她自己改；'migration' 迁移。
+   * 写人格卡。by：'owner' 管理员在面板里改；'self' 她自己改；'migration' 迁移。
    * 每次都存一个版本，带理由。
    */
   function setPersonaCard(text, { by = 'owner', reason = '', name, nickname, publish = by === 'owner' || by === 'migration' } = {}) {
@@ -254,7 +254,7 @@ export function createMind(opts) {
   }
 
   /**
-   * 「这两个 id 是同一个人」（比如主人的 QQ 和微信）：other 并进 main。
+   * 「这两个 id 是同一个人」（比如管理员的 QQ 和微信）：other 并进 main。
    * 名字留作曾用名，关系以 main 的为准（main 还没有就用 other 的），原话和经历里的 id 都改成 main。
    * 以后 other 发来的消息都算 main 的。
    */
@@ -262,7 +262,7 @@ export function createMind(opts) {
     const other = String(otherId || '').trim()
     const main = canon(mainId)
     if (!other || !main || canon(other) === main) return { ok: false, message: canon(other) === main ? '已经是同一个人了' : 'id 是空的' }
-    if (isOwner(other) && !isOwner(main)) return { ok: false, message: '要把别的 id 连到主人身上，不能反过来' }
+    if (isOwner(other) && !isOwner(main)) return { ok: false, message: '要把别的 id 连到管理员身上，不能反过来' }
     const from = canon(other)
     store.tx(() => {
       const map = sameMap()
@@ -321,7 +321,7 @@ export function createMind(opts) {
       .run(String(window), String(msgId))
   }
 
-  /** 主人的私聊来信，以感知原话的时间为准。 */
+  /** 管理员的私聊来信，以感知原话的时间为准。 */
   function lastOwnerMessageAt() {
     if (!ownerId) return 0
     const rows = store.prep("SELECT window, MAX(at) AS at FROM perception WHERE who = ? AND dir = 'in' AND at <= ? GROUP BY window")
@@ -489,14 +489,14 @@ export function createMind(opts) {
   }
   /**
    * 忘掉一个人：关于他的事（主要关于他、他说的、只涉及他的）、和他的私聊、他说过的原话都移进恢复区。
-   * 和别人一起经历、他只是在场的事留着（那也是别人的记忆）。主人不能忘。
+   * 和别人一起经历、他只是在场的事留着（那也是别人的记忆）。管理员不能忘。
    * @param {string} id 人的 id（例如 qq:12345）
    * @param {{ keepPerson?: boolean, windows?: string[] }} [o]
    *   keepPerson：人留着、标成「以后不记」（不传 = 连人带关系一起删）；windows：和他的私聊窗口
    */
   function forgetPerson(id, { keepPerson = false, windows = [] } = {}) {
     const pid = canon(id)
-    if (!pid || isOwner(pid)) return { ok: false, message: '主人不能忘' }
+    if (!pid || isOwner(pid)) return { ok: false, message: '管理员不能忘' }
     const p = person(pid)
     // 按字面找 id（不用 LIKE：微信这类 id 里有 _ 和 %，会被当成通配符）
     const q = JSON.stringify(pid)
@@ -646,7 +646,7 @@ export function createMind(opts) {
   // ---------- 人格、自我、关系 ----------
   const self = createSelf({
     store, now, setting, log, identity: () => identity(), personaCard: () => personaCard(), setPersonaCard: (...a) => setPersonaCard(...a), addVersion: (...a) => addVersion(...a), listVersions: (...a) => listVersions(...a), getVersion,
-    // 对主人的称呼：主人一开始设的叫法；她改了以后关系里「你叫他」也跟着改
+    // 对管理员的称呼：管理员一开始设的叫法；她改了以后关系里「你叫他」也跟着改
     ownerName: () => String(opts.ownerName?.() || ''),
     dayKey: (at) => dayKey(at, tz()),
     onOwnerCall: (call) => { const o = identity().ownerId; if (o) relations.edit(o, { call }) },
@@ -683,7 +683,7 @@ export function createMind(opts) {
     isPrivateHistoryWindow,
     isOwner: (id) => isOwner(id),
     nameOf: (pid) => person(pid)?.name || shortId(pid),
-    // 认识满一年、两年……：只算主人和挺熟的人
+    // 认识满一年、两年……：只算管理员和挺熟的人
     firstMet: () => listPeople().filter((p) => p.firstSeen && (isOwner(p.id) || (Number(p.rel?.closeness) || 0) >= 0.4)).map((p) => ({ id: p.id, firstSeen: p.firstSeen, owner: isOwner(p.id) })),
     care: (pid) => 0.5 * personality.value('compassion') + 0.5 * (isOwner(pid) ? 0.9 : relations.closeness(pid)),
     onRecalled: (list, { window } = {}) => emotion.rekindle(list, { window }),

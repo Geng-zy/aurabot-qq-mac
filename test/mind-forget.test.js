@@ -1,4 +1,4 @@
-// 忘掉一个人（第 16 项）：关于他的事移进恢复区、能整份放回来；「以后不记」不再记他说的话；主人不能忘。
+// 忘掉一个人（第 16 项）：关于他的事移进恢复区、能整份放回来；「以后不记」不再记他说的话；管理员不能忘。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMindAdapter } from '../src/mind-adapter/index.js'
@@ -58,7 +58,7 @@ test('以后不记他：他的话不进感知、私聊里她说的也不记；�
   assert.equal(m.forgottenList()[0].keepPerson, true)
 })
 
-test('主人不能忘；恢复区 30 天后清掉', async () => {
+test('管理员不能忘；恢复区 30 天后清掉', async () => {
   const { a, m, set } = setup()
   assert.equal(a.forgetPerson('1', 'delete').ok, false)
   assert.equal(a.forgetPerson('1', 'stop').ok, false)

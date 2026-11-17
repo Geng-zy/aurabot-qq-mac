@@ -1,6 +1,6 @@
 // 移植自原项目 354160e；发出去的话交给 her-voice.js，由她自己说。
 // DSH 里有两种「要人处理」的事：工具要授权（approval/asked 审计事件）、她弹选择（ask_user_question 的 tool/call）。
-// 这里把它们推到主人 QQ：只上报，不代答——DSH 界面照常弹，谁在电脑前谁点。
+// 这里把它们推到管理员 QQ：只上报，不代答——DSH 界面照常弹，谁在电脑前谁点。
 // 按工作区分别开关（config.notice）。
 //
 // 两条硬规矩：
@@ -29,7 +29,7 @@ export function createNoticeRelay({ getConfig, workspaceOf, compose, log, window
   let timer = null
   let retry = 0
 
-  /** 这个会话的这一类事要不要上报：先看总开关，再看工作区覆盖。没配主人号就不报（发不出去）。 */
+  /** 这个会话的这一类事要不要上报：先看总开关，再看工作区覆盖。没配管理员号就不报（发不出去）。 */
   function enabled(kind, sessionId) {
     const cfg = getConfig?.() || {}
     if (!cfg.enabled || cfg.dryRun || !cfg.ownerQQ) return false
@@ -107,7 +107,7 @@ export function createNoticeRelay({ getConfig, workspaceOf, compose, log, window
   }
 
   /**
-   * 这件事已经处理完了（主人点了批准 / 选了方案）：从缓冲里拿掉。
+   * 这件事已经处理完了（管理员点了批准 / 选了方案）：从缓冲里拿掉。
    * 不然人就在电脑前、手比通知快，八秒后还会收到一条「去点一下」。
    */
   function cancel(id) {

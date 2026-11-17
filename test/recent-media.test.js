@@ -179,14 +179,14 @@ test('现有 qq_save_sticker 可在重启后从暂存保存原图、备注及标
   assert.deepEqual(readFileSync(join(s.dir, 'stickers', item.file)), png)
 })
 
-test('现有存表情工具在恢复的群聊中仍优先取主人图片', async () => {
+test('现有存表情工具在恢复的群聊中仍优先取管理员图片', async () => {
   const s = setup(), before = s.hub(), other = Buffer.from(png)
   other[40] = 1
   await send(before, image('base64://' + png.toString('base64')), OWNER, '123')
   await send(before, image('base64://' + other.toString('base64')), '10000002', '123')
   const after = s.hub(), tool = saveTool(after, s.cfg, { kind: 'group', chatId: 'group:123', groupId: '123' })
   after.simulateTurn('save-test', [OWNER])
-  assert.equal((await tool.execute({ name: '主人的图' })).ok, true)
+  assert.equal((await tool.execute({ name: '管理员的图' })).ok, true)
   const item = JSON.parse(readFileSync(join(s.dir, 'stickers', 'index.json'), 'utf8')).items[0]
   assert.deepEqual(readFileSync(join(s.dir, 'stickers', item.file)), png)
 })

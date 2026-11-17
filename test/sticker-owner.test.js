@@ -1,4 +1,4 @@
-// 「只听主人的」偷表情模式：别人发的表情不提示她、她也不能自己收；主人发话才收
+// 「只听管理员的」偷表情模式：别人发的表情不提示她、她也不能自己收；管理员发话才收
 import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
@@ -63,7 +63,7 @@ const send = async ({ from, member = false, salt, text = '看看这张' }) => {
       { type: 'text', data: { text } },
       { type: 'image', data: { sub_type: 1, file: 'base64://' + png(salt).toString('base64') } },
     ],
-    sender: { user_id: Number(from), nickname: member ? '群友' : '主人', card: member ? '群友' : '主人', role: member ? 'member' : 'owner' },
+    sender: { user_id: Number(from), nickname: member ? '群友' : '管理员', card: member ? '群友' : '管理员', role: member ? 'member' : 'owner' },
   })
   await wait(2500)
 }
@@ -73,7 +73,7 @@ test('别人发的表情：不提示她可以收', async () => {
   await send({ from: MEMBER, member: true, salt: 11 })
   const t = fake.turns.slice(before).at(-1)
   assert.ok(t, '群里被 @ 应该走一轮')
-  assert.doesNotMatch(String(t.userText), /qq_collect_sticker/, '只听主人的模式，别人发的表情不给提示')
+  assert.doesNotMatch(String(t.userText), /qq_collect_sticker/, '只听管理员的模式，别人发的表情不给提示')
 })
 
 test('别人在场时她不能自己收（工具被拦）', async () => {
@@ -83,15 +83,15 @@ test('别人在场时她不能自己收（工具被拦）', async () => {
   const call = t.toolCalls.find((c) => c.name === 'qq_collect_sticker')
   assert.ok(call, '她确实尝试收了')
   assert.equal(call.result.ok, false, '应该被拦下来')
-  assert.match(String(call.result.message), /只听主人的/)
+  assert.match(String(call.result.message), /只听管理员的/)
   assert.equal(library().length, 0, '库里不该多东西')
 })
 
-test('主人发话就能收，而且会给她提示', async () => {
+test('管理员发话就能收，而且会给她提示', async () => {
   const before = fake.turns.length
   await send({ from: OWNER, salt: 13, text: '收下这张' })
   const t = fake.turns.slice(before).at(-1)
-  assert.match(String(t.userText), /qq_collect_sticker/, '主人发的表情要提示她')
+  assert.match(String(t.userText), /qq_collect_sticker/, '管理员发的表情要提示她')
   const call = t.toolCalls.find((c) => c.name === 'qq_collect_sticker')
   assert.ok(call)
   assert.equal(call.result.ok, true, JSON.stringify(call.result))

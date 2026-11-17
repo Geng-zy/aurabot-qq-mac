@@ -79,7 +79,7 @@ function timeContextEnd(text, start) {
 /**
  * time-context 的块头可能出现在正文中间（模型先写一句再抄），也可能块里只剩一两行，
  * 所以除了「从块头吃到她自己的话」，任何单独命中前缀的行都要剔。
- * 这段不是提示词复读，不能走主人私聊的复读豁免，所以调用方要单独并进出站区间。
+ * 这段不是提示词复读，不能走管理员私聊的复读豁免，所以调用方要单独并进出站区间。
  */
 export function contextInjectionRanges(text, { toEndOfText = false } = {}) {
   const raw = String(text ?? '')

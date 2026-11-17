@@ -71,21 +71,21 @@ test('说的话和想起的事不沾边，不算说过', async () => {
 test('每年的日子：聊天里说到的生日记成 date，到了那天、快到的时候她记得', async () => {
   const { m, mem, set } = mk()
   m.perceive({ window: 'qq:private:1', who: 'qq:1', text: '对了我生日是 11 月 13 号', msgId: 'a', at: T0 - 600e3 })
-  mem.connect({ think: async () => JSON.stringify({ episodes: [{ type: 'date', gist: '主人的生日是 11 月 13 日', about: 'qq:1', speaker: 'qq:1', yearly: '11-13', sources: [1] }] }) })
+  mem.connect({ think: async () => JSON.stringify({ episodes: [{ type: 'date', gist: '管理员的生日是 11 月 13 日', about: 'qq:1', speaker: 'qq:1', yearly: '11-13', sources: [1] }] }) })
   await mem.encodeWindow('qq:private:1', { force: true })
   assert.equal(mem.specialDays().length, 0)
-  assert.match(mem.specialDays({ within: 3 })[0].text, /3 天后：主人的生日/)
+  assert.match(mem.specialDays({ within: 3 })[0].text, /3 天后：管理员的生日/)
   set(T0 + 3 * D)
   const w = await mem.workingMemory({ cue: '在干嘛', window: 'qq:private:1', people: ['qq:1'] })
-  assert.match(w.text, /【日子】\n- 今天：主人的生日/)
-  assert.doesNotMatch((await mem.workingMemory({ cue: '在干嘛', window: 'qq:group:9' })).text, /主人的生日/)
+  assert.match(w.text, /【日子】\n- 今天：管理员的生日/)
+  assert.doesNotMatch((await mem.workingMemory({ cue: '在干嘛', window: 'qq:group:9' })).text, /管理员的生日/)
   // 别人的生日只在他在场时提
   mem.insert({ at: T0, window: 'w', gist: '小明的生日是 11 月 13 日', kind: 'date', about: 'qq:2', extra: { yearly: '11-13' } })
   assert.doesNotMatch((await mem.workingMemory({ cue: 'x', window: 'qq:group:9', people: [] })).text, /小明/)
   assert.match((await mem.workingMemory({ cue: 'x', window: 'qq:group:9', people: ['qq:2'] })).text, /小明的生日/)
 })
 
-test('认识满一年：主人和挺熟的人', () => {
+test('认识满一年：管理员和挺熟的人', () => {
   const { m, mem, set } = mk()
   m.notePerson('qq:1', { name: '鱼' })
   m.notePerson('qq:2', { name: '小明' })
@@ -93,7 +93,7 @@ test('认识满一年：主人和挺熟的人', () => {
   m.relations.edit('qq:2', { closeness: 0.5 })
   set(T0 + 365 * D)
   const days = mem.specialDays()
-  assert.deepEqual(days.map((d) => d.text).sort(), ['今天：和主人认识满 1 年', '今天：和小明认识满 1 年'])
+  assert.deepEqual(days.map((d) => d.text).sort(), ['今天：和小明认识满 1 年', '今天：和管理员认识满 1 年'])
 })
 
 test('到点的约定：对接层让她去那个私聊里自己说；睡着也会起来；只提醒一次', async () => {
@@ -105,7 +105,7 @@ test('到点的约定：对接层让她去那个私聊里自己说；睡着也�
     deliverReminder: async (o) => { sent.push(o); if (sent.length === 1) throw new Error('网关暂时离线'); return o.isCurrent() },
   })
   const due = T0 + 20 * 3600e3
-  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '答应明早八点叫主人起床', kind: 'intention', about: 'qq:1', due })
+  const id = a.mind.memory.insert({ at: T0, window: 'qq:private:1', gist: '答应明早八点叫管理员起床', kind: 'intention', about: 'qq:1', due })
   for (let i = 1; i <= 6; i++) a.mind.memory.insert({ at: T0, window: 'qq:group:9', gist: '答应群里发攻略 ' + i, kind: 'intention', due: due - i })
   assert.equal(await a.checkPromises(), 0)
   t = due - 5 * 60000
@@ -166,7 +166,7 @@ test('回顾：睡觉时给前几天各写一段、上周一段、上个月一�
   const { m, mem, set } = mk()
   // 11-02 到 11-09 每天两件事（北京时间中午）
   for (let i = 1; i <= 8; i++) {
-    mem.insert({ at: T0 - i * D, window: 'w', gist: `第 ${i} 天前和主人聊了游戏`, kind: 'event', importance: 0.5 })
+    mem.insert({ at: T0 - i * D, window: 'w', gist: `第 ${i} 天前和管理员聊了游戏`, kind: 'event', importance: 0.5 })
     mem.insert({ at: T0 - i * D + 3600e3, window: 'w', gist: `第 ${i} 天前吃了面`, kind: 'event', importance: 0.4 })
   }
   const asked = []

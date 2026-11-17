@@ -13,8 +13,8 @@ test('新安装默认打开长任务模式，老用户存过的不变', () => {
   assert.equal(presetFor('social', normalize({})), 'aurabot-social')
 })
 
-test('规则跟着开关走，只进主人私聊', () => {
-  assert.match(rulesText('private', normalize({ ownerName: '主人' })), /放到后台/)
+test('规则跟着开关走，只进管理员私聊', () => {
+  assert.match(rulesText('private', normalize({ ownerName: '管理员' })), /放到后台/)
   assert.doesNotMatch(rulesText('private', normalize({ longTasks: false })), /放到后台/)
   assert.doesNotMatch(rulesText('social', normalize({})), /放到后台/)
 })
@@ -26,7 +26,7 @@ test('预设里不挂团队工具：DSH 的开关已经全局挂了，重复注�
   assert.doesNotMatch(rulesText('social', normalize({})), /spawn_teammate/)
 })
 
-test('spawn_teammate 只有主人私聊能用', async () => {
+test('spawn_teammate 只有管理员私聊能用', async () => {
   const guard = createDangerGuard({
     getConfig: () => ({}), ownerQQ: () => '1',
     chatOfSession: (id) => ({ own: 'private:1', group: 'group:9', other: 'private:2', sys: 'system:diary' })[id] || '',

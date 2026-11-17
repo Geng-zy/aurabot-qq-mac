@@ -39,10 +39,10 @@ test('设置：夹紧范围、丢掉未知键', () => {
   assert.equal(defaults()['personality.ownerInfluenceCap'], 0.6)
 })
 
-test('只能主人改的设置，她自己改不了', () => {
+test('只能管理员改的设置，她自己改不了', () => {
   const { m } = mind()
-  assert.throws(() => m.updateSettings({ 'identity.age': 30 }, 'self'), /只能由主人设置/)
-  assert.throws(() => m.updateSettings({ 'identity.exclusive': false }, 'self'), /只能由主人设置/)
+  assert.throws(() => m.updateSettings({ 'identity.age': 30 }, 'self'), /只能由管理员设置/)
+  assert.throws(() => m.updateSettings({ 'identity.exclusive': false }, 'self'), /只能由管理员设置/)
   m.updateSettings({ 'emotion.contagion': 0.5 }, 'self')
   assert.equal(m.setting('emotion.contagion'), 0.5)
 })

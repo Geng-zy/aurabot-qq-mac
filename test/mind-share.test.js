@@ -1,4 +1,4 @@
-// 模块只提供手：刷到想给主人看的东西交给她（api.mind.share），她能找主人就自己开口，不能就先记着、聊天时想起来。
+// 模块只提供手：刷到想给管理员看的东西交给她（api.mind.share），她能找管理员就自己开口，不能就先记着、聊天时想起来。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMindAdapter } from '../src/mind-adapter/index.js'
@@ -18,7 +18,7 @@ function setup({ cfg = {} } = {}) {
 }
 const owner = { chatId: 'private:1', kind: 'private', userId: '1' }
 
-test('能找主人：由她自己开口，带上是什么和链接', async () => {
+test('能找管理员：由她自己开口，带上是什么和链接', async () => {
   const { a, notes } = setup()
   const r = await a.moduleApi('tophub').share({ text: '热榜《猫猫做饭》：这只猫会做饭', url: 'https://example.com/x' })
   assert.equal(r.ok, true)
@@ -29,7 +29,7 @@ test('能找主人：由她自己开口，带上是什么和链接', async () =>
   assert.doesNotMatch(a.contextFor({ chat: owner }), /之前刷到、想给他看的/, '说过了就不再惦记')
 })
 
-test('现在不能找（上次找他还没回）：先记着，和主人聊天时想起来，最多两次', async () => {
+test('现在不能找（上次找他还没回）：先记着，和管理员聊天时想起来，最多两次', async () => {
   const { a, notes } = setup()
   await a.moduleApi('tophub').share({ text: '第一个', url: 'https://example.com/1' })
   await a.moduleApi('tophub').share({ text: '《猫》的文章里有一张画面', hint: '想发给他看就附上配图' })

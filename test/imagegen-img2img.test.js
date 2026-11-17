@@ -189,7 +189,7 @@ const send = (hub, buf, user = OWNER, group = '') => qqIn(hub, {
   message: [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') } }],
 })
 
-test('last 复用 hub 最近图片：群 / 私聊隔离，取当前聊天最新一张，不限定主人', async (t) => {
+test('last 复用 hub 最近图片：群 / 私聊隔离，取当前聊天最新一张，不限定管理员', async (t) => {
   const hub = mediaHub(t)
   await send(hub, PNG)
   await send(hub, PNG, OWNER, '123')

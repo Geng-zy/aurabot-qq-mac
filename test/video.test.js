@@ -96,7 +96,7 @@ test('卸载后通知本地视频脚本取消，拒绝旧工具的后续请求',
   assert.deepEqual(s.sent, [])
 })
 
-test('只有主人能生成，后台会话和没开时没有工具，规则跟着开关走', async () => {
+test('只有管理员能生成，后台会话和没开时没有工具，规则跟着开关走', async () => {
   const s = setup({ owner: false })
   assert.equal((await s.get().execute({ prompt: 'x' })).ok, false)
   assert.equal(s.calls.length, 0)

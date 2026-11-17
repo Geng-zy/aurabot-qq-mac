@@ -315,7 +315,7 @@ export function cleanOutboundText(text, { warn, promptSources, fingerprint, user
   }
   // 先剥 HTML 残片：它们和工具调用、提示词复读互不重叠，按原文坐标并进同一份区间表。
   const { cuts: htmlCuts } = stripHtmlFragments(raw)
-  // time-context 注入不是提示词复读，主人私聊的复读豁免不该放过它，这里直接并进必删区间。
+  // time-context 注入不是提示词复读，管理员私聊的复读豁免不该放过它，这里直接并进必删区间。
   const tools = [...toolTextRanges(raw, { ownerPrivate }), ...contextInjectionRanges(raw)]
     .sort((a, b) => a.start - b.start || b.end - a.end)
   const baseRanges = mergeRanges([...tools, ...htmlCuts])
@@ -323,7 +323,7 @@ export function cleanOutboundText(text, { warn, promptSources, fingerprint, user
   const prompts = (allowPromptEcho ? [] : promptTextRanges(toolClean, fingerprint || promptFingerprint(sources, userText ?? active?.userText ?? '')))
     .sort((a, b) => a.start - b.start || b.end - a.end)
   const promptClean = withoutToolRanges(toolClean, prompts)
-  // 主人问设定时保留带解释的完整回答，仅整条复读才拦。
+  // 管理员问设定时保留带解释的完整回答，仅整条复读才拦。
   const removePrompts = prompts.length && (!ownerPrivate || isSilence(visibleContent(promptClean)))
   onPromptDecision?.(Boolean(ownerPrivate && prompts.length && !removePrompts))
   let ranges = baseRanges
@@ -495,7 +495,7 @@ function capBubbles(items) {
 
 /**
  * 一段文字拆成几条气泡：真人打字是一行一条发出去的。
- * 有代码块、或者是长篇内容（比如帮主人查东西的结果）就整段发，不拆。
+ * 有代码块、或者是长篇内容（比如帮管理员查东西的结果）就整段发，不拆。
  */
 export function splitLines(text) {
   const t = String(text || '').trim()

@@ -1,5 +1,5 @@
 // 登录核对期间收到的事件不能丢：核对通过后要补处理
-// （真实场景：刚连上 QQ 那几百毫秒里，主人发一句话，以前会被直接丢掉）
+// （真实场景：刚连上 QQ 那几百毫秒里，管理员发一句话，以前会被直接丢掉）
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs'
@@ -32,7 +32,7 @@ const priv = (text) => ({
   self_id: Number(BOT), user_id: Number(OWNER), time: Math.floor(Date.now() / 1000),
   message_id: Math.floor(Math.random() * 1e6),
   message: [{ type: 'text', data: { text } }],
-  sender: { user_id: Number(OWNER), nickname: '主人' },
+  sender: { user_id: Number(OWNER), nickname: '管理员' },
 })
 const sends = () => mock.calls.filter((c) => c.action === 'send_private_msg' && String(c.params.user_id) === String(OWNER))
 

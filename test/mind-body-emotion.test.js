@@ -57,7 +57,7 @@ test('情绪持续多久：难过比害羞久得多；越重要的事越久', ()
   assert.ok((by['生气'] || 0) > (by['烦躁'] || 0), '重要的事气得更久')
 })
 
-test('专一：对别人的心动变成喜爱（最多中等），性欲去掉，嫉妒变成羡慕；对主人照常', () => {
+test('专一：对别人的心动变成喜爱（最多中等），性欲去掉，嫉妒变成羡慕；对管理员照常', () => {
   const { m } = mind()
   const got = m.emotion.feel([
     { name: '心动', intensity: 0.9, target: 'qq:2' },
@@ -140,7 +140,7 @@ test('情绪有对象：对别人的气提醒她别撒在眼前的人身上；�
   assert.match(tiredStranger, /压不住/)
   const { m: m2 } = mind({ random: () => 0.1 })
   m2.emotion.feel([{ name: '生气', intensity: 0.9, target: 'qq:2' }])
-  assert.doesNotMatch(m2.emotion.describe({ people: ['qq:1'], body: { energy: 0.1, sleepiness: 0.9 } }), /压不住/, '对主人更忍得住')
+  assert.doesNotMatch(m2.emotion.describe({ people: ['qq:1'], body: { energy: 0.1, sleepiness: 0.9 } }), /压不住/, '对管理员更忍得住')
 })
 
 test('想起带着情绪的事，情绪会重新冒出来一点', async () => {
@@ -182,11 +182,11 @@ test('睡觉：白天不睡；醒着很久又到了夜里就睡；睡够了早�
   assert.ok(m.body.state().energy > 0.8, '睡一觉精力回来了')
 })
 
-test('和主人聊着就熬着不睡，代价是第二天早上更困', () => {
+test('和管理员聊着就熬着不睡，代价是第二天早上更困', () => {
   const { m, set } = mind({ settings: { 'body.hunger': false } })
   set(T0 + 15.8 * H)
   m.body.noteOwner()
-  assert.deepEqual(m.body.tick().events, [], '刚和主人聊过，熬着')
+  assert.deepEqual(m.body.tick().events, [], '刚和管理员聊过，熬着')
   set(T0 + 18 * H) // 02:00
   assert.deepEqual(m.body.tick().events.map((e) => e.kind), ['slept'])
   set(T0 + 24 * H)
@@ -206,7 +206,7 @@ test('精力：做事花，醒着歇着慢慢回来', () => {
   assert.ok(m.body.state().energy > e0 - 0.3 + 0.1)
 })
 
-test('饿：饭点前后饿了自己吃；只靠主人投喂时不吃；关掉就不会饿', () => {
+test('饿：饭点前后饿了自己吃；只靠管理员投喂时不吃；关掉就不会饿', () => {
   const { m, set } = mind()
   set(T0 + 3.9 * H) // 11:54，离上次 0.2 饱已经过了快 4 小时
   const ev = m.body.tick().events
@@ -269,7 +269,7 @@ test('投喂：只认这一轮真的在跟她说话的人；/投喂 后她又说
   const r2 = a.feed('奶茶', '1', 'private:1')
   assert.equal(r1.duplicate, undefined)
   assert.equal(r2.duplicate, true)
-  assert.ok(a.mind.memory.list().some((m) => m.gist === '主人给我吃了奶茶'))
+  assert.ok(a.mind.memory.list().some((m) => m.gist === '管理员给我吃了奶茶'))
   assert.ok(a.mind.emotion.state().active.some((e) => e.name === '感激' && e.target === 'qq:1'))
   assert.equal(a.mind.person('qq:5'), null, '没见过的人不硬建档案')
 })
@@ -301,7 +301,7 @@ test('口语投喂：只认本私聊近期递出的食物，送达后记一次',
   a.feel('private:1', '谢谢<feel>{"fed":{"food":"蛋糕","by":"1"}}</feel>', { senders: ['1'] })
   reply('我吃了一口，真甜。')
   assert.equal(a.mind.body.state().lastMeal.at, T0)
-  assert.equal(a.mind.memory.list().filter((e) => e.gist === '主人给我吃了草莓蛋糕').length, 1)
+  assert.equal(a.mind.memory.list().filter((e) => e.gist === '管理员给我吃了草莓蛋糕').length, 1)
   set(T0 + 5 * 60000)
   speak('这杯奶茶给你')
   set(T0 + 9 * 60000)
@@ -309,12 +309,12 @@ test('口语投喂：只认本私聊近期递出的食物，送达后记一次',
   assert.equal(a.mind.body.state().lastMeal.food, '草莓蛋糕', '过期了就不从聊天记录补记')
 })
 
-test('睡着时：主人叫才醒（按人不按地方）；别人的消息等她醒了按轻重补回', async () => {
+test('睡着时：管理员叫才醒（按人不按地方）；别人的消息等她醒了按轻重补回', async () => {
   const { a, replays } = adapter()
   a.mind.body.sleepNow()
   const ev = (id) => ({ id })
   assert.deepEqual(a.gate({ chatId: 'group:9', kind: 'group', userId: '2', direct: true, explicitlyAddressed: true, event: ev('g2') }), { reply: false, reason: '她睡着了' })
-  assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '1', direct: false, event: ev('g1') }).reply, false, '主人在群里没叫她，不会被吵醒')
+  assert.equal(a.gate({ chatId: 'group:9', kind: 'group', userId: '1', direct: false, event: ev('g1') }).reply, false, '管理员在群里没叫她，不会被吵醒')
   assert.equal(a.gate({ chatId: 'private:3', kind: 'private', userId: '3', direct: true, event: ev('p3') }).reply, false)
   const g = a.gate({ chatId: 'group:9', kind: 'group', userId: '1', direct: true, event: ev('g1b') })
   assert.deepEqual(g, { reply: true, woke: true, reason: '被叫醒了' })
@@ -365,7 +365,7 @@ test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
   assert.ok(a.rules().every((r) => !/大肥鱼|鲸/.test(r)), '规矩是通用的')
 })
 
-test('一轮聊完花精力；和主人聊着会熬夜', () => {
+test('一轮聊完花精力；和管理员聊着会熬夜', () => {
   const { a } = adapter()
   a.mind.updateSettings({ 'body.energyPerTurn': 0.05 })
   const e0 = a.mind.body.state().energy

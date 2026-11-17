@@ -148,7 +148,7 @@ async function macSynth(text) {
   return file
 }
 
-// ---------- 本地 / 自建 TTS 服务（地址是主人自己填的，所以允许 127.0.0.1） ----------
+// ---------- 本地 / 自建 TTS 服务（地址是管理员自己填的，所以允许 127.0.0.1） ----------
 
 async function fetchAudio(url, init, timeoutMs = 120000) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) })

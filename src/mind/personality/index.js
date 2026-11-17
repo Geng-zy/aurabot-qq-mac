@@ -5,7 +5,7 @@
 //   依据由程序核对（必须是她自己说的那一行）。只是记录，不改人格。
 // - 特质：每晚睡觉时检查一次。同一种变化要在「独立的场合」（不同的日子）出现够多次才算数（门槛），
 //   过了门槛也只走一小步（步子），离本来的样子越远往外越难、往回越容易（拉力），同一项两步之间至少隔几天；
-//   没有经历支撑就很慢地往回落一些，但不完全回去。主人一个人推动的部分有上限（影响力上限）。
+//   没有经历支撑就很慢地往回落一些，但不完全回去。管理员一个人推动的部分有上限（影响力上限）。
 // - 习惯：同一类场合里反复出现、并且被正面回应的反应变成习惯；被冷落或责怪的慢慢消失。
 // - 影子模式：特质只计算不生效。
 
@@ -52,7 +52,7 @@ export function createPersonality(deps) {
     return { base: { ...mid }, cur: { ...mid }, shadow: null, confirmed: false, inferred: null, lastStep: {}, consumed: {}, run: {}, peak: {}, alerts: [], obs: [], habitObs: [], habits: [], pending: [] }
   }
   function save(s) { store.set('personality', s) }
-  // 第一次：先存一份（还没确认的一般人水平），之后从人格卡推、由主人确认
+  // 第一次：先存一份（还没确认的一般人水平），之后从人格卡推、由管理员确认
   if (!store.get('personality', null)) save(load())
 
   /** 此刻生效的特质（影子模式下也是这份，影子里算出来的另外存着）。 */
@@ -71,7 +71,7 @@ export function createPersonality(deps) {
 ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[6]}）`).join('\n')}
 只输出 JSON：{"traits":{"id":数值},"why":{"id":"依据（人格卡里的哪句话，十五个字以内）"}}`
 
-  /** 让模型从人格卡推一份初始数值；没确认之前先用着，面板里列出依据由主人确认或修改。 */
+  /** 让模型从人格卡推一份初始数值；没确认之前先用着，面板里列出依据由管理员确认或修改。 */
   async function infer(card, ask) {
     if (!String(card || '').trim() || typeof ask !== 'function') return null
     const j = parseJson(await ask('traits', INFER_SYSTEM, `人格卡：\n${String(card).slice(0, 6000)}`, 1500))
@@ -87,14 +87,14 @@ ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[
       s.cur = { ...v }
       s.shadow = null
       delete s.shadowProgress
-      deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'migration', reason: '从人格卡推出初始特质（待主人确认）' })
+      deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'migration', reason: '从人格卡推出初始特质（待管理员确认）' })
     }
     save(s)
     return s.inferred
   }
 
   /**
-   * 主人确认或修改「本来的样子」。已经走过的变化保留（现在的值跟着平移同样的量）。
+   * 管理员确认或修改「本来的样子」。已经走过的变化保留（现在的值跟着平移同样的量）。
    * @param {Record<string, number>} base
    */
   function confirm(base) {
@@ -110,7 +110,7 @@ ${TRAITS.map((t) => `${t.id}：${t.label}（低：${t.bands[0]} 高：${t.bands[
     s.confirmed = true
     s.shadow = null
     delete s.shadowProgress
-    deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'owner', reason: '主人确认了本来的样子' })
+    deps.addVersion('traits', { base: s.base, cur: s.cur }, { by: 'owner', reason: '管理员确认了本来的样子' })
     save(s)
     return s
   }
@@ -262,7 +262,7 @@ ${usual}
           if (outward) progress.peak[id] = Math.max(progress.peak[id] || 0, Math.abs(next - base))
           const run = progress.run[id] && progress.run[id].dir === dir ? progress.run[id].n + 1 : 1
           progress.run[id] = { dir, n: run }
-          const why = `${days} 天里有这样的表现${share > 0 ? `（主人占 ${Math.round(share * 100)}%）` : ''}`
+          const why = `${days} 天里有这样的表现${share > 0 ? `（管理员占 ${Math.round(share * 100)}%）` : ''}`
           steps.push({ id, from: cur, to: next, dir, why, band: bandOf(next), crossed: bandOf(next) !== bandOf(cur) })
           if (!shadow && run >= 3) alert(s, id, `「${TRAIT.get(id).label}」连着 ${run} 步往${dir > 0 ? '高' : '低'}走`)
           if (!shadow && (bandOf(next) === 1 || bandOf(next) === 7)) alert(s, id, `「${TRAIT.get(id).label}」走到了${bandOf(next) === 7 ? '最高' : '最低'}一档`)

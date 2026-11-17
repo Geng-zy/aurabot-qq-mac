@@ -59,7 +59,7 @@ const send = async (text, buf) => {
       { type: 'text', data: { text } },
       { type: 'image', data: { sub_type: 1, file: 'base64://' + buf.toString('base64') } },
     ],
-    sender: { user_id: Number(OWNER), nickname: '主人' },
+    sender: { user_id: Number(OWNER), nickname: '管理员' },
   })
   await wait(1500)
 }

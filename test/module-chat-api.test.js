@@ -1,4 +1,4 @@
-// 模块的聊天接入接口（移植自原项目 5cdbcd4）：本分叉没有原项目的旧记忆和原话档案，主人输入改为记进心智核心的感知。
+// 模块的聊天接入接口（移植自原项目 5cdbcd4）：本分叉没有原项目的旧记忆和原话档案，管理员输入改为记进心智核心的感知。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -10,8 +10,8 @@ import { createHub } from '../src/chat/hub.js'
 import { buildWav } from '../src/voice/wav.js'
 
 const OWNER = '10001', CHAT = `private:${OWNER}`, GROUP = 'group:555'
-const ownerChat = { chatId: CHAT, kind: 'private', userId: OWNER, groupId: '', nickname: '主人' }
-const groupChat = { chatId: GROUP, kind: 'group', userId: OWNER, groupId: '555', nickname: '主人' }
+const ownerChat = { chatId: CHAT, kind: 'private', userId: OWNER, groupId: '', nickname: '管理员' }
+const groupChat = { chatId: GROUP, kind: 'group', userId: OWNER, groupId: '555', nickname: '管理员' }
 const deferred = () => { let resolve; const promise = new Promise((r) => { resolve = r }); return { promise, resolve } }
 function setup(t, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'aurabot-module-chat-'))
@@ -38,7 +38,7 @@ function setup(t, options = {}) {
 
 test('流水通知与落盘同源：来源端标记不落盘，监听失败不影响写入，调试不通知', async (t) => {
   const s = setup(t)
-  assert.equal(s.hub.logChat(CHAT, '主人', 'a'.repeat(600), OWNER, { via: 'external', originId: 'client-1' }), true)
+  assert.equal(s.hub.logChat(CHAT, '管理员', 'a'.repeat(600), OWNER, { via: 'external', originId: 'client-1' }), true)
   assert.equal(s.rows.length, 1); assert.equal(s.rows[0].text.length, 500); assert.equal(s.rows[0].originId, 'client-1')
   const [day] = s.hub.chatLogDays(), [row] = s.hub.chatLogOf(day)
   assert.deepEqual(row, Object.fromEntries(Object.entries(s.rows[0]).filter(([k]) => k !== 'originId')))
@@ -51,7 +51,7 @@ test('流水通知与落盘同源：来源端标记不落盘，监听失败不�
   assert.equal(replies[0].text, '实际发出的消息')
   assert.deepEqual(s.hub.chatLogDays().flatMap((d) => s.hub.chatLogOf(d)).filter((r) => r.who === 'bot'), replies)
   const count = s.rows.length
-  s.cfg.debug = true; s.hub.logChat(CHAT, '主人', '调试内容', OWNER)
+  s.cfg.debug = true; s.hub.logChat(CHAT, '管理员', '调试内容', OWNER)
   assert.equal(s.rows.length, count); assert.ok(!s.hub.chatLogOf(day).some((r) => r.text === '调试内容'))
   const other = setup(t, { hooks: { journal() { throw new Error('consumer failed') } } })
   assert.equal(other.hub.logChat(CHAT, 'bot', '落盘不回滚'), true)
@@ -96,7 +96,7 @@ test('表情被拦截时无回执也不增加用量，确认后按真实名称�
   assert.equal(s.rows[0].text, '[表情：收到]')
 })
 
-test('外部主人输入复用已有会话、心智核心的感知和来源，群会话保留 social 权限', async (t) => {
+test('外部管理员输入复用已有会话、心智核心的感知和来源，群会话保留 social 权限', async (t) => {
   const s = setup(t)
   await s.hub.pushToSession(ownerChat, [{ type: 'text', text: '准备' }], OWNER)
   const sid = s.hub.sessions()[CHAT].sessionId
@@ -144,7 +144,7 @@ test('外部 WAV 直接走既有 DSH 识别，不调用 QQ 音频接口；撤销
   assert.ok(!s.rows.some((r) => r.text.includes('迟到输入'))); assert.ok(!s.fake.turns.some((r) => r.userText.includes('迟到输入')))
 })
 
-test('异步 prompt 准备期间撤销身份，投递前再次鉴权；旧主人在途输入不能交给新主人会话', async (t) => {
+test('异步 prompt 准备期间撤销身份，投递前再次鉴权；旧管理员在途输入不能交给新管理员会话', async (t) => {
   let block = false
   const entered = deferred(), gate = deferred()
   const s = setup(t, { hooks: { prompt: async (content) => { if (block) { entered.resolve(); await gate.promise }; return content } } })

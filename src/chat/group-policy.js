@@ -14,7 +14,7 @@ export const DEFAULT_GROUP_POLICY = {
   engagedMax: 6, // 没人再叫她时最多连着接几次。该不该停由她自己判断，这里只防失控
   burstMax: 8, // 安全刹车：burstWindowSec 秒内她最多说这么多次，超了就歇着（明确被叫到除外），只防失控
   burstWindowSec: 120,
-  mustMaxPerHour: 100, // 每群每小时 @/唤醒词必回次数上限，超过就不回（主人说话不受限，也不计入）；0 = 不限制
+  mustMaxPerHour: 100, // 每群每小时 @/唤醒词必回次数上限，超过就不回（管理员说话不受限，也不计入）；0 = 不限制
 }
 
 /**
@@ -50,7 +50,7 @@ export function inQuietHours(hour, quiet) {
  * @param {object} p.policy  policyFor() 的结果
  * @param {boolean} p.mentioned  被 @
  * @param {boolean} p.repliedToBot  引用了机器人的消息
- * @param {boolean} [p.fromOwner]  是主人说的
+ * @param {boolean} [p.fromOwner]  是管理员说的
  * @param {boolean} [p.lastIsBot]  这一条之前最近一条是不是她说的（判断「在追问她」用）
  * @param {boolean} [p.atOthersAny]  这条消息是不是 @ 了别人（不管策略开没开「@ 别人不算叫她」）
  * @param {string} p.text  消息正文
@@ -58,7 +58,7 @@ export function inQuietHours(hour, quiet) {
  * @param {number[]} p.recentTimes  本群最近消息的时间戳（毫秒）
  * @param {number[]} p.interjectTimes  本群最近插话的时间戳（毫秒）
  * @param {number[]} [p.botReplyTimes]  她在本群最近每次说话的时间戳（毫秒）
- * @param {number[]} [p.mustTimes]  本群最近因被 @/叫到而必回的时间戳（毫秒；主人的不计入）
+ * @param {number[]} [p.mustTimes]  本群最近因被 @/叫到而必回的时间戳（毫秒；管理员的不计入）
  * @param {number} p.hour  当前小时
  * @param {() => number} [p.rand]
  * @returns {{reply: boolean, mode: 'must'|'interject'|'engaged'|'none', reason: string}}
@@ -81,7 +81,7 @@ export function decideGroupReply(p) {
   if (burst >= (pol.burstMax ?? 8) && !calling) {
     return { reply: false, mode: 'none', reason: `刚说了太多（${burst} 次），歇一会儿` }
   }
-  // 每小时 @/唤醒词必回上限：这小时被叫的次数够多了就闭嘴。主人说话不受限（主人的必回也不计入）
+  // 每小时 @/唤醒词必回上限：这小时被叫的次数够多了就闭嘴。管理员说话不受限（管理员的必回也不计入）
   const mustMax = Number(pol.mustMaxPerHour ?? 100)
   const mustHour = (p.mustTimes || []).filter((t) => p.now - t < 3600_000).length
   if (calling && !p.fromOwner && mustMax > 0 && mustHour >= mustMax) {

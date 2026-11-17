@@ -1,7 +1,7 @@
 // 消息中枢：QQ 会话 ↔ DSH 会话。
 //   收：OneBot 事件 → 白名单 / 群聊策略 → 拼好文案（带发言人、群上下文、图片、语音转写）→ 喂进对应 DSH 会话
 //   发：DSH 会话一轮结束 → 取最终正文 → 拆条 / 语音 / 表情 → 发回原来的 QQ 会话
-// 每个 QQ 会话一个 DSH 会话，统一放在「Aurabot · QQ」工作区，主人可以在 DSH 侧栏点开看、插手。
+// 每个 QQ 会话一个 DSH 会话，统一放在「Aurabot · QQ」工作区，管理员可以在 DSH 侧栏点开看、插手。
 
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
@@ -78,7 +78,7 @@ const sessionKey = (id) => {
  *   prompt(content, info) → 改交给她的内容（文字 / 图片块）；返回 null 表示这次不交给她
  *   items(items, info) → 改拆好的回复（每条 { kind: text|voice|sticker|poke|image, value, replyTo }）
  *   send(message, info) → 改最终发出去的 OneBot 消息段；返回 null 表示不发
- *   model(selection, chat) → 这个聊天用哪个模型 { provider, model, reasoningEffort }（同步）；selection 已经按主人「按聊天选模型」的设置算过
+ *   model(selection, chat) → 这个聊天用哪个模型 { provider, model, reasoningEffort }（同步）；selection 已经按管理员「按聊天选模型」的设置算过
  *   poke(event) → true 表示戳一戳被模块接管了
  */
 // 模拟测试：这里面发出去的消息只记下来，不真发
@@ -100,8 +100,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const purgeScope = purge || createPurgeScope({ log })
   const toolScope = createToolScope({ log })
   // 心情对行为的影响（表情 / 语音概率、回复快慢、插话积极程度），没接就是 1
-  /** 她现在怎么叫主人：心智核心里她自己改过就用她的，没改过用主人设的。 */
-  const ownerLabel = () => { try { return mind?.ownerCall?.() || getConfig().ownerName || '主人' } catch { return getConfig().ownerName || '主人' } }
+  /** 她现在怎么叫管理员：心智核心里她自己改过就用她的，没改过用管理员设定的。 */
+  const ownerLabel = () => { try { return mind?.ownerCall?.() || getConfig().ownerName || '管理员' } catch { return getConfig().ownerName || '管理员' } }
   const mood = () => (typeof moodEffects === 'function' ? moodEffects() : null) || { sticker: 1, voice: 1, delay: 1, chatty: 1 }
   // 聊天平台的连接：所有收发都经过它（见 src/channels/）
   if (!channels) channels = channelsFromOnebot({ onebot, outbox, getConfig, log })
@@ -136,7 +136,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const quoteCache = new Map() // chatId|replyId → { ok, who, uid, text, images, stickers, records, isBot }  引用消息解析缓存
   const groupInterjects = new Map() // groupId → [t]  她主动开口（插话、接话）的时间
   const groupSaid = new Map() // groupId → [t]  她每次在群里说话的时间（刹车用）
-  const groupMusts = new Map() // groupId → [t]  她因被 @/叫到而必回的时间（每小时必回上限用；主人触发的不计入）
+  const groupMusts = new Map() // groupId → [t]  她因被 @/叫到而必回的时间（每小时必回上限用；管理员触发的不计入）
   const groupRefs = new Map() // groupId → { 编号: { mid, uid } }  上一段提示词里的编号，引用回复用
   const groupEngaged = new Map() // groupId → 加入话题到什么时候（毫秒）
   const groupEngagedRun = new Map() // groupId → 没人叫她、连着接了几次话
@@ -315,7 +315,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   let lastChatAt = 0
   let lastOwnerChatAt = 0
   const lastPrivateAt = new Map() // QQ 号 → 最后一次和这个人私聊的时间（主动搭话白名单用）
-  let lastBotToOwner = { at: 0, text: '' } // 她在主人私聊里最后说的话
+  let lastBotToOwner = { at: 0, text: '' } // 她在管理员私聊里最后说的话
 
   function bump(k) {
     const d = new Date().toDateString()
@@ -392,7 +392,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // ---------- 新会话挂不上工作区：按 1、5、15、30、60 分钟退避（来自原项目 4d65ee7） ----------
   function sessionFailure(chatId) {
     const failure = sessionFailures.get(chatId)
-    // 主人换了工作区后立即允许尝试，不把旧工作区的故障带过去。
+    // 管理员换了工作区后立即允许尝试，不把旧工作区的故障带过去。
     if (failure && failure.workspacePath !== workspaceDirOf(getConfig())) {
       sessionFailures.delete(chatId)
       return null
@@ -703,13 +703,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   /**
-   * 调试模式：把主人私聊的调试会话先建出来。
+   * 调试模式：把管理员私聊的调试会话先建出来。
    * 否则要等你先发一条 QQ 消息，侧栏里才会有会话可点 —— 而调试本来就是为了不碰 QQ。
    */
   async function ensureDebugSession() {
     const cfg = getConfig()
     if (!cfg.debug) return { ok: false, message: '没开调试模式' }
-    if (!cfg.ownerQQ) return { ok: false, message: '还没填主人 QQ' }
+    if (!cfg.ownerQQ) return { ok: false, message: '还没填管理员 QQ' }
     const chat = { kind: 'private', chatId: `private:${cfg.ownerQQ}`, userId: String(cfg.ownerQQ), groupId: '', nickname: ownerLabel() }
     const before = map().chats[chat.chatId]
     const existed = Boolean(before && ((before.sessions && before.sessions.debug) || (before.mode || 'live') === 'debug'))
@@ -743,12 +743,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
   }
 
-  /** 这个聊天要用的模型：主人按聊天指定的 > 面板里选的全局模型（或 DSH 默认），扩展模块还可以再按聊天改。 */
+  /** 这个聊天要用的模型：管理员按聊天指定的 > 面板里选的全局模型（或 DSH 默认），扩展模块还可以再按聊天改。 */
   function targetModel(chat) {
     const cfg = getConfig()
     const t = defaultModel(dsh, cfg)
     let sel = t ? { provider: t.provider, model: t.model, reasoningEffort: cfg.model.reasoningEffort || '' } : null
-    // 主人按聊天指定的模型（私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认）；没指定或指定的模型已不存在就用上面的
+    // 管理员按聊天指定的模型（私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认）；没指定或指定的模型已不存在就用上面的
     try {
       const r = resolveChatModel(cfg, chat, typeof availableModels === 'function' ? availableModels() : null)
       if (r) sel = { provider: r.provider, model: r.model, reasoningEffort: r.reasoningEffort || cfg.model.reasoningEffort || '' }
@@ -807,7 +807,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const sid = sessionKey(agent.session?.id ?? agent.id)
     const tools = level !== 'chat' && typeof buildTools === 'function' ? buildTools({ chat, level, sessionId: sid }) : []
     const denied = (() => { try { return hooks?.deniedTools?.() || [] } catch (error) { return [] } })()
-    // Purge 把宿主维护工具注册成全局工具，社交预设也会继承。只有完整权限的主人私聊可以用它们。
+    // Purge 把宿主维护工具注册成全局工具，社交预设也会继承。只有完整权限的管理员私聊可以用它们。
     const configAtMount = getConfig()
     const ownerMaintenance = chat.kind === 'private' && level === 'full' && levelFor(configAtMount, chat) === 'full'
     const maintenanceRevision = ownerMaintenance ? ownerAuthorizationRevision(configAtMount) : ''
@@ -834,13 +834,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     {
       for (const tool of tools) {
         try {
-          // 慢工具（生图 / 翻唱……）卡超过 1.5 秒就先发一条提示：不让主人以为她没收到（issue #74）。
+          // 慢工具（生图 / 翻唱……）卡超过 1.5 秒就先发一条提示：不让管理员以为她没收到（issue #74）。
           // 包装只加在挂给 agent 的这份工具上；面板里直接调工具（host 路由）照旧。
           const execute = async (args, exec) => {
             const state = turnState.get(sid)
             if (state?.rewriting || state?.recovering) return { ok: false, message: '这一步只重写回复正文' }
             if (state) state.retry = null
-            if (isPrivilegedQqTool(tool.name) && !turnSendersAllOwner(sid)) return { ok: false, message: '只有主人开口时才能使用这个工具。' }
+            if (isPrivilegedQqTool(tool.name) && !turnSendersAllOwner(sid)) return { ok: false, message: '只有管理员开口时才能使用这个工具。' }
             return tool.execute(args, exec)
           }
           let reg = { ...tool, execute }
@@ -924,7 +924,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         if (purgeScope.isTool(name)) {
           const current = getConfig()
           if (!ownerMaintenance || levelFor(current, chat) !== 'full' || current.botQQ !== maintenanceBot
-            || ownerAuthorizationRevision(current) !== maintenanceRevision) return '宿主维护工具仅限完整权限的主人私聊。'
+            || ownerAuthorizationRevision(current) !== maintenanceRevision) return '宿主维护工具仅限完整权限的管理员私聊。'
           return
         }
         if (ownerMaintenance || localNames.has(name)) return
@@ -934,7 +934,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     if (chat.kind === 'group' && level === 'group-full') {
       toolScope.openGate(sid, agent)
-      toolScope.applyGate(sid, false) // 先收起，主人开口那一轮再放开
+      toolScope.applyGate(sid, false) // 先收起，管理员开口那一轮再放开
     }
     const rec = { agent, chatId: chat.chatId, offs, toolsKey }
     mounted.set(sid, rec)
@@ -1152,7 +1152,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // 发文件：网关可能和插件不在同一台机器上（Docker / 远程 OneBot），它看不到本机路径，
   // 所以按本机路径发失败时，小文件会用 base64 再试一次；超时留长一点，别把大文件上传误判成失败。
   // 安全默认（#52）：功能默认关；只允许发 QQ 工作区（她平时写文件的地方）和面板里额外加的目录里的文件；
-  // 单个文件有大小上限；只在主人私聊里能触发；发了什么会写进日志。
+  // 单个文件有大小上限；只在管理员私聊里能触发；发了什么会写进日志。
   const FILE_TIMEOUT_MS = 120_000
   const FILE_BASE64_MAX = 30 * 1024 * 1024
   const isExternalFile = (s) => /^(https?:\/\/|base64:\/\/)/i.test(s)
@@ -1292,7 +1292,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return result(delivered ? 'delivered' : 'unconfirmed')
   }
 
-  /** 她回复里写的本机图片：主人私聊之外只认工作区、允许目录和插件数据目录，防止被人诱导发出电脑上的图。 */
+  /** 她回复里写的本机图片：管理员私聊之外只认工作区、允许目录和插件数据目录，防止被人诱导发出电脑上的图。 */
   function localImageBlocked(chatId, src) {
     const cfg = getConfig()
     if (chatId === `private:${cfg.ownerQQ}`) return false
@@ -1503,7 +1503,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       groupEngaged.set(gid, Date.now() + ENGAGE_MS) // 在群里说了话 = 加入了话题
     }
     logChat(chatId, 'bot', said)
-    // 不是这个聊天自己那一轮发的（主人在私聊里让她去群里说、扩展模块代发）：记下来，下次这个聊天交给她时告诉她自己说过什么
+    // 不是这个聊天自己那一轮发的（管理员在私聊里让她去群里说、扩展模块代发）：记下来，下次这个聊天交给她时告诉她自己说过什么
     if (!own) saidElsewhere.set(chatId, [...(saidElsewhere.get(chatId) || []), { at: Date.now(), text: said.slice(0, 300) }].slice(-5))
     lastChatAt = Date.now()
     if (chatId.startsWith('private:')) lastPrivateAt.set(chatId.slice(8), Date.now())
@@ -1569,8 +1569,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (event.type === 'turn/start' || (st.runToken !== undefined && dTurn != null && st.activeTurn != null && dTurn !== st.activeTurn)) return
     }
     if (event.type === 'user/message') {
-      // 主人在 DSH 会话窗口里直接打字（不是从 QQ 转进来的，#58）：只有主人能操作 DSH，
-      // 这一轮按「主人说的」算；不然重开会话后在面板里让她改资料会报没权限。
+      // 管理员在 DSH 会话窗口里直接打字（不是从 QQ 转进来的，#58）：只有管理员能操作 DSH，
+      // 这一轮按「管理员说的」算；不然重开会话后在面板里让她改资料会报没权限。
       const src = event.data && event.data.source
       if (src && src.kind === 'user') st.directOwner = true
       return
@@ -1819,7 +1819,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return out
   }
 
-  const senderLabel = (chatId, uid) => isOwner(getConfig(), uid, chatId) ? '主人本人' : '其他人'
+  const senderLabel = (chatId, uid) => isOwner(getConfig(), uid, chatId) ? '管理员本人' : '其他人'
   const inlineLabel = (name) => String(name || '').replace(/[\r\n\u2028\u2029【】]/g, ' ').slice(0, 100)
   const indentBody = (body) => String(body || '').replace(/\r\n?|\u2028|\u2029/g, '\n').replace(/\n/g, '\n│ ')
   const quoteWho = (q) => (q.isBot ? '你' : `${inlineLabel(q.who || q.uid || '某人')}${q.uid ? `(${q.uid})` : ''}`)
@@ -2010,7 +2010,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (msg.userId === selfId) return
     const fromOwner = !msg.recovered && onCommand && isOwner(cfg, msg.userId, msg.chatId)
     const ownerRevision = fromOwner ? ownerAuthorizationRevision(cfg) : ''
-    // 按群头衔过滤：这条当没看见（不进群聊上下文、不触发回复，@ 她、主人命令也一样）
+    // 按群头衔过滤：这条当没看见（不进群聊上下文、不触发回复，@ 她、管理员命令也一样）
     if (msg.kind === 'group' && parseChat(msg.chatId)?.platform === LEGACY_PLATFORM && await titleFilter.shouldIgnore(msg.raw || { group_id: msg.groupId, user_id: msg.userId })) return
     if (disposed) return
     bump('received')
@@ -2037,8 +2037,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 偷表情：只从白名单里的会话偷；按 collectMode 分三种
     //   auto  = 全都偷（看到就收）
     //   ask   = 她挑（先记着，给她一句轻提示，她喜欢才凭编号收）
-    //   owner = 只听主人的：先记着，但只有主人发来的表情才提示她收；
-    //           真正能不能收由工具那边再按「这一轮说话的全是主人」把关
+    //   owner = 只听管理员的：先记着，但只有管理员发来的表情才提示她收；
+    //           真正能不能收由工具那边再按「这一轮说话的全是管理员」把关
     let stickerPick = 0
     const collectMode = cfg.stickers.collectMode || 'auto'
     if (allowed.allowed && msg.stickers.length && cfg.stickers.collect) {
@@ -2048,7 +2048,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
           for (const s of msg.stickers) stickers.collect(s, msg.chatId).then((r) => { if (!r.ok) log.debug('没收这张表情：', r.reason) }).catch(() => {})
         } else {
           stickerPick = stickerStash.remember(msg.chatId, msg.stickers)
-          // 只听主人的：别人发的先悄悄记着（主人之后说「收下那张」还能用），但不提示她
+          // 只听管理员的：别人发的先悄悄记着（管理员之后说「收下那张」还能用），但不提示她
           if (collectMode === 'owner' && !isOwner(cfg, msg.userId, msg.chatId)) stickerPick = 0
         }
       }
@@ -2092,7 +2092,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // 保留同一条消息里图片 / 表情的实际顺序，last 才真的是最后一张。
       recentMedia.remember(msg.chatId, (msg.segments || []).filter((seg) => msg.images.includes(seg) || msg.stickers.includes(seg)).map((seg) => ({ seg, userId: msg.userId, sticker: msg.stickers.includes(seg) })))
     }
-    // 主人命令（/silent /active …）：总开关关着也处理，回复直接发
+    // 管理员命令（/silent /active …）：总开关关着也处理，回复直接发
     if (fromOwner && /^\s*[/／]/.test(msg.text)) {
       let sensitiveCommand = ''
       const ownerStillCurrent = () => {
@@ -2101,12 +2101,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       }
       try {
         const reply = await onCommand(msg, (name) => {
-          sensitiveCommand = '主人命令 /' + name
+          sensitiveCommand = '管理员命令 /' + name
           return ownerStillCurrent()
         })
         if (disposed || (sensitiveCommand && !ownerStillCurrent())) return
         if (reply) {
-          log.info(sensitiveCommand || `主人命令 ${msg.text.trim().slice(0, 30)} → ${reply.split('\n')[0]}`)
+          log.info(sensitiveCommand || `管理员命令 ${msg.text.trim().slice(0, 30)} → ${reply.split('\n')[0]}`)
           await sendSegments(msg.chatId, [{ type: 'text', data: { text: reply } }], sensitiveCommand || reply.slice(0, 60), {
             force: true, sensitive: Boolean(sensitiveCommand), isCurrent: sensitiveCommand ? ownerStillCurrent : null,
           })
@@ -2130,11 +2130,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
 
     if (isMuted?.(msg.chatId)) {
-      log.debug(`${msg.chatId}：主人让她闭嘴中，不回`)
+      log.debug(`${msg.chatId}：管理员让她闭嘴中，不回`)
       logChat(msg.chatId, msg.nickname, msg.text, msg.userId)
       return
     }
-    // 不想搭理的人（她很不喜欢、或有心结）：多半安静看着。心智核心在时按她的关系和设置，主人永远不算
+    // 不想搭理的人（她很不喜欢、或有心结）：多半安静看着。心智核心在时按她的关系和设置，管理员永远不算
     const dislikeChance = Math.max(0, Math.min(1, Number(mind?.ignoreChance ? mind.ignoreChance() : cfg.memory?.dislikeSilence ?? 0.85) || 0))
     const dislikedBy = mind?.dislikes || dislikes
     if (dislikeChance > 0 && !isOwner(cfg, msg.userId, msg.chatId) && dislikedBy?.(msg.userId, msg.chatId) && random() < dislikeChance) {
@@ -2440,10 +2440,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const hint = mode === 'interject' ? '（没人叫你。只有你对这个话题真有话说、能自然接上时才插一句：接着话题说，别突然开新话题；接不上就只回 [沉默]）'
       : mode === 'engaged' ? engagedHint(groupEngagedRun.get(chat.groupId) || 0)
       : '（有人在叫你，看完这一段再回；如果你确实想暂时安静，可以回 [沉默]）'
-    const ownerCall = fresh.findLast((x) => x.direct && senderLabel(chat.chatId, x.uid) === '主人本人')
+    const ownerCall = fresh.findLast((x) => x.direct && senderLabel(chat.chatId, x.uid) === '管理员本人')
     const selfQuote = ownerCall?.at && !ownerCall.text && !ownerCall.images?.length && !ownerCall.stickers?.length && ownerCall.quote?.ok && ownerCall.quote.uid === ownerCall.uid
     const focus = ownerCall
-      ? `先回应主人直接叫你的那条 [${imageRefs.get(ownerCall)}]，同一段其他人的话可以顺带接。` +
+      ? `先回应管理员直接叫你的那条 [${imageRefs.get(ownerCall)}]，同一段其他人的话可以顺带接。` +
         (selfQuote ? '这次他只 @ 了你并引用了自己的话。把引用当作他现在希望你接的话题，有歧义就先问他一句。' : '') +
         '一般说一两句就好，不要一条一条地挨个回。'
       : '把这一段当成整体来回：一般说一两句就好，回给最需要回的那个人或者整个话题，不要一条一条地挨个回。'
@@ -2707,7 +2707,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       p.waiting = true
       return
     }
-    // 心智核心：单一注意力——她正在别的聊天里回话，这一段先等着，回完再看（主人的可以插队）
+    // 心智核心：单一注意力——她正在别的聊天里回话，这一段先等着，回完再看（管理员的可以插队）
     if (attentionBlocked(chatId, p)) {
       p.waiting = true
       attentionQueue.add(chatId)
@@ -2727,7 +2727,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         arr.push(Date.now())
         groupInterjects.set(gid, arr)
       }
-      // 必回也按小时记账：这段里只要有群友（非主人）@/叫到她就记一次；主人触发的不计入（主人除外）
+      // 必回也按小时记账：这段里只要有群友（非管理员）@/叫到她就记一次；管理员触发的不计入（管理员除外）
       if (p.mode === 'must' && p.nonOwnerCall) {
         const arr = (groupMusts.get(gid) || []).filter((t) => Date.now() - t < 3600_000)
         arr.push(Date.now())
@@ -2840,7 +2840,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (a.ownerCuts && ownerIn(p)) return false
     return [...busy.keys()].some((k) => k !== chatId && !k.startsWith('system:') && isBusy(k))
   }
-  /** 她回完一个聊天：看看谁在等（主人的先，其次先来的）。 */
+  /** 她回完一个聊天：看看谁在等（管理员的先，其次先来的）。 */
   function drainAttention() {
     if (!attentionQueue.size || disposed) return
     if ([...busy.keys()].some((k) => !k.startsWith('system:') && isBusy(k))) return
@@ -3066,11 +3066,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const lines = earlier.map((x) => `${new Date(x.at).toTimeString().slice(0, 5)} 你：${x.text}`)
       content = [{ type: 'text', text: `【你之前在这个聊天里主动说过（是在别处安排下发的，这里的人都看到了）】\n${lines.join('\n')}\n` }, ...content]
     }
-    if (opts.mustReply) content = [...content, { type: 'text', text: '【本轮回应要求】主人正在叫你。请给他一条简短的正文回应；需要确认时问一句。' }]
+    if (opts.mustReply) content = [...content, { type: 'text', text: '【本轮回应要求】管理员正在叫你。请给他一条简短的正文回应；需要确认时问一句。' }]
     content = cleanContent(content)
     // 这一轮还在跑、这句是排队给下一轮的：额外记到 pendingSenders，等上一轮 turn/end 时接过去（#90）
     // ⚠ 不能用 busy：flush 一开始就把 busy 置上了，否则会把这一批自己的说话人塞进下一轮，
-    //    主人和群友混在一起会让「仅主人」判断误拒（sticker-owner 回归抓到过）。
+    //    管理员和群友混在一起会让「仅管理员」判断误拒（sticker-owner 回归抓到过）。
     if (busyForConfirmedDelivery()) return false
     const queuedNextTurn = !opts.steer && running.has(chat.chatId)
     const addSender = (u) => {
@@ -3083,7 +3083,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (senderId) addSender(senderId)
     for (const s of opts.extraSenders || []) addSender(s)
     turnState.set(key, st)
-    // 群聊本机工具按「这一轮说话的人」开合：全是主人就放开，掺了别人就收回去
+    // 群聊本机工具按「这一轮说话的人」开合：全是管理员就放开，掺了别人就收回去
     if (chat.kind === 'group') toolScope.applyGate(key, turnSendersAllOwner(sessionId))
     // 上一句也留着：这一句太短（「嗯嗯」「然后呢」）时一起拿去想起相关的事
     if (st.lastText) st.prevText = st.lastText
@@ -3102,8 +3102,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     assertActive(); opts.assertAuthorized?.()
     if (busyForConfirmedDelivery()) return false
     startTyping(key, chat)
-    // 告诉同一会话里的其他插件是谁在说（#145）：说话的全是主人才标 owner，混着别人或不知道是谁都是 guest。
-    // chat 标私聊还是群聊：群里主人说话也是 owner，但回复全群都看得到，要不要放私事由插件自己判断
+    // 告诉同一会话里的其他插件是谁在说（#145）：说话的全是管理员才标 owner，混着别人或不知道是谁都是 guest。
+    // chat 标私聊还是群聊：群里管理员说话也是 owner，但回复全群都看得到，要不要放私事由插件自己判断
     const speakers = (chat.kind === 'group' && opts.speakers?.length ? opts.speakers : [senderId, ...(opts.extraSenders || [])]).filter(Boolean).map(String)
     const speakerRole = opts.internal ? 'none' : speakers.length && speakers.every((u) => isOwner(getConfig(), u, chat.chatId)) ? 'owner' : 'guest'
     const message = { id: randomUUID(), role: 'user', content: admitted, source: { kind: SOURCE_KIND, speaker: { role: speakerRole, chat: chat.kind } } }
@@ -3154,13 +3154,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (receipt) return receipt
   }
 
-  /** 已验证主人身份的外部入口；复用已有聊天、心智核心、转写和投递路径。调用方负责鉴权（移植自原项目 5cdbcd4）。 */
+  /** 已验证管理员身份的外部入口；复用已有聊天、心智核心、转写和投递路径。调用方负责鉴权（移植自原项目 5cdbcd4）。 */
   async function receiveOwnerMessage(chatId, { text = '', image, wav, via = 'external', originId, assertAuthorized = () => {} } = {}) {
     const owner = String(getConfig().ownerQQ || '')
     const validate = () => {
       assertActive(); assertAuthorized()
       const cfg = getConfig()
-      if (!cfg.enabled || !owner || String(cfg.ownerQQ || '') !== owner) throw Object.assign(new Error('请先启用 Aurabot 并配置主人身份'), { status: 503, code: 'not_ready' })
+      if (!cfg.enabled || !owner || String(cfg.ownerQQ || '') !== owner) throw Object.assign(new Error('请先启用 Aurabot 并配置管理员身份'), { status: 503, code: 'not_ready' })
       const match = /^(private|group):(\d+)$/.exec(String(chatId))
       if (!map().chats[chatId]?.sessionId || !match) throw Object.assign(new Error('会话不存在'), { status: 404, code: 'chat_not_found' })
       const chat = { chatId, kind: match[1], userId: match[1] === 'private' ? match[2] : owner, groupId: match[1] === 'group' ? match[2] : '', nickname: ownerLabel() }
@@ -3176,7 +3176,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       content.push({ type: 'image', data: bytes.toString('base64'), mediaType: mimeOf(bytes), name: 'external-image' })
     }
     chat = validate()
-    // 心智核心：模块转进来的主人消息和 QQ 里收到的一样记进她的感知（语音记转出来的字）
+    // 心智核心：模块转进来的管理员消息和 QQ 里收到的一样记进她的感知（语音记转出来的字）
     try { mind?.perceive?.({ ...chat, text: text || '', images: image ? [{}] : [], messageId: originId ? `${source}:${originId}` : '' }) } catch (error) { log.debug('心智感知失败：', error.message) }
     logChat(chatId, chat.nickname, text || '[图片]', owner, { via: source, originId })
     lastChatAt = Date.now()
@@ -3298,10 +3298,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return result
   }
 
-  /** 这一轮里说话的人是不是全是主人（群管等敏感工具用）。 */
-  /** 这一轮里主人说过话（群里常有别人插话，不要求每条都是主人）。 */
-  // 主人私聊里只可能是主人说话：就算这一轮的记录丢了（工具是旧闭包、排队轮次被上一轮 turn/end 清掉等，见 #90），
-  // 「仅主人」也应当放行；群聊 / 别人私聊不放宽。
+  /** 这一轮里说话的人是不是全是管理员（群管等敏感工具用）。 */
+  /** 这一轮里管理员说过话（群里常有别人插话，不要求每条都是管理员）。 */
+  // 管理员私聊里只可能是管理员说话：就算这一轮的记录丢了（工具是旧闭包、排队轮次被上一轮 turn/end 清掉等，见 #90），
+  // 「仅管理员」也应当放行；群聊 / 别人私聊不放宽。
   function ownerPrivateChat(sessionId) {
     try {
       const id = chatOfSession(sessionId)
@@ -3312,7 +3312,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   function turnHasOwner(sessionId) {
     const st = turnState.get(sessionKey(sessionId))
-    if (st && st.directOwner) return true // 主人在 DSH 面板里直接打字
+    if (st && st.directOwner) return true // 管理员在 DSH 面板里直接打字
     const chatId = chatOfSession(sessionId)
     if (st && [...st.senders].some((u) => isOwner(getConfig(), u, chatId))) return true
     return ownerPrivateChat(sessionId)
@@ -3347,7 +3347,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   /**
    * 这个 DSH 会话是不是 aurabot 自己开出来的（由 QQ 聊天映射过来）。
-   * 主人自己在 DSH 面板 / CLI 里开的会话不算——危险命令守卫是进程级钩子，
+   * 管理员自己在 DSH 面板 / CLI 里开的会话不算——危险命令守卫是进程级钩子，
    * 会收到同一个 DSH 进程里所有会话的工具调用，得能把它们区分开。
    */
   function isOwnedSession(sessionId) {
@@ -3357,7 +3357,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   /**
-   * 面板里的调试对话（来自原项目 f476866，改成走正常的主人私聊链路）：
+   * 面板里的调试对话（来自原项目 f476866，改成走正常的管理员私聊链路）：
    * 交给她的内容和真的 QQ 私聊一样（带上此刻、记忆、心情、眼前的人），所以能试出她真实的样子；
    * 调试模式下不发 QQ、不写进心智，回复只交回面板和日志。
    */
@@ -3365,7 +3365,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   async function debugSay(text, { timeoutMs = 180000 } = {}) {
     const cfg = getConfig()
     if (!cfg.debug) return { ok: false, message: '没开调试模式' }
-    if (!cfg.ownerQQ) return { ok: false, message: '还没填主人 QQ' }
+    if (!cfg.ownerQQ) return { ok: false, message: '还没填管理员 QQ' }
     const say = String(text || '').trim().slice(0, 2000)
     if (!say) return { ok: false, message: '说点什么吧' }
     const owner = String(cfg.ownerQQ)
@@ -3478,7 +3478,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const result = await captureStore.run(sent, fn)
     return { result, sent }
   }
-  /** 模拟测试：假装这个会话这一轮是谁在说话（工具里的「主人才能用」靠它判断）。 */
+  /** 模拟测试：假装这个会话这一轮是谁在说话（工具里的「管理员才能用」靠它判断）。 */
   function simulateTurn(sessionId, senders) {
     turnState.set(sessionKey(sessionId), { lastTurn: -1, text: '', senders: new Set(senders.map(String)) })
   }
@@ -3510,7 +3510,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return agent
   }
 
-  /** 现在这次调用算不算「主人开口」：最近 5 分钟有主人私聊消息算 owner，否则后台（一审 #177 复审：source 由宿主判断）。 */
+  /** 现在这次调用算不算「管理员开口」：最近 5 分钟有管理员私聊消息算 owner，否则后台（一审 #177 复审：source 由宿主判断）。 */
   const OWNER_ACTIVE_MS = 5 * 60_000
   function ownerSourceNow() {
     const qq = String(getConfig().ownerQQ || '')
@@ -3535,7 +3535,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   async function runSubagentTurn(name, title, prompt, { timeoutMs = 600000, moduleId = '', source = null } = {}) {
     assertActive()
     // 权限边界（一审 #177）：① 调用模块必须在 module.json 的 capabilities 里声明 plugin-internals；
-    // ② 必须带「主人开口」的来源（source.kind='owner' + 主人私聊 chatId）；
+    // ② 必须带「管理员开口」的来源（source.kind='owner' + 管理员私聊 chatId）；
     // ③ 定时任务这类没人应答的场合，只有 config.subagentBackground=true 才放行；都没有就拒绝（无人应答 = 拒绝）。
     const caps = typeof capabilitiesOf === 'function' ? capabilitiesOf(moduleId) : []
     if (!moduleId || !Array.isArray(caps) || !caps.includes('plugin-internals')) {
@@ -3547,7 +3547,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const fromOwner = Boolean(ownerQQ) && ownerChat === `private:${ownerQQ}`
     const fromBackground = Boolean(source && source.kind === 'system') && c.subagentBackground === true
     if (!fromOwner && !fromBackground) {
-      throw Object.assign(new Error('子智能体委派要主人开口：source 必须是主人私聊，或打开「后台子智能体」开关（没人应答时一律拒绝）'), { code: 'OWNER_REQUIRED' })
+      throw Object.assign(new Error('子智能体委派要管理员开口：source 必须是管理员私聊，或打开「后台子智能体」开关（没人应答时一律拒绝）'), { code: 'OWNER_REQUIRED' })
     }
     const subagents = optionalService('subagents')
     if (!subagents || typeof subagents.startActivation !== 'function') {

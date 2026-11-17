@@ -47,7 +47,7 @@ export async function modelVision (dsh, provider, model) {
 
 /**
  * 当前设置里的模型能看图吗。面板上「视觉能力」可以手动声明，覆盖元数据。null = 不知道。
- * target 传了就只看这个模型（表情起名可以单独挑模型，主人对聊天模型的手动声明不该管到它）。
+ * target 传了就只看这个模型（表情起名可以单独挑模型，管理员对聊天模型的手动声明不该管到它）。
  */
 export async function canSeeImages (dsh, cfg, target) {
   if (!(target && target.provider && target.model)) {

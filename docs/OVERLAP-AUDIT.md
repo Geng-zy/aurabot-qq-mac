@@ -40,7 +40,7 @@
 | `danger.js` 交给 DSH 审批 | 当前组合里 dsh-purge 把 DSH 的 approval 服务改成自动放行；删掉本地守卫会失去唯一 QQ 确认 | 保留守卫，只把规则/shell 解析拆到 `danger-rules.js`，行为不变 |
 | `usage.js` → DSH sessionStats | DSH 的 stats 只有 turns/steps/耗时，没有 token、费用和模块归因 | 保留 AuraBot 的按调用账本 |
 | `tasks.js` → DSH jobs | DSH jobs 面向 shell 后台进程；生图/翻唱需要自己的排队长、取消、发送未确认状态 | 保留创作任务状态机 |
-| `chat-log.js` → DSH session query | session query 有会话日志，但没有 QQ 聊天的按天保留、主人私聊隐私标记和空间/日记读取语义 | 暂保留，后续做只读投影再替换 |
+| `chat-log.js` → DSH session query | session query 有会话日志，但没有 QQ 聊天的按天保留、管理员私聊隐私标记和空间/日记读取语义 | 暂保留，后续做只读投影再替换 |
 | `recent-media.js` → DSH attachment | attachment store 没有“最近 N 张给模型选”的公开选取接口 | 保留短期引用缓存 |
 | `host/http.js` → DSH 路由鉴权 | DSH `webServer.register` 只做路由匹配，没有插件路由级鉴权中间件 | 保留本机/Host/CSRF 闸 |
 

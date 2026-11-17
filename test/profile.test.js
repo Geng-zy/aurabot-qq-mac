@@ -1,4 +1,4 @@
-// QQ 资料读取：仅主人私聊、只查自身、真实字段语义及按需视觉。
+// QQ 资料读取：仅管理员私聊、只查自身、真实字段语义及按需视觉。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import profileModule from '../src/modules/profile/index.js'
@@ -72,7 +72,7 @@ function reader(overrides = {}) {
   return { ...r, calls, images, asks, set: (patch) => { cfg = normalize({ freedom: false, ...cfg, ...patch }) } }
 }
 
-test('仅主人私聊挂查询工具，修改权限关闭也不影响只读查询', async () => {
+test('仅管理员私聊挂查询工具，修改权限关闭也不影响只读查询', async () => {
   const s = setup({ cfg: { profilePerms: { qqNickname: 'off', qqSignature: 'off', qqAvatar: 'off' } } })
   assert.deepEqual(Object.keys(s.tools()), ['qq_get_profile', 'qq_send_avatar'])
   assert.equal(s.tools({ kind: 'private', userId: '30000003' }).qq_get_profile, undefined)
@@ -85,14 +85,14 @@ test('仅主人私聊挂查询工具，修改权限关闭也不影响只读查�
   assert.deepEqual(s.calls.map((c) => c.action), ['get_stranger_info'])
 })
 
-test('查询权限始终仅主人，修改权限设为所有人也不会扩散查询工具', () => {
+test('查询权限始终仅管理员，修改权限设为所有人也不会扩散查询工具', () => {
   const s = setup({ cfg: { profilePerms: { qqNickname: 'all', qqSignature: 'all', qqAvatar: 'all' } } })
   const group = s.tools({ kind: 'group', userId: OWNER, groupId: '777' })
   assert.ok(group.qq_set_nickname)
   assert.equal(group.qq_get_profile, undefined)
 })
 
-test('执行时再次核对主人和本轮发言者，拒绝后不调用网关', async () => {
+test('执行时再次核对管理员和本轮发言者，拒绝后不调用网关', async () => {
   const s = setup(), tool = s.tools().qq_get_profile
   s.mixed()
   assert.equal((await tool.execute({})).ok, false)
@@ -216,7 +216,7 @@ test('头像不是图片、视觉失败或无正文时如实降级，不编造�
   assert.match((await empty.read({ viewAvatar: true })).profile.avatar.error, /没有返回头像描述/)
 })
 
-test('主人身份在查询期间变化时，不返回查询结果', async () => {
+test('管理员身份在查询期间变化时，不返回查询结果', async () => {
   const s = setup({ call: () => { s.set({ ownerQQ: '30000003' }); return { user_id: Number(BOT), nickname: '大肥鱼', long_nick: '' } } })
   const r = await s.tools().qq_get_profile.execute({})
   assert.equal(r.ok, false)
@@ -245,7 +245,7 @@ test('查询等待期间卸载，不会继续获取头像或返回陈旧结果',
   assert.equal(s.images.length, 0)
 })
 
-test('主动查询规则只在主人私聊规则中出现，要求依据实时结果回答', () => {
+test('主动查询规则只在管理员私聊规则中出现，要求依据实时结果回答', () => {
   const s = setup()
   const privateRules = s.rules.map((fn) => fn('private')).join('\n')
   assert.match(privateRules, /qq_get_profile/)
@@ -287,7 +287,7 @@ test('文字识别失败仍保留实际图片附件；附件失败仍保留文�
   assert.match(b.message, /图片未附上/)
 })
 
-test('发送头像工具只给当前主人私聊，修改头像权限关闭也可用', async () => {
+test('发送头像工具只给当前管理员私聊，修改头像权限关闭也可用', async () => {
   const s = setup({ cfg: { enabled: true, dryRun: false, profilePerms: { qqAvatar: 'off' } } })
   const tool = s.tools().qq_send_avatar
   assert.deepEqual(tool.parameters.properties, {})
@@ -327,7 +327,7 @@ test('试运行、调试、总开关关闭不下载或发送头像', async () =>
   }
 })
 
-test('发送执行前重新校验主人、本轮身份及模块是否存活', async () => {
+test('发送执行前重新校验管理员、本轮身份及模块是否存活', async () => {
   for (const change of [(s) => s.mixed(), (s) => s.set({ ownerQQ: '30000003' }), (s) => s.dispose()]) {
     const s = setup({ cfg: { enabled: true, dryRun: false } }), tool = s.tools().qq_send_avatar
     change(s)
@@ -338,7 +338,7 @@ test('发送执行前重新校验主人、本轮身份及模块是否存活', as
   }
 })
 
-test('下载等待期间切换账号、主人、模式、模块或总开关，不继续发送', async () => {
+test('下载等待期间切换账号、管理员、模式、模块或总开关，不继续发送', async () => {
   for (const change of [(s) => s.set({ botQQ: '30000003' }), (s) => s.set({ ownerQQ: '30000003' }), (s) => s.mixed(), (s) => s.set({ debug: true }), (s) => s.set({ enabled: false }), (s) => s.dispose()]) {
     let release
     const waiting = new Promise((r) => { release = r })

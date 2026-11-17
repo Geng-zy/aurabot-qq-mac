@@ -1,4 +1,4 @@
-// QQ 主人命令：解析、闭嘴/恢复、群插话模式、开关。
+// QQ 管理员命令：解析、闭嘴/恢复、群插话模式、开关。
 import { test, before } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync } from 'node:fs'

@@ -49,7 +49,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   let verifiedLogin = null
   let wrongAccount = ''
   // 核对期间收到的事件先攒着：核对通过就补处理，核对失败就丢掉。
-  // 直接丢弃的话，刚连上那几百毫秒里主人发的消息就没了（登录核对要等一次 get_login_info 往返）。
+  // 直接丢弃的话，刚连上那几百毫秒里管理员发的消息就没了（登录核对要等一次 get_login_info 往返）。
   let verifying = false
   let pendingEvents = []
   let connectionRevision = 0
@@ -249,7 +249,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     watch() {
       if (disposed) return
       if (!getConfig().enabled) { if (gw.state !== 'stopped') gw.stop(); return }
-      // 上次连上的不是机器人号：等主人点「重新连接」或改设置再连
+      // 上次连上的不是机器人号：等管理员点「重新连接」或改设置再连
       if (wrongAccount) return
       if (gw.state === 'stopped') gw.start()
     },

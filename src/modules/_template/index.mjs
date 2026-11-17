@@ -17,7 +17,7 @@ export default {
   defaults: { replies: '早安=早呀～今天也要元气满满\n晚安=晚安，做个好梦', onlyOwner: false },
   settings: [
     { key: 'replies', label: '关键词=回复', type: 'textarea', hint: '一行一条，收到的消息正好是这个关键词就直接回，不经过模型' },
-    { key: 'onlyOwner', label: '只回主人', type: 'switch' },
+    { key: 'onlyOwner', label: '只回管理员', type: 'switch' },
   ],
 
   setup(api) {
@@ -32,14 +32,14 @@ export default {
       return true
     })
 
-    // 2. 主人在 QQ 里发 /__ID__ 时
+    // 2. 管理员在 QQ 里发 /__ID__ 时
     api.command({
       name: '__ID__',
       desc: '看看「__NAME__」配了哪些关键词',
       run: () => Object.keys(table()).join('、') || '还没配关键词',
     })
 
-    // 3. 给她用的工具（她自己决定什么时候调用）。where.level：full = 主人私聊，social = 群聊和别人
+    // 3. 给她用的工具（她自己决定什么时候调用）。where.level：full = 管理员私聊，social = 群聊和别人
     //    返回 [] 就是这个会话里不给；where.chat 是当前聊天，where.sessionId 是会话 id
     api.tool((where) => api.defineTool({
       name: '__TOOL___keywords',

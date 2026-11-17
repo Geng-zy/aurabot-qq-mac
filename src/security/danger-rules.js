@@ -2,8 +2,8 @@
 // danger.js 负责确认流程；这里只回答「这条命令危险吗、命中哪条规则」。
 
 // 危险终端命令确认（可选保护，默认关）：
-// 打开后，她在主人私聊里要执行「删根目录 / 格式化 / 关机 / 下载后直接执行」这类命令时，
-// 插件先不发出去，而是给主人 QQ 发一条确认消息；主人回复「确认」才放行，
+// 打开后，她在管理员私聊里要执行「删根目录 / 格式化 / 关机 / 下载后直接执行」这类命令时，
+// 插件先不发出去，而是给管理员 QQ 发一条确认消息；管理员回复「确认」才放行，
 // 回复「取消」或超时（60 秒）就拦下，并把她实际要执行的命令如实告诉模型。
 //
 // 为什么放在 tools/pre-execute 这一层：DSH 在工具真正执行前会走这个 waterfall，
@@ -58,7 +58,7 @@ const MENTION_WORDS = {
 
 // Aurabot 自己的模块目录：变量赋值、管道删除、Move/Rename 都可能绕过
 // 「Remove-Item 后面必须跟绝对路径」的通用规则。只要同一条命令里同时出现
-// 受保护路径和删除/移动动作，就要求主人确认，宁可多问一次。
+// 受保护路径和删除/移动动作，就要求管理员确认，宁可多问一次。
 const AURABOT_MODULES_PATH_RE = /plugins-data[\\/]+aurabot[\\/]+modules(?:-data)?(?:[\\/]|["'\s;]|$)/i
 const AURABOT_MODULES_ACTION_RE = /\b(?:Remove-Item|Move-Item|Rename-Item|rm|del|erase|rd|rmdir|mv|move|ren|rename)\b/i
 const AURABOT_MODULES_DANGER = '删除/移动 Aurabot 模块目录'

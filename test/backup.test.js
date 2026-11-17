@@ -77,7 +77,7 @@ test('坏文件和别的 zip 都拒绝，且不留待恢复', async () => {
   assert.equal(api.pendingRestore(), null)
 })
 
-test('恢复整机备份后，同一主人的旧模块授权代次失效', async (t) => {
+test('恢复整机备份后，同一管理员的旧模块授权代次失效', async (t) => {
   isolatedBackup(t)
   const cfg = saveConfig({ ownerQQ: '10000001' })
   const revision = ownerAuthorizationRevision(cfg)

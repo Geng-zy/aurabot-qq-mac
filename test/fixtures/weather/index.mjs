@@ -1,4 +1,4 @@
-// 查天气：群里有人问天气就查了告诉他；主人 /天气 城市；她自己也能用 weather_now 工具。
+// 查天气：群里有人问天气就查了告诉他；管理员 /天气 城市；她自己也能用 weather_now 工具。
 // 数据来自 https://wttr.in/<城市>?format=3（纯文本，一行）。
 
 const CACHE_MS = 10 * 60 * 1000
@@ -13,7 +13,7 @@ export default {
   name: '查天气',
   version: '0.1.0',
   api: 1,
-  description: '群里有人问天气就查一下告诉他；主人可以 /天气 城市；她也能自己决定查天气',
+  description: '群里有人问天气就查一下告诉他；管理员可以 /天气 城市；她也能自己决定查天气',
   defaults: {
     city: '北京',
     groupAuto: true,
@@ -71,7 +71,7 @@ export default {
       return true
     })
 
-    // 2) 主人在 QQ 里发 /天气 城市
+    // 2) 管理员在 QQ 里发 /天气 城市
     api.command({
       name: '天气',
       aliases: ['weather', 'tq'],
@@ -90,7 +90,7 @@ export default {
       if (chat.kind === 'system') return []
       return api.defineTool({
         name: 'weather_now',
-        description: '查某个城市现在的天气（实时，一行文字）。有人问天气、或者聊到出门 / 穿衣 / 下雨时用。不填城市就查主人设置的默认城市。',
+        description: '查某个城市现在的天气（实时，一行文字）。有人问天气、或者聊到出门 / 穿衣 / 下雨时用。不填城市就查管理员设置的默认城市。',
         properties: { city: { type: 'string', description: '城市名，比如 北京、上海、Tokyo；不知道就留空' } },
         required: [],
         execute: async ({ city } = {}) => {

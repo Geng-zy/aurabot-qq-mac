@@ -1,4 +1,4 @@
-// 会话工具闸：非主人收全局工具、群聊按发言人开合、卸载时回收。
+// 会话工具闸：非管理员收全局工具、群聊按发言人开合、卸载时回收。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createToolScope, isGuestSafeTool } from '../src/chat/tool-scope.js'
@@ -45,7 +45,7 @@ test('限制访客：有名单时只放行白名单，没名单时 allow 为空'
   assert.deepEqual(unknown.calls.at(-1), { allow: [] })
 })
 
-test('群聊闸：先收起，主人开口放开，掺别人再收起，卸载时回收', () => {
+test('群聊闸：先收起，管理员开口放开，掺别人再收起，卸载时回收', () => {
   const scope = createToolScope()
   const agent = fakeAgent(['todo_write', 'bash'])
   scope.openGate('group:1', agent)

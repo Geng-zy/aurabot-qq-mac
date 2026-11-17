@@ -103,9 +103,9 @@ export function createBody(deps) {
 
   /**
    * 推进到现在，按身体自己决定睡、醒、吃：
-   * - 困到门槛、又是生物钟的夜里就睡；刚和主人聊着（stayUpMinutes 内）就熬着不睡；
+   * - 困到门槛、又是生物钟的夜里就睡；刚和管理员聊着（stayUpMinutes 内）就熬着不睡；
    * - 睡够了（想睡的程度低于醒来的门槛）或者已经过了夜晚结束 3 小时就醒；
-   * - 饿了、正好是饭点（前后 1 小时）或者饿得受不了，她自己吃（「只靠主人投喂」开着时不吃）。
+   * - 饿了、正好是饭点（前后 1 小时）或者饿得受不了，她自己吃（「只靠管理员投喂」开着时不吃）。
    * @returns {{ state: any, events: Array<{ kind: 'slept'|'woke'|'ate', [k: string]: any }> }}
    */
   function tick() {
@@ -197,7 +197,7 @@ export function createBody(deps) {
     save(s)
   }
 
-  /** 和主人说着话：熬夜就是这么来的。 */
+  /** 和管理员说着话：熬夜就是这么来的。 */
   function noteOwner() {
     const s = load()
     s.ownerAt = now()

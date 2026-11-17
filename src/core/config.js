@@ -14,33 +14,33 @@ export const DEFAULTS = {
   setupDone: false, // 首次使用向导走完了没有
   communityMigrated: {}, // 搬到社区库的模块处理过没有（id → installed / skipped / kept），只处理一次
   botQQ: '', // 机器人 QQ 号（向导里填）
-  ownerQQ: '', // 主人 QQ 号（向导里填）
-  ownerName: '主人',
+  ownerQQ: '', // 管理员 QQ 号（向导里填）
+  ownerName: '管理员',
   ownerLevel: 'full', // full | social | chat
-  approvalNotify: true, // DSH 要授权时把请求发到主人私聊
-  // 给她自由：她自己的事由她决定，不用主人开口、也不用申请（见 chat/access.js 的 freeWill）
+  approvalNotify: true, // DSH 要授权时把请求发到管理员私聊
+  // 给她自由：她自己的事由她决定，不用管理员开口、也不用申请（见 chat/access.js 的 freeWill）
   freedom: true,
-  // 什么情况往主人 QQ 上报（她用自己的话说）：enabled 是总开关，approval = 工具要授权，question = 要人选选项。
+  // 什么情况往管理员 QQ 上报（她用自己的话说）：enabled 是总开关，approval = 工具要授权，question = 要人选选项。
   // workspaces 按工作区单独覆盖：{ "<工作区路径>": { approval?: bool, question?: bool } }，没写的项跟随总开关（移植自原项目 354160e）
   notice: { enabled: true, approval: true, question: true, workspaces: {} },
-  qqApi: { enabled: true }, // 她能用 qq_api_call 调 QQ 接口：别人只能查当前群，写操作只听主人
-  approvalViaQQ: true, // 主人私聊会话要授权时，在 QQ 回复「确认」直接批准这一次
-  profilePerms: { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner' }, // 改资料类操作（含抖音浏览 / 点赞 / 评论 / 分享）的权限：off 关 / owner 仅主人私聊 / all 所有人。抖音项默认仅主人，总开关默认关
+  qqApi: { enabled: true }, // 她能用 qq_api_call 调 QQ 接口：别人只能查当前群，写操作只听管理员
+  approvalViaQQ: true, // 管理员私聊会话要授权时，在 QQ 回复「确认」直接批准这一次
+  profilePerms: { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner' }, // 改资料类操作（含抖音浏览 / 点赞 / 评论 / 分享）的权限：off 关 / owner 仅管理员私聊 / all 所有人。抖音项默认仅管理员，总开关默认关
   // 宿主维护插件（dsh-purge 等）追加提示词时，在 QQ 会话里给大肥鱼人设加身份锁定。
   // 关掉后维护段原样进入提示词，身份与语气由模型自己权衡。
   purge: { identityLock: true },
-  longTasks: true, // 长任务模式：主人私聊（完整权限）额外挂 dsh-tool-jobs + dsh-tool-schedule，会多一点工具定义、稍慢
-  // 后台子智能体委派（默认关）：模块用 hub.runSubagentTurn 派子智能体时，正常要求「主人开口」的来源；
+  longTasks: true, // 长任务模式：管理员私聊（完整权限）额外挂 dsh-tool-jobs + dsh-tool-schedule，会多一点工具定义、稍慢
+  // 后台子智能体委派（默认关）：模块用 hub.runSubagentTurn 派子智能体时，正常要求「管理员开口」的来源；
   // 定时任务这类没人应答的场合，只有打开这个开关才允许派活。关着 = 一律拒绝（一审 #177 的审批策略）。
   subagentBackground: false,
-  allow: { private: [], groups: [] }, // 主人永远能私聊，不用写进白名单
+  allow: { private: [], groups: [] }, // 管理员永远能私聊，不用写进白名单
   drawAllow: { private: [], groups: [] }, // 额外开放生图的 QQ 会话
   // 接 QQ：macOS 上没有 SnowLuma 原生版，网关是你自己跑的 OneBot v11（比如 OrbStack 里的 SnowLuma），
   // 插件只按下面 snowluma.httpUrl / wsUrl / token 去连，不启动、不注入任何东西
   gateway: 'onebot',
   workspaceDir: '', // QQ 会话放在哪个文件夹（DSH 里的「Aurabot · QQ」工作区）；留空 = 默认（~/Aurabot/qq-chats）
   // 发文件（#52）：默认开但限制很多——她只能把 QQ 工作区（workspaceDir）和 dirs 里列的目录中的文件当文件发出去；
-  // 单个文件有大小上限；主人私聊里能触发，群里只在主人开口那一轮能触发（可以发给白名单里的人和群）。日志里会记下发了什么。
+  // 单个文件有大小上限；管理员私聊里能触发，群里只在管理员开口那一轮能触发（可以发给白名单里的人和群）。日志里会记下发了什么。
   // imageByPath（#169）：本地图片先按路径直发，被网关明确拒绝才改用 base64；网关和 NapCat 没共享挂载时会自动回退。
   // 默认关：macOS 上网关跑在 Docker / OrbStack 里，读不到本机路径，按路径发必定失败（慢一拍，结果不确定时还会丢图）。
   // 关着时发文件也不先按路径试（hub.js sendFile）。
@@ -48,7 +48,7 @@ export const DEFAULTS = {
   // relayHost 是网关那边访问宿主机用的地址（OrbStack / Docker Desktop 都是 host.docker.internal）
   files: { enabled: true, maxMB: 50, imageByPath: false, dirs: [], relay: true, relayHost: 'host.docker.internal' },
   // 危险命令确认（可选保护，默认关）：她在私聊里执行删根目录/格式化/关机/下载后直接执行等
-  // 终端命令前，先发 QQ 私聊问主人，回复「确认」才执行；超时或「取消」就拦下。
+  // 终端命令前，先发 QQ 私聊问管理员，回复「确认」才执行；超时或「取消」就拦下。
   // panelRemoteAccess：允许远端（非回环）访问管理接口；默认 false = 只有本机能管。
   // trustedProxy：可信反向代理地址（逗号分隔）；只有请求确实从这些地址进来，才采信
   //   X-Forwarded-For 的最后一跳作为真实来源。留空 = 从不相信任何转发头（最安全）。
@@ -69,7 +69,7 @@ export const DEFAULTS = {
     wsToken: '',
   },
   model: { provider: '', model: '', reasoningEffort: 'low', vision: 'auto' }, // 留空 = 跟随 DSH 默认；vision: auto/on/off
-  // 按聊天选模型（主人在面板「模型」页设）：私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认 > 上面的全局模型；没写的一级退到下一级
+  // 按聊天选模型（管理员在面板「模型」页设）：私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认 > 上面的全局模型；没写的一级退到下一级
   chatModels: { privateDefault: { provider: '', model: '', reasoningEffort: '' }, groupDefault: { provider: '', model: '', reasoningEffort: '' }, privates: {}, groups: {} },
   merge: { enabled: true, waitSec: 2.5, maxSec: 8, groupWaitSec: 5, groupMaxSec: 15 }, // 连发合并：对方停顿 waitSec 秒再一起回，最多等 maxSec 秒；群里等得久一点，把一段话攒齐
   imageGen: {
@@ -93,7 +93,7 @@ export const DEFAULTS = {
     codex: { model: 'gpt-image-2', quality: 'auto', background: 'auto' },
   },
   persona: { current: 'dafeiyu' },
-  // 主人私聊里问起群里的事：把最近 24 小时的群聊流水补进这一轮（默认关，开启前先把群加进白名单）
+  // 管理员私聊里问起群里的事：把最近 24 小时的群聊流水补进这一轮（默认关，开启前先把群加进白名单）
   group: { ...DEFAULT_GROUP_POLICY, overrides: {}, ownerTools: 'off', ownerToolsGroups: [] },
   // 按群头衔不回：勾选的群里，专属头衔正好是 title 的成员（一般是别的机器人）说话、戳她都不理。没勾群就不起作用
   titleFilter: { enabled: true, groups: [], title: '大肥鱼' },
@@ -147,7 +147,7 @@ export const DEFAULTS = {
     reactChance: 0.15, // 主动贴表情的概率，独立默认值
     reactMaxPerHour: 10, // 每个会话每小时最多主动贴几次
     collect: true, // 偷表情
-    // 怎么偷：auto = 看到就收（默认，保持原行为）；ask = 她挑（先记着，喜欢才凭编号收）；owner = 只听主人的（只有主人语境下才提示/允许收）
+    // 怎么偷：auto = 看到就收（默认，保持原行为）；ask = 她挑（先记着，喜欢才凭编号收）；owner = 只听管理员的（只有管理员语境下才提示/允许收）
     collectMode: 'auto',
     fromGroups: true,
     fromPrivate: true,
@@ -164,9 +164,9 @@ export const DEFAULTS = {
     windowEnd: '23:30',
     minGapMinutes: 180,
     attachImage: true, // 写日记时配一张图（优先今天她画的，其次今天收的表情包）
-    // 可选图文日记：关着时沿用原来的聊天摘录和配图流程；本地目录必须由主人填写。
+    // 可选图文日记：关着时沿用原来的聊天摘录和配图流程；本地目录必须由管理员填写。
     rich: { enabled: false, stickers: false, browsing: false, local: false, folder: '', maxImages: 2 },
-    archive: { enabled: false, folder: '' }, // 已有公开浏览图按浏览日期归档；必须由主人指定输出目录
+    archive: { enabled: false, folder: '' }, // 已有公开浏览图按浏览日期归档；必须由管理员指定输出目录
     minChars: 60,
     maxChars: 140,
     visibility: 'all', // all | friends | selected | self | excluded，和 QQ 空间自身的可见范围一致
@@ -181,23 +181,23 @@ export const DEFAULTS = {
     intervalHours: 4,
     maxRunsPerDay: 3,
     perRun: 5, // 一轮看几个视频
-    maxWatchPerDay: 30, // 每天最多看几个（手动让她刷也算；主人亲口让她找视频时不受这个限制）
+    maxWatchPerDay: 30, // 每天最多看几个（手动让她刷也算；管理员亲口让她找视频时不受这个限制）
     dwellMin: 8, // 每个视频停留的秒数（随机取一个）
     dwellMax: 40,
     browserPath: '', // 留空 = 自动找 Edge（找不到再找 Chrome / Chromium）；也可填完整路径
-    shareBias: 'proactive', // stingy | normal | proactive：刷到好看的视频，分享给主人的积极程度
-    ownerDm: true, // 主人在抖音上私信她时回（只认核对过的主人抖音号）
-    dmPollMinutes: 3, // 隔几分钟看一次主人的抖音私信
-    shareTo: 'douyin', // douyin = 在抖音里私信分享给主人（要先核对主人抖音号，没核对 / 发不出去就改发 QQ）| qq = QQ 私聊发链接 | both = 两边都发
-    owner: { input: '', secUid: '', uid: '', nickname: '', confirmedInput: '' }, // 主人的抖音号：面板填抖音号 / 主页链接，「核对」后才写入 secUid（真·@主人只认它）
-    caps: { like: 30, comment: 3, share: 5, atOwner: 3 }, // 每天上限（登录后前 newAccountDays 天减半）；atOwner = 评论里真·@主人
+    shareBias: 'proactive', // stingy | normal | proactive：刷到好看的视频，分享给管理员的积极程度
+    ownerDm: true, // 管理员在抖音上私信她时回（只认核对过的管理员抖音号）
+    dmPollMinutes: 3, // 隔几分钟看一次管理员的抖音私信
+    shareTo: 'douyin', // douyin = 在抖音里私信分享给管理员（要先核对管理员抖音号，没核对 / 发不出去就改发 QQ）| qq = QQ 私聊发链接 | both = 两边都发
+    owner: { input: '', secUid: '', uid: '', nickname: '', confirmedInput: '' }, // 管理员的抖音号：面板填抖音号 / 主页链接，「核对」后才写入 secUid（真·@管理员只认它）
+    caps: { like: 30, comment: 3, share: 5, atOwner: 3 }, // 每天上限（登录后前 newAccountDays 天减半）；atOwner = 评论里真·@管理员
     gate: {
       maxWritesPerDay: 40, // 点赞 + 评论合计上限
       minWriteGapSec: 20, // 两次点赞 / 评论之间至少隔这么多秒
       newAccountDays: 3, // 首次登录起这么多天内，上限都减半
     },
   },
-  // 刷小黑盒：用主人的账号逛游戏社区（读多写少）。点赞 / 评论 / 发帖各项权限在 profilePerms.heybox*。
+  // 刷小黑盒：用管理员的账号逛游戏社区（读多写少）。点赞 / 评论 / 发帖各项权限在 profilePerms.heybox*。
   heybox: {
     enabled: false, // 总开关：默认关，先在面板里填 Cookie 再打开
     cookie: '', // 整串 Cookie（pkey 必须有；要写操作还得有 x_xhh_tokenid）
@@ -210,8 +210,8 @@ export const DEFAULTS = {
     maxPostsPerDay: 3, // 每天最多发帖（硬上限，多了容易被限）
     defaultTopic: 7214, // 发帖默认分区：7214 盒友杂谈 / 18745 数码硬件 / 806933 AI
     postStyle: 'mix', // 发帖风格：diary 大肥鱼日记 / news 热搜文 / mix 肥鱼热搜
-    shareToOwner: true, // 逛到有意思的帖子，私聊分享给主人
-    shareBias: 'normal', // stingy | normal | proactive：分享给主人的积极程度
+    shareToOwner: true, // 逛到有意思的帖子，私聊分享给管理员
+    shareBias: 'normal', // stingy | normal | proactive：分享给管理员的积极程度
     shareDaily: 3, // 每天最多分享几条（避免刷屏）
     // 谷时逛：只在非峰时跑自动逛，避开工作日 9-12 / 14-18 的高峰，省 token
     // 分区：manual = 总是用默认分区；auto = 按正文内容自动挑（挑不到回落默认）
@@ -233,7 +233,7 @@ export const DEFAULTS = {
     replyOwn: true, // 回复自己说说下别人的新评论
     commentFriends: true, // 逛好友动态，偶尔评论
     friendChance: 0.3, // 看到一条好友说说时互动（点赞 + 可能评论）的概率
-    ownerChance: 0.7, // 主人的说说互动概率
+    ownerChance: 0.7, // 管理员的说说互动概率
     like: true, // 互动时顺手点赞
     maxPerDay: 8, // 每天最多评论几条（点赞不算）
     intervalMin: 30, // 多久逛一次空间
@@ -256,7 +256,7 @@ export const DEFAULTS = {
     clipStart: 'auto', // auto = 从副歌附近截；head = 从头截
     vocalVolume: 1,
     instVolume: 0.8,
-    ownerOnly: true, // 只有主人能点歌
+    ownerOnly: true, // 只有管理员能点歌
     keepWork: false, // 留着中间文件（调试用）
     pypiMirror: 'auto', // 安装时用的下载源：auto = 先测一下，官方源慢就用国内镜像；cn = 一直用国内镜像；off = 只用官方源
     localMusic: true, // 点歌先在本地音乐文件夹里找原唱（文件名「歌名 - 歌手[专辑]」），找不到再去网易云
@@ -299,7 +299,7 @@ export const DEFAULTS = {
     dshTools: false, // DSH 里别的会话（比如你平时写代码的会话）能用工具让她发 QQ、查记忆
     http: false, // 开放 HTTP 接口（要带密钥）
     token: '', // 第一次打开时自动生成
-    allowTargets: 'whitelist', // 外部能发给谁：whitelist = 白名单里的人和群；owner = 只能发给主人
+    allowTargets: 'whitelist', // 外部能发给谁：whitelist = 白名单里的人和群；owner = 只能发给管理员
   },
   // 心智核心在 Aurabot 这边要的东西（其余设置都在心智核心自己的库里）
   mind: {
@@ -388,16 +388,19 @@ export function normalize(raw) {
   // 只认绝对路径（/ 开头），别的当没填
   c.workspaceDir = String(c.workspaceDir || '').trim()
   if (c.workspaceDir && !c.workspaceDir.startsWith('/')) c.workspaceDir = ''
-  // 视觉能力：auto = 问 DSH 的模型元数据；on / off = 主人手动声明（覆盖元数据）
+  // 视觉能力：auto = 问 DSH 的模型元数据；on / off = 管理员手动声明（覆盖元数据）
   c.model.vision = c.model.vision === 'on' || c.model.vision === 'off' ? c.model.vision : 'auto'
   c.setupDone = bool(c.setupDone, false)
+  c.ownerName = String(c.ownerName || '').trim() || '管理员'
+  // 旧默认称呼迁移：老配置里的旧默认值统一改成“管理员”；自定义称呼保持原样。
+  if (c.ownerName === '\u4e3b\u4eba') c.ownerName = '管理员'
   c.ownerLevel = LEVELS.includes(c.ownerLevel) ? c.ownerLevel : 'full'
   c.purge = { identityLock: c.purge?.identityLock !== false }
   c.longTasks = bool(c.longTasks, true)
   c.subagentBackground = bool(c.subagentBackground, false)
   c.chatModels = normalizeChatModels(c.chatModels)
   c.profilePerms = Object.fromEntries(PROFILE_PERM_KEYS.map((k) => [k, PROFILE_PERM_LEVELS.includes(c.profilePerms?.[k]) ? c.profilePerms[k] : profilePermDefault(k)]))
-  // 旧版 douyinDm 是「回别人私信」的权限，含义已不同（现在是主动发私信），老配置一律回到默认「仅主人」
+  // 旧版 douyinDm 是「回别人私信」的权限，含义已不同（现在是主动发私信），老配置一律回到默认「仅管理员」
   if (isObj(raw?.profilePerms) && 'douyinDm' in raw.profilePerms) c.profilePerms.douyinDm = profilePermDefault('douyinDm')
   c.allow = { private: qqList(c.allow.private), groups: qqList(c.allow.groups) }
   const drawablePrivate = new Set(qqList(c.drawAllow?.private))
@@ -444,7 +447,7 @@ export function normalize(raw) {
   if (!Array.isArray(g.quietHours) || g.quietHours.length !== 2) g.quietHours = DEFAULT_GROUP_POLICY.quietHours
   g.quietHours = g.quietHours.map((h) => num(h, 0, 0, 23))
   if (!isObj(g.overrides)) g.overrides = {}
-  delete g.ownerBrief // 「主人私聊：群聊摘要」换成了心智核心的「别的聊天里刚发生了什么」
+  delete g.ownerBrief // 「管理员私聊：群聊摘要」换成了心智核心的「别的聊天里刚发生了什么」
   // 群里的本机工具：默认关；只有明确写了 owner 才开（原项目删掉了「谁问都行」一档，74eece2）
   g.ownerTools = g.ownerTools === 'owner' ? 'owner' : 'off'
   g.ownerToolsGroups = qqList(g.ownerToolsGroups)
@@ -618,7 +621,7 @@ export function normalize(raw) {
   g.minRelevance = num(g.minRelevance, 0.25, 0, 1)
   // @ 了别人时不算叫她（只挡必回，仍然可以插话）；默认关，保持原行为
   g.ignoreAtOthers = bool(g.ignoreAtOthers, false)
-  // 看白名单里别的群：off 关 / private 主人和私聊里的群成员（默认）/ group 群里的成员也行
+  // 看白名单里别的群：off 关 / private 管理员和私聊里的群成员（默认）/ group 群里的成员也行
   g.crossRead = ['off', 'group'].includes(g.crossRead) ? g.crossRead : 'private'
   c.merge.enabled = bool(c.merge.enabled, true)
   c.merge.waitSec = num(c.merge.waitSec, 2.5, 0, BIG)
@@ -832,7 +835,7 @@ export function mergeFromPanel(current, incoming) {
       return { ...item, apiKey: item.apiKey === null ? '' : item.apiKey || (sameEndpoint ? old.apiKey : '') }
     })
   }
-  // 主人的抖音 secUid / uid / 昵称只能由「核对」写入，面板存配置时保留原值
+  // 管理员的抖音 secUid / uid / 昵称只能由「核对」写入，面板存配置时保留原值
   next.douyin.owner = { ...next.douyin.owner, ...Object.fromEntries(['secUid', 'uid', 'nickname', 'confirmedInput'].map((k) => [k, current.douyin?.owner?.[k] ?? ''])) }
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''

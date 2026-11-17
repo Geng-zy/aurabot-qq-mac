@@ -10,7 +10,7 @@ import { platformOf } from '../../../ids.js'
 
 const RESULT_CHARS = 3000
 
-// 会把内容/动作发到「目标」的接口：主人开口也不许发给白名单外的人/群，
+// 会把内容/动作发到「目标」的接口：管理员开口也不许发给白名单外的人/群，
 // 否则模型被诱导就能把消息/转发/拍一拍/点赞发到任意 QQ（qq_send_message 的白名单在这里也得有）。
 const OUT_USER_TARGET = new Set(['forward_friend_single_msg', 'send_private_forward_msg', 'send_forward_msg', 'send_custom_face', 'friend_poke', 'send_like', 'send_tuwen_ark', 'set_friend_remark', 'set_qzone_ban'])
 const OUT_GROUP_TARGET = new Set(['forward_group_single_msg', 'send_group_forward_msg', 'send_forward_msg', 'send_group_ai_record', 'send_custom_face', 'group_poke', 'send_tuwen_ark', 'set_group_remark', 'set_group_card', 'set_group_admin', 'set_group_kick_members', 'set_group_name', 'set_group_whole_ban'])
@@ -56,7 +56,7 @@ export function refusal({ action, params, cfg, owner, chat }) {
     if (FORWARD_ACTIONS.has(action) && (params.message_id !== undefined || hasStoredForward(params.messages ?? params.message))) return '不能按消息编号跨会话转发。请使用确认可公开的文字'
     return ''
   }
-  if (entry[0] !== 'open') return '这个只有主人开口才能用'
+  if (entry[0] !== 'open') return '这个只有管理员开口才能用'
   if (action !== 'translate_en2zh' && (chat.kind !== 'group' || String(params.group_id) !== String(chat.groupId))) return '只能查当前这个群'
   return ''
 }
@@ -132,7 +132,7 @@ export default {
   id: 'qq-api',
   name: 'QQ 接口',
   version: '1.0.0',
-  description: '把 SnowLuma 的 QQ 能力交给她：查群公告、精华、荣誉、群文件，主人开口时还能撤回、设精华、改群名片等（qq_api_find / qq_api_call）',
+  description: '把 SnowLuma 的 QQ 能力交给她：查群公告、精华、荣誉、群文件，管理员开口时还能撤回、设精华、改群名片等（qq_api_find / qq_api_call）',
   api: 1,
   files: ['channels/qq/features/qq-api/actions.js'],
   setup(api) {

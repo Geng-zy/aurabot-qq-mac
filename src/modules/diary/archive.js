@@ -1,4 +1,4 @@
-// 只归档已经取得的公开浏览图；不会截取桌面、私人聊天，也不会替主人选择输出目录。
+// 只归档已经取得的公开浏览图；不会截取桌面、私人聊天，也不会替管理员选择输出目录。
 
 import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, realpathSync, writeFileSync, unlinkSync } from 'node:fs'

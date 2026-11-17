@@ -49,16 +49,16 @@ export default {
     }
 
     api.rule(() => (local.active('video')
-      ? ['- 你能用 qq_generate_video 生成视频，' + (freeWill(api.config()) ? '想做就做（别人让你做，做不做你自己定）。' : '只有主人让你做时才用。') + '生成很慢，通常要十几分钟，开始前先告诉对方要等多久；做好会自动发出来，不用再发一次。']
+      ? ['- 你能用 qq_generate_video 生成视频，' + (freeWill(api.config()) ? '想做就做（别人让你做，做不做你自己定）。' : '只有管理员让你做时才用。') + '生成很慢，通常要十几分钟，开始前先告诉对方要等多久；做好会自动发出来，不用再发一次。']
       : []))
 
     api.tool(({ chat, sessionId }) => (local.active('video') && chat.kind !== 'system' ? defineTool({
       name: 'qq_generate_video',
-      description: '生成一段视频，做好后自动发到当前聊天。很慢，通常要十几分钟，开始前先告诉对方要等。' + (freeWill(api.config()) ? '做不做你自己定。' : '只有主人让你做时才用。'),
+      description: '生成一段视频，做好后自动发到当前聊天。很慢，通常要十几分钟，开始前先告诉对方要等。' + (freeWill(api.config()) ? '做不做你自己定。' : '只有管理员让你做时才用。'),
       properties: { prompt: str('视频内容描述'), seconds: str('可选：时长（秒）') },
       required: ['prompt'],
       execute: async ({ prompt, seconds }) => {
-        if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我生成视频' }
+        if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员能让我生成视频' }
         const text = String(prompt || '').trim()
         if (!text) return { ok: false, message: '要生成什么内容？' }
         if (!isCurrent()) return { ok: false, message: '生视频模块已关闭' }

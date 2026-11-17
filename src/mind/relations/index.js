@@ -3,7 +3,7 @@
 // 关系参考 Sternberg 的爱情三角（亲密、激情、承诺）、Rusbult 的投入模型、依恋理论和社会交换理论。
 // 变化来源：每段对话记成经历时，模型顺带说「她对这些人的看法有没有变」，程序按小步子改（比性格变得快）；
 // 信任掉得比涨得快；第一印象要多次相反的经历才改得过来；长期不联系慢慢变淡。
-// 专一（主人在面板设）：亲密、激情、承诺只对主人记，别人最高到好朋友；激情还要满 18 岁。
+// 专一（管理员在面板设）：亲密、激情、承诺只对管理员记，别人最高到好朋友；激情还要满 18 岁。
 
 import { placeOf } from '../place.js'
 
@@ -12,7 +12,7 @@ const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, Number(x) || 0))
 const r3 = (x) => Math.round(x * 1000) / 1000
 const clip = (s, n) => [...String(s || '').trim()].slice(0, n).join('')
 
-export const REL_TYPES = { owner: '主人', lover: '恋人', closeFriend: '好朋友', friend: '朋友', groupmate: '群友', acquaintance: '熟人', stranger: '生人' }
+export const REL_TYPES = { owner: '管理员', lover: '恋人', closeFriend: '好朋友', friend: '朋友', groupmate: '群友', acquaintance: '熟人', stranger: '生人' }
 
 function fresh(trustBase = 0.5) {
   return {
@@ -59,7 +59,7 @@ export function createRelations(deps) {
     return p
   }
 
-  /** 关系类型：主人由设置定，其余随相处变；专一开着时别人最高到好朋友。 */
+  /** 关系类型：管理员由设置定，其余随相处变；专一开着时别人最高到好朋友。 */
   function typeOf(id, rel, p) {
     if (deps.isOwner(id)) return 'owner'
     const exclusive = deps.identity().exclusive
@@ -85,7 +85,7 @@ export function createRelations(deps) {
   // ---------- 记经历时顺带：看法变了没有 ----------
   function encodeAsk(window) {
     const passion = deps.isOwnerWindow(window) && deps.identity().sexualDesire
-      ? '\n  主人私聊可另填 d.passion（-1 到 1）和 passionLine（你自己真实说过的行号）。判断这段让你对主人的浪漫吸引增强还是减弱。双方明确回应的心动、吸引可以上升；你明确表达吸引减退或疏远可以下降。只凭对方表达愿望、话题亲密、沉默、玩笑或一时紧张，无法判断变化就省略。'
+      ? '\n  管理员私聊可另填 d.passion（-1 到 1）和 passionLine（你自己真实说过的行号）。判断这段让你对管理员的浪漫吸引增强还是减弱。双方明确回应的心动、吸引可以上升；你明确表达吸引减退或疏远可以下降。只凭对方表达愿望、话题亲密、沉默、玩笑或一时紧张，无法判断变化就省略。'
       : ''
     return `- "rel"：这段里和你说过话的人，你对他们的看法有没有变化（只写有变化或新了解到的人，没有就空数组）。每项：
   {"who":"id","d":{"close":亲近 -1到1,"like":喜欢,"respect":尊重和欣赏,"trust":信任,"seen":你感觉他怎么看你},"kept":他说到做到了 true / 失约了 false（没有就不写）,
@@ -138,7 +138,7 @@ export function createRelations(deps) {
       if (e.helped === 'me') r.debt = Math.min(5, r.debt + 1)
       if (e.helped === 'them') r.debt = Math.max(-5, r.debt - 1)
       r.investment = clamp(r.investment + 0.01)
-      // 亲密、激情、承诺：默认只对主人（专一）；激情还要满 18 岁
+      // 亲密、激情、承诺：默认只对管理员（专一）；激情还要满 18 岁
       const romanceOk = owner || !id0.exclusive
       if (romanceOk) {
         r.intimacy = clamp(r.intimacy + step(d.close) * 0.5 + (likeD > 0 ? 0.01 : 0))
@@ -229,7 +229,7 @@ export function createRelations(deps) {
     put(id, g.rel, null)
   }
 
-  /** 主人或迁移给这个群写一句了解（不覆盖她自己摸清的风格和规矩）。 */
+  /** 管理员或迁移给这个群写一句了解（不覆盖她自己摸清的风格和规矩）。 */
   function setGroupNote(window, note) {
     const gs = groupOf(String(window))
     store.set('rel.group.' + String(window), { ...gs, note: clip(note, 200) })
@@ -319,7 +319,7 @@ export function createRelations(deps) {
     return store.prep("SELECT key, json FROM kv WHERE key LIKE 'rel.group.%'").all().map((r) => ({ id: r.key.slice(10), ...JSON.parse(r.json) }))
   }
 
-  /** 主人在面板里改关系里的一项（比如纠正称呼、删掉一条心结）。 */
+  /** 管理员在面板里改关系里的一项（比如纠正称呼、删掉一条心结）。 */
   function edit(id, patch = {}) {
     const g = get(id)
     const r = g.rel

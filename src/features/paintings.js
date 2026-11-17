@@ -129,7 +129,7 @@ export function recentPaintings (chatId, limit = 10) {
 
 /**
  * 把「画作 #1 / 1 / 最新 / 刚才那张 / 完整文件名」解析成本机路径。
- * 默认只查当前会话已登记的画作。主人私聊可以查整个图库。
+ * 默认只查当前会话已登记的画作。管理员私聊可以查整个图库。
  * 不合法 / 不存在返回 null，不抛。
  */
 export function resolvePainting (chatId, ref, { allowGlobal = false } = {}) {

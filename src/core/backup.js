@@ -210,7 +210,7 @@ function centralHeader(entry) {
 /**
  * 打包数据目录。configOnly = 只带配置、心智核心、人格等文本数据，不带画作、表情包这些媒体。
  * captureMind：返回 Map<相对路径, Buffer>，由宿主接上心智核心（没接就不带心智数据）。
- * 拿不到完整的库就让备份失败，不能把缺一半的心智当成功交给主人。
+ * 拿不到完整的库就让备份失败，不能把缺一半的心智当成功交给管理员。
  */
 export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {}, captureMind = null, configOnly = false } = {}) {
   const root = dataDir()

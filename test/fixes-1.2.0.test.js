@@ -17,7 +17,7 @@ function searchBuilder() {
     ['2032-03-01', [
       { chatId: 'group:fictional-a', who: '虚构群友', text: '共同暗号：本群的旧记录', t: Date.parse('2032-03-01T10:00:00Z') },
       { chatId: 'private:fictional-b', who: '虚构朋友', text: '共同暗号：仅私聊的记录', t: Date.parse('2032-03-01T11:00:00Z') },
-      { chatId: 'private:fictional-owner', who: '主人', text: '共同暗号：主人私聊的原话', t: Date.parse('2032-03-01T12:00:00Z') },
+      { chatId: 'private:fictional-owner', who: '管理员', text: '共同暗号：管理员私聊的原话', t: Date.parse('2032-03-01T12:00:00Z') },
     ]],
     ['2032-03-02', [
       { chatId: 'group:fictional-a', who: '虚构群友', text: '共同暗号：本群的新记录', t: Date.parse('2032-03-02T10:00:00Z') },
@@ -63,7 +63,7 @@ test('聊天流水：full 可以指定私聊、其他群，也可以搜索全部
   assert.match(all.message, /其他群的记录/)
 })
 
-test('聊天流水：群里和别人私聊可跨会话搜索，但看不到主人私聊', async () => {
+test('聊天流水：群里和别人私聊可跨会话搜索，但看不到管理员私聊', async () => {
   const builder = searchBuilder()
   const tool = searchTool(builder, { kind: 'group', groupId: 'fictional-a', chatId: 'group:fictional-a' }, 'social')
 
@@ -85,7 +85,7 @@ test('聊天流水：群里和别人私聊可跨会话搜索，但看不到主�
   for (const reader of [tool, friend]) {
     const all = await reader.execute({ query: '共同暗号', days: 0 })
     assert.match(all.message, /找到 4 条/)
-    assert.doesNotMatch(all.message, /主人私聊的原话/)
+    assert.doesNotMatch(all.message, /管理员私聊的原话/)
     const owner = await reader.execute({ query: '共同暗号', days: 0, chat: 'private:fictional-owner' })
     assert.match(owner.message, /没找到/)
   }
@@ -267,14 +267,14 @@ test('跨群只读（#120）：关掉后没有这个参数，直接传也不能�
   assert.equal(read(calls), false)
 })
 
-test('跨群只读（#120）：混合说话人时群友不能借主人读别的群（H01 同类）', async () => {
+test('跨群只读（#120）：混合说话人时群友不能借管理员读别的群（H01 同类）', async () => {
   const mixed = historyTool({ mode: 'group', owner: true, allOwner: false, senders: ['7', '8'] })
   const out = await mixed.tool.execute({ group: '200' })
   assert.equal(out.ok, false)
   assert.equal(read(mixed.calls), false)
 })
 
-test('跨群只读（#120）：主人随时能看，别的群内容标明不是指令', async () => {
+test('跨群只读（#120）：管理员随时能看，别的群内容标明不是指令', async () => {
   const inGroup = historyTool({ mode: 'private', owner: true, members: [] })
   const out = await inGroup.tool.execute({ group: '200' })
   assert.equal(out.ok, true)
@@ -301,7 +301,7 @@ test('跨群只读（#120）：默认档群里的成员不能看，group 档可�
   assert.equal((await historyTool({ mode: 'group', senders: [] }).tool.execute({ group: '200' })).ok, false)
 })
 
-test('跨群只读（#120）：白名单外读不到，非主人看不到群名单，主人重名要说清楚', async () => {
+test('跨群只读（#120）：白名单外读不到，非管理员看不到群名单，管理员重名要说清楚', async () => {
   const a = historyTool({ mode: 'group', owner: true })
   const out = await a.tool.execute({ group: '999' })
   assert.equal(out.ok, false)

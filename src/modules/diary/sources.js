@@ -1,4 +1,4 @@
-// 图文日记只取表情、公开浏览记录和主人明确指定的目录，不读取聊天流水或私人记忆。
+// 图文日记只取表情、公开浏览记录和管理员明确指定的目录，不读取聊天流水或私人记忆。
 
 import { createHash } from 'node:crypto'
 import { lstatSync, readdirSync, realpathSync, readFileSync } from 'node:fs'

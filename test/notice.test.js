@@ -19,7 +19,7 @@ test('normalizeWorkspace：大小写、斜杠、末尾分隔符都抹平', () =>
   assert.equal(normalizeWorkspace(''), '')
 })
 
-test('总开关 / 试运行 / 没配主人号时一律不报', () => {
+test('总开关 / 试运行 / 没配管理员号时一律不报', () => {
   assert.equal(createNoticeRelay({ getConfig: () => cfg({ enabled: false }) }).enabled('approval', 's'), false)
   assert.equal(createNoticeRelay({ getConfig: () => cfg({ dryRun: true }) }).enabled('approval', 's'), false)
   assert.equal(createNoticeRelay({ getConfig: () => cfg({ ownerQQ: '' }) }).enabled('approval', 's'), false)

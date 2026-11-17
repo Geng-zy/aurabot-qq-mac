@@ -70,7 +70,7 @@ test('CSRF：Sec-Fetch-Site: cross-site 也必须 403（不带 Origin 的变体�
 
 test('CSRF：同源请求照常放行（本机面板不被误伤）', async () => {
   // 本机面板的 fetch 会带回环 Origin + same-origin
-  const r = await fake.call('/save', { ownerName: '主人' }, {
+  const r = await fake.call('/save', { ownerName: '管理员' }, {
     host: '127.0.0.1:5099',
     origin: 'http://127.0.0.1:5099',
     'sec-fetch-site': 'same-origin',
@@ -79,7 +79,7 @@ test('CSRF：同源请求照常放行（本机面板不被误伤）', async () =
   assert.equal(r.status, 200, '同源写请求放行')
   // 配了 publicHostname 时，这个域名的 Origin 也算同源
   api.setConfig({ ...api.getConfig(), security: { ...api.getConfig().security, publicHostname: 'panel.example.com' } })
-  const remote = await fake.call('/save', { ownerName: '主人' }, {
+  const remote = await fake.call('/save', { ownerName: '管理员' }, {
     host: 'panel.example.com',
     origin: 'https://panel.example.com',
     'sec-fetch-site': 'same-origin',

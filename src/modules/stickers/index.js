@@ -44,11 +44,11 @@ export default {
         })] : []),
         defineTool({
           name: 'qq_list_stickers',
-          description: '看看表情库里有哪些表情（名字和标签），挑表情前可以先看。非主人只能看到数量，名字和标签只给主人看。',
+          description: '看看表情库里有哪些表情（名字和标签），挑表情前可以先看。非管理员只能看到数量，名字和标签只给管理员看。',
           properties: { query: str('可选，按名字/标签筛选') },
           execute: async ({ query }) => {
             const items = store.library().items
-            if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: true, count: items.length, message: `表情库里有 ${items.length} 张表情；名字和标签只给主人看` }
+            if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: true, count: items.length, message: `表情库里有 ${items.length} 张表情；名字和标签只给管理员看` }
             const q = String(query || '').trim()
             const hit = (q ? items.filter((i) => (i.name || '').includes(q) || (i.tags || []).some((t) => t.includes(q))) : items).slice(-60)
             return { ok: true, count: items.length, message: hit.length ? hit.map((i) => `${i.name || '未命名'}${i.tags?.length ? '（' + i.tags.join('/') + '）' : ''}`).join('、') : '没有符合的表情', items: hit.map((i) => ({ name: i.name, tags: i.tags })) }
@@ -69,8 +69,8 @@ export default {
             if (!item) return { ok: false, message: '表情库里没找到这张' }
             const label = item.name || item.md5.slice(0, 8)
             if (del) {
-              // 删表情一律要主人单独发话：同轮混进别人就不能借主人的在场删库
-              if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '删表情要主人发话' }
+              // 删表情一律要管理员单独发话：同轮混进别人就不能借管理员的在场删库
+              if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '删表情要管理员发话' }
               const r = await store.remove(item.md5)
               return r.ok ? { ok: true, message: `删掉了「${label}」` } : { ok: false, message: r.reason || '没删成' }
             }
@@ -81,10 +81,10 @@ export default {
         }),
       ]
       // 「她挑」模式：聊天里刚收到的表情，喜欢就凭编号收下；也能收自己刚画的图
-      // （「只听主人的」下，别人在场时不能自己收，得等主人发话）
+      // （「只听管理员的」下，别人在场时不能自己收，得等管理员发话）
       tools.push(defineTool({
         name: 'qq_collect_sticker',
-        description: '悄悄把聊天里刚出现的表情收进自己的表情库（喜欢才收，不喜欢就别调）。index 从 1 开始；name 是你给它起的名字。收表情是你自己的小习惯，通常不用跟对方说你收没收到。主人让你收哪张，你收哪张（「只听主人的」模式下：主人私聊里可以自己挑着收；群里这一轮只有主人说话时也能自己收，有别人在场就要等主人发话）。传 painting（画作编号，如 #1）时，收的是你自己刚画的那张图，不是聊天里的表情。',
+        description: '悄悄把聊天里刚出现的表情收进自己的表情库（喜欢才收，不喜欢就别调）。index 从 1 开始；name 是你给它起的名字。收表情是你自己的小习惯，通常不用跟对方说你收没收到。管理员让你收哪张，你收哪张（「只听管理员的」模式下：管理员私聊里可以自己挑着收；群里这一轮只有管理员说话时也能自己收，有别人在场就要等管理员发话）。传 painting（画作编号，如 #1）时，收的是你自己刚画的那张图，不是聊天里的表情。',
         properties: {
           index: int('第几张表情（从 1 开始，默认 1）'),
           name: str('给它起的名字（≤12 字）'),
@@ -93,7 +93,7 @@ export default {
         },
         required: [],
         execute: async ({ index, name, tags, painting }) => {
-          // 收自己的画：不受「只听主人的」限制（这是她自己画的，不是别人的表情）
+          // 收自己的画：不受「只听管理员的」限制（这是她自己画的，不是别人的表情）
           if (painting) {
             const p = resolvePainting(current, painting)
             if (!p) return { ok: false, message: `找不到画作 ${painting}（可能是编号过期了，先让我画一张？）` }
@@ -115,7 +115,7 @@ export default {
           if (!api.config().stickers.collect) return { ok: false, message: '偷表情关着' }
           const mode = (api.config().stickers.collectMode || 'auto')
           if (mode === 'owner' && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) {
-            return { ok: false, message: '现在是「只听主人的」模式：这一轮有别人在，得主人让我收才行' }
+            return { ok: false, message: '现在是「只听管理员的」模式：这一轮有别人在，得管理员让我收才行' }
           }
           const seg = hub.stickerOf(current, index || 1)
           if (!seg) return { ok: false, message: '这张表情已经拿不到了（超过 30 分钟，或者这一轮里没有这张）' }
@@ -135,18 +135,18 @@ export default {
           return { ok: true, message: `收进库了：「${r.item.name || '未命名'}」` }
         },
       }))
-      // 主人让她存表情：存这个聊天里刚发来的那张（她看得见图，但拿不到图片地址，所以由插件去找）；
+      // 管理员让她存表情：存这个聊天里刚发来的那张（她看得见图，但拿不到图片地址，所以由插件去找）；
       // 传 painting（画作编号）时存的是她自己刚画的那张
       tools.push(defineTool({
         name: 'qq_save_sticker',
-        description: '把这个聊天里刚发来的那张表情包 / 图片收进你的表情库（同时收藏到 QQ）。主人说「存一下这个表情」「导入这个表情」「收藏这张」时用。传 painting（画作编号，如 #1）时，存的是你自己刚画的那张图。name 是不超过 12 个字的备注，可以不填（会自动看图起名）。',
+        description: '把这个聊天里刚发来的那张表情包 / 图片收进你的表情库（同时收藏到 QQ）。管理员说「存一下这个表情」「导入这个表情」「收藏这张」时用。传 painting（画作编号，如 #1）时，存的是你自己刚画的那张图。name 是不超过 12 个字的备注，可以不填（会自动看图起名）。',
         properties: {
           name: str('备注（≤12 字，可不填）'),
           tags: { type: 'array', items: { type: 'string' }, description: '标签，如 开心/委屈（可不填）' },
           painting: str('画作编号（如 #1）：存你自己刚画的图时填'),
         },
         execute: async ({ name, tags, painting }) => {
-          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我存表情' }
+          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员能让我存表情' }
           let buf
           if (painting) {
             const p = resolvePainting(current, painting)
@@ -158,7 +158,7 @@ export default {
             }
           } else {
             const media = hub.recentMedia(current)
-            // 优先主人自己发的，其次这个聊天里最近的
+            // 优先管理员自己发的，其次这个聊天里最近的
             const pick = media.filter((x) => x.userId === String(api.config().ownerQQ)).at(-1) || media.at(-1)
             if (!pick) return { ok: false, message: '最近半小时这个聊天里没有人发表情或图片，先把那张发过来' }
             buf = await segmentBytes(pick.seg, api.core.onebot, { maxBytes: 5 * 1024 * 1024 })
@@ -171,13 +171,13 @@ export default {
       }))
       tools.push(defineTool({
         name: 'qq_import_qq_stickers',
-        description: '把你 QQ「我喜欢的」收藏里已有的表情全部导进表情库（已经有的跳过），之后就能用 <sticker:名字> 发它们。主人让你「导入收藏的表情」「同步一下 QQ 表情」时用。',
+        description: '把你 QQ「我喜欢的」收藏里已有的表情全部导进表情库（已经有的跳过），之后就能用 <sticker:名字> 发它们。管理员让你「导入收藏的表情」「同步一下 QQ 表情」时用。',
         execute: async () => {
-          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有主人能让我导入收藏的表情' }
+          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员能让我导入收藏的表情' }
           return store.importFromQQ()
         },
       }))
-      // 主人私聊（完整权限）才能往库里加图
+      // 管理员私聊（完整权限）才能往库里加图
       if (level === 'full') tools.push(defineTool({
         name: 'qq_add_sticker',
         description: '把一张图片收进表情库并收藏到 QQ。source 是本地图片路径或图片网址；name 是不超过 12 个字的备注。',
@@ -221,7 +221,7 @@ export default {
     api.route('/sticker/caption-status', async () => ({ ok: true, ...store.captionStatus() }))
     api.route('/sticker/caption-stop', async () => ({ ok: true, ...store.captionCancel() }))
     api.route('/sticker/import-qq', async () => store.importFromQQ())
-    api.rule(() => '- 主人让你存某个表情（「存一下」「导入这个表情」）时用 qq_save_sticker；让你把 QQ 收藏里的表情导进来时用 qq_import_qq_stickers。别人让你存，不用理。')
+    api.rule(() => '- 管理员让你存某个表情（「存一下」「导入这个表情」）时用 qq_save_sticker；让你把 QQ 收藏里的表情导进来时用 qq_import_qq_stickers。别人让你存，不用理。')
     api.route('/sticker/upload', async (req) => {
       const b = await http.body(req)
       const buf = Buffer.from(String(b.data || '').replace(/^data:[^,]+,/, ''), 'base64')

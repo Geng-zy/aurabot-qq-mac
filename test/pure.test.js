@@ -86,14 +86,14 @@ test('群聊：@、引用、唤醒词必回', () => {
   assert.equal(decideGroupReply(base({ mentioned: true, hour: 3 })).reply, true)
 })
 
-test('群聊：每小时 @/唤醒词必回上限，超过不回，主人除外', () => {
+test('群聊：每小时 @/唤醒词必回上限，超过不回，管理员除外', () => {
   const cap = (o = {}) => base({ policy: policyFor({ mustMaxPerHour: 3 }, {}, 1), mustTimes: [1, 2, 3].map((i) => 10_000_000 - 60_000 * i), ...o })
   // 超上限：@、引用、叫名字都不回了
   assert.match(decideGroupReply(cap({ mentioned: true })).reason, /回够了/)
   assert.match(decideGroupReply(cap({ repliedToBot: true })).reason, /回够了/)
   assert.match(decideGroupReply(cap({ text: '肥鱼在吗' })).reason, /回够了/)
   assert.equal(decideGroupReply(cap()).mode, 'interject', '必回用尽，普通插话仍看自己的额度')
-  // 主人说话不受限
+  // 管理员说话不受限
   assert.equal(decideGroupReply(cap({ mentioned: true, fromOwner: true })).mode, 'must')
   // 小时滚过去就又能回了
   assert.equal(decideGroupReply(cap({ mentioned: true, mustTimes: [1, 2, 3].map((i) => 10_000_000 - 3_600_000 * i) })).mode, 'must')
@@ -129,7 +129,7 @@ test('群聊：话题无关不插话，越相关越容易插，加入话题后�
 test('群聊安全刹车：短时间说太多就歇着，但明确被叫到的不拦（#182）', () => {
   const now = 10_000_000
   const eight = [1, 2, 3, 4, 5, 6, 7, 8].map((i) => now - 10_000 * i)
-  // 刹车只拦她主动接话：@、引用、叫名字、主人 @ 都能叫动
+  // 刹车只拦她主动接话：@、引用、叫名字、管理员 @ 都能叫动
   assert.equal(decideGroupReply(base({ mentioned: true, botReplyTimes: eight })).mode, 'must')
   assert.equal(decideGroupReply(base({ repliedToBot: true, botReplyTimes: eight })).mode, 'must')
   assert.equal(decideGroupReply(base({ text: '肥鱼 露馅你很自豪吗', botReplyTimes: eight, rand: () => 0.99 })).mode, 'must')
@@ -237,7 +237,7 @@ test('白名单', () => {
   assert.equal(checkAllowed(cfg, { kind: 'group', groupId: '556', userId: '1' }).allowed, false)
 })
 
-test('权限档位：主人私聊完整，群聊永远受限', () => {
+test('权限档位：管理员私聊完整，群聊永远受限', () => {
   assert.equal(levelFor(cfg, { kind: 'private', userId: '10000001' }), 'full')
   assert.equal(levelFor({ ...cfg, ownerLevel: 'chat' }, { kind: 'private', userId: '10000001' }), 'chat')
   assert.equal(levelFor(cfg, { kind: 'group', userId: '10000001' }), 'social')
@@ -247,7 +247,7 @@ test('权限档位：主人私聊完整，群聊永远受限', () => {
   assert.equal(presetFor('social'), 'aurabot-social')
 })
 
-test('群管发起人校验：只认主人', () => {
+test('群管发起人校验：只认管理员', () => {
   assert.equal(isOwner(cfg, '10000001'), true)
   assert.equal(isOwner(cfg, '12345'), false)
   assert.equal(isOwner(cfg, ''), false)
@@ -395,7 +395,7 @@ test('空间互动：说说下的评论整理成上下文', async () => {
     { uin: 1, name: 'A', content: '好看', comment_id: 'c1', replies: [{ uin: 9, name: '大肥鱼', content: '谢谢' }] },
     { uin: 2, name: '小明', content: '在哪拍的', comment_id: 'c2', replies: [] },
   ]
-  assert.deepEqual(summarizeComments(comments, { selfId: '9', ownerQQ: '2', ownerName: '主人' }), ['A：好看', '  └ 你：谢谢', '小明（你的主人）：在哪拍的'])
+  assert.deepEqual(summarizeComments(comments, { selfId: '9', ownerQQ: '2', ownerName: '管理员' }), ['A：好看', '  └ 你：谢谢', '小明（你的管理员）：在哪拍的'])
   assert.deepEqual(summarizeComments(comments, { selfId: '9', exclude: 'c1' }), ['小明：在哪拍的'])
   assert.equal(summarizeComments(comments, { selfId: '9', max: 1 }).at(-1), '……还有 2 条')
 })
@@ -410,7 +410,7 @@ test('解析：合并转发记下 id，回复里的 <poke> 变成戳一戳', asy
   assert.equal(parseReply('<poke><poke>').items.filter((i) => i.kind === 'poke').length, 1, '一轮最多戳一次')
 })
 
-test('#6 改资料权限：默认仅主人私聊；可开启主人群聊；关闭后都不行', async () => {
+test('#6 改资料权限：默认仅管理员私聊；可开启管理员群聊；关闭后都不行', async () => {
   const { normalize } = await import('../src/core/config.js')
   const d = normalize({ ownerQQ: '1', freedom: false })
   assert.deepEqual(d.profilePerms, { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner', heyboxBrowse: 'owner', heyboxLike: 'owner', heyboxComment: 'owner', heyboxPost: 'owner' })
@@ -422,7 +422,7 @@ test('#6 改资料权限：默认仅主人私聊；可开启主人群聊；关�
   assert.equal(profileToolVisible(d, 'qqNickname', otherPm), false)
   assert.equal(profileToolVisible(d, 'qqNickname', group), false)
   assert.equal(profilePermits(d, 'qqNickname', ownerPm, true).ok, true)
-  assert.equal(profilePermits(d, 'qqNickname', ownerPm, false).ok, false, '主人私聊里混进了别人的话也不行')
+  assert.equal(profilePermits(d, 'qqNickname', ownerPm, false).ok, false, '管理员私聊里混进了别人的话也不行')
   const all = normalize({ ownerQQ: '1', freedom: false, profilePerms: { qqNickname: 'all' } })
   assert.equal(profileToolVisible(all, 'qqNickname', group), true)
   assert.equal(profilePermits(all, 'qqNickname', group, true).ok, true)

@@ -13,7 +13,7 @@ import { qqIn } from './helpers/qq-in.js'
 const MINUTE = 60_000
 const OWNER = '10000001'
 const BOT = '20000002'
-const ownerChat = { kind: 'private', chatId: `private:${OWNER}`, userId: OWNER, nickname: '主人' }
+const ownerChat = { kind: 'private', chatId: `private:${OWNER}`, userId: OWNER, nickname: '管理员' }
 const content = [{ type: 'text', text: '你好' }]
 const settle = async () => { for (let i = 0; i < 20; i++) await new Promise(setImmediate) }
 
@@ -73,7 +73,7 @@ async function failed(promise, minutes) {
 
 const event = (text, id) => ({ post_type: 'message', message_type: 'private', sub_type: 'friend',
   self_id: Number(BOT), user_id: Number(OWNER), message_id: id,
-  sender: { user_id: Number(OWNER), nickname: '主人' }, message: [{ type: 'text', data: { text } }],
+  sender: { user_id: Number(OWNER), nickname: '管理员' }, message: [{ type: 'text', data: { text } }],
 })
 
 test('同一个后台 key 按 1、5、15、30、60 分钟退避；冷却中不调用宿主，warn 只记首次和升级', async (t) => {
@@ -285,7 +285,7 @@ test('宿主工作区里已有的会话也不当成孤儿删除', async (t) => {
   assert.deepEqual(removed, [])
 })
 
-test('主人私聊和群聊被 @ 的建会话退避最多五分钟', async (t) => {
+test('管理员私聊和群聊被 @ 的建会话退避最多五分钟', async (t) => {
   const s = setup(t)
   const group = { kind: 'group', chatId: 'group:777', groupId: '777', mentioned: true }
   for (const minutes of [1, 5, 5, 5, 5]) {

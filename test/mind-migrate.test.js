@@ -31,7 +31,7 @@ function legacyDir() {
   writeFileSync(join(dir, 'diary.json'), JSON.stringify({ plan: {}, history: [{ at: T, text: '今天好累', ok: true, tid: 't1', dryRun: false, media: [{ caption: '泡澡' }] }, { at: T, text: '' }] }))
   mkdirSync(join(dir, 'chatlog'))
   writeFileSync(join(dir, 'chatlog', '2026-11-08.jsonl'), [
-    { t: T, chatId: 'private:1', who: '主人', uid: '1', text: '在吗' },
+    { t: T, chatId: 'private:1', who: '管理员', uid: '1', text: '在吗' },
     { t: T + 2000, chatId: 'private:1', who: 'bot', text: '在呢 刚睡醒' },
     { t: T + 3000, chatId: 'group:9', who: '系统', text: '【系统】某人进群了' },
     { t: T + 4000, chatId: 'group:9', who: '甲', uid: '2', text: '' },
@@ -42,7 +42,7 @@ function legacyDir() {
   const line = v.prepare('INSERT INTO vault_lines (t, chatId, day, dir, who, uid, text) VALUES (?, ?, ?, ?, ?, ?, ?)')
   line.run(T + 2100, 'private:1', '2026-11-08', 'out', '她', '', '刚睡醒') // 聊天记录里那行已经包含：重复
   line.run(T - 3600000, 'private:1', '2026-11-08', 'out', '她', '', '早上好|||起床啦') // 她主动发的：聊天记录里没有
-  v.prepare('INSERT INTO vault_days VALUES (?, ?, ?, ?, ?)').run('private:1', '2026-11-08', '这天主人很忙。', 'd', T)
+  v.prepare('INSERT INTO vault_days VALUES (?, ?, ?, ?, ?)').run('private:1', '2026-11-08', '这天管理员很忙。', 'd', T)
   v.close()
   return dir
 }
@@ -84,7 +84,7 @@ test('迁移：每一类旧数据都搬过来，内容对得上', async () => {
     const diary = m.episode('aurabot:diary:t1')
     assert.equal(diary.gist, '今天好累')
     assert.deepEqual(diary.data.media, ['泡澡'])
-    assert.equal(m.episode('aurabot:day:private:1:2026-11-08').gist, '这天主人很忙。')
+    assert.equal(m.episode('aurabot:day:private:1:2026-11-08').gist, '这天管理员很忙。')
     // 聊天记录：她说的记成 self/out；vault 里重复的不再记，聊天记录里没有的补上（分段符换成空格）
     assert.deepEqual(m.history('qq:private:1').map((x) => [x.who, x.dir, x.text]), [
       ['self', 'out', '早上好 起床啦'],

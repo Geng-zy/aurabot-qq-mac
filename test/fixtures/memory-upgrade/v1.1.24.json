@@ -4,7 +4,7 @@
     { "id": "1124-auto-2", "text": "小明每周去工作室练习拉坯。", "about": "30000001", "aboutName": "小明", "source": "auto", "chatId": "private:30000001", "importance": 0.35, "at": 1776816000000, "hits": 0 },
     { "id": "1124-auto-3", "text": "小明把第一只杯子送给了姐姐。", "about": "30000001", "aboutName": "小明", "source": "auto", "chatId": "private:30000001", "importance": 0.8, "at": 1777680000000, "hits": 0 },
     { "id": "1124-auto-4", "text": "小明准备继续学釉色搭配。", "about": "30000001", "aboutName": "小明", "source": "auto", "chatId": "private:30000001", "importance": 0.7, "at": 1778544000000, "hits": 0 },
-    { "id": "1124-tool", "text": "主人明确让我记住：周末想安静看书。", "about": "10000001", "aboutName": "主人", "tags": ["约定"], "source": "tool", "chatId": "private:10000001", "importance": 0.4, "at": 1769904000000, "hits": 1 },
+    { "id": "1124-tool", "text": "管理员明确让我记住：周末想安静看书。", "about": "10000001", "aboutName": "管理员", "tags": ["约定"], "source": "tool", "chatId": "private:10000001", "importance": 0.4, "at": 1769904000000, "hits": 1 },
     { "id": "1124-event", "text": "陪小雨听完了一场音乐会。", "about": "30000002", "aboutName": "小雨", "tags": ["经历"], "source": "event", "chatId": "", "importance": 0.75, "at": 1772496000000, "hits": 0 },
     { "id": "1124-diary", "text": "今天写日记时想起大家一起种花。", "about": "", "aboutName": "", "tags": ["日记"], "source": "diary", "chatId": "", "importance": 0.45, "at": 1775088000000, "hits": 0 },
     { "id": "1124-panel", "text": "面板原文：喜欢雨天、乌龙茶和猫 🐈\n保留换行。", "about": "30000002", "aboutName": "小雨", "source": "panel", "chatId": "", "importance": 0.2, "at": 1767225600000, "hits": 0 },

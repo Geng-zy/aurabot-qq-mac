@@ -49,10 +49,10 @@ export function hasActionPhrase(text, pattern) {
 }
 
 export const wantsMeal = (text) => hasActionPhrase(text, /点.{0,8}外卖|吃(?:饭|点东西|点吃的|些东西|一顿)|找点吃的|填饱肚子|去吃|给自己弄点吃的/u)
-export const wantsOwnerChat = (text) => hasActionPhrase(text, /(?:去|想|主动)?找(?:主人|他|你)(?![画唱买做])|(?:跟|和|对)(?:主人|他|你)(?:说|聊)|(?:私聊|联系|问候)(?:主人|他|你)|给主人发(?:消息|一句话)/u)
+export const wantsOwnerChat = (text) => hasActionPhrase(text, /(?:去|想|主动)?找(?:管理员|他|你)(?![画唱买做])|(?:跟|和|对)(?:管理员|他|你)(?:说|聊)|(?:私聊|联系|问候)(?:管理员|他|你)|给管理员发(?:消息|一句话)/u)
 
 function explicitAction(want) {
-  // 旧版见到「主人」就填 reach_owner。只有能核对出联系意图的旧条目保留指定动作。
+  // 旧版见到「管理员」就填 reach_owner。只有能核对出联系意图的旧条目保留指定动作。
   if (want.action === 'reach_owner' && !wantsOwnerChat(want.text)) return ''
   return want.action || ''
 }

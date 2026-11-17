@@ -34,7 +34,7 @@ export function pendingInThread(comment, selfId, handled = new Set()) {
  * @param {object[]} comments get_qzone_msg_detail 的 comments
  * @param {object} o selfId / ownerQQ / ownerName；exclude = 要跳过的一级评论 id；max = 最多几行
  */
-export function summarizeComments(comments, { selfId, ownerQQ, ownerName = '主人', exclude = '', max = 8 } = {}) {
+export function summarizeComments(comments, { selfId, ownerQQ, ownerName = '管理员', exclude = '', max = 8 } = {}) {
   const who = (u) => (String(u.uin) === String(selfId) ? '你' : `${u.name || u.uin}${String(u.uin) === String(ownerQQ) ? `（你的${ownerName}）` : ''}`)
   const lines = []
   for (const c of comments || []) {
@@ -59,7 +59,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   let busy = false
 
   const self = () => String(hub.selfId || getConfig().botQQ)
-  const owner = () => getConfig().ownerName || '主人'
+  const owner = () => getConfig().ownerName || '管理员'
 
   async function write(prompt) {
     const out = await hub.runSystemTurn('qzone-social', 'QQ · 空间互动', `【空间互动，不是聊天，这一轮不会发到聊天里】\n${prompt}\n\n只输出评论正文本身，一两句、口语、不超过 40 个字，别加引号和前缀；不想评就只回 [沉默]。`, { timeoutMs: 120000 })

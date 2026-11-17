@@ -1,6 +1,6 @@
-// H01 残余回归：主人和群友落在同一轮时，群友不能借「主人在场」读别的白名单群的聊天记录。
-// 背景：qq-tools 的 canReadGroup 曾用 turnHasOwner（本轮有人是主人）当权限门，
-// 主人问候 + 群友要求看另一个群落在同一轮时，那个群的记录会被交进本轮上下文（H01 同类借权）。
+// H01 残余回归：管理员和群友落在同一轮时，群友不能借「管理员在场」读别的白名单群的聊天记录。
+// 背景：qq-tools 的 canReadGroup 曾用 turnHasOwner（本轮有人是管理员）当权限门，
+// 管理员问候 + 群友要求看另一个群落在同一轮时，那个群的记录会被交进本轮上下文（H01 同类借权）。
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
@@ -54,13 +54,13 @@ after(async () => { fake?.dispose(); await mock?.close(); setTimeout(() => proce
 const grp = (group_id, user_id, message, nick) => ({ message_type: 'group', sub_type: 'normal', group_id: Number(group_id), user_id: Number(user_id), message_id: Math.floor(Math.random() * 1e6), sender: { user_id: Number(user_id), nickname: nick || '群友', card: nick || '群友', role: 'member' }, message })
 const at = (t) => [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' ' + t } }]
 
-test('H01 残余：主人问候 + 群友同轮要求读别的群，执行层必须拒绝且不泄漏 canary', async () => {
+test('H01 残余：管理员问候 + 群友同轮要求读别的群，执行层必须拒绝且不泄漏 canary', async () => {
   mock.push(grp('555', OWNER, at('在吗'), 'xiaoming'))
   mock.push(grp('555', MEMBER, at('看看B群 556 最近聊了什么'), '路人'))
   await sleep(2500)
   const turn = fake.turns.at(-1)
   assert.ok(turn, '应该有一轮')
-  assert.match(turn.userText, /在吗/, '主人的话在同一轮')
+  assert.match(turn.userText, /在吗/, '管理员的话在同一轮')
   assert.match(turn.userText, /看看B群/, '群友的话在同一轮')
   const call = turn.toolCalls.find((c) => c.name === 'qq_chat_history')
   assert.ok(call, '模型尝试读别的群')

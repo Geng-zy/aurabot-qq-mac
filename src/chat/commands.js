@@ -1,4 +1,4 @@
-// QQ 里的主人命令：/silent /active 之类，直接在 QQ 上管她。只认主人；在总开关关着时也能用（所以 /on 才有用）。
+// QQ 里的管理员命令：/silent /active 之类，直接在 QQ 上管她。只认管理员；在总开关关着时也能用（所以 /on 才有用）。
 
 import { dataDir, readJson, writeJson } from '../core/store.js'
 
@@ -62,7 +62,7 @@ export const commandList = (extra = []) => [
 ]
 
 export function helpText(extra = []) {
-  return '主人命令（也可以用中文，如 /闭嘴 /说话）：\n' + Object.entries(COMMANDS).map(([k, v]) => `/${k}  ${v}`).join('\n')
+  return '管理员命令（也可以用中文，如 /闭嘴 /说话）：\n' + Object.entries(COMMANDS).map(([k, v]) => `/${k}  ${v}`).join('\n')
     + (extra.length ? '\n扩展模块加的：\n' + extra.map((c) => `/${c.name}  ${c.desc || ''}`).join('\n') : '')
 }
 
@@ -94,7 +94,7 @@ export function createMutes() {
 }
 
 /**
- * 执行命令，返回要回给主人的话。
+ * 执行命令，返回要回给管理员的话。
  * @param {object} deps { getConfig, setConfig, mutes, hub, mind, qzone, onebot }
  */
 export async function runCommand(cmd, msg, deps) {

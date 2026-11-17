@@ -1,4 +1,4 @@
-// 按日期想事、翻某天的原话，跨会话时仍保护主人私聊。
+// 按日期想事、翻某天的原话，跨会话时仍保护管理员私聊。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { parsePeriod, dayKey } from '../src/mind/clock.js'
@@ -66,7 +66,7 @@ test('按日期回顾能找到已归档的周摘要，并沿用会话可见性',
   assert.doesNotMatch(group.message, /读书清单|新电影/)
 })
 
-test('mind_read_day：群和其他私聊可跨会话查原话，主人私聊留在来源会话', async (testContext) => {
+test('mind_read_day：群和其他私聊可跨会话查原话，管理员私聊留在来源会话', async (testContext) => {
   let ownerTurn = true
   const { a, tools } = setup(() => ownerTurn)
   testContext.after(() => a.close())
@@ -77,7 +77,7 @@ test('mind_read_day：群和其他私聊可跨会话查原话，主人私聊留�
   a.mind.perceive({ window: 'qq:private:3', who: 'qq:3', text: '朋友说在看纪录片', at, msgId: 'd' })
   const t = tools(OWNER)
   const r = await t.mind_read_day.execute({ period: '昨天' })
-  assert.match(r.message, /主人：明天要考试/)
+  assert.match(r.message, /管理员：明天要考试/)
   assert.match(r.message, /你：加油！/)
   assert.doesNotMatch(r.message, /游戏/)
   const g = await t.mind_read_day.execute({ period: '昨天', chat: 'group:5' })

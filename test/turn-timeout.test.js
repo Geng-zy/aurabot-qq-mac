@@ -35,7 +35,7 @@ function setup(t, minutes, { brain, replyMarker = false, withMind = false, build
     else process.env.AURABOT_DATA_DIR = oldDir
     rmSync(root, { recursive: true, force: true })
   })
-  return { hub, fake, mind, warnings, logs, chat: { kind: 'private', chatId: 'private:8', userId: '8', nickname: '主人' } }
+  return { hub, fake, mind, warnings, logs, chat: { kind: 'private', chatId: 'private:8', userId: '8', nickname: '管理员' } }
 }
 
 test('只向指定群放行核准的片段，撤回使旧会话、断线待发和回忆失效', async (t) => {

@@ -30,7 +30,7 @@ test('社交规则：不能操作电脑，但画画这类工具照用', () => {
   assert.doesNotMatch(rules, /没有任何电脑操作能力/)
 })
 
-test('她可以不搭理人：写进规则，整段 [沉默] 不发任何东西，主人除外', () => {
+test('她可以不搭理人：写进规则，整段 [沉默] 不发任何东西，管理员除外', () => {
   const rules = rulesText('social', normalize({ ownerName: '哥哥' }))
   assert.match(rules, /你可以不搭理人/)
   assert.match(rules, /被 @ 了也一样/)

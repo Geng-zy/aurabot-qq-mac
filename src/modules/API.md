@@ -116,14 +116,14 @@ export default {
 | `api.sendText(chatId, text)` | 原样发一条文字 |
 | `api.reply(msg, text)` | **回某一条消息**：群里以「引用回复」发出（大家能看出在回谁），私聊直接发 |
 | `api.sendImage(chatId, 图片路径或网址)` | 发图 |
-| `api.sendFile(chatId, 文件路径或网址, 文件名?)` | 把文件（文档、压缩包、音频、视频……）当文件发过去。要先在面板「聊天」页打开「发文件」；本机文件给**绝对路径**，而且只能在 QQ 工作区或主人在面板里加的目录里；单个文件有大小上限（默认 50 MB）。网关在别的机器 / 容器里看不到本机路径时，小文件会自动改用 base64 再试一次 |
+| `api.sendFile(chatId, 文件路径或网址, 文件名?)` | 把文件（文档、压缩包、音频、视频……）当文件发过去。要先在面板「聊天」页打开「发文件」；本机文件给**绝对路径**，而且只能在 QQ 工作区或管理员在面板里加的目录里；单个文件有大小上限（默认 50 MB）。网关在别的机器 / 容器里看不到本机路径时，小文件会自动改用 base64 再试一次 |
 | `api.sendVoiceFile(chatId, 音频文件, 日志备注?)` | 把本机一个音频文件当语音条发出去（不走「念文字」） |
 | `api.sendSegments(chatId, [OneBot 消息段], 日志备注)` | 发任意 OneBot 消息段 |
 | `api.onebot(action, params)` | 直接调 OneBot（SnowLuma）的任意 API，比如 `api.onebot('get_group_member_list', { group_id: 123 })` |
 
 `chatId` 的格式：`private:QQ号`、`group:群号`（她后台自己想事情用的会话是 `system:名字`，工具生成函数里可能见到，发不了消息）。
 
-判断是不是主人：`api.isOwner(msg.userId)`。
+判断是不是管理员：`api.isOwner(msg.userId)`。
 
 **用模型**
 
@@ -143,15 +143,15 @@ export default {
 | `api.tool(fn 或 工具)` | 给她加工具（见「工具」） |
 | `api.defineTool({ name, description, properties, required, execute })` | 做一个工具 |
 | `api.context(({ chat, sessionId }) => '文字')` | 每轮聊天前塞进她上下文的话（比如「现在北京 20 度」）；返回空串就不塞 |
-| `api.rule((kind, cfg) => '一条规则')` | 补一条她的规则（会放进系统提示词；kind 是 `private` 主人私聊 / `social` 群聊和别人）。告诉她「你会查天气，用 xxx 工具」就写在这里。可以直接给字符串、也可以返回多条（数组）；函数**每一轮都会重新调用**，所以里面可以拼当前设置 |
-| `api.command({ name, aliases, desc, run(arg, msg) })` | 主人在 QQ 里发 `/name 参数` 时调用，`run` 返回的文字直接回到**发命令的那个聊天**（群里发就回群里）。名字可以是中文（`name: '天气'`），中文命令后面可以不加空格（`/天气北京`）；`arg` 是命令名后面剩下的全部文字，已经去掉首尾空格。**只认主人**：别人发 `/xxx` 当普通消息处理。和内置命令同名时你的优先 |
+| `api.rule((kind, cfg) => '一条规则')` | 补一条她的规则（会放进系统提示词；kind 是 `private` 管理员私聊 / `social` 群聊和别人）。告诉她「你会查天气，用 xxx 工具」就写在这里。可以直接给字符串、也可以返回多条（数组）；函数**每一轮都会重新调用**，所以里面可以拼当前设置 |
+| `api.command({ name, aliases, desc, run(arg, msg) })` | 管理员在 QQ 里发 `/name 参数` 时调用，`run` 返回的文字直接回到**发命令的那个聊天**（群里发就回群里）。名字可以是中文（`name: '天气'`），中文命令后面可以不加空格（`/天气北京`）；`arg` 是命令名后面剩下的全部文字，已经去掉首尾空格。**只认管理员**：别人发 `/xxx` 当普通消息处理。和内置命令同名时你的优先 |
 | `api.every(毫秒, fn, 名字?)` | 定时任务（名字用在出错日志里）。查新消息、整理缓存这类后台活可以用；**她自己会去做的事（逛、刷、写）别用它定时替她做**，交给 `api.mind.offer` 由她决定 |
 | `api.later(毫秒, fn)` | 过一会儿做一次 |
 | `api.route('/路径', async (req, res) => 返回值, options?)` | 加一个网页接口：地址是 `/aurabot/api/ext/<id>/路径`；返回对象就当 JSON 回；要自己回（比如图片）就用 `api.core.http.send(res, 200, buf, 'image/png')`。1.2.3 起管理接口可传 `{ access: 'panel' }`，复用宿主回环/可信代理、Host 与 CSRF 闸；不传时保持现有行为，由模块验证客户端凭据 |
 | `api.onDispose(fn)` | 模块停下时要做的收尾 |
 
-QQ 主人命令的参数或回执涉及隐私时，可用 `api.command({ name: 'private-query', sensitive: true, run })`。宿主的命令日志只记命令名，回执发送失败时结束本次发送。
-宿主在执行敏感命令和发送回执前复核主人及授权代次。模块可以按需限制为主人私聊，并单独处理模拟命令。
+QQ 管理员命令的参数或回执涉及隐私时，可用 `api.command({ name: 'private-query', sensitive: true, run })`。宿主的命令日志只记命令名，回执发送失败时结束本次发送。
+宿主在执行敏感命令和发送回执前复核管理员及授权代次。模块可以按需限制为管理员私聊，并单独处理模拟命令。
 
 **别的模块和插件内部**（全开放）
 
@@ -169,7 +169,7 @@ QQ 主人命令的参数或回执涉及隐私时，可用 `api.command({ name: '
 
 | | |
 |---|---|
-| `hub` | 聊天中枢：`deliver(chatId, text)` `sendText` `sendVoice(chatId, 文字)` `sendVoiceFile(chatId, 音频文件)` `sendImage` `sendSticker(chatId, 名字)` `sendSegments` `runSystemTurn(名字, 标题, 提示词)` `pushToSession(...)` `resetChat(chatId)` `groupName(群号)` `turnHasOwner(sessionId)`（只表示本轮有人是主人，别拿它做权限门，用下面的 `turnSendersAllOwner`） `turnSendersAllOwner(sessionId)` `referenceImage(chat, 'last' 或 'quote')`（取当前聊天最近收到 / 引用的图，返回 Buffer，沿用短期缓存） `chatOfSession(sessionId)` `stats()` `sessions()` `chatLogOf(日期)` `lastChatAt` `lastOwnerChatAt` …… |
+| `hub` | 聊天中枢：`deliver(chatId, text)` `sendText` `sendVoice(chatId, 文字)` `sendVoiceFile(chatId, 音频文件)` `sendImage` `sendSticker(chatId, 名字)` `sendSegments` `runSystemTurn(名字, 标题, 提示词)` `pushToSession(...)` `resetChat(chatId)` `groupName(群号)` `turnHasOwner(sessionId)`（只表示本轮有人是管理员，别拿它做权限门，用下面的 `turnSendersAllOwner`） `turnSendersAllOwner(sessionId)` `referenceImage(chat, 'last' 或 'quote')`（取当前聊天最近收到 / 引用的图，返回 Buffer，沿用短期缓存） `chatOfSession(sessionId)` `stats()` `sessions()` `chatLogOf(日期)` `lastChatAt` `lastOwnerChatAt` …… |
 | `media` | 通用媒体读取与转换辅助：`mimeOf(bytes)`、`avatar()`、`sticker(md5)`、`ffmpegPath()`、`parseWav(bytes)`、`toMono16k(bytes)`，详见下文（1.2.3 起） |
 | `onebot` | QQ 网关：`call(action, params, { timeoutMs })`、`state` |
 | `local` | 本地接口（「本地接口」页那四项）：`active(slot)` `call(slot, 参数)` |
@@ -184,13 +184,13 @@ QQ 主人命令的参数或回执涉及隐私时，可用 `api.command({ name: '
 | `logger` | 插件的日志器（`logger.child('名字')` 拿一个分类） |
 | `root` | 插件自己的安装目录 |
 
-### 已有聊天的外部主人入口（1.2.3 起）
+### 已有聊天的外部管理员入口（1.2.3 起）
 
 `api.core.hub.sessions()` 返回现有聊天映射（含 `sessionId/title`）；`chatLogDays()` 返回已有流水日期，按 `YYYY-MM-DD` 升序排列；`chatLogOf(day)` 返回当天流水。这些查询复用原数据，不创建平台专用的会话或历史副本。流水可能含系统消息；模块展示时自己过滤，不把管理视角给未验证身份的人。流水只是近几天的工作文件，她的完整经历在心智核心里（`api.mind`）。
 
-`await api.core.hub.receiveOwnerMessage(chatId, { text?, image?, wav?, via?, originId?, assertAuthorized? })` 用于**模块已经验证为主人**的输入。它不是公开匿名接口；模块必须保护自己的网络边界和设备凭据。只接受 `sessions()` 已存在的 private/group 会话，遵守总开关、聊天白名单和暂停状态；不会新建其他聊天。`image` 为图片 Buffer，`wav` 为 PCM WAV Buffer，沿用本体缩图、模型视觉降级及本地/云端/DSH 转写。来源 `via` 默认 `external`，最多 40 字，用于提示与原流水来源；`originId` 是不透明的来源端标记，仅进入实时事件，不落盘。这句话（语音是转出来的字）和 QQ 里收到的一样记进心智核心的感知、聊天流水和原会话，`originId` 同时作为她感知记录里的消息编号（`via:originId`），同一条不会记两次；群会话保留 social 权限，回复仍经原 QQ 出口。
+`await api.core.hub.receiveOwnerMessage(chatId, { text?, image?, wav?, via?, originId?, assertAuthorized? })` 用于**模块已经验证为管理员**的输入。它不是公开匿名接口；模块必须保护自己的网络边界和设备凭据。只接受 `sessions()` 已存在的 private/group 会话，遵守总开关、聊天白名单和暂停状态；不会新建其他聊天。`image` 为图片 Buffer，`wav` 为 PCM WAV Buffer，沿用本体缩图、模型视觉降级及本地/云端/DSH 转写。来源 `via` 默认 `external`，最多 40 字，用于提示与原流水来源；`originId` 是不透明的来源端标记，仅进入实时事件，不落盘。这句话（语音是转出来的字）和 QQ 里收到的一样记进心智核心的感知、聊天流水和原会话，`originId` 同时作为她感知记录里的消息编号（`via:originId`），同一条不会记两次；群会话保留 social 权限，回复仍经原 QQ 出口。
 
-`assertAuthorized` 是同步函数，凭据被撤销时抛错。在入口、媒体准备完成和模型投递前均会再次检查，同时重新检查主人身份及聊天是否仍然开放。模块停止后应让此函数拒绝仍在途的请求。`pushToSession` 也接受此检查作为可选参数；未提供时保持原行为。输入被其他模块的 `prompt` 拦截时沿用其原语义，不保证模型会回复。
+`assertAuthorized` 是同步函数，凭据被撤销时抛错。在入口、媒体准备完成和模型投递前均会再次检查，同时重新检查管理员身份及聊天是否仍然开放。模块停止后应让此函数拒绝仍在途的请求。`pushToSession` 也接受此检查作为可选参数；未提供时保持原行为。输入被其他模块的 `prompt` 拦截时沿用其原语义，不保证模型会回复。
 
 `api.core.media.avatar()` 返回当前自定义头像，缺省用插件默认头像；`sticker(md5)` 从**当前运行**的 `stickers` 模块读取精确匹配素材。返回 `{ bytes: Buffer, type: string }`，缺失或非图片返回 `null`，不暴露数据目录或素材路径。`api.use('stickers')?.library()` 继续提供素材列表与名称。`mimeOf(bytes)` 按文件头识别类型；`ffmpegPath()` 复用现有 ffmpeg 配置和本机探测；`parseWav(bytes)` 返回 `{ rate, channels, data }`，`toMono16k(bytes)` 转为单声道 16 kHz WAV。解码进程、时长与上传限制由调用模块负责。
 
@@ -200,7 +200,7 @@ QQ 主人命令的参数或回执涉及隐私时，可用 `api.command({ name: '
 
 | 事件 | 参数 | 说明 |
 |---|---|---|
-| `message` | `msg` | 收到一条**她会处理的**消息（白名单内、不是主人命令、总开关开着、没闭嘴）。**群里每一条都会来，在「回不回」的决定之前**——所以没人 @ 她的消息你也能接管。**返回 true = 你接管了**，她不再处理；返回 false 或不返回 = 不管；多个模块按加载顺序问，第一个返回 true 的接管 |
+| `message` | `msg` | 收到一条**她会处理的**消息（白名单内、不是管理员命令、总开关开着、没闭嘴）。**群里每一条都会来，在「回不回」的决定之前**——所以没人 @ 她的消息你也能接管。**返回 true = 你接管了**，她不再处理；返回 false 或不返回 = 不管；多个模块按加载顺序问，第一个返回 true 的接管 |
 | `poke` | 原始戳一戳事件 | 有人戳她。返回 true = 你接管了 |
 | `reply` | `text, { chatId, userText }` | 她要发一段话之前。**返回新文字 = 改写**；返回 `null` = 这次不发；不返回 = 不改 |
 
@@ -209,10 +209,10 @@ QQ 主人命令的参数或回执涉及隐私时，可用 `api.command({ name: '
 | 事件 | 参数 | 改的是什么 |
 |---|---|---|
 | `group/decide` | `decision, { msg, policy, recentTexts, memScore }` | 群里这条消息（没被 `message` 接管的）她**回不回、怎么回**。没人叫她时插不插话本来由她自己（心智核心按她的性格、心情、话题、在场的人算），`policy.interjectChance` 就是这次她想接话的程度。返回 `null` 在这里无效（等于不改）。`decision` 是 `{ reply, mode, reason }`，mode 是 `must`（被叫到）/ `engaged`（正在参与话题）/ `interject`（插话）。返回 `{ reply: true, mode: 'must' }` 就让她必回，`{ reply: false }` 就让她不理。想整套换掉插话策略就在这里写 |
-| `prompt` | `content, { chat, senderId, queryText, recentMessages }` | **交给她的内容**：`[{ type: 'text', text }, { type: 'image', … }]`。可以加背景信息、改格式、去掉图片；返回 `null` 这次不交给她。面板「给扩展提供近期私聊线索」打开后，已获主人身份的当前主人私聊可提供最近的 `recentMessages`，格式为 `{ speakerId, at, text }[]`。其他情况为空。 |
+| `prompt` | `content, { chat, senderId, queryText, recentMessages }` | **交给她的内容**：`[{ type: 'text', text }, { type: 'image', … }]`。可以加背景信息、改格式、去掉图片；返回 `null` 这次不交给她。面板「给扩展提供近期私聊线索」打开后，已获管理员身份的当前管理员私聊可提供最近的 `recentMessages`，格式为 `{ speakerId, at, text }[]`。其他情况为空。 |
 | `reply/items` | `items, { chatId, text, userText }` | 她的回复**拆好之后**（哪条发语音、配不配表情都已经决定了）：每条 `{ kind: 'text' \| 'voice' \| 'sticker' \| 'poke' \| 'image', value, replyTo }`。可以改顺序、全部变语音、去掉表情、加图片 |
 | `send` | `message, { chatId, note, force }` | **最终发给 QQ 的消息段**（OneBot 格式）。所有发出去的消息都经过这里：她的回复、命令回复、模块发的。加签名、过滤词、抄送到别处都在这里 |
-| `model` | `selection, chat` | **这个聊天用哪个模型**（同步，不能 async）：返回 `{ provider, model, reasoningEffort }`。比如群里用便宜的、私聊用好的。`selection` 是面板选的（没选时是 DSH 默认，拿不到时是 `null`），主人在面板里「按聊天选模型」设过的话，已经按那个聊天算好了；模块在它之后还可以再改。换了之后从这个聊天的下一条消息起生效 |
+| `model` | `selection, chat` | **这个聊天用哪个模型**（同步，不能 async）：返回 `{ provider, model, reasoningEffort }`。比如群里用便宜的、私聊用好的。`selection` 是面板选的（没选时是 DSH 默认，拿不到时是 `null`），管理员在面板里「按聊天选模型」设过的话，已经按那个聊天算好了；模块在它之后还可以再改。换了之后从这个聊天的下一条消息起生效 |
 | `persona` | `text` | **她是谁**全文（同步）：心智核心给的当前版本人格卡 + 她自己写的价值观等 + 自我故事摘要 + 不知不觉的变化。返回新文字就换掉这一轮看到的（不会改心智核心里的版本） |
 | `rules` | `text, kind` | **她的规则**全文（同步，kind 是 `private` / `social`） |
 
@@ -254,12 +254,12 @@ api.on('reply/items', (items) => [...items, { kind: 'text', value: '—— 大�
 
 ## 工具
 
-工具是**她自己决定什么时候用**的能力（和命令不同，命令是主人手动发）。
+工具是**她自己决定什么时候用**的能力（和命令不同，命令是管理员手动发）。
 
 ```js
 api.tool(({ chat, level, sessionId }) => {
   // chat：当前聊天 { chatId, kind: 'private' | 'group' | 'system', userId, groupId }
-  // level：'full' 主人私聊（完整权限）/ 'social' 群聊和别人 / 'chat'（没有工具）
+  // level：'full' 管理员私聊（完整权限）/ 'social' 群聊和别人 / 'chat'（没有工具）
   if (chat.kind === 'system') return []         // 不给就返回 []
   return api.defineTool({
     name: 'weather_now',                         // 字母、数字、_，别和别的工具重名
@@ -278,7 +278,7 @@ api.tool(({ chat, level, sessionId }) => {
 - `required` 不写就是都可选；`execute` 的第二个参数是 DSH 传来的执行信息（一般用不到）
 - 返回 `{ ok: false, message: '原因' }` 时，她会看到失败原因，通常会用自己的话告诉对方没成功；抛出的错误也会变成这样
 - 工具的生成函数每次挂工具时调用（会话第一次用到、工具清单变化时），不是每次调用工具都调
-- 只想给主人用：在 `execute` 里判断 `api.core.hub.turnSendersAllOwner(sessionId)`（这一轮说话的人**全是主人**才放行；主人私聊会自动放行）。别用 `turnHasOwner`——它只表示本轮「有人是主人」，主人和群友同轮时别人能借权（H01 的教训）。
+- 只想给管理员用：在 `execute` 里判断 `api.core.hub.turnSendersAllOwner(sessionId)`（这一轮说话的人**全是管理员**才放行；管理员私聊会自动放行）。别用 `turnHasOwner`——它只表示本轮「有人是管理员」，管理员和群友同轮时别人能借权（H01 的教训）。
 - 工具的名字和描述尽量别经常改：改一次，DeepSeek 的缓存就失效一次
 - 想让她**知道**自己有这个本事，再加一条 `api.rule(() => '你会查天气：别人问天气时用 weather_now')`
 
@@ -335,7 +335,7 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 ## 心智核心
 
 她只有一个心智：记忆、情绪、性格都在心智核心里（`src/mind/`），不在任何模块里。模块**不能**替她做决定、不能改她的人格、不能自己另存一份她的记忆；
-模块能做的是：把她做过、看过、想给主人看的事告诉心智核心，查她记得的事，把她能做的事交给她。都通过 `api.mind`：
+模块能做的是：把她做过、看过、想给管理员看的事告诉心智核心，查她记得的事，把她能做的事交给她。都通过 `api.mind`：
 
 | | |
 |---|---|
@@ -345,8 +345,8 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 | `api.mind.now()` | 她现在的时间（按她的时区） |
 | `api.mind.awake()` | 她醒着没有。睡着时模块别替她做事、别替她看消息 |
 | `api.mind.offer({ id, label, needs, effort, delayHours, cooldownMinutes, payoff, keywords, available, run })` | 把一件她能做的事交给她，**由她自己决定什么时候做**（模块不再自己定时去做）。`needs` 是这件事满足哪些基本需要（`fun` 新鲜和乐趣、`curiosity` 好奇、`beauty` 美、`companion` 陪伴、`recognition` 被认可、`meaning` 意义……），0～1；`effort` 多费力（0～1）；`delayHours` 回报要等多久；`available()` 返回 `true` 或者做不了的原因（面板里的开关、每天上限照旧在这里判断）；`run()` 返回 `{ ok, summary, outcome }`，`outcome` 0～1 是她做完有多满意，她会按它学下次还想不想做。模块停了，交出去的事自动撤掉 |
-| `await api.mind.share({ text, url, hint })` | 刷到 / 做了想给主人看的东西。**模块只提供手，别自己私聊主人**：交给她，她现在能找主人（不在勿扰时段、今天还没找够、上次找他他回了）就自己开口，不想说可以不说；不能就先记着，接下来两天里和主人私聊时她会想起来。`text` 是什么、她觉得怎么样；`url` 链接；`hint` 她要发的话怎么发（比如「用附件工具发图」） |
-| `api.mind.granted(名字)` | 主人有没有批准她这项权限。她通过 QQ 私聊向主人申请，只有主人本人在私聊里说「同意 #编号」才算 |
+| `await api.mind.share({ text, url, hint })` | 刷到 / 做了想给管理员看的东西。**模块只提供手，别自己私聊管理员**：交给她，她现在能找管理员（不在勿扰时段、今天还没找够、上次找他他回了）就自己开口，不想说可以不说；不能就先记着，接下来两天里和管理员私聊时她会想起来。`text` 是什么、她觉得怎么样；`url` 链接；`hint` 她要发的话怎么发（比如「用附件工具发图」） |
+| `api.mind.granted(名字)` | 管理员有没有批准她这项权限。她通过 QQ 私聊向管理员申请，只有管理员本人在私聊里说「同意 #编号」才算 |
 
 看见的内容（`seen`）只是她看过，不是作者对她说的话。真实聊天平台上和人的对话不要用 `experience`，那是她的感知，由聊天中枢交给心智核心。
 
@@ -372,7 +372,7 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 
 不用上 QQ 也能试：面板「已安装」页的「模拟测试」——
 
-- **模拟一条消息**：选你是主人还是别人、私聊还是群聊，写一句话，看它会被哪个模块接管、命令回了什么；再写一句「她的回复」，看经过各个模块改写后最后会发出去什么
+- **模拟一条消息**：选你是管理员还是别人、私聊还是群聊，写一句话，看它会被哪个模块接管、命令回了什么；再写一句「她的回复」，看经过各个模块改写后最后会发出去什么
 - 你的模块加的 `/命令` 在模拟里**会执行**（看 `run` 回了什么）
 - **调用工具**：选一个工具、填参数（JSON），直接调用，看返回值
 - 这期间**发出去的消息只截下来显示，不会真发到 QQ**。但模块直接调 `api.onebot(...)` 的操作（禁言、发空间……）不在此列，是真的会执行的

@@ -215,7 +215,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       const feelings = emotion.describe({ window, body: current.body, people: [who], name: (id) => person(id)?.name || '对方' })
       const system = [
         selfPrompt({ publicOnly }), feelings, describeSpeechPlan(turn.plan),
-        mustReply ? '主人正在叫你。给他一条简短的正文回应；需要确认时问一句。' : '',
+        mustReply ? '管理员正在叫你。给他一条简短的正文回应；需要确认时问一句。' : '',
         '你是收消息的一方。接着「对方刚说」往下聊。站在自己的角度回复，不要复述对方的消息。',
         '对方还没确定的事按未确认处理。历史消息的日期是说话日期，不能直接当事件日期。对方质疑时以带日期的原话为准，找不到依据就说拿不准。只输出 JSON：{"text":"你要回复的话"}。',
       ].filter(Boolean).join('\n')

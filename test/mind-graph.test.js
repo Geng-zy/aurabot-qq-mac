@@ -6,7 +6,7 @@ import { createMindAdapter } from '../src/mind-adapter/index.js'
 test('星图：人和「一起出现过」的线，次数越多越粗；只算还认识的人', async () => {
   const a = createMindAdapter({ memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => Date.UTC(2026, 10, 10), random: () => 0.5, ask: async () => '{"episodes":[]}' })
   const m = a.mind
-  for (const [id, name] of [['qq:1', '主人'], ['qq:2', '小明'], ['qq:3', '小红'], ['qq:4', '路人']]) m.notePerson(id, { name })
+  for (const [id, name] of [['qq:1', '管理员'], ['qq:2', '小明'], ['qq:3', '小红'], ['qq:4', '路人']]) m.notePerson(id, { name })
   m.relations.edit('qq:2', { closeness: 0.7 })
   let n = 0
   const ep = (who) => m.memory.insert({ at: Date.UTC(2026, 10, 9) + ++n, window: 'qq:group:5', gist: '一起玩了第 ' + n + ' 局', kind: 'event', who })

@@ -126,7 +126,7 @@ test('白名单与权限页可单独选择哪些 QQ 会话有生图权限', () =
   assert.equal(folded.props.open, undefined)
   assert.equal(folded.children[0].type, 'summary')
   assert.equal(card.props.title, '生图白名单')
-  assert.match(card.props.desc, /主人有权限画图/)
+  assert.match(card.props.desc, /管理员有权限画图/)
   assert.deepEqual(chips().map(textOf), ['白名单好友33', '白名单群33', '群44'])
   assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [true, false, false])
   chips()[1].props.onClick()
@@ -192,7 +192,7 @@ test('她现在：身体状态条、心情、此刻的感受（带对象）；�
     ok: true, now: '2026年11月10日 周二 10:00', ownerQQ: '1', hunger: true, feedOnlyByOwner: false,
     body: { energy: 0.4, sleepiness: 0.3, hunger: 0.7, asleep: false, groggy: false, shift: 0, lastMeal: { at: Date.now() - 3600000, food: '奶茶', by: 'qq:1' }, lastSleep: { hours: 7.5, quality: 0.94, wokenBy: '' } },
     mood: { v: 0.3, a: 0.1, label: '心情不错' },
-    emotions: [{ name: '感激', intensity: 0.5, target: 'qq:1', targetName: '主人', why: '想起：给我吃了奶茶', source: 'recall', hidden: false, at: Date.now() }],
+    emotions: [{ name: '感激', intensity: 0.5, target: 'qq:1', targetName: '管理员', why: '想起：给我吃了奶茶', source: 'recall', hidden: false, at: Date.now() }],
     history: [],
   }
   slots[1] = ''
@@ -201,7 +201,7 @@ test('她现在：身体状态条、心情、此刻的感受（带对象）；�
   assert.equal(textOf(findAll(tree, 'h1')[0]), '她现在')
   assert.match(text, /心情不错/)
   assert.match(text, /有些感激/)
-  assert.match(text, /对主人/)
+  assert.match(text, /对管理员/)
   assert.match(text, /回忆唤起/)
   assert.match(text, /\/投喂 食物名/)
   assert.match(text, /在 QQ 里直接说/)
@@ -217,11 +217,11 @@ test('内心：内心日记（标出深想和放空）、想要的、能做的�
   slots[0] = {
     ok: true, boredom: 0.6,
     diary: [
-      { at: Date.now(), thought: '好想他', feel: { name: '思念' }, plan: '想找主人说话', by: 'local' },
-      { at: Date.now() - 60000, thought: '他是不是不理我了', by: 'local', deep: { reason: '涉及主人和你们的关系', thought: '他只是在忙' } },
+      { at: Date.now(), thought: '好想他', feel: { name: '思念' }, plan: '想找管理员说话', by: 'local' },
+      { at: Date.now() - 60000, thought: '他是不是不理我了', by: 'local', deep: { reason: '涉及管理员和你们的关系', thought: '他只是在忙' } },
       { at: Date.now() - 120000, thought: '好无聊', by: 'deepseek', repeated: true },
     ],
-    motivation: { wants: [{ id: 'w1', text: '想找主人说话', at: Date.now() }], needs: [{ id: 'companion', name: '陪伴和归属', deficit: 0.8, strength: 0.5 }], learned: { 'tophub:browse': { runs: 3, expect: 0.7 } }, log: [{ at: Date.now(), label: '读热榜', ok: true, summary: '看了 2 条热榜' }] },
+    motivation: { wants: [{ id: 'w1', text: '想找管理员说话', at: Date.now() }], needs: [{ id: 'companion', name: '陪伴和归属', deficit: 0.8, strength: 0.5 }], learned: { 'tophub:browse': { runs: 3, expect: 0.7 } }, log: [{ at: Date.now(), label: '读热榜', ok: true, summary: '看了 2 条热榜' }] },
     motives: [{ id: 'tophub:browse', label: '读热榜', motive: 0.62, available: true, why: '', wants: [] }, { id: 'diary:write', label: '写空间日记', motive: 0.1, available: false, why: '今天写够了', wants: [] }],
     outreach: { pending: { reason: '想他了' }, log: [{ at: Date.now(), reason: '想他了', kind: 'miss' }] },
     grants: { requests: [{ n: 1, key: 'qqSignature', what: '自己改 QQ 签名', why: '想写点心情', at: Date.now(), status: 'pending' }], granted: { qqAvatar: { at: 1 } } },
@@ -240,7 +240,7 @@ test('内心：内心日记（标出深想和放空）、想要的、能做的�
     assert.equal(details.props.open, undefined)
     assert.equal(textOf(findAll(details, 'summary')[0]), title)
   }
-  for (const s of ['好想他', '深想（涉及主人和你们的关系）：他只是在忙', '在重复，放空了', '想找主人说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'qqAvatar ✕']) assert.ok(text.includes(s), '缺：' + s)
+  for (const s of ['好想他', '深想（涉及管理员和你们的关系）：他只是在忙', '在重复，放空了', '想找管理员说话', '动力 0.62', '满意度 70%', '今天写够了', '刚找过你，还在等你回：想他了', '自己改 QQ 签名', '因为：想写点心情', 'qqAvatar ✕']) assert.ok(text.includes(s), '缺：' + s)
   assert.ok(findAll(tree, panel.Meter).some((m) => m.props.label === '陪伴和归属'))
   const local = findAll(tree, panel.MindLocalModel)[0]
   assert.ok(local, '内心页保留本地模型入口')

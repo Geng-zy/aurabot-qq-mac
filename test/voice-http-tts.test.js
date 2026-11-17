@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-// 生成的音频别落到主人真实的语音缓存里
+// 生成的音频别落到管理员真实的语音缓存里
 const dataDir = mkdtempSync(join(tmpdir(), 'aurabot-http-tts-'))
 process.env.AURABOT_DATA_DIR = dataDir
 

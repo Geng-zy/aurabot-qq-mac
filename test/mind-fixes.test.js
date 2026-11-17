@@ -20,12 +20,12 @@ test('关键词：分词，词典里没有的词用连着的单字拼；虚词�
 
 test('没有向量也能按中文关键词想起来；只有到处都有的词、或记忆里没有的词时不乱想', async () => {
   const { mem } = mk()
-  mem.insert({ at: T0 - 3600e3, window: 'w', gist: '主人说下周三要去北京面试', kind: 'event', importance: 0.7 })
+  mem.insert({ at: T0 - 3600e3, window: 'w', gist: '管理员说下周三要去北京面试', kind: 'event', importance: 0.7 })
   const topics = ['吃烤串', '看了电影', '打游戏到半夜', '下雨没带伞', '买了新键盘']
-  for (let i = 0; i < 40; i++) mem.insert({ at: T0 - i * 3600e3, window: 'w', gist: '主人说' + topics[i % 5], kind: 'event' })
+  for (let i = 0; i < 40; i++) mem.insert({ at: T0 - i * 3600e3, window: 'w', gist: '管理员说' + topics[i % 5], kind: 'event' })
   assert.match((await mem.recall({ cue: '你还记得我说要去北京面试吗' }))[0].text, /北京面试/)
   assert.match((await mem.recall({ cue: '新键盘手感如何' }))[0].text, /新键盘/)
-  assert.equal((await mem.recall({ cue: '主人你在干嘛' })).length, 0)
+  assert.equal((await mem.recall({ cue: '管理员你在干嘛' })).length, 0)
   assert.equal((await mem.recall({ cue: '今天天气不错' })).length, 0)
   assert.ok(mem.topicScore('北京那个面试后来怎么样') > 0.5)
   assert.equal(mem.topicScore('今天天气不错'), 0)
@@ -38,7 +38,7 @@ test('记经历时模型没按格式回：这段不丢，下次再记；连着�
   mem.connect({ think: async () => reply })
   assert.equal((await mem.encodeWindow('qq:private:1', { force: true })).failed, true)
   assert.equal(mem.pendingWindows().length, 1, '还没记，留着')
-  reply = JSON.stringify({ episodes: [{ type: 'pending', gist: '主人明天体检', about: 'qq:1', speaker: 'qq:1', sources: [1] }] })
+  reply = JSON.stringify({ episodes: [{ type: 'pending', gist: '管理员明天体检', about: 'qq:1', speaker: 'qq:1', sources: [1] }] })
   assert.equal((await mem.encodeWindow('qq:private:1', { force: true })).encoded, 1)
   assert.equal(mem.pendingWindows().length, 0)
   // 一直乱回：第三次跳过，不卡死
@@ -52,9 +52,9 @@ test('记经历时模型没按格式回：这段不丢，下次再记；连着�
 
 test('睡觉整理：已经知道的事不重复记，新依据并进去、记得更牢', async () => {
   const { m, mem, add } = mk()
-  mem.insert({ at: T0 - 3 * D, window: 'w', gist: '主人又点了烤串', kind: 'event' })
-  mem.insert({ at: T0 - 1 * D, window: 'w', gist: '主人晚饭吃烤串', kind: 'event' })
-  mem.connect({ think: async ({ scene }) => scene === 'consolidate' ? JSON.stringify({ facts: [{ text: '主人很爱吃烤串', about: 'qq:1', sources: ['1', '2'] }] }) : '{}' })
+  mem.insert({ at: T0 - 3 * D, window: 'w', gist: '管理员又点了烤串', kind: 'event' })
+  mem.insert({ at: T0 - 1 * D, window: 'w', gist: '管理员晚饭吃烤串', kind: 'event' })
+  mem.connect({ think: async ({ scene }) => scene === 'consolidate' ? JSON.stringify({ facts: [{ text: '管理员很爱吃烤串', about: 'qq:1', sources: ['1', '2'] }] }) : '{}' })
   const first = await m.sleeper.replay(T0 - 5 * D)
   const s0 = mem.list({ kind: 'semantic' })[0].stability
   add(D)
@@ -67,8 +67,8 @@ test('睡觉整理：已经知道的事不重复记，新依据并进去、记�
 
 test('梦不会被拿来当「知道的事」的依据', async () => {
   const { m, mem } = mk()
-  mem.insert({ at: T0 - 10 * D, window: '', gist: '梦见主人变成了猫', kind: 'dream' })
-  const real = mem.insert({ at: T0 - 1 * D, window: 'w', gist: '主人说想养猫', kind: 'event' })
+  mem.insert({ at: T0 - 10 * D, window: '', gist: '梦见管理员变成了猫', kind: 'dream' })
+  const real = mem.insert({ at: T0 - 1 * D, window: 'w', gist: '管理员说想养猫', kind: 'event' })
   // 两条向量一模一样，回放时会去找「相关的旧经历」
   const v = Array.from({ length: 8 }, (_, i) => i + 1)
   const model = m.setting('memory.embedModel')
@@ -83,7 +83,7 @@ test('梦不会被拿来当「知道的事」的依据', async () => {
 
 test('没说时间的约定：一周内每轮记着，之后不再时时提醒，聊到了还想得起来；很久没想起会归档', async () => {
   const { mem, add } = mk()
-  mem.insert({ at: T0, window: 'w', gist: '答应给主人画一张猫猫头像', kind: 'intention', importance: 0.6 })
+  mem.insert({ at: T0, window: 'w', gist: '答应给管理员画一张猫猫头像', kind: 'intention', importance: 0.6 })
   assert.equal(mem.dueIntentions({ window: 'w' }).length, 1)
   add(8 * D)
   assert.equal(mem.dueIntentions({ window: 'w' }).length, 0)
@@ -102,7 +102,7 @@ test('老库（第 2 版）打开时补上种类和「关于谁」的索引列�
   old.exec(MIGRATIONS[2])
   old.exec('PRAGMA user_version = 2')
   old.prepare('INSERT INTO episodes (id, at, window, gist, strength, stability, status, json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .run('m:1', T0, 'w', '答应周末陪主人看电影', 0.6, 1, 'live', JSON.stringify({ kind: 'intention', about: 'qq:1' }))
+    .run('m:1', T0, 'w', '答应周末陪管理员看电影', 0.6, 1, 'live', JSON.stringify({ kind: 'intention', about: 'qq:1' }))
   old.close()
   const s = openStore(file)
   assert.equal(s.prep('PRAGMA user_version').get().user_version, 3)

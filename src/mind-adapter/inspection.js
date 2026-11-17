@@ -14,7 +14,7 @@ export function inspectionTools({ mind, window, platform, peopleHere, ownerPriva
   return [
     defineTool({
       name: 'mind_relationship',
-      description: '主动查看你和一个人是什么关系、你对他的印象。主人私聊可按名字、曾用名或账号查其他已认识的人，也可以不填名字看看你熟悉的人。在其他聊天里只能看眼前说话人的简要关系。结果是你积累的印象，可能变化，也不一定是事实。',
+      description: '主动查看你和一个人是什么关系、你对他的印象。管理员私聊可按名字、曾用名或账号查其他已认识的人，也可以不填名字看看你熟悉的人。在其他聊天里只能看眼前说话人的简要关系。结果是你积累的印象，可能变化，也不一定是事实。',
       properties: { person: str('名字、曾用名、QQ 号或渠道:账号；不填则看可查的人') },
       execute: async ({ person }) => {
         syncOwner()

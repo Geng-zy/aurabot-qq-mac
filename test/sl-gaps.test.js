@@ -77,7 +77,7 @@ test('加群申请和邀请：通知、去重、列出并原样处理 flag', asy
   assert.match(remaining.message, /invite:3/)
 })
 
-test('加群申请：仅主人、权限变化、试运行和失败重试', async () => {
+test('加群申请：仅管理员、权限变化、试运行和失败重试', async () => {
   let fail = true
   const s = setupContacts({ cfg: { profilePerms: { qqFriendRequest: 'all' } }, callImpl: () => { if (fail) throw new Error('网关失败') } })
   s.event(groupEvent())
@@ -283,7 +283,7 @@ test('历史记录翻页仍遵守跨群权限', async () => {
   assert.equal(allowed.calls.at(-1).params.group_id, 55555555)
 })
 
-test('新增 QQ 接口参数和主人权限，接受本机路径的群公告不开放', () => {
+test('新增 QQ 接口参数和管理员权限，接受本机路径的群公告不开放', () => {
   const entries = {
     move_group_file: 'group_id!,file_id!,parent_directory!,target_directory!',
     rename_group_file: 'group_id!,file_id!,current_parent_directory,new_name!',
@@ -302,7 +302,7 @@ test('新增 QQ 接口参数和主人权限，接受本机路径的群公告不�
   for (const [action, spec] of Object.entries(entries)) {
     assert.deepEqual(QQ_API[action].slice(0, 2), ['owner', spec], action)
     const params = Object.fromEntries(paramsOf(action).map((p) => [p.name, 1]))
-    assert.match(refusal({ action, params, cfg: { enabled: true, dryRun: false }, owner: false, chat: groupChat }), /主人/, action)
+    assert.match(refusal({ action, params, cfg: { enabled: true, dryRun: false }, owner: false, chat: groupChat }), /管理员/, action)
     assert.equal(refusal({ action, params, cfg: { enabled: true, dryRun: false }, owner: true, chat: groupChat }), '', action)
     assert.match(refusal({ action, params, cfg: { enabled: true, dryRun: true }, owner: true, chat: groupChat }), /试运行/, action)
     assert.deepEqual(pickParams(action, { ...params, unknown: '丢掉' }), params)
@@ -310,7 +310,7 @@ test('新增 QQ 接口参数和主人权限，接受本机路径的群公告不�
   for (const action of ['_send_group_notice', 'send_packet', 'get_credentials']) assert.equal(QQ_API[action], undefined)
 })
 
-test('新增 QQ 接口的写操作仅允许主人私聊，仍检查试运行', async () => {
+test('新增 QQ 接口的写操作仅允许管理员私聊，仍检查试运行', async () => {
   let build
   const cfg = { enabled: true, dryRun: false, ownerQQ: '1', freedom: true, qqApi: { enabled: true } }
   const calls = []
@@ -374,7 +374,7 @@ test('卡片里的地址只认网址，本机路径发不出去', async () => {
   assert.equal(sent.length, 1)
 })
 
-test('跨聊天发消息：群里只有主人那一轮能发，别人私聊没有这个工具', async () => {
+test('跨聊天发消息：群里只有管理员那一轮能发，别人私聊没有这个工具', async () => {
   const { default: mod } = await import('../src/modules/qq-tools/index.js')
   const sent = []
   let owner = false

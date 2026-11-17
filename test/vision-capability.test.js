@@ -94,7 +94,7 @@ const sendImage = async () => {
     self_id: Number(BOT), user_id: Number(OWNER), time: Math.floor(Date.now() / 1000),
     message_id: Math.floor(Math.random() * 1e6),
     message: [{ type: 'image', data: { sub_type: 0, file: 'base64://' + PNG.toString('base64') } }],
-    sender: { user_id: Number(OWNER), nickname: '主人' },
+    sender: { user_id: Number(OWNER), nickname: '管理员' },
   })
   await wait(1500)
 }

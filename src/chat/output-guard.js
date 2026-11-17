@@ -42,7 +42,7 @@ const META = /(?:not addressed to me|no reply needed|stay silent|remain silent|i
 const META_ZH = /^(?:这条不是对我说的|不用接|保持沉默|先不接)(?:[。！？.!?\s]|$)/
 const DRAFT = /(?:^|\n)[ \t]*(?:Careful|Draft|Final answer|Internal reasoning|自检|定稿|草稿|思考过程|内心独白)[ \t]*[:：]/i
 const EN_SENTENCE = /[A-Za-z][^\p{Script=Han}\n]{0,200}?[.!?]/gu
-const PLANNING_HEAD = /^(?:主人|用户|群友|对方|他|她)(?:刚才|刚刚|又|正在|在|刚){0,2}\s*(?:问我|叫我|让我|在等我)/u
+const PLANNING_HEAD = /^(?:管理员|用户|群友|对方|他|她)(?:刚才|刚刚|又|正在|在|刚){0,2}\s*(?:问我|叫我|让我|在等我)/u
 const PLANNING_DECISION = /[，。；、！？,;：:]\s*(?:我)?\s*(?:得|该|应该|需要|最好|先|要)(?:赶紧|马上|赶快|立刻|先|直接|礼貌地|简单)?\s*(?:回(?:他|她|应|复|答|一句|一下|(?=[。！？.!?]|$))|接话|解释一下)/u
 
 function stripPlanningPrefix(text) {

@@ -10,7 +10,7 @@ function setup(settings = {}) {
   const m = a.mind
   const ins = (gist, window, extra = {}) => m.memory.insert({ at: T0 - 3600000, window, gist, kind: 'event', importance: 0.8, ...extra })
   const A = ins('一起去海边看了日出', 'qq:group:5')
-  const B = ins('主人说海边那天他其实很累', 'qq:private:1')
+  const B = ins('管理员说海边那天他其实很累', 'qq:private:1')
   const C = ins('小红悄悄说她也想去海边', 'qq:private:3', { extra: { secret: true } })
   const D = ins('今天吃了火锅', 'qq:group:5')
   const link = m._store.prep('INSERT INTO links (a, b, kind, weight) VALUES (?, ?, ?, ?)')
