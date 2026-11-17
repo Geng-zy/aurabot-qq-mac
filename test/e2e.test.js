@@ -479,6 +479,16 @@ test('心智先决定是否插话，被直接叫到时仍给会话回复', async
   }
 })
 
+test('群管模块路由：只挂在 /ext/group-admin/groups/roles，旧根路由不再保留', async () => {
+  const r = await fake.call('/ext/group-admin/groups/roles')
+  assert.equal(r.status, 200)
+  const body = r.json()
+  assert.equal(body.ok, true)
+  assert.ok(Array.isArray(body.list), '返回群身份列表')
+  const old = await fake.call('/groups/roles')
+  assert.equal(old.json().moduleOff, true, '旧根路由没有注册，只返回模块未开兜底')
+})
+
 test('群管：群友要求禁言被拒绝，管理员要求才执行', async () => {
   mock.push(grp('555', '777', [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 把999禁言' } }]))
   await until(() => fake.turns.at(-1)?.userText.includes('把999禁言') && fake.turns.at(-1).toolCalls.length)
