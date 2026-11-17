@@ -34,6 +34,7 @@ import { createPermission } from './permission.js'
 import { createOutreach } from './outreach.js'
 import { createMindModuleApi } from './module-api.js'
 import { createMindTools } from './tools.js'
+import { createInner } from './inner.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
 
 export { looksLikeRule, LOCAL_DEFAULT, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -317,7 +318,8 @@ export function createMindAdapter(opts) {
       if (away) parts.push(away)
       const thought = args.chat ? mind.inner.lastThought() : null
       if (thought) parts.push('（你刚才独自想了一会儿。）')
-      if (doing) parts.push(`（你本来在${doing.label}，有人找你就先放下了。）`)
+      const current = inner.doing()
+      if (current) parts.push(`（你本来在${current.label}，有人找你就先放下了。）`)
       const social = relationContext(args.chat)
       if (social) parts.push(social)
       if (isOwnerChat(chatId) && !debug()) {
@@ -517,105 +519,11 @@ export function createMindAdapter(opts) {
   function moduleApi(moduleId, source) { return moduleApiFactory(moduleId, source) }
 
   // ---------- 内心活动：想、做、发呆 ----------
-  let lastChatAt = 0 // 最近一次有人和她说话、或她说话
-  let activityVersion = 0
-  const actionContext = new AsyncLocalStorage()
-  let doing = null // 正在做的事 { id, label, at }
-  let innerRunning = false
-  function noteChatActivity() {
-    lastChatAt = now()
-    activityVersion++
-  }
-
-  function canThink() {
-    return !closed && !doing && opts.getConfig()?.enabled !== false && !debug() && !opts.foregroundBusy?.() && mind.setting('attention.inner') !== false
-      && now() - lastChatAt >= (Number(mind.setting('attention.afterChatMinutes')) || 0) * 60000
-      && !mind.body.state({ persist: false }).asleep
-  }
-
-  /**
-   * 每 30 秒一次：醒着、没人找、没在做事时，按走神比例决定这一段是想还是发呆；
-   * 想的时候冒出的打算够强就去做（犯懒是动力不够时自然出现的）。
-   */
-  async function innerTick() {
-    if (innerRunning || !canThink()) return null
-    innerRunning = true
-    try { return await thinkWhenIdle() } finally { innerRunning = false }
-  }
-
-  async function thinkWhenIdle() {
-    const version = activityVersion
-    const canCommit = () => activityVersion === version && canThink()
-    const b = mind.body.state()
-    const at = now()
-    checkOutreach()
-    const st = mind._store.get('inner.clock', { nextAt: 0, lastAt: 0 })
-    if (at < st.nextAt) return null
-    mind.inner.idleTick(st.lastAt ? Math.min(60, (at - st.lastAt) / 60000) : 0.5)
-    // 下一步的间隔：兴奋、惦记着事时想得快；累了、困了时慢；没本地小模型时拉长到四倍（省钱）
-    const f = mind.feeling()
-    const base = Number(mind.setting('attention.thoughtGapMinutes')) || 3
-    let gap = base * (f.mood.a > 0.4 ? 0.6 : 1) * (b.energy < 0.3 ? 2 : 1) * (0.5 + (opts.random || Math.random)())
-    if (!local.status().configured) gap *= 4
-    mind._store.set('inner.clock', { nextAt: at + gap * 60000, lastAt: at })
-    // 走神比例：这一段在想，还是发呆（精力很低时多半发呆）
-    const share = Number(mind.setting('attention.wanderShare')) * (b.energy < 0.2 ? 0.3 : 1)
-    let thought = null
-    if ((opts.random || Math.random)() < share) {
-      try { thought = await mind.inner.step({ canCommit }) } catch (error) { log.debug('想事出错：', error.message) }
-    }
-    if (!canCommit()) return null
-    // 动力够了就去做（几件事竞争，动力最大的赢）
-    const pick = mind.motivation.choose({ body: mind.body.state(), mood: mind.feeling().mood, boredom: mind.inner.boredom() })
-    if (pick) runAction(pick.id).catch(() => {})
-    return { thought, did: pick?.id || '' }
-  }
-
-  async function runAction(id, scheduled) {
-    if (closed || doing) return { ok: false, summary: '她正在做别的事' }
-    const label = scheduled?.label || mind.motivation.state().actions.find((a) => a.id === id)?.label || id
-    const controller = new AbortController()
-    doing = { id, label, at: now(), controller }
-    const enabled = () => opts.getConfig()?.enabled !== false
-    const checkpoint = async () => {
-      while (!closed && !controller.signal.aborted && enabled() && !debug() && (opts.foregroundBusy?.() || now() - lastChatAt < 15_000 || mind.body.state({ persist: false }).asleep)) {
-        await new Promise((resolve) => setTimeout(resolve, 500))
-      }
-      if (closed || debug() || !enabled()) throw new Error('这件事已停止')
-      controller.signal.throwIfAborted()
-    }
-    log.info(`她自己去${label}`)
-    try {
-      await checkpoint()
-      const context = { checkpoint, signal: controller.signal, budgetBlocked: 0 }
-      const r = await actionContext.run(context, () => scheduled ? scheduled.run(context) : mind.motivation.act(id, context))
-      if (r?.ok && !scheduled) mind.inner.relieve(0.5)
-      return r
-    } catch (error) {
-      return { ok: false, summary: error.message }
-    } finally {
-      doing = null
-    }
-  }
-
-  async function reserveActionModel(prompt) {
-    const action = actionContext.getStore()
-    if (!action) return null
-    await action.checkpoint()
-    const estimate = estimateTokens(prompt) + 1600
-    const finish = mind.budget.reserve('action', estimate)
-    if (!finish) {
-      action.budgetBlocked = estimate
-      throw Object.assign(new Error('今天的后台模型预算已用完'), { code: 'BUDGET' })
-    }
-    return (started, used) => { if (!closed) finish(started ? used || estimate : undefined) }
-  }
-
-  function actionBudget(tokens = 1600) {
-    const cap = Number(mind.setting('models.backgroundTokensDaily'))
-    const estimate = Number.isFinite(tokens) ? Math.max(1600, tokens) : 1600
-    return mind.budget.allow('action', estimate) ? true : cap === 0 ? '后台模型预算设为 0' : '今天的后台模型预算不足'
-  }
+  const inner = createInner({
+    mind, opts, now, log, isClosed: () => closed, debug, local,
+    checkOutreach: (...args) => checkOutreach(...args),
+  })
+  const { noteChatActivity, canThink, innerTick, runAction, reserveActionModel, actionBudget } = inner
 
   // ---------- 忘掉一个人（面板「关系」页） ----------
   /**
@@ -1236,7 +1144,7 @@ export function createMindAdapter(opts) {
   let innerTimer = null
   function close() {
     closed = true
-    doing?.controller?.abort()
+    inner.abort()
     for (const t of [timer, encodeTimer, sleepTimer, innerTimer]) if (t) clearInterval(t)
     timer = encodeTimer = sleepTimer = innerTimer = null
     try { local.stop() } catch {}
