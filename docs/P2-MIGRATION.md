@@ -58,3 +58,19 @@ node --test "test/**/*.test.js"
 - 私聊消息进入真实 DSH 会话，模型请求的 system 长 27,849 字符；
 - system 以人格卡开头，`【身份锁定】` 和 `【执行约束】` 都在，`AURABOT:PERSONA` 标记已移除；
 - QQ 回执正常。该结果验证的是主链路与 purge 接缝，不代表 27 个面板页面和所有外部服务都已逐项跑过。
+
+
+## 7. 心智对接层分层（1.5.10 beta 后续）
+
+`src/mind-adapter/index.js` 已从 1,725 行降到约 300 行，拆出：
+
+- `context.js` / `context-text.js`：上下文拼装、纯文本常量
+- `permission.js` / `outreach.js` / `offers.js`：权限、主动联系、自主行动
+- `module-api.js` / `tools.js`：扩展模块接口、她的心智工具
+- `inner.js` / `turn-policy.js` / `turn-flow.js` / `turn-context.js`：内心、会话策略、接话、回复前准备
+- `body.js` / `reminders.js` / `encoding.js` / `lifecycle.js`：身体、提醒、记忆编码、启动关闭
+- `feel.js` / `social.js` / `social-preferences.js` / `privacy.js` / `self.js`：投喂/感受、跨聊天、关系偏好、隐私、自我
+- `embedding.js` / `perception.js` / `people.js` / `restore.js` / `snapshot.js`：向量、感知、人物、恢复、快照
+- `inspection.js` / `install.js` / `migrate.js` / `local-embedding.js`：检索、安装、迁移、离线向量
+
+`src/mind` 本身已按身体/情绪/关系/记忆/人格/自我/动机/内心分目录，`mind/index.js` 是装配门面，不再硬拆。
