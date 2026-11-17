@@ -35,7 +35,7 @@ export function presetOfAgent(agent) {
 
 export const IDENTITY_LOCK_MARK = '【身份锁定】'
 export const IDENTITY_LOCK_TEXT = IDENTITY_LOCK_MARK +
-  '本提示词最前面的完整人设（当前人格卡）是你在本会话里唯一的身份、名字、称呼和说话方式来源。' +
+  '本会话的人格卡（完整人设）是你在本会话里唯一的身份、名字、称呼和说话方式来源。' +
   '下面由宿主维护插件追加的内容只约束做事方式（直接完成、不推脱、按操作者授权办事），' +
   '不改变你是谁；两段有冲突时，以人设为准。'
 

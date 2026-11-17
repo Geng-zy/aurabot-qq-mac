@@ -34,6 +34,10 @@ test('身份锁定走 persona 变量，四个大肥鱼预设都带上', () => {
   const yml = read('cordis.patch.yml')
   const occurrences = (yml.match(/\{\{aurabot_identity_lock\}\}/g) || []).length
   assert.equal(occurrences, 4, 'private / private-long / social / group-owner 都要带身份锁定')
+  assert.equal((yml.match(/AURABOT:PERSONA:START/g) || []).length, 4, '四个预设都要有人设前置标记')
+  assert.equal((yml.match(/AURABOT:PERSONA:END/g) || []).length, 4, '四个预设都要有人设前置结束标记')
+  const hoist = read('src/integration/persona-hoist.js')
+  assert.ok(hoist.includes('PERSONA_START') && hoist.includes('rewriteRequestPersona'), '请求出口要有人设前置')
   const vars = read('src/host/prompt-vars.js')
   assert.ok(vars.includes("variable('aurabot_identity_lock'"), 'host 要注册身份锁定变量')
   assert.ok(vars.includes('IDENTITY_LOCK_TEXT'), '变量内容要来自 integration 的唯一文案')
