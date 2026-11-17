@@ -46,6 +46,7 @@ import { createTurnPolicy } from './turn-policy.js'
 import { createEmbedding } from './embedding.js'
 import { createPerception } from './perception.js'
 import { createPeople } from './people.js'
+import { createTurnFlow } from './turn-flow.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -381,6 +382,9 @@ export function createMindAdapter(opts) {
     dailySnapshot: (...args) => dailySnapshot(...args), missOwner: (...args) => missOwner(...args),
   })
   const { bodyTick, handleBodyEvent, noteMissed } = body
+  let turnFlow = null
+  turnFlow = createTurnFlow({ mind, log, now, debug, syncOwner, noteChatActivity, notRemembered, personIn, personOf, windowOf, handleBodyEvent, noteMissed })
+
 
   const reminders = createReminders({
     mind, mem, opts, log, now, isClosed: () => closed, debug, ownerChat, isOwnerChat,
@@ -396,50 +400,10 @@ export function createMindAdapter(opts) {
    * @param {{ chatId: string, kind: string, userId: string, direct: boolean, explicitlyAddressed?: boolean, event?: any }} m
    * @returns {{ reply: boolean, woke?: boolean, reason?: string }}
    */
-  function gate(m) {
-    syncOwner()
-    const speaker = personIn(m.chatId, m.userId)
-    const decision = mind.conversation.attend({ speaker, direct: Boolean(m.direct), explicitlyAddressed: m.explicitlyAddressed === true })
-    if (decision.wake) {
-      handleBodyEvent({ ...decision.wake, byChat: m.chatId }).catch(() => {})
-      return { reply: true, woke: true, reason: decision.reason }
-    }
-    if (!decision.reply && mind.body.state({ persist: false }).asleep && m.direct && m.event) {
-      noteMissed(windowOf(m.chatId), { event: m.event, owner: mind.isOwner(speaker), at: now() })
-    }
-    return decision
-  }
-
-  function mustReplyOwner(chatId, userId) {
-    syncOwner()
-    return mind.setting('identity.mustReplyOwner') === true && mind.isOwner(personIn(chatId, userId))
-  }
-
-  /** 叫醒她（面板按钮）：和被消息叫醒一样，醒来整理记忆、补回消息。 */
-  function wakeUp(byQQ = '') {
-    const ev = mind.body.wake(byQQ ? personOf(byQQ) : '')
-    if (ev) handleBodyEvent(ev).catch(() => {})
-    return ev
-  }
-
-  /** 一轮聊完：花一点精力；和管理员聊着就会熬夜。 */
-  function noteTurn(chatId, senders = []) {
-    if (debug()) return
-    try {
-      noteChatActivity()
-      mind.body.spend(Number(mind.setting('body.energyPerTurn')) || 0)
-      const people = [...new Set(senders.map((u) => personIn(chatId, u)).filter(Boolean))]
-      const withOwner = people.some((id) => mind.isOwner(id))
-      if (withOwner) mind.body.noteOwner()
-      for (const id of people) if (!notRemembered(id)) mind.relations.touch(id, now())
-      // 聊天满足陪伴（和管理员聊还满足亲密），也就不那么无聊了
-      mind.motivation.satisfy('companion', withOwner ? 0.2 : 0.08)
-      if (withOwner) mind.motivation.satisfy('intimacy', 0.1)
-      mind.inner.relieve(0.2)
-    } catch (error) {
-      log.debug('记这一轮的消耗失败：', error.message)
-    }
-  }
+  function gate(m) { return turnFlow.gate(m) }
+  function mustReplyOwner(chatId, userId) { return turnFlow.mustReplyOwner(chatId, userId) }
+  function wakeUp(byQQ = '') { return turnFlow.wakeUp(byQQ) }
+  function noteTurn(chatId, senders = []) { return turnFlow.noteTurn(chatId, senders) }
 
   /**
    * 有人喂她（/投喂、面板按钮、或者她自己判断出对方在给她吃的）。都是虚拟的，不涉及付款。
