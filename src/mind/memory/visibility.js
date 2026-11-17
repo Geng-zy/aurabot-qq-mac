@@ -1,7 +1,9 @@
 // 记忆可见性/隐私：谁在哪个窗口能看到哪条经历，以及可分享/受限文本。
 import { anchorDates, relativeDayWords } from './text.js'
+import { dayKey } from '../clock.js'
+import { randomUUID } from 'node:crypto'
 
-export function createVisibility({ store, deps, place, row, S, publicSourceLines, hasPrivateCue, privateContext, compact, jointExperience, anchorDates: anchorDatesFn, relativeDayWords: relativeDayWordsFn }) {
+export function createVisibility({ store, deps, place, row, S, publicSourceLines, hasPrivateCue, privateContext, compact, getJointExperience, anchorDates: anchorDatesFn, relativeDayWords: relativeDayWordsFn }) {
   const anchorDates = anchorDatesFn
   const relativeDayWords = relativeDayWordsFn
   function ownerPrivate(window) {
@@ -33,7 +35,7 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
       if (data.kind === 'shared-note') {
         if (!ownerPrivate(window) && !data.shareWith?.includes(window)) return false
       } else if ((S('ownerEverydayExcerpts') === false && window !== original.window) ||
-        jointExperience.test(compact(e.gist)) || !original.data.sources?.length || !publicSourceLines(e.gist, original.window, original.data.sources)) return false
+        getJointExperience().test(compact(e.gist)) || !original.data.sources?.length || !publicSourceLines(e.gist, original.window, original.data.sources)) return false
     }
     const sources = [
       ...(Array.isArray(data.audienceShares) ? data.audienceShares : []),
