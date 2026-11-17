@@ -16,6 +16,7 @@ import { createRender } from './render.js'
 import { createStrengthen } from './strengthen.js'
 import { createFollowups } from './followups.js'
 import { createEncodePending } from './encode-pending.js'
+import { createEncodingState } from './encoding-state.js'
 
 import { anchorDates, relativeDayWords, pendingLabel, parseJson, KINDS } from './text.js'
 export { parseJson, KINDS } from './text.js'
@@ -181,30 +182,7 @@ export function createMemory(deps) {
   }
 
   // ---------- 记住：一段聊天结束后记下来 ----------
-  function cursorOf(window) {
-    return Number(store.get('encode.cursor.' + window, 0)) || 0
-  }
-
-  function pendingThrough(window) {
-    const latest = store.prep('SELECT MAX(id) AS id FROM perception WHERE window = ?').get(window).id || 0
-    return latest > cursorOf(window) ? latest : 0
-  }
-
-  async function encodeThrough(window, through, isCurrent) {
-    let count = 0
-    while (isCurrent() && cursorOf(window) < through) {
-      const before = cursorOf(window)
-      const result = await encodeWindow(window, { force: true, through })
-      count += result.encoded || 0
-      if (result.failed || cursorOf(window) <= before) break
-    }
-    return count
-  }
-  /** 有新消息还没记的窗口。 */
-  function pendingWindows() {
-    const rows = store.prep('SELECT window, MAX(id) AS last, MAX(at) AS lastAt FROM perception GROUP BY window').all()
-    return rows.filter((r) => r.last > cursorOf(r.window)).map((r) => ({ window: r.window, lastAt: r.lastAt }))
-  }
+  const { cursorOf, pendingThrough, encodeThrough, pendingWindows } = createEncodingState({ store, encodeWindow })
 
   // 只有清楚属于日常公共话题、能逐字对回来源的片段，才可以从管理员私聊另存一份可分享摘要。
   const ordinaryTopic = /天气|下雨|下雪|晴天|气温|电影|动画|动漫|电视剧|音乐|歌曲|游戏|球赛|公开新闻|编程|开源|软件|今天吃|早餐|午餐|晚饭/
