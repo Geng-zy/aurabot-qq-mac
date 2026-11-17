@@ -97,5 +97,5 @@ export function createFeel({ mind, mem, now, debug, syncOwner, windowOf, parseCh
   }
 
 
-  return { feed, feel, rules, confirmReplyFeed }
+  return { feed, feel, rules, confirmReplyFeed, latestFoodOffer, fedSince }
 }
