@@ -11,6 +11,7 @@ import { placeOf, shortId } from '../place.js'
 import { keywords } from './words.js'
 import { createVisibility } from './visibility.js'
 import { createRender } from './render.js'
+import { createStrengthen } from './strengthen.js'
 
 import { anchorDates, relativeDayWords, pendingLabel, parseJson, KINDS } from './text.js'
 export { parseJson, KINDS } from './text.js'
@@ -615,24 +616,7 @@ export function createMemory(deps) {
   const render = createRender({ memorySummary, pendingLabel, KINDS })
 
   /** 想起来的被加强；隔得越久想起，加得越多。按设置的概率排进睡觉时的改写。 */
-  function strengthen(ids) {
-    const at = now()
-    store.tx(() => {
-      for (const id of ids) {
-        const e = row(id)
-        if (!e) continue
-        const r = rOf(e, at)
-        e.stability = afterRecall(e.stability, r, Number(S('spacingBonus')))
-        e.last_recall = at
-        e.data.hits = (e.data.hits || 0) + 1
-        save(e)
-        const p = Number(S('reconsolidation')) || 0
-        if (p > 0 && random() < p && !['intention', 'pending', 'dream', 'public-note', 'shared-note'].includes(e.data.kind)) {
-          queueJob('reconsolidate', id, { mood: (state() || {}).valence || 0, at })
-        }
-      }
-    })
-  }
+  const strengthen = createStrengthen({ store, now, S, row, rOf, save, queueJob, state, random })
 
   // ---------- 惦记别人的事 ----------
   /**
