@@ -73,19 +73,21 @@ test('接线契约：preset、人格变量、闸门、面板开关都在', () =>
   assert.ok(yml.includes('{{aurabot_rules_group_owner}}'), 'preset 要挂 group-owner 的人格变量')
   assert.ok(/order: 62/.test(yml), 'order 62 与 social(61)/autotelic(63) 不能撞')
 
-  const host = read('src/host.js')
-  assert.ok(host.includes("variable('aurabot_rules_group_owner'"), 'host 没定义 aurabot_rules_group_owner')
-  assert.ok(host.includes("rulesText('group-owner'"), 'host 没把 group-owner 传给 rulesText')
+  const promptVars = read('src/host/prompt-vars.js')
+  assert.ok(promptVars.includes("variable('aurabot_rules_group_owner'"), 'prompt-vars 没定义 aurabot_rules_group_owner')
+  assert.ok(promptVars.includes("rulesText('group-owner'"), 'prompt-vars 没把 group-owner 传给 rulesText')
 
   const hub = read('src/chat/hub.js')
-  assert.ok(hub.includes('applyGroupGate(key, turnSendersAllOwner(sessionId))'), 'pushToSession 没按发言人开合')
-  assert.ok(hub.includes('const GROUP_GUEST_SAFE'), '非主人那一轮要有能力白名单')
-  assert.ok(hub.includes('restrict({ allow })'), '闸门要用 allow 白名单收工具')
-  assert.ok(hub.includes('knownGlobalNames(agent)'), '要按宿主真实工具名裁剪白名单')
-  assert.ok(hub.includes("return null"), '问不出工具名时要能降级')
+  assert.ok(hub.includes('toolScope.applyGate(key, turnSendersAllOwner(sessionId))'), 'pushToSession 没按发言人开合')
+  const scope = read('src/chat/tool-scope.js')
+  assert.ok(scope.includes('GUEST_SAFE_TOOLS'), '非主人那一轮要有能力白名单')
+  assert.ok(scope.includes('restrict({ allow })'), '闸门要用 allow 白名单收工具')
+  assert.ok(scope.includes('knownGlobalToolNames') || scope.includes('restrictableNames'), '要按宿主真实工具名裁剪白名单')
+  const hostTools = read('src/integration/host-tools.js')
+  assert.ok(hostTools.includes('return null'), '问不出工具名时要能降级')
   assert.ok(!hub.includes('GROUP_TOOL_DENY'), 'deny 名单已废弃，别再引回来')
-  const safeLine = /GROUP_GUEST_SAFE = \[([\s\S]*?)\]\r?\n/.exec(hub)
-  assert.ok(safeLine, '没找到 GROUP_GUEST_SAFE 定义')
+  const safeLine = /GUEST_SAFE_TOOLS = \[([\s\S]*?)\]/.exec(scope)
+  assert.ok(safeLine, '没找到 GUEST_SAFE_TOOLS 定义')
   const patterns = [...safeLine[1].matchAll(/\/((?:\\.|[^/\\])+)\//g)].map((m) => new RegExp(m[1]))
   assert.equal(patterns.length, 2, '白名单正则没解析出来')
   const dangerous = ['bash', 'read', 'write', 'edit', 'glob', 'grep', 'read_image', 'web_fetch', 'web_search',
@@ -139,7 +141,7 @@ test('闸门：群里非主人说话时本机工具被收走', async () => {
   assert.equal(hub.turnSendersAllOwner(sid), false, '只有别人时收紧')
 })
 
-test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async (t) => {
+test('宿主维护工具（purge_*）只在完整权限的主人私聊可见', async (t) => {
   const { mkdtempSync, rmSync } = await import('node:fs')
   const { tmpdir } = await import('node:os')
   const { join } = await import('node:path')
@@ -161,8 +163,8 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
   })
   const controller = fake.ctx.services.sessionController
   const create = controller.create.bind(controller)
-  const purge = ['purge_apply', 'purge_revert', 'purge_status']
-  const registered = [...purge, 'present'].map((name) => ({ name }))
+  const maintenance = ['purge_apply', 'purge_revert', 'purge_status']
+  const registered = [...maintenance, 'present'].map((name) => ({ name }))
   let definitionsRead = 0
   controller.create = async (request) => {
     const result = await create(request)
@@ -175,7 +177,7 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
     const restrict = agent.ctx.tools.restrict
     agent.ctx.tools.restrict = (filter) => {
       if (filter.deny?.includes('aurabot__probe__')) {
-        throw new Error('tools.restrict() names unknown global tool "aurabot__probe__"; known global tools: ' + [...purge, 'present'].join(', '))
+        throw new Error('tools.restrict() names unknown global tool "aurabot__probe__"; known global tools: ' + [...maintenance, 'present'].join(', '))
       }
       return restrict(filter)
     }
@@ -189,7 +191,7 @@ test('Purge 的宿主维护工具只在完整权限的主人私聊可见', async
   for (const chat of chats) {
     await hub.pushToSession(chat, [{ type: 'text', text: '你好' }], chat.userId)
     const agent = [...fake.agents.values()].at(-1)
-    const expected = chat.chatId === 'private:10001' ? [] : purge
+    const expected = chat.chatId === 'private:10001' ? [] : maintenance
     assert.deepEqual([...agent.denied], expected, chat.chatId)
     if (expected.length) assert.match(agent.guard({ name: 'purge_apply' }), /仅限完整权限的主人私聊/)
     else {

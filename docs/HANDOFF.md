@@ -1,11 +1,11 @@
 # AuraBot for macOS 维护交接
 
-适用版本为 AuraBot for macOS `v1.5.7`。维护仓库为 `Geng-zy/aurabot-qq-mac`，发布分支为 `main`。上游为 `aureth-labs/dsh-aurabot-qq`。DSH 安装时使用的包名仍是 `dsh-aurabot-qq`，这样现有用户可以继续读取同一份插件数据。
+适用版本为 AuraBot for macOS `v1.5.8`。维护仓库为 `Geng-zy/aurabot-qq-mac`，发布分支为 `main`。上游为 `aureth-labs/dsh-aurabot-qq`。DSH 安装时使用的包名仍是 `dsh-aurabot-qq`，这样现有用户可以继续读取同一份插件数据。
 
 ## 接手所需环境
 
 - 代码与离线测试使用 Node.js ≥ 22.13。依赖由 DSH 宿主提供，源仓库无需先下载 QQ 网关、模型或媒体环境来跑 `npm test`。
-- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.5.7` 的工作区恢复针对 DSH `0.2.2-rc.3`。内置本地生图另需 macOS 26 或更新版本。
+- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.5.8` 的工作区恢复针对 DSH `0.2.2-rc.3`。内置本地生图另需 macOS 26 或更新版本。
 - 向原仓库 `main` 推送和发 GitHub Release 需要仓库写权限。在终端用 `gh auth status` 确认 GitHub CLI 登录了有权限的账号。开发和离线测试不需要 GitHub 写权限。
 
 ```bash
@@ -23,8 +23,9 @@ npm test
 | 心智、人设、记忆与可见范围 | [`src/mind/`](../src/mind/)、[`src/mind-adapter/index.js`](../src/mind-adapter/index.js)、[`src/persona/personas.js`](../src/persona/personas.js) | [`test/mind-core.test.js`](../test/mind-core.test.js)、[`test/mind-adapter.test.js`](../test/mind-adapter.test.js)、[`test/output-guard.test.js`](../test/output-guard.test.js) |
 | 创作任务、参考图、供应方与媒体文件 | [`src/modules/imagegen/index.js`](../src/modules/imagegen/index.js)、[`src/features/imagegen.js`](../src/features/imagegen.js)、[`src/core/tasks.js`](../src/core/tasks.js)、[`src/local/`](../src/local/) | [`test/imagegen.test.js`](../test/imagegen.test.js)、[`test/imagegen-img2img.test.js`](../test/imagegen-img2img.test.js)、[`test/codex-image.test.js`](../test/codex-image.test.js) |
 | 扩展、配置、备份与恢复 | [`src/core/modules.js`](../src/core/modules.js)、[`src/core/config.js`](../src/core/config.js)、[`src/core/backup.js`](../src/core/backup.js)、[`src/modules/API.md`](../src/modules/API.md) | [`test/modules.test.js`](../test/modules.test.js)、[`test/backup.test.js`](../test/backup.test.js) |
+| 宿主维护插件接缝 | [`src/integration/`](../src/integration/)、[`src/chat/tool-scope.js`](../src/chat/tool-scope.js)、[`src/chat/privileged-tools.js`](../src/chat/privileged-tools.js) | [`test/purge-scope.test.js`](../test/purge-scope.test.js)、[`test/tool-scope.test.js`](../test/tool-scope.test.js)、[`test/integration-architecture.test.js`](../test/integration-architecture.test.js) |
 
-`test/e2e.test.js` 使用假的 DSH 和 OneBot 网关，在临时目录里读写并验证完整插件入口。运行单项测试时可以用 `node --test --test-name-pattern='引用消息|生图由她理解' test/e2e.test.js`。修改回执和权限时应补查失败、撤权和重试分支。GitHub 的 `PR Check` 使用 Node 22，覆盖面与 `npm test` 一致。离线用例验证接线、权限和状态转换，实机模型的回复和 QQ 送达需在测试账号上另外验证。
+`test/e2e.test.js` 使用假的 DSH 和 OneBot 网关，在临时目录里读写并验证完整插件入口。运行单项测试时可以用 `node --test --test-name-pattern='引用消息|生图由她理解' test/e2e.test.js`。全仓语法检查用 `node scripts/check-syntax.mjs`（或 `npm run check`）。修改回执和权限时应补查失败、撤权和重试分支。GitHub 的 `PR Check` 使用 Node 22，覆盖面与 `npm test` 一致。离线用例验证接线、权限和状态转换，实机模型的回复和 QQ 送达需在测试账号上另外验证。
 
 ## 数据、密钥与备份
 
@@ -57,7 +58,7 @@ npm test
 2. 在待发布提交中确认 `package.json` 版本、`CHANGELOG.md` 的对应章节、README 安装例子和安装包白名单。运行全量测试与 `git diff --check`。用 `npm pack --dry-run --ignore-scripts` 检查包内容，再在仓库外生成 `.tgz`。
 3. 提交并推送 `main`，在对应提交上创建同名 Git tag。先创建 GitHub 草稿，上传安装包和公告，核对下载摘要后再公开。`package.json` 的 `private` 用于防止误发 npm，用户通过 GitHub Release 安装。
 
-下面以 `v1.5.7` 为例。维护分支、tag 与发布包要对应同一份源码。
+下面以 `v1.5.8` 为例。维护分支、tag 与发布包要对应同一份源码。
 
 ```bash
 npm test
@@ -65,29 +66,29 @@ git diff --check
 release_dir=$(mktemp -d)
 npm pack --dry-run --ignore-scripts
 npm pack --ignore-scripts --pack-destination "$release_dir"
-shasum -a 256 "$release_dir/dsh-aurabot-qq-1.5.7.tgz"
+shasum -a 256 "$release_dir/dsh-aurabot-qq-1.5.8.tgz"
 
 # 在已提交、已审核的 main 上操作，release-notes.md 由维护者准备。
-git tag -a v1.5.7 -m 'AuraBot v1.5.7'
-git push --atomic origin main refs/tags/v1.5.7
-gh release create v1.5.7 "$release_dir/dsh-aurabot-qq-1.5.7.tgz" \
-  --verify-tag --draft --title 'AuraBot v1.5.7' --notes-file release-notes.md
-gh release view v1.5.7
-gh release edit v1.5.7 --draft=false --latest
+git tag -a v1.5.8 -m 'AuraBot v1.5.8'
+git push --atomic origin main refs/tags/v1.5.8
+gh release create v1.5.8 "$release_dir/dsh-aurabot-qq-1.5.8.tgz" \
+  --verify-tag --draft --title 'AuraBot v1.5.8' --notes-file release-notes.md
+gh release view v1.5.8
+gh release edit v1.5.8 --draft=false --latest
 ```
 
 本机安装与版本回退沿用离线安装方式。先退出 DSH，安装指定版本的 TGZ 后重启，并在面板确认实际加载版本。跨版本回退先备份，核对旧版能否读取当前数据；如果需要回退数据，使用配对备份。已发布的 tag 和安装包应保留，发现问题后发布修订版本。
 
 ```bash
 dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-"$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.7.tgz" --offline
+"$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.8.tgz" --offline
 ```
 
 ## 当前边界与接手后核验
 
 - 本版本的生图基于自然语言和工具调用。旧画图命令不再提交任务，升级后新生图白名单需要在面板按会话配置。管理员群聊也按会话白名单核验。
 - DSH 版本、聊天预设、当前人设、已存在的会话历史和生图供应方都可能影响实机表现。桌面普通会话与 QQ 会话应分别验收。出现差异时固定模型和用户请求，再单独改变预设或历史等一个变量。
-- Purge 是独立的 DSH 插件。AuraBot 内部仅处理宿主维护工具的权限边界。日志里出现某段系统提示词只说明该轮带入了它，QQ 端的工具调用和任务结果仍需分别核验。
+- dsh-purge 是独立的 DSH 插件，宿主补丁对所有会话全局生效。AuraBot 只在 [`src/integration/purge-scope.js`](../src/integration/purge-scope.js) 处理三件事：维护工具只在本机主人私聊可见；人格卡尾部带身份锁定（preset 变量 `{{aurabot_identity_lock}}`），维护段只补执行约束，大肥鱼人设只读；维护段为空时提示词保持原样。`purge_*` 工具名由 [`host-tools.js`](../src/integration/host-tools.js) 按公开定义、会话可限制名单、探测报错三种方式发现，三条都失败时按一个都不给处理。日志里出现某段系统提示词只说明该轮带入了它，QQ 端的工具调用和任务结果仍需分别核验。
 - 主要回归路径是主人私聊、已开放的普通私聊、已开放的群聊、未开放的会话、正式与调试的隔离，以及重启后的工作区会话恢复。选用有权限的测试账号、公开样本和独立数据目录。
 
 完整入口见[功能、设计与实现](FEATURES-AND-IMPLEMENTATION.md)、[用户手册](USER-MANUAL.md)、[历史设计](DESIGN.md)、[模块教程](MODULE-TUTORIAL.md)和[更新记录](../CHANGELOG.md)。接手时先核对文档对应的发布版本与本机实际加载版本。
