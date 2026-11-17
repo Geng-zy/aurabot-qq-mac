@@ -10,6 +10,14 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const { useState, useEffect, useRef, useCallback, useMemo, useId, Fragment } = React
     const h = React.createElement
+    // DSH 的桌面判断优先；没有 primitives 时退回 navigator.platform（测试和旧宿主也能用）。
+    const isMacLike = () => {
+      try {
+        const p = require('@deepseek-ai/dsh-client-ui-primitives')
+        if (p && typeof p.isDarwinDesktop === 'function') return Boolean(p.isDarwinDesktop())
+      } catch (error) {}
+      return /Mac|iPhone|iPad/.test(navigator.platform)
+    }
     const inject = ['slots']
     const PANEL_ID = 'aurabot'
     const API = '/aurabot/api'
@@ -1299,7 +1307,7 @@ body[data-ds-dark-theme] .ab-root{
       const pick = (entry) => { close(); go(entry.tab, entry) }
       return h('div', { className: 'ab-find', ref: box },
         h('button', { type: 'button', className: 'ab-find-btn', ref: trigger, 'aria-label': '查找功能', 'aria-expanded': open, onClick: toggle },
-          navIcon('find'), h('span', null, '搜索功能或设置'), h('kbd', { className: 'ab-kbd' }, /Mac/.test(navigator.platform) ? '⌥ K' : 'Alt K')),
+          navIcon('find'), h('span', null, '搜索功能或设置'), h('kbd', { className: 'ab-kbd' }, isMacLike() ? '⌥ K' : 'Alt K')),
         open ? h('div', { className: 'ab-finder', onKeyDown: (e) => { if (e.key === 'Escape') { e.stopPropagation(); close() } } },
           h('input', {
             className: 'ab-input', autoFocus: true, role: 'combobox', 'aria-label': '搜索功能', 'aria-expanded': true, 'aria-controls': 'ab-finder-list',
@@ -6321,7 +6329,7 @@ body[data-ds-dark-theme] .ab-root{
               (embeddedModules[current.id] || []).map((m) => h(Card, { key: m.id, fold: 'module-' + m.id, title: m.name },
                 h(ExtPage, { ...props, mod: m.id, embedded: true }))),
               dirty ? h('div', { className: 'ab-savebar' }, h('span', { className: 'msg' }, '有改动还没保存'),
-                h('kbd', { className: 'ab-kbd' }, /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘ S' : 'Ctrl S'),
+                h('kbd', { className: 'ab-kbd' }, isMacLike() ? '⌘ S' : 'Ctrl S'),
                 h(Btn, { kind: 'ghost', disabled: saving, onClick: () => setDraft(clone(cfg)) }, '撤销'),
                 h(Btn, { kind: 'primary', disabled: saving, onClick: () => save() }, '保存设置')) : null))),
         toastMsg ? h('div', { className: cx('ab-toast', toastMsg.kind), role: 'status' }, toastMsg.text) : null)
