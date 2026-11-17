@@ -259,6 +259,23 @@ test('#7 管理员私聊：她这一轮还在跑时再发消息，直接 steer �
   await until(() => sentTo('private', OWNER).some((c) => c.params.message[0].data.text === '好 改成快的'))
 })
 
+test('steer 只作用于当前轮，不把插话内容写进下一轮上下文', async () => {
+  const marker = 'STEER_LEAK_9f2c'
+  const agent = fake.agents.get(fake.workspaces[0].sessionIds[0])
+  const before = agent.steered.length
+  mock.push(priv(OWNER, text(`跑个慢任务 ${marker}`)))
+  await new Promise((r) => setTimeout(r, 700))
+  mock.push(priv(OWNER, text(`改成快的 ${marker}`)))
+  await until(() => agent.steered.length > before)
+  await until(() => fake.turns.at(-1).reply === '好 改成快的')
+  const count = fake.turns.length
+  mock.push(priv(OWNER, text('下一轮普通消息')))
+  await until(() => fake.turns.length > count)
+  const next = fake.turns.at(-1)
+  assert.doesNotMatch(next.userText, new RegExp(marker), '下一轮正文里不能残留上一轮插话')
+  assert.doesNotMatch(next.ctxText, new RegExp(marker), '下一轮上下文里不能残留上一轮插话')
+})
+
 test('系统会话超时会及时返回，晚到的回复不会发到 QQ', async () => {
   const start = Date.now()
   await assert.rejects(api.hub.runSystemTurn('timeout-test', '超时测试', '慢慢想', { timeoutMs: 50 }), /等太久/)
