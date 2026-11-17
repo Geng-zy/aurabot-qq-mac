@@ -35,6 +35,7 @@ import { createOutreach } from './outreach.js'
 import { createMindModuleApi } from './module-api.js'
 import { createMindTools } from './tools.js'
 import { createInner } from './inner.js'
+import { createEncoding } from './encoding.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
 
 export { looksLikeRule, LOCAL_DEFAULT, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -605,30 +606,11 @@ export function createMindAdapter(opts) {
   })
 
   // ---------- 记忆：聊天停下来就记；夜里睡觉整理 ----------
-  // 同一时间只记一份（两份同时记同一个聊天会记重）：正在记的那次挂在这里
-  let encodingP = null
+  const encoding = createEncoding({ mem, log, opts, windowOf, isClosed: () => closed, debug })
+  const { encodeTick, encodeChat } = encoding
+
   let sleeping = false
-  async function encodeTick() {
-    if (encodingP || closed || !opts.ask || debug()) return
-    encodingP = mem.encodePending().catch((error) => log.warn('记经历出错：', error.message)).finally(() => { encodingP = null })
-    await encodingP
-  }
-  /**
-   * 换新会话时：把这个聊天里还没记的马上记成经历（不等聊天停下来），换完以后随时想得起来。
-   * 正在记别的就等它记完再记。
-   */
-  async function encodeChat(chatId) {
-    if (closed || !opts.ask || debug()) return 0
-    const window = windowOf(chatId)
-    const through = mem.pendingThrough(window)
-    if (!through) return 0
-    while (encodingP) await encodingP.catch(() => {})
-    if (closed || debug()) return 0
-    encodingP = mem.encodeThrough(window, through, () => !closed && !debug())
-      .catch((error) => { log.warn('换会话时记经历出错：', error.message); return 0 })
-      .finally(() => { encodingP = null })
-    return encodingP
-  }
+
   // ---------- 身体：每分钟推进一次；睡、醒、自己吃都由身体决定 ----------
   const missed = new Map() // 睡着时找她、但叫不醒她的消息：chatId → { event, owner, at }
   /** 推进身体；睡醒了就整理记忆（睡得少整理得少）、情绪淡一点、再按轻重补回睡着时的消息。 */
