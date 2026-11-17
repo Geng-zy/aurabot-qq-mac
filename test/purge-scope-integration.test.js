@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url'
 import { decorateAssembly, EXEC_SECTION, EXEC_TEXT, IDENTITY_LOCK_TEXT } from '../src/integration/purge-scope.js'
 
 const candidates = [
+  process.env.PURGE_IDENTITY_PATH,
   path.join(os.homedir(), '.dsh/profiles/desktop/node_modules/dsh-purge-community/lib/identity.js'),
   path.join(os.homedir(), '.dsh/profiles/web/node_modules/dsh-purge-community/lib/identity.js'),
 ]

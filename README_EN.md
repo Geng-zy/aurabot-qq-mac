@@ -26,14 +26,14 @@ Screenshots show AuraBot v1.5.6 using demo data. The panel is in Chinese.
 
 ## Quick start
 
-**You need an Apple silicon Mac, the desktop version of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), a OneBot v11 gateway, and a separate QQ account for the bot.** AuraBot v1.5.8 supports DSH `0.2.2-rc.3`. You can run [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) in OrbStack or Docker Desktop, or connect an existing compatible gateway.
+**You need an Apple silicon Mac, the desktop version of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), a OneBot v11 gateway, and a separate QQ account for the bot.** AuraBot v1.5.9 supports DSH `0.2.2-rc.3`. You can run [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) in OrbStack or Docker Desktop, or connect an existing compatible gateway.
 
 1. Open DSH once to initialize it and configure a chat model. Download the `dsh-aurabot-qq-<version>.tgz` asset from the [latest release](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 2. Quit DSH completely. Install the archive in Terminal, replacing the example path with the location and version you downloaded.
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.8.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.9.tgz" --offline
    ```
 
 3. Reopen DSH and select **Aurabot** in the sidebar. The setup wizard asks for your QQ ID, the bot's QQ ID, and the OneBot forward WebSocket URL and token.

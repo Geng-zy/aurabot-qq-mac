@@ -22,7 +22,7 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              prefix: "{{aurabot_persona}}\n\n{{aurabot_rules_private}}\n\n{{aurabot_identity_lock}}"
+              prefix: "<!-- AURABOT:PERSONA:START -->\n{{aurabot_persona}}\n\n{{aurabot_rules_private}}\n\n{{aurabot_identity_lock}}\n<!-- AURABOT:PERSONA:END -->"
               # 人格独占系统提示词：不带 DSH 那一大段编程助手身份和工具指南（实测私聊从 1~4 分钟一轮降下来）。
               # 工具照样挂着，模型靠工具定义本身就会用。
               complete: true
@@ -73,7 +73,7 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              prefix: "{{aurabot_persona}}\n\n{{aurabot_rules_private}}\n\n{{aurabot_identity_lock}}"
+              prefix: "<!-- AURABOT:PERSONA:START -->\n{{aurabot_persona}}\n\n{{aurabot_rules_private}}\n\n{{aurabot_identity_lock}}\n<!-- AURABOT:PERSONA:END -->"
               # 人格独占系统提示词：不带 DSH 那一大段编程助手身份和工具指南（实测私聊从 1~4 分钟一轮降下来）。
               # 工具照样挂着，模型靠工具定义本身就会用。
               complete: true
@@ -171,7 +171,7 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              prefix: "{{aurabot_persona_public}}\n\n{{aurabot_rules_social}}\n\n{{aurabot_identity_lock}}"
+              prefix: "<!-- AURABOT:PERSONA:START -->\n{{aurabot_persona_public}}\n\n{{aurabot_rules_social}}\n\n{{aurabot_identity_lock}}\n<!-- AURABOT:PERSONA:END -->"
               complete: true
           - id: time-context
             name: '@deepseek-ai/dsh-time-context'
@@ -199,7 +199,7 @@
           - id: persona
             name: '@deepseek-ai/dsh-persona'
             config:
-              prefix: "{{aurabot_persona_public}}\n\n{{aurabot_rules_group_owner}}\n\n{{aurabot_identity_lock}}"
+              prefix: "<!-- AURABOT:PERSONA:START -->\n{{aurabot_persona_public}}\n\n{{aurabot_rules_group_owner}}\n\n{{aurabot_identity_lock}}\n<!-- AURABOT:PERSONA:END -->"
               complete: true
           - id: time-context
             name: '@deepseek-ai/dsh-time-context'

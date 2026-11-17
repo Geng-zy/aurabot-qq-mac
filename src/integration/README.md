@@ -25,8 +25,13 @@ Aurabot 不需要重复实现审批、沙箱、工具权限这些事。真正需
 | --- | --- |
 | `host-tools.js` | 全局工具名发现、`purge_*` 识别；不依赖聊天层 |
 | `purge-scope.js` | 身份锁定文案、执行约束、`system-prompt/assemble` 监听、维护工具名 |
+| `persona-hoist.js` | 模型请求出口的人设前置：按标记把「人格卡 + 规则 + 身份锁定」搬到 system 最前 |
 | `../chat/tool-scope.js` | 会话工具闸：访客白名单、群聊 `group-full` 的开合 |
 | `../chat/privileged-tools.js` | 需要「这一轮全是主人」才执行的 QQ 工具 |
+
+## 兼容与取舍
+
+见 [docs/PURGE-COMPAT.md](../../docs/PURGE-COMPAT.md)：1.7.15 与 1.7.18 的接缝行为一致；组装阶段贴锁、`llm/stream` 重建 options、包 `llm.stream` 都不成立，最终采用 provider adapter 出口的人设前置。
 
 ## 契约
 
@@ -34,6 +39,8 @@ Aurabot 不需要重复实现审批、沙箱、工具权限这些事。真正需
   `agent.ctx.tools.*`），不 import 宿主内部文件，也不改 dsh-purge 的源码。
 - 监听失败只记 debug 日志，不影响宿主启动；下游 `assemble` 抛错时原样抛出，
   不拿旧 assembly 兜底。
+- 人设前置包在每个 provider adapter 的 `prepareCall/stream` 上。`llm/stream` waterfall 的
+  `next()` 不转发参数，其他插件在监听里重建的 options 会被丢掉；adapter 层不受监听顺序影响。
 - 身份锁定只对 `aurabot-private`、`aurabot-private-long`、`aurabot-social`、
   `aurabot-group-owner` 生效；`aurabot-subagent` 不带人设，不参与。
 - 维护段为空（插件关闭）时不插入任何内容，保持提示词原样。
@@ -41,7 +48,7 @@ Aurabot 不需要重复实现审批、沙箱、工具权限这些事。真正需
 ## 测试
 
 ```bash
-node --test test/purge-scope.test.js test/tool-scope.test.js test/integration-architecture.test.js
+node --test test/purge-scope.test.js test/tool-scope.test.js test/persona-hoist.test.js test/integration-architecture.test.js
 node --test test/group-owner-tools.test.js
 node scripts/check-syntax.mjs
 ```

@@ -52,6 +52,7 @@ import { createMindAdapter } from './mind-adapter/index.js'
 import { createPurgeScope } from './integration/purge-scope.js'
 import { installPromptVariables } from './host/prompt-vars.js'
 import { createHttpKit } from './host/http.js'
+import { installPersonaHoist } from './integration/persona-hoist.js'
 import { createLocalInstaller } from './mind-adapter/install.js'
 
 /**
@@ -402,6 +403,18 @@ export function apply(ctx) {
     })
     return () => { try { if (typeof off === 'function') off() } catch (error) { /* ignore */ } }
   }, 'aurabot: 宿主维护插件提示词边界')
+
+  // 宿主维护插件会把注入排到最前面；在模型请求出口把人设块搬回最前。
+  ctx.effect(() => {
+    const off = installPersonaHoist(ctx, {
+      llm: ctx.llm,
+      log,
+      isAurabotRequest: (options) => {
+        try { return Boolean(options?.sessionId && hub?.chatOfSession?.(options.sessionId)) } catch (error) { return false }
+      },
+    })
+    return () => { try { if (typeof off === 'function') off() } catch (error) { /* ignore */ } }
+  }, 'aurabot: 人设前置')
 
   // ---------- 面板接口的小工具 ----------
   const { send, readBody, readRaw, query, answer, isLoopbackAddr, panelBlocked, adminHostBlocked, csrfBlocked } = createHttpKit({
