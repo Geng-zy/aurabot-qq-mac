@@ -38,6 +38,7 @@ import { createInner } from './inner.js'
 import { createEncoding } from './encoding.js'
 import { createReminders } from './reminders.js'
 import { createBody } from './body.js'
+import { createLifecycle } from './lifecycle.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
 
 export { looksLikeRule, LOCAL_DEFAULT, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -983,51 +984,13 @@ export function createMindAdapter(opts) {
     return new Map([[prefix + 'mind.sqlite', mind.backupBytes()]])
   }
 
-  let timer = null
   let closed = false
-  /** 启动：先迁移旧数据（只一次），再同步人格卡、做今天的快照。 */
-  async function start() {
-    if (opts.legacyDir) {
-      try {
-        await migrateLegacy(mind, opts.legacyDir, log)
-      } catch (error) {
-        log.warn('旧数据迁移失败（下次启动再试）：', error.message)
-      }
-    }
-    if (closed) return
-    await replayDeletionsAfterRestore()
-    if (closed) return
-    outreach.noteContact(mind.lastOwnerMessageAt())
-    resolveOwnerAbsence(outreach.lastContact())
-    syncPersona('migration')
-    try { importLegacySocial() } catch (error) { log.warn('旧的人物印象没并进关系：', error.message) }
-    inferTraits().catch((error) => log.warn('从人格卡推特质失败（下次启动再试）：', error.message))
-    dailySnapshot()
-    timer = setInterval(dailySnapshot, 3600000)
-    timer.unref?.()
-    encodeTimer = setInterval(() => { encodeTick() }, 60000)
-    encodeTimer.unref?.()
-    sleepTimer = setInterval(() => { bodyTick().catch((error) => log.warn('身体推进出错：', error.message)) }, 60000)
-    sleepTimer.unref?.()
-    innerTimer = setInterval(() => {
-      innerTick().catch((error) => log.warn('内心活动出错：', error.message))
-      local.idleCheck()
-      if (opts.heavyBusy?.()) local.stop() // 翻唱这类吃内存的活在跑：本地小模型先让路
-    }, 30000)
-    innerTimer.unref?.()
-  }
-  let encodeTimer = null
-  let sleepTimer = null
-  let innerTimer = null
-  function close() {
-    closed = true
-    inner.abort()
-    for (const t of [timer, encodeTimer, sleepTimer, innerTimer]) if (t) clearInterval(t)
-    timer = encodeTimer = sleepTimer = innerTimer = null
-    try { local.stop() } catch {}
-    localEmbedding.close?.()
-    mind.close()
-  }
+  const lifecycle = createLifecycle({
+    opts, log, mind, local, localEmbedding, migrateLegacy, replayDeletionsAfterRestore,
+    outreach, resolveOwnerAbsence, syncPersona, importLegacySocial, inferTraits, dailySnapshot,
+    encodeTick, bodyTick, innerTick, inner, isClosed: () => closed, setClosed: () => { closed = true },
+  })
+  const { start, close } = lifecycle
 
   return { mind, perceive, noteAddressed, recentUserMessages, said, shouldRotate, carryOver, canSeedHistory, encodeChat, contextFor, beforeTurn, endTurn, invalidateMemory, checkOutgoingPrivacy, tools, moduleApi, encodeTick, bodyTick, innerTick, attention, runAction, reserveActionModel, reachOwner, requestPermission, decide, revoke, granted, checkApproval, local, gate, mustReplyOwner, wakeUp, noteTurn, feed, feel, confirmReplyFeed, rules, effects, embeddingStatus, replayDeletionsAfterRestore, syncPersona, dailySnapshot, backupFiles, start, close,
     selfPrompt: (options) => mind.selfPrompt(options),
