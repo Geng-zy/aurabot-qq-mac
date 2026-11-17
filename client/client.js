@@ -3029,7 +3029,6 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     const PET_MOODS = [{ key: 'idle', label: '😐 平常' }, { key: 'happy', label: '😄 开心' }, { key: 'shy', label: '😳 害羞' }, { key: 'sad', label: '😢 委屈' }, { key: 'angry', label: '😠 生气' }, { key: 'sleepy', label: '😴 困了' }, { key: 'think', label: '🤔 想事' }, { key: 'love', label: '🥰 喜欢你' }]
-    // 行为动作全表（面板「试一下」）：与社区模块 pet 的 index.mjs 里的 BEHAVIOR_ACTIONS / BEHAVIOR_DEFERRED 一一对应。
     // tier：1 = 第一批已开放；2 = 第二批图标动作（服务端隔离区，可一键归还）；3 = 第三批暂未实现（点了客户端回执 refused:not-implemented）。
     const PET_BEHAVIOR_ACTIONS = [
       { action: 'chase_cursor', name: '追鼠标', effect: '扑过去追着你的鼠标跑，追到后按住指针 5 秒再松开', tier: 1 },

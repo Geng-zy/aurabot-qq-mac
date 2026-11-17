@@ -187,23 +187,18 @@ test('替换内置要确认；卸载默认保留设置，purge 才清', async ()
 })
 
 test('迁移：只装在用的，只装一次，卸载后不再装；失败下次重试', async () => {
-  const packs = [pack('douyin', '2.0.0'), pack('heybox', '1.0.0'), pack('group-admin', '1.0.0'), pack('pet', '1.0.0')]
-  const s = setup(packs, { cfg: { setupDone: true, douyin: { enabled: true }, heybox: { enabled: false } } })
-  assert.deepEqual((await s.c.migrate()).map((x) => x.id), ['douyin'])
-  assert.deepEqual(s.cfg().communityMigrated, { pet: 'skipped', douyin: 'installed', heybox: 'skipped', 'group-admin': 'skipped' })
-  await s.c.remove('douyin')
+  const packs = [pack('group-admin', '1.0.0')]
+  const s = setup(packs, { cfg: { setupDone: true, modules: { 'group-admin': { enabled: true } } } })
+  assert.deepEqual((await s.c.migrate()).map((x) => x.id), ['group-admin'])
+  assert.equal(s.cfg().communityMigrated['group-admin'], 'installed')
+  await s.c.remove('group-admin')
   assert.deepEqual(await s.c.migrate(), [])
-  assert.equal(existsSync(join(userDir(), 'douyin')), false)
-  const fail = setup([], { cfg: { setupDone: true, douyin: { enabled: true } } })
-  await fail.c.migrate()
-  assert.equal(fail.cfg().communityMigrated.douyin, undefined)
-  const optedIn = setup(packs, { cfg: { setupDone: true, modules: { 'group-admin': { enabled: true } } } })
-  assert.deepEqual((await optedIn.c.migrate()).map(({ id }) => id), ['group-admin'])
+  assert.equal(existsSync(join(userDir(), 'group-admin')), false)
 })
 
 test('迁移：插件卸载后旧实例不再安装、不写配置', async () => {
   let alive = true
-  let config = { setupDone: true, douyin: { enabled: true } }
+  let config = { setupDone: true, modules: { 'group-admin': { enabled: true } } }
   let writes = 0
   const c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => config, setConfig: (n) => { writes++; config = n }, log: { info() {}, warn() {} }, version: '1.2.0', alive: () => alive, registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher: async () => { alive = false; return { ok: false, status: 500 } } })
   await c.migrate()

@@ -25,7 +25,7 @@ export const DEFAULTS = {
   notice: { enabled: true, approval: true, question: true, workspaces: {} },
   qqApi: { enabled: true }, // 她能用 qq_api_call 调 QQ 接口：别人只能查当前群，写操作只听管理员
   approvalViaQQ: true, // 管理员私聊会话要授权时，在 QQ 回复「确认」直接批准这一次
-  profilePerms: { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner', douyinBrowse: 'owner', douyinLike: 'owner', douyinComment: 'owner', douyinShareOwner: 'owner', douyinDm: 'owner' }, // 改资料类操作（含抖音浏览 / 点赞 / 评论 / 分享）的权限：off 关 / owner 仅管理员私聊 / all 所有人。抖音项默认仅管理员，总开关默认关
+  profilePerms: { qqNickname: 'owner', qqSignature: 'owner', qqAvatar: 'owner', qqFriendRequest: 'owner', whitelist: 'owner' }, // 改资料/好友申请/白名单的权限：off 关 / owner 仅管理员私聊 / all 所有人
   // 宿主维护插件（dsh-purge 等）追加提示词时，在 QQ 会话里给大肥鱼人设加身份锁定。
   // 关掉后维护段原样进入提示词，身份与语气由模型自己权衡。
   purge: { identityLock: true },
@@ -174,60 +174,6 @@ export const DEFAULTS = {
   },
   // 本地接口：数据目录 local/ 里的脚本接管这几项（文件要在、开关要开）
   local: { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20, ffmpegPath: '' },
-  // 刷抖音：专用浏览器（独立登录资料，不碰你平时的浏览器），经 CDP 控制。浏览 / 点赞 / 评论 / 分享各项权限在 profilePerms.douyin*。
-  douyin: {
-    enabled: false, // 总开关：默认关，先在面板里扫码登录再打开
-    autoBrowse: true, // 定时自己去刷
-    intervalHours: 4,
-    maxRunsPerDay: 3,
-    perRun: 5, // 一轮看几个视频
-    maxWatchPerDay: 30, // 每天最多看几个（手动让她刷也算；管理员亲口让她找视频时不受这个限制）
-    dwellMin: 8, // 每个视频停留的秒数（随机取一个）
-    dwellMax: 40,
-    browserPath: '', // 留空 = 自动找 Edge（找不到再找 Chrome / Chromium）；也可填完整路径
-    shareBias: 'proactive', // stingy | normal | proactive：刷到好看的视频，分享给管理员的积极程度
-    ownerDm: true, // 管理员在抖音上私信她时回（只认核对过的管理员抖音号）
-    dmPollMinutes: 3, // 隔几分钟看一次管理员的抖音私信
-    shareTo: 'douyin', // douyin = 在抖音里私信分享给管理员（要先核对管理员抖音号，没核对 / 发不出去就改发 QQ）| qq = QQ 私聊发链接 | both = 两边都发
-    owner: { input: '', secUid: '', uid: '', nickname: '', confirmedInput: '' }, // 管理员的抖音号：面板填抖音号 / 主页链接，「核对」后才写入 secUid（真·@管理员只认它）
-    caps: { like: 30, comment: 3, share: 5, atOwner: 3 }, // 每天上限（登录后前 newAccountDays 天减半）；atOwner = 评论里真·@管理员
-    gate: {
-      maxWritesPerDay: 40, // 点赞 + 评论合计上限
-      minWriteGapSec: 20, // 两次点赞 / 评论之间至少隔这么多秒
-      newAccountDays: 3, // 首次登录起这么多天内，上限都减半
-    },
-  },
-  // 刷小黑盒：用管理员的账号逛游戏社区（读多写少）。点赞 / 评论 / 发帖各项权限在 profilePerms.heybox*。
-  heybox: {
-    enabled: false, // 总开关：默认关，先在面板里填 Cookie 再打开
-    cookie: '', // 整串 Cookie（pkey 必须有；要写操作还得有 x_xhh_tokenid）
-    autoBrowse: true, // 定时自己去逛（只读）
-    intervalHours: 4, // 多久逛一圈
-    maxRunsPerDay: 6, // 每天最多逛几轮
-    perRun: 3, // 一圈看几条
-    likeDaily: 10, // 每天最多点赞
-    commentDaily: 3, // 每天最多评论
-    maxPostsPerDay: 3, // 每天最多发帖（硬上限，多了容易被限）
-    defaultTopic: 7214, // 发帖默认分区：7214 盒友杂谈 / 18745 数码硬件 / 806933 AI
-    postStyle: 'mix', // 发帖风格：diary 大肥鱼日记 / news 热搜文 / mix 肥鱼热搜
-    shareToOwner: true, // 逛到有意思的帖子，私聊分享给管理员
-    shareBias: 'normal', // stingy | normal | proactive：分享给管理员的积极程度
-    shareDaily: 3, // 每天最多分享几条（避免刷屏）
-    // 谷时逛：只在非峰时跑自动逛，避开工作日 9-12 / 14-18 的高峰，省 token
-    // 分区：manual = 总是用默认分区；auto = 按正文内容自动挑（挑不到回落默认）
-    topicMode: 'manual',
-    // 发帖字数范围：0 = 用风格自带的；填了就覆盖（对所有风格生效）
-    postWordsMin: 0,
-    postWordsMax: 0,
-    // 每天每篇的排期：空数组 = 用全局设置；填几项就按几篇发，每篇用自己的配置
-    dailyPosts: [],
-    offPeakOnly: false, // 开关：默认关（行为不变）
-    peakStartAM: 9, // 上午峰时开始（含）
-    peakEndAM: 12, // 上午峰时结束（不含）
-    peakStartPM: 14, // 下午峰时开始（含）
-    peakEndPM: 18, // 下午峰时结束（不含）
-    peakWeekend: false, // 周末是否也算峰时（默认不算，周末全天可逛）
-  },
   qzoneSocial: {
     enabled: true,
     replyOwn: true, // 回复自己说说下别人的新评论
@@ -400,8 +346,6 @@ export function normalize(raw) {
   c.subagentBackground = bool(c.subagentBackground, false)
   c.chatModels = normalizeChatModels(c.chatModels)
   c.profilePerms = Object.fromEntries(PROFILE_PERM_KEYS.map((k) => [k, PROFILE_PERM_LEVELS.includes(c.profilePerms?.[k]) ? c.profilePerms[k] : profilePermDefault(k)]))
-  // 旧版 douyinDm 是「回别人私信」的权限，含义已不同（现在是主动发私信），老配置一律回到默认「仅管理员」
-  if (isObj(raw?.profilePerms) && 'douyinDm' in raw.profilePerms) c.profilePerms.douyinDm = profilePermDefault('douyinDm')
   c.allow = { private: qqList(c.allow.private), groups: qqList(c.allow.groups) }
   const drawablePrivate = new Set(qqList(c.drawAllow?.private))
   const drawableGroups = new Set(qqList(c.drawAllow?.groups))
@@ -536,62 +480,6 @@ export function normalize(raw) {
   // 旧版把共享的 ffmpeg 路径放在 B 站设置里。只迁移路径，保留显式清空。
   c.local.ffmpegPath = String(raw?.local?.ffmpegPath ?? raw?.bili?.ffmpegPath ?? '').trim()
   delete c.bili
-  const hb = c.heybox
-  hb.shareToOwner = bool(hb.shareToOwner, true)
-  hb.shareBias = ['stingy', 'normal', 'proactive'].includes(hb.shareBias) ? hb.shareBias : 'normal'
-  hb.shareDaily = Math.round(num(hb.shareDaily, 3, 0, BIG))
-  hb.cookie = String(hb.cookie || '').trim()
-  hb.topicMode = hb.topicMode === 'auto' ? 'auto' : 'manual'
-  hb.postWordsMin = Math.round(num(hb.postWordsMin, 0, 0, 2000))
-  hb.postWordsMax = Math.round(num(hb.postWordsMax, 0, 0, 3000))
-  if (hb.postWordsMax && hb.postWordsMin && hb.postWordsMax < hb.postWordsMin) [hb.postWordsMin, hb.postWordsMax] = [hb.postWordsMax, hb.postWordsMin]
-  // 每天每篇的排期：最多 5 篇；hashtags 和 hashtagsText 都保留（面板靠 Text 回显，模块靠数组发帖）
-  hb.dailyPosts = Array.isArray(hb.dailyPosts) ? hb.dailyPosts.slice(0, 5).map((p) => {
-    const o = p && typeof p === 'object' ? p : {}
-    const splitH = (v) => String(v ?? '').split(/[\s,，、]+/).map((x) => String(x).trim()).filter(Boolean)
-    const hash = (Array.isArray(o.hashtags) ? o.hashtags : splitH(o.hashtagsText)).map((x) => String(x).trim()).filter(Boolean).slice(0, 4)
-    return {
-      style: ['diary', 'news', 'mix', 'deal'].includes(o.style) ? o.style : '',
-      topic: /^\d{3,7}$/.test(String(o.topic ?? '')) ? String(o.topic) : '',
-      hashtags: hash,
-      hashtagsText: hash.join(','),
-      wordsMin: Math.round(num(o.wordsMin, 0, 0, 2000)),
-      wordsMax: Math.round(num(o.wordsMax, 0, 0, 3000)),
-      hint: String(o.hint || '').trim().slice(0, 120),
-    }
-  }) : []   // ⚠ 不能在这里过滤全空项：排期是按下标取的（module 侧 currentPostPlan 用 postsToday() 索引），
-             //    过滤掉「第 1 篇留空跟全局、第 2 篇单独配」里的空项，会让第 2 篇的配置被当成第 1 篇用。
-             //    空项就代表「这一篇走全局设置」，原样保留位置。
-  hb.offPeakOnly = bool(hb.offPeakOnly, false)
-  hb.peakStartAM = num(hb.peakStartAM, 9, 0, 23)
-  hb.peakEndAM = num(hb.peakEndAM, 12, 0, 24)
-  hb.peakStartPM = num(hb.peakStartPM, 14, 0, 23)
-  hb.peakEndPM = num(hb.peakEndPM, 18, 0, 24)
-  hb.peakWeekend = bool(hb.peakWeekend, false)
-  const d = c.douyin
-  d.enabled = bool(d.enabled, false)
-  d.autoBrowse = bool(d.autoBrowse, true)
-  d.intervalHours = num(d.intervalHours, 4, 0.1, BIG)
-  d.maxRunsPerDay = num(d.maxRunsPerDay, 3, 0, BIG)
-  d.perRun = num(d.perRun, 5, 1, BIG)
-  d.maxWatchPerDay = num(d.maxWatchPerDay, 30, 0, BIG)
-  d.dwellMin = num(d.dwellMin, 8, 1, BIG)
-  d.dwellMax = Math.max(d.dwellMin, num(d.dwellMax, 40, 1, BIG))
-  d.browserPath = String(d.browserPath || '').trim()
-  d.shareTo = ['douyin', 'qq', 'both'].includes(d.shareTo) ? d.shareTo : 'douyin'
-  d.ownerDm = bool(d.ownerDm, true)
-  d.dmPollMinutes = num(d.dmPollMinutes, 3, 1, BIG)
-  d.shareBias = ['stingy', 'normal', 'proactive'].includes(d.shareBias) ? d.shareBias : d.shareBias === 'off' ? 'stingy' : 'proactive'
-  if (!isObj(d.caps)) d.caps = {}
-  if (raw?.douyin?.caps?.share == null && raw?.douyin?.caps?.shareOwner != null) d.caps.share = raw.douyin.caps.shareOwner // 1.0.x 叫 shareOwner
-  d.caps = { like: num(d.caps.like, 30, 0, BIG), comment: num(d.caps.comment, 3, 0, BIG), share: num(d.caps.share, 5, 0, BIG), atOwner: num(d.caps.atOwner, 3, 0, 30) }
-  if (!isObj(d.owner)) d.owner = {}
-  d.owner = Object.fromEntries(['input', 'secUid', 'uid', 'nickname', 'confirmedInput'].map((k) => [k, String(d.owner[k] ?? '').trim().slice(0, 400)]))
-  if (!isObj(d.gate)) d.gate = {}
-  d.gate = { maxWritesPerDay: num(d.gate.maxWritesPerDay, 40, 1, BIG), minWriteGapSec: num(d.gate.minWriteGapSec, 20, 0, BIG), newAccountDays: num(d.gate.newAccountDays, 3, 0, 30) }
-  // 1.0.x 的 douyin-im / 私信相关设置都不用了
-  for (const k of ['atOwnerOnLikeChance', 'minimize', 'socialInterruptBrowse', 'replyPollMinutes']) delete d[k]
-
   // 心智核心接手以后不用的旧设置：主动搭话、心情、旧记忆模块（向量密钥先搬到 mind.embedKey）
   const oldVectorKey = String(raw?.memory?.vector?.apiKey || '').trim()
   delete c.speakUp
@@ -748,7 +636,7 @@ export function normalize(raw) {
 }
 
 // 面板里不回传原文的字段：路径（几层都行）
-const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['heybox', 'cookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
+const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
 // 扩展模块设置里的密码类字段（模块加载时登记）：['ext', 模块id, 字段]
 const extraSecrets = new Map()
 export function registerSecretField(path) { extraSecrets.set(path.join('\u0000'), path) }
@@ -765,7 +653,7 @@ const getAt = (obj, path) => { const p = parentOf(obj, path, false); return p ? 
 const FILE = () => dataDir('config.json')
 
 /** 在某次更新里新增、会替她公开发东西的功能。以后再加这类功能，把配置键名加到这里。 */
-export const OPT_IN_ON_UPDATE = ['qzoneSocial', 'douyin']
+export const OPT_IN_ON_UPDATE = ['qzoneSocial']
 
 export function loadConfig() {
   const raw = readJson(FILE(), {})
@@ -836,7 +724,6 @@ export function mergeFromPanel(current, incoming) {
     })
   }
   // 管理员的抖音 secUid / uid / 昵称只能由「核对」写入，面板存配置时保留原值
-  next.douyin.owner = { ...next.douyin.owner, ...Object.fromEntries(['secUid', 'uid', 'nickname', 'confirmedInput'].map((k) => [k, current.douyin?.owner?.[k] ?? ''])) }
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''
   if (incoming?.group?.overrides) next.group.overrides = incoming.group.overrides

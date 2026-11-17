@@ -41,7 +41,7 @@ const STORE_EXT = /\.(png|jpe?g|gif|webp|mp3|mp4|m4a|ogg|opus|webm|zip|7z|rar|pt
 const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache', 'douyin/edge-profile']
 // 仅配置备份：媒体不进包，但保留体积很小的聊天流水和当前工作区 DSH 会话
 // 旧版的截图库仍可能留在数据目录，继续排除在仅配置备份之外。
-const CONFIG_ONLY_SKIP = ['imagegen', 'stickers', 'bili-shots', 'douyin']
+const CONFIG_ONLY_SKIP = ['imagegen', 'stickers', 'bili-shots']
 const skipped = (rel) => SKIP.some((s) => rel === s || rel.startsWith(s + '/')) || rel.split('/').includes('node_modules') || rel.endsWith('.tmp') || rel === 'memory.sqlite-shm' || rel.startsWith('memory.sqlite.migrating')
 
 // 旧版生活推进的暂存可能仍在数据目录。只在导出时排除，历史归档仍可导入。

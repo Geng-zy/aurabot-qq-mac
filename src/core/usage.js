@@ -117,8 +117,8 @@ export function priceOf(model, at = Date.now(), p = pricing) {
 // 记账用的模块名：模块 id → 中文；system:xxx 的后台轮次标成「xxx（后台）」
 const MODULE_LABELS = {
   memory: '记忆', mood: '心情', diary: '空间日记', purpose: '目的引擎', 'purpose-nudge': '目的引擎（追问）',
-  stickers: '表情包', imagegen: '生图', heybox: '刷小黑盒', douyin: '刷抖音', video: '生视频',
-  voice: '语音', song: '翻唱', pet: '桌宠', profile: '改资料', contacts: '好友申请',
+  stickers: '表情包', imagegen: '生图', video: '生视频',
+  voice: '语音', song: '翻唱', profile: '改资料', contacts: '好友申请',
   'qq-tools': 'QQ 工具', 'qq-api': 'QQ 接口', 'group-admin': '群管', 'qzone-social': '空间互动',
   // 心智核心的后台用途（记经历、睡觉整理、做梦、深想……），见 src/mind-adapter 的 EFFORT
   'mind:record': '心智核心（记经历）', 'mind:consolidate': '心智核心（睡觉整理）', 'mind:reconsolidate': '心智核心（记忆改写）',

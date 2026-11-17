@@ -54,9 +54,6 @@ async function readBody(r, onBytes) {
 
 /** 搬到社区库的原内置模块：id → 老用户是否在用（在用才自动装回来）。 */
 export const MOVED = {
-  pet: () => existsSync(dataDir('modules-data', 'pet', 'app')), // 装过桌宠客户端才算在用
-  douyin: (cfg) => cfg.douyin?.enabled === true,
-  heybox: (cfg) => cfg.heybox?.enabled === true,
   'group-admin': (cfg) => cfg.modules?.['group-admin']?.enabled === true,
 }
 

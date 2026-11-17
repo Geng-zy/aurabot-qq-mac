@@ -137,8 +137,6 @@ test('后台任务按功能分：聊天不拆，后台轮次按模块名拆开',
   assert.equal(usage.moduleLabel('group:602656027'), '聊天')
   assert.equal(usage.moduleLabel('private:1316149505'), '聊天')
   assert.equal(usage.moduleLabel('system:diary'), '空间日记（后台）')
-  assert.equal(usage.moduleLabel('system:ext-heybox'), '刷小黑盒（后台）')
-  assert.equal(usage.moduleLabel('system:douyin'), '刷抖音（后台）')
   assert.equal(usage.moduleLabel('memory'), '记忆')
   assert.equal(usage.moduleLabel('mood'), '心情')
   assert.equal(usage.moduleLabel('未知模块'), '未知模块', '认不出的模块原样显示')
