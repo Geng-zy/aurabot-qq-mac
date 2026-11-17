@@ -41,6 +41,7 @@ import { createBody } from './body.js'
 import { createLifecycle } from './lifecycle.js'
 import { createFeel } from './feel.js'
 import { createSocial } from './social.js'
+import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
 
 export { looksLikeRule, LOCAL_DEFAULT, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -350,26 +351,11 @@ export function createMindAdapter(opts) {
     try { return mind.emotion.effects(mind.body.state({ persist: false })) } catch { return null }
   }
 
-  // ---------- 眼前的人：关系、对他们的了解、这个群；性格在这种场合 ----------
   const speakersOf = new Map() // chatId → 这一轮说话的人
-  function relationContext(chat) {
-    if (!chat || chat.kind === 'system') return ''
-    try {
-      const group = chat.kind === 'group'
-      const people = group ? speakersOf.get(windowOf(chat.chatId)) || [] : [personIn(chat.chatId, chat.userId)].filter(Boolean)
-      const nameOf = (pid) => (mind.isOwner(pid) ? (isOwnerChat(chat.chatId) ? mind.self.ownerCall() : '管理员') : mind.person(pid)?.name || shortId(pid))
-      const parts = []
-      const here = windowOf(chat.chatId)
-      const rel = mind.relations.describe(people, { nameOf, window: here, privateDetails: isOwnerChat(here),
-        canSee: (source) => mem.sourceVisible(source, here) })
-      if (rel) parts.push(rel)
-      const scene = mind.personality.sceneText({ group, withOwner: people.some((p) => mind.isOwner(p)) })
-      if (scene) parts.push(scene)
-      return parts.join('\n').slice(0, 1200)
-    } catch (error) {
-      return ''
-    }
-  }
+  const socialPrefs = createSocialPreferences({
+    mind, mem, isOwnerChat, shortId, speakersOf, windowOf, personIn, effects, debug,
+  })
+  const { relationContext, dislikes, ignoreChance, groupInterest, reactWish, interjectCap, wakeWords } = socialPrefs
 
   // ---------- 记忆：每轮回复前想起相关的事 ----------
   const working = new Map() // chatId → { text, at }
@@ -677,85 +663,6 @@ export function createMindAdapter(opts) {
     const card = mind.personaCard()
     if (!card.trim()) return null
     return mind.personality.infer(card, (scene, system, text, maxTokens) => mem.ask(scene, system, text, maxTokens))
-  }
-
-  /** 她不想搭理这个人吗（很不喜欢、或有心结；管理员永远不算）。 */
-  function dislikes(userId, chatId) {
-    try { return mind.relations.dislikes(personIn(chatId, userId)) } catch { return false }
-  }
-  function ignoreChance() {
-    return Number(mind.setting('relations.ignoreDisliked')) || 0
-  }
-
-  /**
-   * 群里没人叫她时，她有多想接一句（0～0.8）：看她的性格（爱社交）、话题和她有多相关（记忆里的、她的爱好）、
-   * 在场的人和她多亲近、此刻的心情和精力。最后接不接还是她自己看完再定（不想接就 [沉默]）。
-   * @param {{ texts: string[], speakers: string[] }} o
-   */
-  function groupInterest({ chatId = '', texts = [], speakers = [] } = {}) {
-    try {
-      const scale = Number(mind.setting('relations.interjectScale'))
-      if (!(scale > 0)) return { chance: 0, relevance: 0, why: '群里主动接话关着' }
-      const soc = mind.personality.value('sociability')
-      const base = 0.02 + 0.33 * Math.pow(soc, 1.5) // 一般人（0.5）约 0.14
-      const joined = texts.join(' ')
-      let rel = 0
-      try { rel = Math.max(0, Math.min(1, mem.topicScore(joined, { audienceWindow: windowOf(chatId) }))) } catch {}
-      const hobbies = String(mind.self.profile().hobbies || '').split(/[，,、；;。\s]+/).filter((w) => [...w].length >= 2)
-      const hits = hobbies.filter((w) => joined.includes(w)).length
-      rel = Math.min(1, rel * 0.7 + hits * 0.3)
-      const people = speakers.map((u) => personIn(chatId, u)).filter(Boolean)
-      const close = Math.max(0, ...people.map((id) => (mind.isOwner(id) ? 0.8 : mind.relations.closeness(id))))
-      const fx = effects()?.chatty ?? 1
-      const chance = Math.min(0.8, base * (1 + 3 * rel) * (1 + close) * fx * scale)
-      return { chance, relevance: rel, why: `爱社交 ${soc.toFixed(2)}，话题相关 ${rel.toFixed(2)}，在场最亲近 ${close.toFixed(2)}，心情倍数 ${fx.toFixed(2)}` }
-    } catch (error) {
-      return { chance: 0.1, relevance: 0, why: '算不出来，按一般' }
-    }
-  }
-  /**
-   * 看到一条消息，想不想顺手贴个表情、贴哪种：睡着了不贴，讨厌的人、正在生 ta 气的人不贴；
-   * 想贴的程度看她爱不爱用表情（表达活泼度）、和 ta 多亲近、此刻的心情；贴哪种先看这条在说什么
-   * （难过的给安慰、好消息给赞、好笑的跟着笑），没什么特别的就跟着她自己的心情走。
-   * 最后贴不贴还要过面板里的概率和每小时上限。
-   * @param {{ userId: string, text?: string }} o
-   * @returns {{ scale: number, pool: string[], why: string } | null} null = 心智核心不管（调试模式）
-   */
-  function reactWish({ chatId, userId, text = '' } = {}) {
-    if (debug()) return null
-    try {
-      const body = mind.body.state()
-      if (body.asleep) return { scale: 0, pool: [], why: '睡着了' }
-      const pid = mind.canon(personIn(chatId, userId))
-      if (dislikes(userId, chatId)) return { scale: 0, pool: [], why: '不想理 ta' }
-      const st = mind.emotion.state(body)
-      const sore = st.active.find((e) => e.target === pid && (e.def?.v ?? 0) < -0.2 && e.intensity > 0.3)
-      if (sore) return { scale: 0, pool: [], why: `对 ta 还${sore.name}着` }
-      const { v, a, label } = st.mood
-      const close = mind.isOwner(pid) ? 0.8 : mind.relations.closeness(pid)
-      const expr = mind.personality.value('expressiveness')
-      let scale = (effects()?.sticker ?? 1) * (0.4 + close) * (0.5 + expr)
-      const t = String(text || '')
-      let pool
-      if (/难过|伤心|想哭|哭了|呜呜|好累|累死|烦死|心累|唉|emo|😭|😢|💔/.test(t)) pool = v < 0 ? ['爱心', '可怜'] : ['爱心']
-      else if (/成功|过了|上岸|拿到|好消息|生日快乐|发工资|赢了|考完|搞定/.test(t)) pool = ['赞', '鼓掌']
-      else if (/哈哈|hhh|笑死|233|绷不住|😂|🤣/.test(t)) pool = v > -0.15 ? ['笑哭', '斜眼笑', '捂脸'] : ['捂脸']
-      else if (v >= 0.25 && a >= 0.3) pool = ['呲牙', '调皮', '偷笑', '赞']
-      else if (v >= 0.25) pool = ['微笑', '爱心', '可爱']
-      else if (v > -0.15) pool = ['吃瓜', '托腮', '暗中观察', 'OK']
-      else { pool = ['无奈', 'emm', '捂脸']; scale *= 0.5 }
-      return { scale: Math.max(0, Math.min(2, scale)), pool, why: `${label}，亲近 ${close.toFixed(2)}，爱用表情 ${expr.toFixed(2)}` }
-    } catch (error) {
-      return null
-    }
-  }
-  function interjectCap() {
-    return Number(mind.setting('relations.interjectCapPerHour')) || 0
-  }
-
-  /** 她的名字和小名（叫到就算叫她），加上管理员额外加的。 */
-  function wakeWords(extra = []) {
-    return mind.wakeWords(extra)
   }
 
   function resolveOwnerAbsence(at) {
