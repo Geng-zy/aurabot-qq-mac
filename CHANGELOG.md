@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.10
+
+- 移除 AuraBot 的自更新检查与一键更新：插件更新统一交给 DSH 插件管理器，AuraBot 只保留只读的版本说明（`/changelog`）。
+- 兼容旧模块路径的 5 个 re-export 文件标记为 deprecated，下个大版本删除；模块市场明确为「AuraBot 模块库」，DSH 插件仍走 DSH 插件市场。
+- 核对后保留 `models-list.js`（临时外部服务的模型发现）和 `tools/tools.js`（DSH defineTool 的 JSON Schema 适配层），二者与 DSH 同名能力不等价。
+
 ## 1.5.9
 
 - 适配 dsh-purge 1.7.15 与 1.7.18：两版的核心 rewrite、complete 保注入和 `purge_*` 工具行为一致；新增跨版本集成用例，可直接用 `PURGE_IDENTITY_PATH` 指向任一版本验证。

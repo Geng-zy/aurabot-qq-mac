@@ -1,6 +1,6 @@
 # dsh-purge 兼容与接缝实现
 
-适用 AuraBot `1.5.9`，DSH `0.2.2-rc.3`。结论：**适配 dsh-purge 1.7.15 与 1.7.18**。
+适用 AuraBot `1.5.10`，DSH `0.2.2-rc.3`。结论：**适配 dsh-purge 1.7.15 与 1.7.18**。
 
 ## 版本差异
 
@@ -42,6 +42,6 @@ PURGE_IDENTITY_PATH=/path/to/purge-1.7.15/lib/identity.js node --test test/purge
 
 真实 DSH 隔离 profile（`DSH_HOME` 临时目录、OneBot mock、fake OpenAI 服务）：
 
-- purge 1.7.15 + AuraBot 1.5.9：私聊/群聊消息 → 模型 → QQ 回执；
-- purge 1.7.18 + AuraBot 1.5.9：同上；
+- purge 1.7.15 + AuraBot 1.5.10：私聊/群聊消息 → 模型 → QQ 回执；
+- purge 1.7.18 + AuraBot 1.5.10：同上；
 - 两者的模型请求 system 都以人格卡开头，`【身份锁定】` 在 purge 注入之前，`AURABOT:PERSONA` 标记已移除。

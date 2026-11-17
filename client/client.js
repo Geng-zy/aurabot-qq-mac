@@ -1383,46 +1383,19 @@ body[data-ds-dark-theme] .ab-root{
     }
     const copy = (text, toast, msg) => { try { navigator.clipboard.writeText(text); if (msg) toast(msg, 'ok') } catch (e) { toast('复制失败，手动选中复制吧', 'err') } }
 
-    /** 更新提示：GitHub 上有新版本时给「跟当前系统/形态对应」的命令、链接和更新按钮；刚更新完显示一次这次更新了什么。 */
-    function UpdateNotes({ st, toast }) {
-      const [upd, setUpd] = useState(null)
+    /** 版本更新说明：插件更新交给 DSH 插件管理器，这里只在版本变化后显示一次 CHANGELOG。 */
+    function UpdateNotes({ st }) {
       const [notes, setNotes] = useState(null)
-      const [busy, setBusy] = useState(false)
-      const [result, setResult] = useState(null)
       useEffect(() => {
-        get('/update/check').then(setUpd).catch(() => {})
         let seen = null
         try { seen = localStorage.getItem('aurabot.seenVersion') } catch (e) {}
         if (seen && seen !== st.version) get('/changelog').then((r) => r.notes && setNotes(r.notes))
-        // 第一次打开（新安装）不弹更新说明，直接记下当前版本
         else if (!seen) { try { localStorage.setItem('aurabot.seenVersion', st.version) } catch (e) {} }
       }, [st.version])
       const dismiss = () => { try { localStorage.setItem('aurabot.seenVersion', st.version) } catch (e) {} setNotes(null) }
-      const copy = (text) => { try { navigator.clipboard.writeText(text); toast('复制好了', 'ok') } catch (e) { toast('复制失败，手动选中复制吧', 'err') } }
-      const apply = async () => {
-        if (!upd || busy) return
-        if (!confirm('现在更新到 v' + upd.latest + '？更新完需要重启 DSH 才会生效，设置、人格、记忆都会保留。')) return
-        setBusy(true)
-        setResult(null)
-        const r = await post('/update/apply')
-        setBusy(false)
-        setResult(r)
-        toast(r.message || (r.ok ? '更新好了，重启 DSH 生效' : '更新没成功'), r.ok ? 'ok' : 'err')
-      }
-      const envText = upd && upd.platform ? (upd.platformLabel || upd.platform) + ' · ' + (upd.modeLabel || upd.mode) + '（profile: ' + upd.profile + '）' : ''
-      return h(Fragment, null,
-        notes ? h('div', { className: 'ab-note' },
-          h('div', { className: 'ab-flex' }, h('b', null, '已更新到 v' + st.version), h('div', { className: 'ab-spacer' }), h(Btn, { small: true, kind: 'ghost', onClick: dismiss }, '知道了')),
-          h('div', { style: { whiteSpace: 'pre-wrap', marginTop: 6 } }, notes)) : null,
-        upd && upd.newer ? h('div', { className: 'ab-note warn' },
-          h('div', null, h('b', null, '有新版本 v' + upd.latest), '（现在是 v' + upd.current + '）。', envText ? '当前环境：' + envText + '。' : '', '更新后重启 DSH，设置、人格、记忆都会保留。'),
-          h('div', { className: 'ab-flex', style: { marginTop: 6 } },
-            h('code', { style: { flex: '1 1 240px', fontSize: 11.5, wordBreak: 'break-all' } }, upd.command),
-            h(Btn, { small: true, onClick: () => copy(upd.command) }, '复制'),
-            h(Btn, { small: true, kind: 'primary', disabled: busy, onClick: apply }, busy ? '更新中…' : '立即更新'),
-            h('a', { key: 'release', className: 'ab-btn sm', href: upd.tagUrl || upd.releaseUrl, target: '_blank', rel: 'noreferrer' }, '打开发布页')),
-          result ? h('div', { className: 'ab-small', style: { marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: result.ok ? 'var(--dsw-alias-text-success, #2e7d32)' : 'var(--dsw-alias-text-danger, #c62828)' } },
-            result.message, result.output ? '\n' + String(result.output).slice(-1200) : '') : null) : null)
+      return notes ? h('div', { className: 'ab-note' },
+        h('div', { className: 'ab-flex' }, h('b', null, '已更新到 v' + st.version), h('div', { className: 'ab-spacer' }), h(Btn, { small: true, kind: 'ghost', onClick: dismiss }, '知道了')),
+        h('div', { style: { whiteSpace: 'pre-wrap', marginTop: 6 } }, notes)) : null
     }
 
     function Overview({ st, toast, go, connection, displayName = '大肥鱼' }) {
@@ -1587,6 +1560,7 @@ body[data-ds-dark-theme] .ab-root{
       return h('div', { className: 'ab-grid' },
         h(Card, { className: 'ab-about-project', title: 'AuraBot for macOS', desc: 'v' + st.version + ' · 面板 API v' + (st.apiVersion || '?') },
           h('p', null, '由 Geng-zy 维护的 DeepSeek Harness 插件。心智核心管理大肥鱼的记忆、情绪和关系。Apple 芯片 Mac 上可通过 OneBot v11 接入 QQ，也可部署本地念头模型和生图模型。'),
+          h('div', { className: 'ab-note' }, '插件更新请在 DSH 的插件管理器里进行；这里不再自己检查或安装新版本。'),
           h('div', { className: 'ab-about-links' },
             link('项目仓库', PROJECT_REPO, true),
             link('用户手册', PROJECT_REPO + '/blob/main/docs/USER-MANUAL.md', true),
@@ -4792,7 +4766,7 @@ body[data-ds-dark-theme] .ab-root{
       }
       return h('div', { className: 'ab-grid' },
         progBar,
-        h(Card, { title: '模块市场', desc: '市场读取 macOS 分支和上游两个模块库。同名条目优先显示 macOS 版本。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
+        h(Card, { title: 'AuraBot 模块库', desc: '这里装的是 AuraBot 自己的 .mjs 模块，不是 DSH 插件；DSH 插件请用 DSH 的插件市场管理。模块库读取 macOS 分支和上游两个模块库，同名条目优先显示 macOS 版本。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
           h('div', { className: 'ab-flex' },
             h('input', { className: 'ab-input', placeholder: '搜模块', value: q, onChange: (e) => setQ(e.target.value) }),
             chip('all', '全部'), chip('installed', '已安装'), chip('update', '可更新')),
@@ -6029,11 +6003,7 @@ body[data-ds-dark-theme] .ab-root{
     function Security({ st, draft, setDraft }) {
       const f = useField(draft, setDraft)
       const mode = (draft.security && draft.security.ssrfMode) || 'strict'
-      const picked = draft.update && draft.update.unstable
-      const unstable = typeof picked === 'boolean' ? picked : String(st.version).includes('-')
       return h('div', { className: 'ab-grid' },
-        h(Card, { fold: 'security-update', title: '更新推送', desc: '插件有新版本时，面板会提示并给出更新命令。' },
-          h(Row, { label: '订阅不稳定版本', hint: '打开后也会收到 beta 和 rc 测试版，能早点用上新功能，但可能有问题；关掉只收正式版' }, h(Switch, { on: unstable, onChange: (v) => setDraft(setPath(draft, 'update.unstable', v)) }))),
         h(Card, { title: '危险命令确认', right: f.sw('security.dangerConfirm'), desc: '打开后，ta在私聊里要执行终端危险命令（删根目录、格式化、关机、下载后直接执行等）之前，会先发 QQ 私聊问你；你回复「确认」才执行，回复「取消」或 60 秒没回就拦下。默认关。只拦真正致命的命令，普通删除/构建/改文件不受影响。' }),
         h(Card, { fold: 'security-download', title: 'SSRF 防护', desc: '限制 ta 下载图片、语音时能访问哪些地址 —— 防止有人用一条链接诱导 ta 去访问你电脑或内网里的服务（路由器管理页、云服务器的 169.254.169.254、本机端口之类）。' },
           h(Row, { label: '防护强度', hint: '部署在服务器上、或者群里有陌生人时，用「严格」' },
@@ -6188,7 +6158,7 @@ body[data-ds-dark-theme] .ab-root{
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'], douyin: ['douyin'], heybox: ['heybox'],
-      local: ['local'], video: ['local'], browser: ['browser'], security: ['security', 'update'], modules: ['modules', 'safeMode'],
+      local: ['local'], video: ['local'], browser: ['browser'], security: ['security'], modules: ['modules', 'safeMode'],
     }
 
     function AurabotPage() {

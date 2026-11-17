@@ -1,5 +1,7 @@
 // 工具的写法。具体的工具都在各个模块里（src/modules/*），按会话注册（agent.ctx.tools.register），只出现在 Aurabot 的会话里。
 // 工具定义一旦确定尽量别改：改一次，DeepSeek 的前缀缓存就失效一次。
+// 注意：没有直接 re-export @deepseek-ai/dsh-tools 的 defineTool，因为它的 parameters 是
+// DSH 的 schema spec，而 AuraBot 模块一直传 JSON Schema，且需要 slow/render 元数据；这里保留适配层。
 
 /**
  * 和 @deepseek-ai/dsh-tools 的 defineTool 产物同形：parameters / output.schema 是 JSON Schema。

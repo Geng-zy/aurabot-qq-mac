@@ -210,24 +210,10 @@ test('迁移：插件卸载后旧实例不再安装、不写配置', async () =>
   assert.equal(writes, 0)
 })
 
-test('测试版：版本比较、更新通道、市场最低版本', async () => {
-  const u = await import('../src/core/update.js')
+test('测试版：市场最低版本比较', async () => {
   const { compareVersions } = await import('../src/core/community.js')
-  assert.ok(u.compareVersions('1.2.0-beta.1', '1.1.24') > 0)
-  assert.ok(u.compareVersions('1.2.0-beta.2', '1.2.0-beta.1') > 0)
-  assert.ok(u.compareVersions('1.2.0', '1.2.0-beta.2') > 0)
-  assert.ok(u.compareVersions('1.2.0-beta.2', '1.2.0') < 0)
-  assert.equal(u.compareVersions('1.1.24', '1.1.24'), 0)
   assert.equal(compareVersions('1.2.0', '1.2.0-beta.1'), 0)
-  const urls = []
-  const feed = '<feed><entry><updated>2026-11-01T00:00:00Z</updated><link rel="alternate" href="https://github.com/a/b/releases/tag/v1.2.0-beta.2"/><title>beta</title></entry></feed>'
-  const check = u.createUpdateChecker({ pkg: { version: '1.2.0-beta.1', repository: 'https://github.com/a/b' }, fetchImpl: async (url) => { urls.push(url); return { ok: true, text: async () => feed } } })
-  const r = await check({ force: true })
-  assert.match(urls[0], /releases\.atom$/)
-  assert.equal(r.newer, true)
-  assert.equal(r.latest, '1.2.0-beta.2')
-  assert.match(r.command, /#v1\.2\.0-beta\.2$/)
-  assert.equal(u.channelOf('1.2.0'), 'main')
+  assert.equal(compareVersions('1.2.0-beta.2', '1.2.0-beta.1'), 0)
 })
 
 test('提交教程随插件发布', () => {

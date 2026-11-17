@@ -318,21 +318,12 @@ test('空间互动：一串评论里没回的新消息', async () => {
   assert.equal(pendingInThread(mine, me, new Set(['c2/r1', 'c2/r2'])).pending.length, 0)
 })
 
-test('更新：版本比较、仓库名、更新命令、更新说明', async () => {
-  const u = await import('../src/core/update.js')
-  assert.ok(u.compareVersions('0.3.0', '0.2.9') > 0)
-  assert.ok(u.compareVersions('0.10.0', '0.9.0') > 0)
-  assert.equal(u.compareVersions('1.0.0', '1.0.0'), 0)
-  assert.equal(u.repoOf({ repository: { url: 'https://github.com/a/b.git' } }), 'a/b')
-  assert.match(u.updateCommand('a/b'), /plugin --profile desktop add github:a\/b$/)
+test('更新说明：CHANGELOG 里取当前版本那一段', async () => {
+  const { changelogSection } = await import('../src/core/changelog.js')
   const log = '# 更新记录\n\n## 0.3.0\n\n- 新的\n\n## 0.2.0\n\n- 旧的'
-  assert.equal(u.changelogSection(log, '0.3.0'), '- 新的')
-  assert.equal(u.changelogSection(log, '0.2.0'), '- 旧的')
-  assert.equal(u.changelogSection(log, '9.9.9'), '')
-  const check = u.createUpdateChecker({ pkg: { version: '0.2.0', repository: 'https://github.com/a/b' }, fetchImpl: async () => ({ ok: true, text: async () => '<feed><entry><link rel="alternate" href="https://github.com/a/b/releases/tag/v0.3.0"/></entry></feed>' }) })
-  const r = await check()
-  assert.equal(r.newer, true)
-  assert.equal(r.latest, '0.3.0')
+  assert.equal(changelogSection(log, '0.3.0'), '- 新的')
+  assert.equal(changelogSection(log, '0.2.0'), '- 旧的')
+  assert.equal(changelogSection(log, '9.9.9'), '')
 })
 
 test('更新后：会公开发东西的新功能，老用户先关着，新安装照常默认开', async () => {

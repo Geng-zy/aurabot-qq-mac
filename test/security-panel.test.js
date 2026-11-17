@@ -12,7 +12,7 @@ test('安全防护页接上了页签、组件、搜索和 SSRF 模式配置', ()
   assert.ok(client.includes('security: Security'), '组件表缺 security → Security')
   assert.ok(client.includes('function Security({ st, draft, setDraft })'), '缺 Security 组件')
   assert.match(client, /id: 'security'[^\n]*search: '[^']*SSRF/, '搜索索引缺安全防护关键词')
-  assert.ok(client.includes("security: ['security', 'update']"), '安全防护页的未保存改动没接上')
+  assert.ok(client.includes("security: ['security']"), '安全防护页的未保存改动没接上')
   // 默认值行本身会随新增字段变化，这里只锁「security 里有 ssrfMode: 'strict'」这个事实
   assert.match(config, /security:\s*\{[^}]*ssrfMode:\s*'strict'/, '缺 ssrfMode 默认值')
   assert.ok(config.includes("c.security.ssrfMode = c.security.ssrfMode === 'loose' ? 'loose' : 'strict'"), '缺 ssrfMode 归一化')

@@ -281,20 +281,6 @@ test('下载源：自动模式下官方源慢就用国内镜像；老配置自�
   assert.equal(normalize({ song: { pypiMirror: 'tuna' } }).song.pypiMirror, 'cn')
 })
 
-test('检查更新：GitHub 连不上就问 jsDelivr 的 tag 列表', async () => {
-  const u = await import('../src/core/update.js')
-  const seen = []
-  const check = u.createUpdateChecker({ pkg: { version: '0.2.0', repository: 'https://github.com/a/b' }, fetchImpl: async (url) => {
-    seen.push(url)
-    if (url.includes('github.com')) throw new Error('reset')
-    return { ok: true, json: async () => ({ versions: [{ version: '0.3.0' }, { version: '0.2.0' }, { version: 'junk' }] }) }
-  } })
-  const r = await check({ force: true })
-  assert.equal(r.newer, true)
-  assert.equal(r.tag, 'v0.3.0')
-  assert.ok(seen.at(-1).includes('data.jsdelivr.com'))
-})
-
 test('翻唱失败那句话：交给她的事带上歌名和真实原因、明说别念内部信息（她说不说由她，见 her-voice）', async () => {
   const { failFacts } = await import('../src/modules/song/index.js')
   const p = failFacts('雨爱', '翻唱环境不完整，在面板里点「重新检查」')
