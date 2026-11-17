@@ -6,7 +6,9 @@
 
 `createModules` 是一个大闭包，`live / errors / routes / listeners / revisions / generation / userSeen / syncing` 被 registry、loader、module-api、panel 四组职责共享。直接按函数切文件会破坏热重载和 `generation` 失效语义。
 
-可行顺序：
+已完成（1.5.10 beta）：`module-state.js` / `module-code.js` / `module-panel.js` / `module-api.js` / `module-registry.js` / `module-loader.js`，`modules.js` 从 900 行降到 190 行，只保留组合根。
+
+原计划顺序：
 
 1. 抽 `state.js`：只放 8 个 Map 和 `generation`，0 行为变化；
 2. 抽 `panel.js`：`handle / panelSource / inside / emit / claim / filter`；
