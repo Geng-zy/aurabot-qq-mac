@@ -717,7 +717,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
 
   // ---------- 面板 ----------
   function status() {
-    const users = isUserOn() ? scanUser() : scanUser().map((u) => ({ ...u, safe: true }))
+    const users = scanUser()
     // 文件夹刚删掉、还没来得及停的模块也列出来（下一轮检查就停）
     const ids = [...builtinDefs.keys(), ...[...new Set([...users.map((u) => u.id), ...live.keys()])].filter((id) => !builtinDefs.has(id)).sort()]
     return ids.map((id) => {

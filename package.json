@@ -61,7 +61,8 @@
     "README_EN.md",
     "docs/DESIGN.md",
     "docs/PURGE-COMPAT.md",
-    "docs/OVERLAP-AUDIT.md"
+    "docs/OVERLAP-AUDIT.md",
+    "docs/P2-MIGRATION.md"
   ],
   "repository": {
     "type": "git",

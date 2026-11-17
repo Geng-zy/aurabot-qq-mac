@@ -6,13 +6,14 @@
 
 | 项 | 1.7.15 | 1.7.18 |
 |---|---|---|
-| `lib/identity.js` | 与 1.7.18 逐字一致 | 基准 |
+| `lib/identity.js` | 与 1.7.18 逐字一致（blob sha 相同） | 基准 |
+| `lib/index.js` | 与 1.7.18 不同；guard、注入策略和补丁开关在这里 | 基准 |
 | complete 预设保注入补丁 #40 | 有 | 有 |
 | `dsh-purge*` / `dshpg-*` 段约定 | 一致 | 一致 |
 | `purge_*` 工具 | 一致 | 一致 |
 | 新增内容 | — | 状态页逐补丁计数、补丁组开关等面板功能 |
 
-AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模块；1.7.15 的宿主补丁与 1.7.18 在接缝相关行为上一致。
+AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模块；1.7.15 与 1.7.18 的 `identity.js` 一致，但 `lib/index.js` 不同，guard/注入/补丁开关的行为差异不能只靠 `identity.js` 覆盖。
 
 ## 试过的实现与结论
 
@@ -31,7 +32,7 @@ AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模�
 2. `src/integration/persona-hoist.js` 包住每个 provider adapter 的 `prepareCall` 与 `stream`；
 3. 只对 `sessionId` 属于 Aurabot QQ 会话的请求生效，把标记块搬到第一条 system 消息最前，并移除标记；
 4. `src/integration/purge-scope.js` 继续负责维护工具名、会话工具闸和执行约束段；
-5. 人格块内文字原样保留，不解析、不改写。
+5. 人格块内文字语义原样保留，不解析、不改写；purge 会对连续空格做空白归一（`甲  乙` → `甲 乙`），这是已知差异。
 
 ## 验证
 
@@ -45,3 +46,10 @@ PURGE_IDENTITY_PATH=/path/to/purge-1.7.15/lib/identity.js node --test test/purge
 - purge 1.7.15 + AuraBot 1.5.10：私聊/群聊消息 → 模型 → QQ 回执；
 - purge 1.7.18 + AuraBot 1.5.10：同上；
 - 两者的模型请求 system 都以人格卡开头，`【身份锁定】` 在 purge 注入之前，`AURABOT:PERSONA` 标记已移除。
+
+## 已知限制（不是故障，但影响“完美兼容”）
+
+- **工具级审批**：dsh-purge 默认把 approval 服务、工具管线和 sandbox 提权改成自动放行；AuraBot 的 `approval/request` QQ 中继在装 purge 的机器上不会触发。危险命令仍有 `danger.js` 的 QQ 确认。需要工具级审批时，把 purge 的 `tuning.permissionPatches` 设为 `false` 并重新 apply，或把确认逻辑迁到 `tools/pre-execute`。
+- **执行约束是寄生的**：`dsh-purge:aurabot-exec` 只有存在非空 `dsh-purge` 段时才插入；注入为空、预设被排除或宿主 #40 补丁缺失时会静默消失。
+- **人设前置依赖 adapter**：`ctx.llm` 未就绪时 `persona-hoist` 不会包装 provider；现在会打 warn，但不会自动重试。
+- **升级韧性**：`session.header.agentPreset`、`llm.adapters`、assemble 的 `agent` 上下文和 #40 精确字符串补丁都不是稳定契约；DSH 换版后要跑一次 `purge_status` + 真实请求检查。

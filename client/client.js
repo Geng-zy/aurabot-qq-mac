@@ -3585,7 +3585,6 @@ body[data-ds-dark-theme] .ab-root{
       )
     }
 
-    const SOURCE = { tool: 'ta自己记的', auto: '每日整理', diary: '空间日记', panel: '你加的', event: 'ta的经历', import: '导入的', abstract: '长期印象' }
     function Mood({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const mc = draft.mind || {}

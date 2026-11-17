@@ -69,3 +69,11 @@ test('adapter：包 prepareCall/stream，不依赖 llm/stream 监听顺序', asy
   assert.equal(adapter.stream({ sessionId: 's1', messages: [{ role: 'system', content: text }] }), 'direct-stream')
   assert.ok(String(seen[3].messages[0].content).startsWith(INJECT), '卸载后恢复原方法')
 })
+
+
+test('没有 llm.adapters 时明确告警，不静默失效', () => {
+  const warns = []
+  const off = installPersonaHoist({ on() { return () => {} } }, { log: { warn: (...args) => warns.push(args.join(' ')) } })
+  assert.match(warns.join('\n'), /没有找到 llm\.adapters/)
+  off()
+})

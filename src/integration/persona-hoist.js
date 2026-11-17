@@ -131,6 +131,9 @@ export function installPersonaHoist(ctx, { llm, isAurabotRequest, log } = {}) {
 
   const service = llm || (typeof ctx.get === 'function' ? ctx.get('llm') : null) || ctx.llm
   const adapters = service?.adapters
+  if (!(adapters instanceof Map)) {
+    log?.warn?.('人设前置没有找到 llm.adapters：本次启动不会包装 provider，检查宿主 llm 服务是否已就绪')
+  }
   if (adapters instanceof Map) {
     for (const entry of adapters.values()) wrapAdapter(entry?.adapter)
   }
