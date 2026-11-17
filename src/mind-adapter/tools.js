@@ -173,4 +173,5 @@ export function createMindTools({ mind, mem, inspectionTools, defineTool, str, i
     ]
   }
 
+  return { tools, buildTools }
 }
