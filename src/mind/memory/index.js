@@ -10,6 +10,7 @@ import { zonedToEpoch, shortTime, dayKey, localParts, parseBirthday } from '../c
 import { placeOf, shortId } from '../place.js'
 import { keywords } from './words.js'
 import { createVisibility } from './visibility.js'
+import { createRender } from './render.js'
 
 import { anchorDates, relativeDayWords, pendingLabel, parseJson, KINDS } from './text.js'
 export { parseJson, KINDS } from './text.js'
@@ -611,18 +612,7 @@ export function createMemory(deps) {
     return top.map(({ e, r, level, associated, hop }) => ({ id: e.id, at: e.at, window: e.window, kind: e.data.kind, level, r, associated: Boolean(associated), hop: hop || 0, text: render(e, level, compact), emotion: e.data.emotion || null, target: e.data.about || '', secret: Boolean(e.data.secret && (hasSecretScope(e) || deps.isPrivateHistoryWindow(e.window))), toldTo: e.data.toldTo || null }))
   }
 
-  /** 按想起的清楚程度给出她脑子里的样子。 */
-  function render(e, level, compact = false) {
-    const tag = e.data.kind === 'pending' ? pendingLabel(e) : KINDS[e.data.kind] && e.data.kind !== 'event' && e.data.kind !== 'experience' ? `（${KINDS[e.data.kind]}）` : ''
-    const gist = memorySummary(e, e.gist)
-    // 过时了的：知道那是以前的情况
-    if (e.data.outdated && level !== 'tip') return `以前：${gist}${tag}——后来变了：${e.data.outdated.now}`
-    if (level === 'clear') return `${gist}${!compact && e.detail ? '——' + memorySummary(e, e.detail) : ''}${tag}`
-    if (level === 'vague' || e.data.kind === 'pending') return `好像有这么回事：${gist}${tag}`
-    // 话到嘴边：只想起前一半
-    const chars = [...gist]
-    return `${chars.slice(0, Math.max(4, Math.ceil(chars.length * 0.4))).join('')}……（一下想不全）`
-  }
+  const render = createRender({ memorySummary, pendingLabel, KINDS })
 
   /** 想起来的被加强；隔得越久想起，加得越多。按设置的概率排进睡觉时的改写。 */
   function strengthen(ids) {
