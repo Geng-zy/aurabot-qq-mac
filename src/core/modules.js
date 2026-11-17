@@ -34,7 +34,7 @@ const ENTRY = ['index.mjs', 'index.js']
 const DOC = 'API.md'
 const TYPES = 'aurabot.d.ts'
 // 从内置搬到社区库的模块：接口路径不变，面板页照常能用
-const STABLE_ROUTES = new Set(['pet', 'douyin', 'heybox', 'group-admin'])
+const STABLE_ROUTES = new Set(['group-admin'])
 
 export const userDir = () => dataDir('modules')
 

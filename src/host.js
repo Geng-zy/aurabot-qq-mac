@@ -47,7 +47,7 @@ import { applyPendingRestore, cancelRestore, createBackup, listBackups, pendingM
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
-import { setSsrpMode, assertPublicUrl, fetchGuarded } from './core/net.js'
+import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
 import { createMindAdapter } from './mind-adapter/index.js'
 import { createPurgeScope } from './integration/purge-scope.js'
@@ -70,9 +70,6 @@ const PREFIX = '/aurabot/api'
  * 这个 DSH 会话是不是 Aurabot 的 QQ 聊天会话（私聊/群聊各对应一个 DSH 会话）。
  * 桌宠的干活状态只该跟 DSH 自己发起的活儿走，聊天回合不算（#184：每句聊天都弹完工气泡太吵）。
  */
-export function isChatSession(hub, session) {
-  try { return Boolean(session?.id && hub?.chatOfSession?.(session.id)) } catch (error) { return false }
-}
 
 export function apply(ctx) {
   const logger = createLogger({ dsh: ctx })
@@ -386,7 +383,7 @@ export function apply(ctx) {
       let path = ''
       try { path = new URL(req.url, 'http://x').pathname } catch (error) {}
       // 【复审 2·P1-2】模块 prefix 路由也过 CSRF：实测本机 socket + 恶意 Origin 能跨站打
-      // POST /aurabot/api/heybox/run、/ext/phone/run 等无 token 的模块路由（真实触发逛/ADB）。
+      // POST /aurabot/api/<模块>/run、/ext/<模块>/run 等无 token 的模块路由。
       // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；桌宠 native 客户端不带 Origin，
       // 不受影响；桌面面板的 fetch 是同源，也不受影响。
       if (csrfBlocked(req, res)) return undefined
@@ -464,39 +461,9 @@ export function apply(ctx) {
     return () => { try { if (typeof off === 'function') off() } catch (error) {} }
   }, 'aurabot: 危险命令确认')
 
-  // ---------- 桌宠端口注入（破「端口自举死锁」） ----------
-  // pet 模块写 host.json 的 baseUrl 需要真实 Web 端口，而它自己监听不到（端口未知时只能写 null，
-  // 客户端连不上 → 学不到 Host 头 → 死锁）。DSH 的 webServer 服务知道端口（ctx.webServer.port，
-  // 取不到再退 DSH_WEB_URL）。注入时机：pet 每次启动/重载（module/start）+ boot 完成兜底各试一次；
-  // Host 头学习仍保留，作端口漂移纠正。
-  function webPortOf() {
-    let port = Number(ctx?.webServer?.port)
-    if (!Number.isInteger(port) || port <= 0 || port >= 65536) {
-      try { port = Number(new URL(String(process.env.DSH_WEB_URL || '')).port) } catch { port = 0 }
-    }
-    return Number.isInteger(port) && port > 0 && port < 65536 ? port : 0
-  }
-  // ---------- 桌宠远端直连（publicBaseUrl，2026-11-02）----------
-  // 单一真相：ext.pet.publicBaseUrl（pet 模块 api.settings() 读同一键；面板写入通道见 /panel/pet/config 与
-  // /panel/pet/public-base）。合法 http(s) URL 才生效；配置后 pet 的 host.json 写远端地址、guard 放行远端
-  // Host/Origin、面板把 Electron 三键换成「下载客户端包」。未配置时 pet 一切行为与旧版一致（同机零退化）。
-  function publicBaseUrlOf() {
-    const raw = String(getConfig().ext?.pet?.publicBaseUrl || '').trim().replace(/\/+$/, '')
-    if (!/^https?:\/\//i.test(raw)) return ''
-    try { const u = new URL(raw); if (!u.hostname) return '' } catch { return '' }
-    return raw
-  }
-  function injectPetPort() {
-    const port = webPortOf()
-    if (!port) return false
-    try { return Boolean(use('pet')?.setWebPort?.(port)) } catch { return false }
-  }
-  mods.listen('module/start', (id) => { if (id === 'pet') injectPetPort() })
-
   let unloaded = false
   const community = createCommunity({ mods, getConfig, setConfig, log, version: VERSION, alive: () => !unloaded })
   const booted = mods.boot()
-  booted.then(() => injectPetPort()).catch(() => {})
   booted.then(() => (unloaded ? [] : community.migrate())).catch((error) => log.warn('搬到社区库的模块处理失败：', error.message))
     .then(async () => {
       // 恢复备份后把市场模块装回来；没装上的留着，下次启动再试
@@ -609,11 +576,6 @@ export function apply(ctx) {
       } catch (error) {
         log.warn('会话事件处理出错：', error.message)
       }
-      // 桌宠的「干活状态」动画 / 结束提醒：把同一条事件顺手转给 pet 模块（模块没开就是 null，纯旁路）
-      // QQ 聊天会话不转：聊天每句都有 turn/start→turn/end，桌宠会每句话弹一次「完工」气泡/动作（#184）
-      try {
-        if (!isChatSession(hub, session)) use('pet')?.onSessionEvent?.(session, event)
-      } catch (error) { log.debug?.('桌宠状态联动出错：', error.message) }
       // 审批请求顺手通知到管理员私聊（只通知，不代答）
       if (event && event.type === 'approval/asked') notifyApproval(session, event)
       // 你已经点过了：还在缓冲里的那条撤掉，别等你点完才提醒
@@ -665,7 +627,6 @@ export function apply(ctx) {
       stickers: { count: stickers.library().items.length },
       diary: { next: '', last: diary?.history()[0] || null },
       qzoneSocial: use('qzone-social')?.state?.() ?? null,
-      pet: petStatus(),
       // 心智核心：上次睡觉整理的时间和结果、今天花了多少
       mind: mind ? { sleep: mind.mind._store.get('sleep.lastReport', null), usage: mind.mind.budget.spent(), counts: mind.mind.status().counts } : null,
       avatar: avatarInfo(),
@@ -691,7 +652,6 @@ export function apply(ctx) {
       : v
     return walk(value)
   }
-  const petStatus = () => redactTokens(use('pet')?.status?.() ?? null)
 
   route('/state', async () => overview())
   // token 用量与花费：今日 / 昨日 / 近 7 天 / 近 30 天，各带模块明细
@@ -732,339 +692,6 @@ export function apply(ctx) {
     } catch (error) {
       return { ok: false, message: error.message }
     }
-  })
-
-  // ---------- 面板代理：桌宠 ----------
-  route('/panel/pet/status', async () => ({ ok: true, pet: petStatus() }))
-  // 桌宠页下方的设置项：碎碎念（桌宠自己的气泡流）+ 干活状态动画/结束提醒
-  route('/panel/pet/config', async (req) => {
-    const b = await readBody(req)
-    const patch = {}
-    for (const k of ['whisperEnabled', 'whisperPauseOnPetCarrier', 'workStatusEnabled', 'workBubble', 'workNotify']) {
-      if (typeof b[k] === 'boolean') patch[k] = b[k]
-    }
-    if (b.whisperSource === 'model' || b.whisperSource === 'pool') patch.whisperSource = b.whisperSource
-    for (const k of ['whisperMinMinutes', 'whisperMaxMinutes', 'whisperMaxPerDay']) {
-      // 面板口径：间隔 1~9999 分钟、每日上限 0~9999 次（0 = 不发）
-      if (Number.isFinite(b[k])) patch[k] = k === 'whisperMaxPerDay' ? Math.min(9999, Math.max(0, Math.floor(b[k]))) : Math.min(9999, Math.max(1, Math.floor(b[k])))
-    }
-    // 人物大小倍率：0.5~2.0，步进 0.05；坏值忽略（别把桌宠缩没了）
-    if (Number.isFinite(b.petScale)) patch.petScale = Math.min(2, Math.max(0.5, Math.round(b.petScale * 20) / 20))
-    // 松手后落地：布尔透传（模块侧缺省当开，别让老面板把抛掷关没）
-    if (typeof b.petReleaseLand === 'boolean') patch.petReleaseLand = b.petReleaseLand
-    // 对话框（pet 1.0.5 起在模块库，模块自己的 settings 同样不渲染成表单；这里仍是唯一写入通道）
-    for (const k of ['petChatEnabled', 'petChatBlurHide']) {
-      if (typeof b[k] === 'boolean') patch[k] = b[k]
-    }
-    // 快捷键 / 关闭关键字 / 天气城市：纯文本，按模块 settings 的口径截断（空串合法 = 关掉该项）
-    for (const [k, max] of [['petChatHotkey', 40], ['petChatCloseKeyword', 20], ['petWeatherCity', 40]]) {
-      if (typeof b[k] === 'string') patch[k] = b[k].trim().slice(0, max)
-    }
-    // 天气接口模板：只收 http/https（留空 = 用模块内置默认 wttr.in）
-    if (typeof b.petWeatherUrl === 'string') {
-      const u = b.petWeatherUrl.trim().slice(0, 500)
-      if (!u || /^https?:\/\//i.test(u)) patch.petWeatherUrl = u
-    }
-    // 历史上限与保留天数：与模块 settings 的 min/max 对齐（10~2000 条；0 天 = 永久保留）
-    if (Number.isFinite(b.petChatMaxEntries)) patch.petChatMaxEntries = Math.min(2000, Math.max(10, Math.round(b.petChatMaxEntries)))
-    if (Number.isFinite(b.petChatRetentionDays)) patch.petChatRetentionDays = Math.min(3650, Math.max(0, Math.round(b.petChatRetentionDays)))
-    if (typeof b.whisperLines === 'string') patch.whisperLines = b.whisperLines.slice(0, 4000)
-    // 素材包下载地址：内建模块的 settings 字段不渲染成表单（同上），这里是它唯一的写入通道。
-    // 只收 http/https（或空 = 回到内置默认），别把 file:// 之类塞进来当下载源
-    if (typeof b.petPackUrl === 'string') {
-      const u = b.petPackUrl.trim().slice(0, 1000)
-      if (!u || /^https?:\/\//i.test(u)) patch.petPackUrl = u
-    }
-    // Electron 下载镜像：同上（内建模块不渲染 settings）；留空 = 回落内置默认 npmmirror
-    if (typeof b.electronMirror === 'string') {
-      const u = b.electronMirror.trim().slice(0, 500)
-      if (!u || /^https?:\/\//i.test(u)) patch.electronMirror = u
-    }
-    // 对外公网地址（远端直连）：只收 http/https 或空（空 = 关掉远端模式，回到同机）
-    if (typeof b.publicBaseUrl === 'string') {
-      const u = b.publicBaseUrl.trim().replace(/\/+$/, '').slice(0, 300)
-      if (!u || /^https?:\/\//i.test(u)) patch.publicBaseUrl = u
-    }
-    // 安全项（2026-11-02）：明文 http 跨机开关 + 令牌有效期。同样因为内置模块的 settings 不渲染表单，
-    // 这里是唯一写入通道。
-    if (typeof b.allowInsecureRemote === 'boolean') patch.allowInsecureRemote = b.allowInsecureRemote
-    if (Number.isFinite(b.tokenTtlDays)) patch.tokenTtlDays = Math.min(3650, Math.max(0, Math.floor(b.tokenTtlDays)))
-    // 行为大脑的模块级设置（AI 自己改不了，只有管理员能改）。pet 是**内置模块**，
-    // 它的 settings schema 不会渲染成表单（面板只给「用户自己复制出来的模块」生成），
-    // 所以这里是这些开关唯一的写入通道——不补，关窗物理闸就永远打不开。
-    for (const k of ['behaviorEnabled', 'behaviorIconMischiefEnabled', 'behaviorCloseWindowEnabled']) {
-      if (typeof b[k] === 'boolean') patch[k] = b[k]
-    }
-    for (const [k, lo, hi] of [
-      ['behaviorMinMinutes', 1, 9999],        // 铁律：最短 1 分钟
-      ['behaviorMaxMinutes', 1, 9999],
-      ['behaviorMaxPerDay', 0, 999999],
-      ['behaviorIdleCursorMinutes', 1, 240],
-      ['behaviorMoodCloseWindowBelow', 0, 100],
-      ['behaviorIconQuarantineDays', 1, 365],
-      ['chatBehaviorCooldownMinutes', 1, 1440], // 聊天联动冷却：1 分钟起，最长一天
-      ['chatBehaviorMaxPerDay', 0, 9999],       // 聊天联动每日上限：0 = 聊天时她也不动
-    ]) {
-      if (Number.isFinite(b[k])) patch[k] = Math.min(hi, Math.max(lo, Math.round(b[k])))
-    }
-    if (typeof b.behaviorWindowWhitelist === 'string') patch.behaviorWindowWhitelist = b.behaviorWindowWhitelist.slice(0, 2000)
-    if (typeof b.behaviorDisabledActions === 'string') patch.behaviorDisabledActions = b.behaviorDisabledActions.slice(0, 500)
-    // 聊天联动动作（1.2.0 起 pet 模块代码在 mods 仓；核心侧 /panel/pet/config 仍是这些键的面板写入通道）
-    if (typeof b.chatBehaviorEnabled === 'boolean') patch.chatBehaviorEnabled = b.chatBehaviorEnabled
-    if (typeof b.chatBehaviorWhitelist === 'string') patch.chatBehaviorWhitelist = b.chatBehaviorWhitelist.slice(0, 2000)
-    if (!Object.keys(patch).length) return { ok: false, message: '没有可保存的字段' }
-    setConfig(mergeFromPanel(cfg, { ext: { pet: patch } }))
-    log.info(`面板已保存桌宠设置｜${Object.keys(patch).map((k) => k + '=' + String(patch[k]).slice(0, 20)).join(' ')}`)
-    return { ok: true, pet: petStatus() }
-  })
-  // 「现在碎碎念一句」：绕过排程与开关，但仍尊重专注模式（force 只跳排程类闸门）
-  route('/panel/pet/whisper', async (req) => {
-    const pet = use('pet')
-    if (typeof pet?.whisperNow !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，碎碎念不了' }
-    const r = await pet.whisperNow({ force: true, reason: '面板' })
-    const msg = r && r.ok ? `她嘟囔了一句：${r.text}` : ({ focus: '专注模式开着，先关掉再来', 'pet-offline': '桌宠没在跑，气泡发不出去', 'plugin-off': '插件总开关是关的', thinking: '上一句她还在想（工作区那条会话还没结束），等几秒再来' }[r && r.reason] || '这轮没说出来')
-    return { ok: Boolean(r && r.ok), message: msg, result: redactTokens(r) }
-  })
-  route('/panel/pet/download', async () => {
-    const pet = use('pet')
-    if (typeof pet?.download !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，装不了客户端' }
-    return { ok: true, result: redactTokens(await pet.download()) }
-  })
-  // 素材包：手动重下默认形象包（换镜像地址后用；force=true 表示已有也重下）
-  route('/panel/pet/fetch-pack', async () => {
-    const pet = use('pet')
-    if (typeof pet?.ensureDefaultPack !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，下不了素材包' }
-    return { ok: true, result: await pet.ensureDefaultPack(true), pet: petStatus() }
-  })
-  route('/panel/pet/focus', async (req) => {
-    const enabled = Boolean((await readBody(req)).enabled)
-    const pet = use('pet')
-    if (typeof pet?.setFocus !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，改不了专注模式' }
-    return { ok: true, result: redactTokens(await pet.setFocus(enabled)) }
-  })
-  // Electron 三键：安装（npmmirror 镜像）→ 启动（清 ELECTRON_RUN_AS_NODE 分离进程）→ 停止（杀 pid）
-  // 远端直连模式（配了 publicBaseUrl）下安装/启动不再执行——服务器无桌面，spawn 无头 Electron 的坑从入口上消失，
-  // 面板据 remoteClient:true 把这两键换成「下载客户端包」（/panel/pet/client-package）。
-  // 【首审 P2】还要看模块具备不具备 clientPackage 能力：装上的是旧版 pet（1.0.8 及以前）时，
-  // 面板如果照旧提示「点下载客户端包」，用户点下去只会拿到 404/降级文案。这种情况下要说清楚是版本问题。
-  const remotePetHint = () => {
-    const pet = use('pet')
-    const canPackage = typeof pet?.clientPackage === 'function'
-    if (!canPackage) {
-      return {
-        ok: false, available: false, remoteClient: true, needModuleUpgrade: true,
-        message: '已配置对外地址（远端直连模式），但当前桌宠模块太旧、不具备「打包客户端」能力（需要 pet 1.0.10+）：请先在模块市场把桌宠更新到最新版',
-      }
-    }
-    return {
-      ok: false, available: false, remoteClient: true,
-      message: '已配置对外地址（远端直连模式）：服务器上不再安装/启动 Electron。请在「桌宠」页点「下载客户端包」，在你自己的电脑上解压运行',
-    }
-  }
-  route('/panel/pet/electron-install', async () => {
-    if (publicBaseUrlOf()) return remotePetHint()
-    const pet = use('pet')
-    if (typeof pet?.electronInstall !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，装不了 Electron' }
-    return { ok: true, result: redactTokens(await pet.electronInstall()) }
-  })
-  route('/panel/pet/launch', async () => {
-    if (publicBaseUrlOf()) return remotePetHint()
-    const pet = use('pet')
-    if (typeof pet?.launch !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，启动不了桌宠' }
-    return { ok: true, result: redactTokens(await Promise.resolve(pet.launch())) }
-  })
-  route('/panel/pet/stop', async () => {
-    const pet = use('pet')
-    if (typeof pet?.stop !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，停不了桌宠' }
-    return { ok: true, result: redactTokens(await Promise.resolve(pet.stop())) }
-  })
-  // 轮换令牌（安全）：旧的立即失效，客户端必须重新下载包。跨机部署时这是唯一的应急手段
-  // （令牌一旦泄露，只有换掉它才收得回口子）。
-  route('/panel/pet/rotate-token', async () => {
-    const pet = use('pet')
-    if (typeof pet?.rotateToken !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪 / 版本太旧（需要 1.0.10+），换不了令牌' }
-    const r = pet.rotateToken()
-    log.info(`面板轮换桌宠令牌｜${r.ok ? '成功' : '失败：' + r.message}`)
-    return { ok: Boolean(r && r.ok), message: r?.message || '', issuedAt: r?.issuedAt || null }
-  })
-  // 对外公网地址：保存 + 验证。验证 = 服务端向 <publicBaseUrl>/aurabot/api/state 发一次请求，
-  // 回 200 且响应带本插件标识才算通；hairpin NAT 打不通自己的公网地址时可显式确认跳过验证。
-  // 【首审 P1-5 + 复审 P1-4】SSRF 收口，全部复用 core/net.js 的判定（不再手写正则）：
-  //   ① `assertPublicUrl`：域名要 **DNS 解析后**逐个 IP 校验——`https://[::ffff:127.0.0.1]`、
-  //      解析到内网的公网域名都拦得住（旧手写正则只看字符串，这两条都漏）；
-  //   ② 跨机必须 https（明文只放行本机回环，自测用）；
-   //   ③ 验证请求走 `fetchGuarded`：手动跟重定向，**每一跳都重新做 SSRF 校验**——302 到内网照样拦；
-  //   ④ 响应必须带本插件标识（ok + version/apiVersion），不能只看 200；
-  //   ⑤ `force` 不再跳过安全校验：它只表示「跳过连通性验证」，要内网/本机地址必须再加
-  //      `confirm: true` 显式二次确认，并写审计日志。这满足「内网自测」的合法场景
-  //      （局域网部署 + allowInsecureRemote），但不再是无声的 SSRF 旁路。
-  route('/panel/pet/public-base', async (req) => {
-    const b = await readBody(req)
-    const raw = String(b.publicBaseUrl ?? '').trim().replace(/\/+$/, '').slice(0, 300)
-    if (!raw) {
-      setConfig(mergeFromPanel(cfg, { ext: { pet: { publicBaseUrl: '' } } }))
-      log.info('面板已清空桌宠对外地址：回到同机模式')
-      return { ok: true, publicBaseUrl: '', message: '已清空：回到同机模式（host.json 恢复回环地址）' }
-    }
-    if (!/^https?:\/\//i.test(raw)) return { ok: false, message: '要填 http(s):// 开头的完整地址，如 https://bot.example.com' }
-    // ① 安全校验（DNS 解析后逐 IP 判私网/本机）——force 也不跳过这一步的**判定**，
-    //    只是把「判定为内网」从拒绝变成「confirm 后审计放行」（局域网自测的合法场景）。
-    let privateHit = ''
-    try {
-      await assertPublicUrl(raw)
-    } catch (error) {
-      if (b.force !== true || b.confirm !== true) {
-        return {
-          ok: false, publicBaseUrl: raw, verified: false,
-          message: `这个地址不允许作为对外地址（${error.message}）。它指向本机/内网，只适合局域网自测：确实要保存，请带 force + confirm 显式确认（面板会弹二次确认）`,
-        }
-      }
-      privateHit = error.message
-    }
-    // ② 明文检查：**公网**地址必须 https（令牌与聊天内容走明文等于送人，这条没有确认通道）；
-    //    内网明文已在上面走 force+confirm 审计通道放行。
-    if (!privateHit) {
-      const u = new URL(raw)
-      if (u.protocol === 'http:' && !isLoopbackAddr(u.hostname)) {
-        return { ok: false, publicBaseUrl: raw, message: '跨机对外地址必须用 https：令牌与聊天内容走明文等于送人。局域网自测请直接填内网地址并走 force + confirm' }
-      }
-    }
-    let detail = ''
-    let ok = false
-    if (!privateHit) {
-      // ③ 验证请求：手动跟重定向，每一跳都重新做 SSRF 校验；④ 响应要带本插件标识
-      try {
-        const r = await fetchGuarded(raw + '/aurabot/api/state', { timeoutMs: 8000 })
-        if (!r.ok) {
-          detail = `HTTP ${r.status}`
-        } else {
-          let body = null
-          try { body = await r.json() } catch { body = null }
-          if (body && body.ok === true && (body.version || body.apiVersion)) {
-            ok = true
-            detail = 'HTTP 200 + 插件标识匹配'
-          } else {
-            detail = 'HTTP 200 但响应不像本插件（缺少 version/apiVersion 标识）'
-          }
-        }
-      } catch (error) {
-        detail = error?.name === 'AbortError' ? '请求超时' : String(error?.message || error)
-      }
-      if (!ok && b.force !== true) {
-        return { ok: false, publicBaseUrl: raw, verified: false, message: `验证没过（${detail}）：确认反代已把 ${raw} 指到本插件。地址确实打不通自己的公网（如 hairpin NAT）可再点一次「跳过验证保存」` }
-      }
-    }
-    setConfig(mergeFromPanel(cfg, { ext: { pet: { publicBaseUrl: raw } } }))
-    if (privateHit) {
-      // 审计：内网/本机地址被显式确认保存了，必须留痕（谁在什么时候放行了什么地址）
-      log.warn(`【审计】桌宠对外地址保存了内网/本机地址｜${raw}｜原因：${privateHit}｜force+confirm 显式确认`)
-      return { ok: true, publicBaseUrl: raw, verified: false, confirmedPrivate: true, message: `已保存（内网地址，未经连通性验证：${privateHit}）。仅限自测，公网部署请换 https 公网域名` }
-    }
-    log.info(`面板已保存桌宠对外地址｜${raw}｜验证${ok ? '通过' : '跳过'}（${detail}）`)
-    return { ok: true, publicBaseUrl: raw, verified: ok, message: ok ? `验证通过（${detail}）：远端直连已开启，host.json 会写这个地址` : `已保存（验证被跳过：${detail}）` }
-  })
-  // 客户端包（zip）：app/ 目录 + 内嵌 host.json。面板远端模式的「下载客户端包」用；浏览器直接下载二进制，
-  // 所以不能走 JSON 包装的 route()，这里单独注册精确路径并手动设 content-type/content-disposition。
-  ctx.effect(() => ctx.webServer.register({
-    kind: 'exact',
-    path: PREFIX + '/panel/pet/client-package',
-    handler: (req, res) => answer(res, async () => {
-      // 【安全】这一条不走 route()，必须自己过面板闸：包内嵌 host.json（含 bearer 令牌），
-      // 公网上谁都能无鉴权下到就等于把桌宠令牌送出去。CSRF 闸也要过（一致性；GET 本身不受影响）。
-      // 复审 3·P1-1：还必须过 Host 校验——此前手动注册路由漏了 adminHostBlocked，
-      // 实测 socket 回环 + `Host: evil.example` 的 GET 能拿到含令牌的 zip（DNS rebinding 载体）。
-      if (panelBlocked(req, res)) return undefined
-      if (adminHostBlocked(req, res)) return undefined
-      if (csrfBlocked(req, res)) return undefined
-      const pet = use('pet')
-      if (typeof pet?.clientPackage !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，打不了客户端包' }
-      const r = await Promise.resolve(pet.clientPackage())
-      if (!r.ok) return { ok: false, message: r.message }
-      // 【安全 P2】内含 bearer 令牌：任何缓存层都不许留；文件名要清洗（模块来自磁盘，不完全可信）
-      const safeName = String(r.filename || 'aurabot-pet-client.zip').replace(/[^\w.-]/g, '_')
-      res.setHeader?.('content-type', 'application/zip')
-      res.setHeader?.('content-disposition', `attachment; filename="${safeName}"`)
-      res.setHeader?.('cache-control', 'no-store, no-cache, must-revalidate, private')
-      res.setHeader?.('pragma', 'no-cache')
-      send(res, 200, r.buffer, 'application/zip') // answer 只在返回非 undefined 时才发 JSON，这里已手动发过
-      return undefined
-    }),
-  }), 'aurabot: 桌宠客户端包下载')
-  // ---------- 行为动作（设计稿 §8 测试通道）：面板「试一下」+ 每动作 AI 开关 + 图标隔离区 ----------
-  // 全部代理到 pet 模块已暴露的函数（behaviorEmit / behaviorStatus / iconQuarantine / iconRestore）；
-  // 模块没就绪或旧版本缺接口时降级 available:false，面板显示兜底文案不炸。
-  route('/panel/pet/behavior/status', async () => {
-    const pet = use('pet')
-    if (typeof pet?.behaviorStatus !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪' }
-    return { ok: true, behavior: redactTokens(pet.behaviorStatus()) }
-  })
-  // 「试一下」：手动触发默认 force=true（绕排程/专注/安静时段；桌宠离线时回执会显示 refused/failed）
-  route('/panel/pet/behavior', async (req) => {
-    const b = await readBody(req)
-    const pet = use('pet')
-    if (typeof pet?.behaviorEmit !== 'function') return { ok: false, available: false, message: '桌宠模块还没就绪，试不了' }
-    const r = await pet.behaviorEmit({ action: b.action, params: b.params, say: b.say, force: b.force !== false, reason: 'panel' })
-    const why = {
-      'unknown-action': '没有这个动作',
-      'emit-failed': '下发失败（看日志）',
-      // 关窗物理闸：说清去哪里开，否则面板上只看到「这轮没演成」
-      'close-window-disabled': '先在「行为与安全」卡里打开「允许 AI 关闭窗口」（物理闸，手动「试一下」也绕不过）',
-      'empty-text': '「说话」动作要给一句台词再试',
-    }
-    return {
-      ok: Boolean(r && r.ok),
-      reason: (r && r.reason) || '',
-      message: r && r.ok
-        ? `已下发「${r.action}」${r.say ? `：${r.say}` : ''}，桌宠在跑就会演`
-        : (why[r?.reason] || '这轮没演成'),
-      result: redactTokens(r),
-    }
-  })
-  // 每动作「进不进 AI 动作表」：写 ext.pet.behaviorDisabledActions（逗号分隔），与模块 settings 单一真相
-  route('/panel/pet/behavior/actions', async (req) => {
-    const b = await readBody(req)
-    const action = String(b.action || '').trim().slice(0, 40)
-    if (!action) return { ok: false, message: '缺动作名' }
-    // 动作名白名单（来自模块的全表）：防止手滑/旧面板把垃圾动作名写进配置
-    try {
-      const st = use('pet')?.behaviorStatus?.()
-      const known = new Set([...(st?.openActions || []), ...(st?.deferredActions || [])])
-      if (known.size && !known.has(action)) return { ok: false, message: '没有这个动作：' + action }
-    } catch (error) { /* 模块没就绪就不校验，别把开关卡死 */ }
-    const cur = new Set(String(getConfig().ext?.pet?.behaviorDisabledActions || '').split(',').map((x) => x.trim()).filter(Boolean))
-    if (b.on === false) cur.add(action); else cur.delete(action)
-    setConfig(mergeFromPanel(cfg, { ext: { pet: { behaviorDisabledActions: [...cur].join(',') } } }))
-    log.info(`面板已改 AI 动作表｜${action} → ${b.on === false ? '禁用' : '启用'}`)
-    return { ok: true, disabledActions: [...cur] }
-  })
-  // 图标隔离区清单：{items:[{id,name,originalPath,at,reason}]}
-  route('/panel/pet/behavior/quarantine', async () => {
-    const pet = use('pet')
-    if (typeof pet?.iconQuarantine !== 'function') return { ok: false, available: false, message: '图标隔离区接口还没就绪' }
-    try { return { ok: true, items: pet.iconQuarantine() || [] } } catch (error) { return { ok: false, available: false, message: '隔离区清单读不了：' + String(error?.message || error) } }
-  })
-  // 「放回去」：rename 回原路径（原位置被占则改名），失败按原因给人话，别让面板只挂一句「没放回去」
-  route('/panel/pet/behavior/restore', async (req) => {
-    const b = await readBody(req)
-    const pet = use('pet')
-    if (typeof pet?.iconRestore !== 'function') return { ok: false, available: false, message: '归还接口还没就绪' }
-    const r = await pet.iconRestore(String(b.id || '').slice(0, 64))
-    const why = { 'not-found': '隔离区里没有这条记录（可能已经放回去了）', 'quarantine-file-gone': '隔离区里的文件已经不在了，这条记录已清掉', 'restore-failed': '放回去失败（看日志）' }
-    return { ok: Boolean(r && r.ok), message: r && r.ok ? `「${r.name}」放回去了` : (why[r?.reason] || '没放回去：原位置可能没了，或图标已经被移走'), result: redactTokens(r) }
-  })
-
-  // 第三批：补偿道歉（心情 +8，并标记最近一条未道歉的关窗记录；不删记录）
-  route('/panel/pet/behavior/apologize', async () => {
-    const pet = use('pet')
-    if (typeof pet?.windowApologize !== 'function') return { ok: false, available: false, message: '道歉接口还没就绪' }
-    try {
-      const r = pet.windowApologize()
-      return {
-        ok: Boolean(r && r.ok),
-        message: r && r.ok ? (r.window ? `她为「${r.window}」道了歉` : '她道了歉') : '没有需要道歉的记录',
-        result: redactTokens(r),
-      }
-    } catch (error) { return { ok: false, message: '道歉没成功：' + String(error?.message || error) } }
   })
 
   route('/logs', async (req) => {

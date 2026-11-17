@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import qqTools from '../src/modules/qq-tools/index.js'
+import qqTools from '../src/channels/qq/features/qq-tools/index.js'
 import { matchSticker, pickForReply } from '../src/features/stickers.js'
 import { createImageGen } from '../src/features/imagegen.js'
 import { askModel } from '../src/core/llm.js'

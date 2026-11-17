@@ -7,7 +7,7 @@
 | 能力 | AuraBot 旧实现 | DSH 对应 | 处理 |
 |---|---|---|---|
 | 插件更新检查/一键更新 | `src/core/update.js`、`/update/check`、`/update/apply`、面板更新卡 | `dsh-plugin-manager`、`dsh-plugin-market`、桌面更新器 | 已删除自更新；只保留 `/changelog` 版本说明，更新交给 DSH 插件管理器 |
-| 旧模块源码路径 | `src/modules/qq-api/*`、`qq-tools/*`、`qzone-social/*`、`features/qzone-social.js` | 无直接对应，但只是 re-export | 标记 `@deprecated`，下个大版本删除 |
+| 旧模块源码路径 | `src/modules/qq-api/*`、`qq-tools/*`、`qzone-social/*`、`features/qzone-social.js` | 无直接对应，但只是 re-export | 已删除；外部模块迁移时改新路径 |
 
 ## 名义重复但不等价，保留
 

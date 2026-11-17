@@ -7,7 +7,7 @@ import { cleanOutboundText, cleanOutboundSegments, stripToolText, parseReply } f
 import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
 import { createQzone } from '../src/features/qzone.js'
-import { cleanComment } from '../src/features/qzone-social.js'
+import { cleanComment } from '../src/channels/qq/features/qzone-social/social.js'
 
 const screenshot = ['@苏眠眠 </ | | DSML | | invoke>', '</ | | DSML | | calls>']
 const closing = '</ | | DSML | | invoke>'

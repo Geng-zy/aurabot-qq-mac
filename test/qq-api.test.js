@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { pickParams, refusal } from '../src/modules/qq-api/index.js'
-import { QQ_API, paramsOf } from '../src/modules/qq-api/actions.js'
+import { pickParams, refusal } from '../src/channels/qq/features/qq-api/index.js'
+import { QQ_API, paramsOf } from '../src/channels/qq/features/qq-api/actions.js'
 
 const cfg = { enabled: true, dryRun: false, allow: { private: ['5'], groups: ['9'] } }
 const group = { kind: 'group', groupId: '9', chatId: 'group:9' }
@@ -47,7 +47,7 @@ test('接口表每项完整', () => {
 })
 
 test('工具接到网关：查询走 onebot，别人写操作被拒', async () => {
-  const { default: mod } = await import('../src/modules/qq-api/index.js')
+  const { default: mod } = await import('../src/channels/qq/features/qq-api/index.js')
   const calls = []
   let build
   mod.setup({

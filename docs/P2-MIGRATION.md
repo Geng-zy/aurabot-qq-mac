@@ -31,7 +31,7 @@
 
 ## 3. 兼容层
 
-5 个旧路径 re-export 可经 `api.lib('modules/qq-api/index.js')` 到达，外部模块仍可能依赖；不能按“死代码”删除。`STABLE_ROUTES` 的 4 个根路由同理。
+旧路径 re-export 已删除；外部模块迁移时由 AI 按新路径改 import。`STABLE_ROUTES` 只保留 `group-admin` 一个历史根路由。
 
 ## 4. 这轮实际改动
 

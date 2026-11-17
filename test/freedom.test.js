@@ -50,7 +50,7 @@ test('心智：开着时不用申请（没有申请工具，都算批了）；�
 })
 
 test('保护管理员的闸不跟着开：群里别人那一轮不能发管理员电脑上的文件、不读别人发来的文件', async () => {
-  const { default: qqTools } = await import('../src/modules/qq-tools/index.js')
+  const { default: qqTools } = await import('../src/channels/qq/features/qq-tools/index.js')
   let build
   const cfg = normalize({ ownerQQ: '1', allow: { groups: ['9'] }, files: { enabled: true } })
   qqTools.setup({

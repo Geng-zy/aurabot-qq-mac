@@ -7,9 +7,9 @@ import { parseMessageEvent, cardText } from '../src/channels/qq/inbound.js'
 import { decideGroupReply } from '../src/chat/group-policy.js'
 import { normalize } from '../src/core/config.js'
 import contacts from '../src/modules/contacts/index.js'
-import qqTools from '../src/modules/qq-tools/index.js'
-import { QQ_API, paramsOf } from '../src/modules/qq-api/actions.js'
-import qqApi, { refusal, pickParams } from '../src/modules/qq-api/index.js'
+import qqTools from '../src/channels/qq/features/qq-tools/index.js'
+import { QQ_API, paramsOf } from '../src/channels/qq/features/qq-api/actions.js'
+import qqApi, { refusal, pickParams } from '../src/channels/qq/features/qq-api/index.js'
 import { createFakeDsh } from './helpers/fake-dsh.js'
 import { startMockOneBot } from './helpers/mock-onebot.js'
 import { qqIn } from './helpers/qq-in.js'
@@ -357,7 +357,7 @@ test('账号离线只记 warn，不走聊天通知或发送 QQ 消息', { timeou
 })
 
 test('卡片里的地址只认网址，本机路径发不出去', async () => {
-  const { default: mod } = await import('../src/modules/qq-tools/index.js')
+  const { default: mod } = await import('../src/channels/qq/features/qq-tools/index.js')
   const sent = []
   let build
   mod.setup({
@@ -375,7 +375,7 @@ test('卡片里的地址只认网址，本机路径发不出去', async () => {
 })
 
 test('跨聊天发消息：群里只有管理员那一轮能发，别人私聊没有这个工具', async () => {
-  const { default: mod } = await import('../src/modules/qq-tools/index.js')
+  const { default: mod } = await import('../src/channels/qq/features/qq-tools/index.js')
   const sent = []
   let owner = false
   let receipt = { delivered: true }

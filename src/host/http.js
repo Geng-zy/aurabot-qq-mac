@@ -73,7 +73,7 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
   /** 请求是否来自本机回环。
    *  【首审 P1-2 修法】**socket 地址才是唯一可信来源**，X-Forwarded-For 是客户端自己能写的头。
    *  旧实现「有 XFF 就只认最后一跳、不看 socket」→ 直连暴露时客户端自带
-   *  `X-Forwarded-For: 127.0.0.1` 就能 200 绕过（含 client-package 令牌下载）。
+   *  `X-Forwarded-For: 127.0.0.1` 就能 200 绕过（含联动令牌）。
    *  新口径：
    *    ① socket 非回环 → 一律按 socket 判，转发头完全不看；
    *    ② socket 是回环且来源命中 trustedProxy → 才采信 XFF 的**最后一跳**（反代追加的真实来源）；
@@ -128,7 +128,7 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
    * 【复审 2·P1-1】管理面 Host 允许名单（防 DNS rebinding）。
    * 攻击：恶意页面把 evil.example 的 DNS rebind 到 127.0.0.1，然后 `fetch('http://evil.example:port/state')`
    * ——socket 是本机回环（本机闸放行）、方法是 GET（不过 CSRF）→ 管理面被「同源可读」：
-   * /state、/logs、/bridge/token（返回 bearer）、client-package（含令牌）全部外泄。
+   * /state、/logs、/bridge/token（返回 bearer）、联动令牌全部外泄。
    * 修法：管理面请求的 Host 头必须在白名单内（回环 / localhost / publicHostname）。
    * Host 头虽是请求方可控的，但浏览器同源策略保证「页面 JS 发出的请求 Host = 页面所在的源」——
    * rebinding 页面发出的 Host 就是 evil.example 本身，进不了白名单；同源面板请求 Host 必然是
@@ -156,7 +156,7 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
   /** 【复审 P1-1】CSRF 闸：所有改状态的方法都要过同源校验。
    *  背景（复审实测）：恶意网页可以从攻击者页面 `fetch('http://127.0.0.1:<port>/save', {method:'POST'})`——
    *  请求 socket 是本机回环（面板闸放行）、方法 POST、跨站。没有 CSRF 校验的话
-   *  `/save`、`/panel/pet/public-base`、rotate、client-package 全都能被恶意页面打穿，无需暴露端口。
+   *  `/save`、`/bridge/token`、rotate 全都能被恶意页面打穿，无需暴露端口。
    *  口径：
    *    ① 只管写方法（GET/HEAD/OPTIONS 不管——它们不该有副作用）；
    *    ② 浏览器一定带 `Sec-Fetch-Site`：值不在 {same-origin, same-site, none} → 跨站，拒；

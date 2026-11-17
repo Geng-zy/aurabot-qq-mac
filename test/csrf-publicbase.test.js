@@ -112,32 +112,6 @@ test('CSRF：/open/* 带正确密钥跨机放行（复审 P1-2 回归：上轮�
   api.setConfig({ ...api.getConfig(), bridge: { ...api.getConfig().bridge, http: false } })
 })
 
-test('public-base：IPv4-mapped IPv6 不再绕过（复审 P1-4 回归）', async () => {
-  // 旧手写正则只看字符串：https://[::ffff:127.0.0.1] 不匹配 127. 前缀，曾直接放行
-  const r = await fake.call('/panel/pet/public-base', { publicBaseUrl: 'https://[::ffff:127.0.0.1]' }, {
-    host: '127.0.0.1:5099',
-    origin: 'http://127.0.0.1:5099',
-    'sec-fetch-site': 'same-origin',
-    'content-type': 'application/json',
-  }, '127.0.0.1')
-  assert.equal(r.status, 200, '路由本身可达（CSRF 同源放行）')
-  const j = r.json()
-  assert.equal(j.ok, false, 'mapped IPv6 的本机地址必须拒绝保存')
-  assert.match(String(j.message || ''), /force|内网|本机/, '提示要走显式确认通道')
-})
-
-test('public-base：内网地址 force 必须配 confirm 才放行，且走审计（复审 P1-4）', async () => {
-  const body = { host: '127.0.0.1:5099', origin: 'http://127.0.0.1:5099', 'sec-fetch-site': 'same-origin', 'content-type': 'application/json' }
-  // 只给 force 不给 confirm → 拒绝
-  const f1 = await fake.call('/panel/pet/public-base', { publicBaseUrl: 'http://192.168.1.5', force: true }, body, '127.0.0.1')
-  assert.equal(f1.json().ok, false, '只 force 不 confirm 不放行')
-  assert.match(String(f1.json().message || ''), /confirm|确认/, '要求显式二次确认')
-  // force + confirm → 审计放行（内网自测的合法场景）
-  const f2 = await fake.call('/panel/pet/public-base', { publicBaseUrl: 'http://192.168.1.5', force: true, confirm: true }, body, '127.0.0.1')
-  assert.equal(f2.json().ok, true, 'force + confirm 显式确认后放行（内网自测场景）')
-  assert.equal(f2.json().confirmedPrivate, true, '响应标记 confirmedPrivate')
-})
-
 test('Host 允许名单：rebind 域名的 GET 请求必须 403（复审 2·P1-1 回归）', async () => {
   // DNS rebinding：恶意页面把 evil.example rebind 到 127.0.0.1，
   // `GET http://evil.example:port/state` —— socket 回环（面板闸放行）、GET（不过 CSRF）。
@@ -157,12 +131,9 @@ test('Host 允许名单：rebind 域名的 GET 请求必须 403（复审 2·P1-1
   const ok3 = await fake.call('/state', null, { host: 'panel.example.com' }, '127.0.0.1')
   assert.equal(ok3.status, 200, 'publicHostname 正常')
   api.setConfig({ ...api.getConfig(), security: { ...api.getConfig().security, publicHostname: '' } })
-  // 复审 3 点名补齐：/bridge/token（返回 bearer 令牌）与 /panel/pet/client-package
-  //（含令牌的 zip，手动注册路由）对异常 Host 必须同样 403——client-package 之前漏接 Host 校验。
+  // 复审 3 点名补齐：/bridge/token（返回 bearer 令牌）对异常 Host 必须同样 403。
   const tokenEvil = await fake.call('/bridge/token', null, { host: 'evil.example' }, '127.0.0.1')
   assert.equal(tokenEvil.status, 403, '/bridge/token 的异常 Host 必须拒绝')
-  const pkgEvil = await fake.call('/panel/pet/client-package', null, { host: 'evil.example' }, '127.0.0.1')
-  assert.equal(pkgEvil.status, 403, '/panel/pet/client-package 的异常 Host 必须拒绝')
 })
 
 test('Host 允许名单：IPv6 回环带端口的 Host 必须放行（复审 3·小建议回归）', async () => {

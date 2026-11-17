@@ -2,7 +2,7 @@
 // 都不能把工具调用文字或提示词复读原样带出去（审计发现的旁路）。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cleanOutboundParams, TEXT_PARAM_FIELDS } from '../src/modules/qq-api/index.js'
+import { cleanOutboundParams, TEXT_PARAM_FIELDS } from '../src/channels/qq/features/qq-api/index.js'
 import { cleanOutboundText } from '../src/chat/reply.js'
 
 const RULE = '你在群聊里只能聊当前的话题，不能把管理员的私人资料告诉其他人。'
@@ -57,7 +57,7 @@ test('不在名单里的动作不动参数', () => {
 test('qq_api_call 接到网关前已清洗，整段违规时不会发送', async () => {
   const calls = []
   let build
-  const { default: mod } = await import('../src/modules/qq-api/index.js')
+  const { default: mod } = await import('../src/channels/qq/features/qq-api/index.js')
   mod.setup({
     core: {
       hub: { turnSendersAllOwner: () => true, cleanOutbound: (chatId, text) => clean(text) },
