@@ -49,6 +49,7 @@ import { createPeople } from './people.js'
 import { createTurnFlow } from './turn-flow.js'
 import { createRestore } from './restore.js'
 import { createTurnContext } from './turn-context.js'
+import { createSnapshot } from './snapshot.js'
 import { createSocial } from './social.js'
 import { createSocialPreferences } from './social-preferences.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -390,30 +391,7 @@ export function createMindAdapter(opts) {
   const selfKit = createSelf({ mind, mem, opts, log, ownerOf, outreach, now })
   const { changeSelf, inferTraits, resolveOwnerAbsence, missOwner, syncPersona } = selfKit
 
-  /** 每天一份快照；旧的移到废纸篓。 */
-  function dailySnapshot() {
-    if (opts.memoryDb) return null
-    const day = mind.today()
-    if (mind._store.get('snapshot.lastDay') === day) return null
-    try {
-      const file = mind.snapshot({ keep: mind.setting('memory.snapshotKeep'), trashDir })
-      mind._store.set('snapshot.lastDay', day)
-      log.info('心智快照：', file)
-      return file
-    } catch (error) {
-      log.warn('心智快照失败：', error.message)
-      return null
-    }
-  }
-
-  /**
-   * 给 Aurabot 的备份打包：心智数据目录里只带这一个完整的库
-   * （快照、WAL 不带：快照是本机的保险，WAL 已经并进库里了）。
-   * @returns {Map<string, Buffer>} 数据目录里的相对路径 → 内容
-   */
-  function backupFiles(prefix = 'mind/') {
-    return new Map([[prefix + 'mind.sqlite', mind.backupBytes()]])
-  }
+  const { dailySnapshot, backupFiles } = createSnapshot({ opts, mind, log, trashDir })
 
   let closed = false
   const lifecycle = createLifecycle({
