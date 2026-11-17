@@ -1,19 +1,17 @@
 # dsh-purge 兼容与接缝实现
 
-适用 AuraBot `1.5.10`，DSH `0.2.2-rc.3`。结论：**适配 dsh-purge 1.7.15 与 1.7.18**。
+适用 AuraBot `1.5.10`，DSH `0.2.2-rc.3`。结论：**只适配当前最新版 dsh-purge 1.7.18**；不再维护 1.7.15 的兼容矩阵。
 
 ## 版本差异
 
-| 项 | 1.7.15 | 1.7.18 |
-|---|---|---|
-| `lib/identity.js` | 与 1.7.18 逐字一致（blob sha 相同） | 基准 |
-| `lib/index.js` | 与 1.7.18 不同；guard、注入策略和补丁开关在这里 | 基准 |
-| complete 预设保注入补丁 #40 | 有 | 有 |
-| `dsh-purge*` / `dshpg-*` 段约定 | 一致 | 一致 |
-| `purge_*` 工具 | 一致 | 一致 |
-| 新增内容 | — | 状态页逐补丁计数、补丁组开关等面板功能 |
+| 项 | 1.7.18 |
+|---|---|
+| `lib/identity.js` | 基准 |
+| complete 预设保注入补丁 #40 | 有 |
+| `dsh-purge*` / `dshpg-*` 段约定 | 基准 |
+| `purge_*` 工具 | 基准 |
 
-AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模块；1.7.15 与 1.7.18 的 `identity.js` 一致，但 `lib/index.js` 不同，guard/注入/补丁开关的行为差异不能只靠 `identity.js` 覆盖。
+AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模块；当前只验证 1.7.18。
 
 ## 试过的实现与结论
 
@@ -23,7 +21,7 @@ AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模�
 | B. persona 变量尾部加身份锁定 | `{{aurabot_identity_lock}}` | 有效，但 purge 把注入排在最前，人设位于长注入之后 |
 | C. `llm/stream` 监听里重建 options | `next(rewritten)` | 失败：cordis waterfall 的 `next()` 不转发参数；purge 监听调用 `next()` 时会把改写丢掉 |
 | D. 包 `llm.stream` 服务方法 | 替换 service 方法 | 失败：真实 DSH 的服务方法只读，赋值被忽略 |
-| E. **包 provider adapter 的 `prepareCall/stream`** | 在 adapter 出口搬人设块 | **采用**：不依赖监听顺序，1.7.15/1.7.18 真实 DSH 都验证通过 |
+| E. **包 provider adapter 的 `prepareCall/stream`** | 在 adapter 出口搬人设块 | **采用**：不依赖监听顺序，1.7.18 真实 DSH 验证通过 |
 | F. `excludePresets` 排除 aurabot 预设 | 保留宿主补丁、去掉注入 | 可选退路；会失去 purge 提示词注入，不作为默认 |
 
 最终结构：
@@ -38,13 +36,11 @@ AuraBot 只依赖公开宿主 API 和段名约定，不 import purge 内部模�
 
 ```bash
 node --test test/purge-scope.test.js test/purge-scope-integration.test.js test/persona-hoist.test.js
-PURGE_IDENTITY_PATH=/path/to/purge-1.7.15/lib/identity.js node --test test/purge-scope-integration.test.js
 ```
 
 真实 DSH 隔离 profile（`DSH_HOME` 临时目录、OneBot mock、fake OpenAI 服务）：
 
-- purge 1.7.15 + AuraBot 1.5.10：私聊/群聊消息 → 模型 → QQ 回执；
-- purge 1.7.18 + AuraBot 1.5.10：同上；
+- purge 1.7.18 + AuraBot 1.5.10：私聊/群聊消息 → 模型 → QQ 回执；
 - 两者的模型请求 system 都以人格卡开头，`【身份锁定】` 在 purge 注入之前，`AURABOT:PERSONA` 标记已移除。
 
 ## 已知限制（不是故障，但影响“完美兼容”）

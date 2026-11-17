@@ -52,7 +52,7 @@ node --test "test/**/*.test.js"
 
 ## 6. 真实环境核验（2026-11-17）
 
-隔离 profile：`DSH_HOME=/tmp/dsh-e2e-home`，DSH `0.2.2-rc.3`，AuraBot `1.5.10`，dsh-purge `1.7.15`，Mock OneBot + fake OpenAI provider。
+隔离 profile：`DSH_HOME=/tmp/dsh-e2e-home`，DSH `0.2.2-rc.3`，AuraBot `1.5.10`，dsh-purge `1.7.18`，Mock OneBot + fake OpenAI provider。
 
 - `/aurabot/api/state` 返回 `200`，`onebot.state=connected`，`ownerName` 从旧默认值迁移为 `管理员`；
 - 私聊消息进入真实 DSH 会话，模型请求的 system 长 27,849 字符；
