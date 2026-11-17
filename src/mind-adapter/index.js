@@ -37,6 +37,7 @@ import { createMindTools } from './tools.js'
 import { createInner } from './inner.js'
 import { createEncoding } from './encoding.js'
 import { createReminders } from './reminders.js'
+import { createBody } from './body.js'
 import { looksLikeRule, localModelPaths, EFFORT, segmentsText } from './context-text.js'
 
 export { looksLikeRule, LOCAL_DEFAULT, localModelPaths, EFFORT, segmentsText } from './context-text.js'
@@ -610,19 +611,12 @@ export function createMindAdapter(opts) {
   const encoding = createEncoding({ mem, log, opts, windowOf, isClosed: () => closed, debug })
   const { encodeTick, encodeChat } = encoding
 
-  let sleeping = false
-
-  // ---------- 身体：每分钟推进一次；睡、醒、自己吃都由身体决定 ----------
-  const missed = new Map() // 睡着时找她、但叫不醒她的消息：chatId → { event, owner, at }
-  /** 推进身体；睡醒了就整理记忆（睡得少整理得少）、情绪淡一点、再按轻重补回睡着时的消息。 */
-  async function bodyTick() {
-    if (closed) return null
-    const { events } = mind.body.tick()
-    for (const ev of events) await handleBodyEvent(ev)
-    if (!mind.body.state().asleep) { try { missOwner() } catch (error) { log.debug('想管理员出错：', error.message) } }
-    try { await checkPromises() } catch (error) { log.debug('到点的约定出错：', error.message) }
-    return events
-  }
+  const body = createBody({
+    mind, mem, opts, log, now, isClosed: () => closed, windowOf, deliveryChat, parseChat,
+    checkPromises: (...args) => checkPromises(...args),
+    dailySnapshot: (...args) => dailySnapshot(...args), missOwner: (...args) => missOwner(...args),
+  })
+  const { bodyTick, handleBodyEvent, noteMissed } = body
 
   const reminders = createReminders({
     mind, mem, opts, log, now, isClosed: () => closed, debug, ownerChat, isOwnerChat,
@@ -630,34 +624,6 @@ export function createMindAdapter(opts) {
     parseChat, handleBodyEvent: (...args) => handleBodyEvent(...args),
   })
   const { checkPromises } = reminders
-
-  async function handleBodyEvent(ev) {
-    if (ev.kind === 'slept') {
-      dailySnapshot()
-      log.info('她睡着了')
-    }
-    if (ev.kind === 'ate') {
-      mind.motivation.satisfyWants('eat', ev.at)
-      mem.insert({ at: ev.at, gist: '饿了，自己吃了点东西', kind: 'event', importance: 0.15, speaker: 'self', attention: 0.6 })
-      mind.emotion.feel([{ name: '满足', intensity: 0.3, why: '吃饱了', importance: 0.2 }], { source: 'body' })
-    }
-    if (ev.kind === 'woke') {
-      log.info(`她醒了（睡了 ${ev.hours.toFixed(1)} 小时${ev.by ? '，被叫醒' : ''}）`)
-      mind.emotion.afterSleep()
-      if (opts.ask && !sleeping) {
-        sleeping = true
-        mind.sleep({ quality: ev.quality, wokenUp: ev.wokenUp }).catch((error) => log.warn('睡觉整理出错：', error.message)).finally(() => { sleeping = false })
-      }
-      const list = [...missed.entries()].filter(([chatId]) => chatId !== windowOf(ev.byChat)).map(([chatId, x]) => ({ chatId: deliveryChat(chatId), ...x }))
-      missed.clear()
-      // 按轻重：管理员先，私聊先于群
-      const group = (item) => Number(parseChat(item.chatId)?.kind === 'group')
-      list.sort((a, b) => Number(b.owner) - Number(a.owner) || group(a) - group(b) || a.at - b.at)
-      if (list.length && typeof opts.onWakeReplay === 'function') {
-        try { await opts.onWakeReplay(list) } catch (error) { log.warn('醒来补回消息出错：', error.message) }
-      }
-    }
-  }
 
   /**
    * 这条消息她回不回（按人，不按地方）：
@@ -675,7 +641,7 @@ export function createMindAdapter(opts) {
       return { reply: true, woke: true, reason: decision.reason }
     }
     if (!decision.reply && mind.body.state({ persist: false }).asleep && m.direct && m.event) {
-      missed.set(windowOf(m.chatId), { event: m.event, owner: mind.isOwner(speaker), at: now() })
+      noteMissed(windowOf(m.chatId), { event: m.event, owner: mind.isOwner(speaker), at: now() })
     }
     return decision
   }
