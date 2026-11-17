@@ -9,6 +9,7 @@ import { estimateTokens } from '../budget.js'
 import { zonedToEpoch, shortTime, dayKey, localParts, parseBirthday } from '../clock.js'
 import { placeOf, shortId } from '../place.js'
 import { keywords } from './words.js'
+import { createKeywordHits } from './keywords.js'
 import { createVisibility } from './visibility.js'
 import { createRender } from './render.js'
 import { createStrengthen } from './strengthen.js'
@@ -449,32 +450,7 @@ export function createMemory(deps) {
   }
 
   // ---------- 关键词 ----------
-  const ftsQ = () => store.prep("SELECT e.id FROM episodes_fts f JOIN episodes e ON e.rowid = f.rowid WHERE episodes_fts MATCH ? AND e.status = 'live' LIMIT 30")
-  const likeQ = () => store.prep("SELECT id FROM episodes WHERE status = 'live' AND (gist LIKE ? ESCAPE '\\' OR detail LIKE ? ESCAPE '\\') ORDER BY at DESC LIMIT 30")
-  /** 线索里的词各自命中哪些经历：id → 命中的分量占全部分量的比例（0～1）。 */
-  function keywordHits(text, audienceWindow) {
-    const got = new Map()
-    const found = []
-    for (const { w, weight } of keywords(text)) {
-      let ids = []
-      try {
-        // 三个字以上用全文索引（trigram）；两个字的索引查不了，直接按字面找
-        ids = [...w].length >= 3
-          ? ftsQ().all('"' + w.replace(/"/g, '""') + '"').map((r) => r.id)
-          : likeQ().all(...Array(2).fill('%' + w.replace(/[%_\\]/g, (c) => '\\' + c) + '%')).map((r) => r.id)
-      } catch {}
-      if (audienceWindow !== undefined) ids = ids.filter((id) => visibleIn(row(id), audienceWindow))
-      // 到处都有的词（常见的人名、口头禅）分不出是哪件事：分量打折
-      found.push({ ids: [...new Set(ids)], weight: ids.length >= 30 ? weight * 0.25 : weight })
-    }
-    // 记忆里一次都没出现过的词说明不了想到哪件事，不算进总数；只剩到处都有的词时，等于没有线索
-    const hit = found.filter((t) => t.ids.length)
-    if (!hit.some((t) => t.ids.length < 30)) return got
-    const total = hit.reduce((n, t) => n + t.weight, 0)
-    for (const { ids, weight } of found) for (const id of ids) got.set(id, (got.get(id) || 0) + weight)
-    for (const [id, n] of got) got.set(id, Math.min(1, n / Math.min(total, 3)))
-    return got
-  }
+  const keywordHits = createKeywordHits({ store, visibleIn, row })
 
   // ---------- 想起 ----------
   /**
