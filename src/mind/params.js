@@ -14,8 +14,10 @@ export const GROUPS = [
   { id: 'motivation', label: '动机与行动' },
   { id: 'personality', label: '人格与自我' },
   { id: 'relations', label: '社会认知与关系' },
-  { id: 'session', label: '会话' },
-  { id: 'models', label: '模型和预算' },
+  { id: 'session', label: '会话与上下文' },
+  { id: 'models', label: '模型与思考' },
+  { id: 'budget', label: '后台与预算' },
+  { id: 'local', label: '本地模型' },
 ]
 
 const EXP = '经验值'
@@ -144,12 +146,12 @@ export const PARAMS = [
   { key: 'session.idleNewSceneHours', group: 'session', label: '停多久算新的一段', def: 6, min: 1, max: 72, step: 1, unit: '小时', source: EXP, hint: '聊天停了这么久，下次就换新会话开始新的一段。' },
 
   // ---------- 模型和预算 ----------
-  { key: 'models.deepThinkDaily', group: 'models', label: '每天最多深想几次', def: 30, min: 0, max: 500, step: 1, source: '设计决定', hint: '超出的按重要程度排到第二天；聊天不受影响。' },
-  { key: 'models.backgroundTokensDaily', group: 'models', label: '每天后台最多用多少 token', def: 1500000, min: 0, max: 20000000, step: 100000, unit: 'token', source: '设计决定（按价格表约 ¥3/天上限）', hint: '状态记录、睡觉整理、深想、自己去做事合计；超了就排到第二天。' },
-  { key: 'models.backgroundSafety', group: 'models', label: '后台预算安全余量', def: 0.1, min: 0, max: 0.5, step: 0.05, source: EXP, hint: '估算会留一点余量，避免实际返回比估算高时悄悄超预算；0 = 不留余量。', advanced: true },
-  { key: 'models.localModelDir', group: 'models', label: '本地小模型位置', def: '', source: '设计决定（实测 Qwen3.5-9B 4 位：深想判断 10/10，约 1.6 秒一步，峰值约 6 GB 内存；4B 版 8/10 且会编记忆，没选）', hint: '模型文件夹（MLX 格式）。留空 = 用对接层装好的默认位置。没装时日常念头改用聊天模型，想得慢一些。' },
-  { key: 'models.localPython', group: 'models', label: '本地小模型用的 Python', def: '', source: '设计决定', hint: '装了 mlx-lm 的 Python。留空 = 用对接层装好的默认位置。' },
-  { key: 'models.localIdleMinutes', group: 'models', label: '本地小模型闲置多久自动停', def: 30, min: 5, max: 240, step: 5, unit: '分钟', source: EXP, hint: '停了省内存（约 6 GB），下次要用时再启动（要等一会儿）。', advanced: true },
+  { key: 'models.deepThinkDaily', group: 'budget', label: '每天最多深想几次', def: 30, min: 0, max: 500, step: 1, source: '设计决定', hint: '超出的按重要程度排到第二天；聊天不受影响。' },
+  { key: 'models.backgroundTokensDaily', group: 'budget', label: '每天后台最多用多少 token', def: 1500000, min: 0, max: 20000000, step: 100000, unit: 'token', source: '设计决定（按价格表约 ¥3/天上限）', hint: '状态记录、睡觉整理、深想、自己去做事合计；超了就排到第二天。' },
+  { key: 'models.backgroundSafety', group: 'budget', label: '后台预算安全余量', def: 0.1, min: 0, max: 0.5, step: 0.05, source: EXP, hint: '估算会留一点余量，避免实际返回比估算高时悄悄超预算；0 = 不留余量。', advanced: true },
+  { key: 'models.localModelDir', group: 'local', label: '本地小模型位置', def: '', source: '设计决定（实测 Qwen3.5-9B 4 位：深想判断 10/10，约 1.6 秒一步，峰值约 6 GB 内存；4B 版 8/10 且会编记忆，没选）', hint: '模型文件夹（MLX 格式）。留空 = 用对接层装好的默认位置。没装时日常念头改用聊天模型，想得慢一些。' },
+  { key: 'models.localPython', group: 'local', label: '本地小模型用的 Python', def: '', source: '设计决定', hint: '装了 mlx-lm 的 Python。留空 = 用对接层装好的默认位置。' },
+  { key: 'models.localIdleMinutes', group: 'local', label: '本地小模型闲置多久自动停', def: 30, min: 5, max: 240, step: 5, unit: '分钟', source: EXP, hint: '停了省内存（约 6 GB），下次要用时再启动（要等一会儿）。', advanced: true },
 ]
 
 const effortOptions = [{ value: 'low', label: '低' }, { value: 'high', label: '高' }, { value: 'max', label: '最高' }]

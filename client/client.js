@@ -1118,10 +1118,9 @@ body[data-ds-dark-theme] .ab-root{
         { id: 'persona', label: '关系', search: '人物 亲近 信任 喜欢 亲密 激情 承诺 老梗 群 关系星图' },
         { id: 'inner', label: '念头与行动', search: '内心 念头 日记 欲望 动力 犯懒 主动找 权限 申请 本地小模型' },
       ] },
-      { id: 'identity', label: '人格与设置', icon: 'memory', pages: [
-        { id: 'mindsettings', label: '心智设置', search: '参数 记性 遗忘 改写 情绪 后台预算 时区 年龄 生日 本地小模型 一键安装' },
-        { id: 'character', label: '人格卡', search: '人设 人格 性格 设定 头像' },
-        { id: 'selfmind', label: '人格与自我', search: '性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 名字 小名 影子模式' },
+      { id: 'identity', label: '自我与设置', icon: 'memory', pages: [
+        { id: 'selfmind', label: '人格与自我', search: '人格卡 人设 头像 名字 小名 性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 影子模式' },
+        { id: 'mindsettings', label: '设置', search: '参数 记性 遗忘 改写 情绪 后台预算 时区 年龄 生日 本地小模型 一键安装' },
       ] },
       { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
         { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
@@ -1179,7 +1178,7 @@ body[data-ds-dark-theme] .ab-root{
       now: [['mind-feelings', '此刻的感受', '当前情绪 心情 感受']],
       mood: [['memory-entries', '她记得的事', '经历 搜索记忆 记忆列表'], ['memory-privacy', '私聊隐私', '跨会话 片段 保护 保密 共享'], ['memory-vectors', '向量检索与精排', 'embedding BGE-M3 rerank 向量重算 相似 本地 离线'], ['memory-chat-log', '聊天流水保留', '原话 保存几天 流水'], ['memory-dreams', '最近的梦', '做梦 睡眠 整理']],
       inner: [['mind-journal', '内心日记', '念头记录 深想记录'], ['mind-wants', '她想要的', '愿望 基本需要 帮她放下'], ['mind-actions', '能做的事', '待行动 动力 主动行为'], ['mind-outreach', '主动找你', '主动联系 搭话 勿扰'], ['mind-grants', '权限申请', '批准 收回 授权']],
-      selfmind: [['self-versions', '人格卡的版本', '回滚 还原 退回 人格历史'], ['self-traits', '性格（19 项）', '大五 气质 基线 影子模式'], ['self-versions-manage', '版本对比与清理', '删除 清理 对比 版本']],
+      selfmind: [['self-persona', '人格卡与头像', '人设 头像 名字 小名 人格卡'], ['self-versions', '人格卡的版本', '回滚 还原 退回 人格历史'], ['self-traits', '性格（19 项）', '大五 气质 基线 影子模式'], ['self-versions-manage', '版本对比与清理', '删除 清理 对比 版本']],
       mindsettings: [['mind-local-model', '本地小模型', '一键安装 本地念头 MLX Python']],
       diary: [['diary-write', '现在写日记', '立即发布 私密日记 写一篇'], ['diary-history', '日记发布历史', '写过的日记 说说 记录'], ['diary-rich', '图文日记与预览', '预览 配图 日记图片'], ['diary-archive', '按日期归档浏览图', '归档 图片目录'], ['diary-social', '空间互动', '说说 点赞 评论 回复 好友空间']],
       voice: [['voice-rvc', '语音条变声', 'RVC 说话音色 翻唱音色 语音克隆']],
@@ -1545,7 +1544,7 @@ body[data-ds-dark-theme] .ab-root{
             h('h1', null, displayName),
             h('p', null, '聊天模型', h('strong', null, chatModel)),
             h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'connect') }, conn ? '查看她现在' : '检查 QQ 连接', navIcon('next'))),
-          h('button', { type: 'button', className: 'ab-cover-portrait', 'aria-label': '查看人格卡和头像', onClick: () => go('character') },
+          h('button', { type: 'button', className: 'ab-cover-portrait', 'aria-label': '查看人格卡和头像', onClick: () => go('selfmind') },
             h('img', { src: avatarSrc(st), alt: '' }))),
         cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || 'QQ 网关未就绪。请检查 OneBot 连接。') : null,
         st.outbox?.count ? h('div', { className: 'ab-note warn' }, `${st.outbox.count} 条消息待补发，QQ 网关恢复后会继续发送。`) : null,
@@ -3766,6 +3765,17 @@ body[data-ds-dark-theme] .ab-root{
         unit ? h('span', { className: 'ab-muted' }, unit) : null)
     }
 
+    /** 合并后的人格与自我：人格卡文件编辑 + 她的自我状态，一个入口两个视图。 */
+    function Identity({ st, toast, reload, jump }) {
+      const [mode, setMode] = useState(() => { try { return localStorage.getItem('aurabot.identity.mode') || 'self' } catch { return 'self' } })
+      useEffect(() => { if (jump?.section === 'self-persona') setMode('persona') }, [jump])
+      const pick = (v) => { setMode(v); try { localStorage.setItem('aurabot.identity.mode', v) } catch {} }
+      return h('div', { className: 'ab-grid' },
+        h(Card, { title: '人格与自我', desc: '人格卡是叙述底稿；名字、小名、自我描述和故事是她的自我记录。改名字/小名会双向同步。' },
+          h(Seg, { value: mode, onChange: pick, options: [{ value: 'self', label: '自我与性格' }, { value: 'persona', label: '人格卡与头像' }] })),
+        mode === 'persona' ? h(Persona, { st, toast, reload }) : h(MindSelf, { toast }))
+    }
+
     /** 心智设置：按参数表生成。每项写着默认值、依据和改了有什么影响，可以单独恢复默认。 */
     function MindSettings({ toast, jump }) {
       const [d, setD] = useState(null)
@@ -3778,7 +3788,7 @@ body[data-ds-dark-theme] .ab-root{
       useEffect(() => { get('/mind/settings').then(setD) }, [])
       useEffect(() => {
         if (jump?.section === 'mind-local-model') {
-          setGroup('models')
+          setGroup('local')
           setSearch('')
           setExact('')
         } else if (jump?.setting) {
@@ -3829,7 +3839,7 @@ body[data-ds-dark-theme] .ab-root{
           h('nav', { className: 'ab-settings-nav', 'aria-label': '心智设置分类' }, groups.map((g) =>
             h('button', { key: g.id, type: 'button', 'aria-current': !words.length && current?.id === g.id ? 'true' : undefined, onClick: () => { setSearch(''); setExact(''); setGroup(g.id) } }, g.label)))),
         h('div', { className: 'ab-grid ab-settings-body' },
-          !words.length && current?.id === 'models' ? h(MindLocalModel, { toast, settings: d.values }) : null,
+          !words.length && current?.id === 'local' ? h(MindLocalModel, { toast, settings: d.values }) : null,
           panels.length ? panels : h(Card, null, h(Empty, { text: '没有找到匹配的设置' }))))
     }
 
@@ -5045,7 +5055,7 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 面板主体 ----------------
     const TAB_CONTENT = {
-      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, character: Persona, selfmind: MindSelf, mindsettings: MindSettings,
+      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings,
       connect: Connect, group: Group, model: Model, asr: Asr, access: Access, diary: Diary,
       voice: Voice, stickers: Stickers, imagegen: ImageGen, song: Song, video: LocalApi,
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,
@@ -5068,7 +5078,8 @@ body[data-ds-dark-theme] .ab-root{
       const [tab, setTab] = useState(() => {
         try {
           if (!localStorage.getItem('aurabot.persona-tab-v2')) {
-            if (localStorage.getItem('aurabot.tab') === 'persona') localStorage.setItem('aurabot.tab', 'character')
+            if (localStorage.getItem('aurabot.tab') === 'persona') localStorage.setItem('aurabot.tab', 'selfmind')
+            if (localStorage.getItem('aurabot.tab') === 'character') localStorage.setItem('aurabot.tab', 'selfmind')
             localStorage.setItem('aurabot.persona-tab-v2', '1')
           }
           return localStorage.getItem('aurabot.tab') || 'overview'
@@ -5116,6 +5127,7 @@ body[data-ds-dark-theme] .ab-root{
       }, [])
       useEffect(() => { reload(); const t = setInterval(reload, 5000); return () => { clearInterval(t); stateRevision.current++ } }, [reload])
       const go = (id, target) => {
+        if (id === 'character') id = 'selfmind'
         setTab(id)
         setCollapsedGroup(null)
         setJump(target?.section || target?.setting ? { ...target } : null)
@@ -5198,7 +5210,7 @@ body[data-ds-dark-theme] .ab-root{
       const mods = st.modules || []
       const tabs = visibleTabs(st)
       // 兼容声明了目标页面的扩展。未声明或目标当前不可用的面板在「扩展」里可达。
-      const tabOf = (m) => m.tab === 'persona' ? 'character' : m.tab
+      const tabOf = (m) => m.tab === 'persona' || m.tab === 'character' ? 'selfmind' : m.tab
       const hasBuiltinPage = (id) => TABS.some((t) => t.id === id || t.modules?.includes(id))
       const customUi = mods.filter((m) => !hasBuiltinPage(m.id) && (m.running === 'user' && !m.builtin
         ? Boolean((m.settings || []).length || m.panel)
