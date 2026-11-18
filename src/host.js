@@ -43,7 +43,7 @@ import { createCommunity } from './core/community.js'
 import { createApprovalRelay } from './security/approval.js'
 import { createNoticeRelay, normalizeWorkspace } from './features/notice.js'
 import { createHerVoice } from './features/her-voice.js'
-import { applyPendingRestore, cancelRestore, createBackup, listBackups, pendingModules, pendingRestore, setPendingModules, stageReceivedBackup, stageRestore } from './core/backup.js'
+import { applyPendingRestore, cancelRestore, createBackup, listBackups, pendingModules, pendingRestore, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
@@ -72,6 +72,7 @@ export function apply(ctx) {
   // 恢复备份必须在读配置之前：读完配置后内存里的旧状态会写回去
   try {
     const restored = applyPendingRestore()
+    try { pruneLocalBackups(); prunePreRestore() } catch (error) { log.warn('备份保留清理失败：', error.message) }
     if (restored) log.info(`已恢复备份：${restored} 个文件，原来的文件在 backups/ 里留了底`)
   } catch (error) { log.error('恢复备份失败：', error.message) }
   let cfg = loadConfig()
