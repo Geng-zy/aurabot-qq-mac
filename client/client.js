@@ -1622,10 +1622,10 @@ body[data-ds-dark-theme] .ab-root{
     /** 已有 OneBot 机器人的地址和令牌。 */
     function OneBotFields({ draft, f }) {
       return h(Fragment, null,
-        h(Row, { label: 'WebSocket 地址', hint: '正向 WebSocket（OneBot v11），收消息靠它，必填。DSH 在 Docker 里的话，要填 DSH 容器能访问到的地址' }, f.text('snowluma.wsUrl', { size: 'wide', placeholder: 'ws://127.0.0.1:3001' })),
-        h(Row, { label: 'WebSocket 令牌', hint: '对方设了 access_token 就填，没设留空' }, f.text('snowluma.wsToken', { type: 'password', placeholder: draft.snowluma.wsTokenSet ? '已保存' : '没有就留空' })),
-        h(Row, { label: 'HTTP 地址', hint: '可选。填了就用 HTTP 调接口，不填就都走 WebSocket' }, f.text('snowluma.httpUrl', { size: 'wide', placeholder: 'http://127.0.0.1:3000' })),
-        h(Row, { label: 'HTTP 令牌' }, f.text('snowluma.httpToken', { type: 'password', placeholder: draft.snowluma.httpTokenSet ? '已保存' : '没有就留空' })))
+        h(Row, { label: 'WebSocket 地址', hint: '正向 WebSocket（OneBot v11），收消息靠它，必填。DSH 在 Docker 里的话，要填 DSH 容器能访问到的地址' }, f.text('platforms.qq.wsUrl', { size: 'wide', placeholder: 'ws://127.0.0.1:3001' })),
+        h(Row, { label: 'WebSocket 令牌', hint: '对方设了 access_token 就填，没设留空' }, f.text('platforms.qq.wsToken', { type: 'password', placeholder: draft.platforms?.qq?.wsTokenSet ? '已保存' : '没有就留空' })),
+        h(Row, { label: 'HTTP 地址', hint: '可选。填了就用 HTTP 调接口，不填就都走 WebSocket' }, f.text('platforms.qq.httpUrl', { size: 'wide', placeholder: 'http://127.0.0.1:3000' })),
+        h(Row, { label: 'HTTP 令牌' }, f.text('platforms.qq.httpToken', { type: 'password', placeholder: draft.platforms?.qq?.httpTokenSet ? '已保存' : '没有就留空' })))
     }
 
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
@@ -1657,6 +1657,11 @@ body[data-ds-dark-theme] .ab-root{
           testBtns, diagView,
           h('div', { style: { marginTop: 12 } }, h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测')),
         ),
+        h(Card, { title: '平台连接', desc: '当前注册的平台适配器。QQ 是第一个；以后 Telegram、飞书等会出现在这里。' },
+          (st.channels || []).length ? h('div', { className: 'ab-list' }, (st.channels || []).map((p) => h('div', { key: p.platform, className: 'ab-li' },
+            h('div', { className: 'meta' }, p.label || p.platform,
+              h('span', { className: 'ab-muted ab-small' }, ' · ' + (p.state || 'unknown') + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
+            h('div', { className: 'body ab-small' }, Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => k).join('、') || '没有声明能力')))) : h(Empty, { text: '还没有平台适配器' })),
         h(Card, { fold: conn ? 'qq-endpoint' : undefined, section: conn ? undefined : 'qq-endpoint', title: 'QQ 网关配置', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
           desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
@@ -4993,7 +4998,7 @@ body[data-ds-dark-theme] .ab-root{
       const [live, setLive] = useState('dry')
       const qqOk = /^\d{5,11}$/.test(draft.botQQ || '') && /^\d{5,11}$/.test(draft.ownerQQ || '') && draft.botQQ !== draft.ownerQQ
       const verified = conn && login && String(login.uin) === String(st.config.botQQ) && !st.onebot.problem
-      const canNext = [qqOk, Boolean(draft.snowluma.wsUrl || st.config.snowluma.wsUrl), verified, true][step]
+      const canNext = [qqOk, Boolean(draft.platforms?.qq?.wsUrl || st.config.platforms?.qq?.wsUrl || draft.snowluma?.wsUrl || st.config.snowluma?.wsUrl), verified, true][step]
       const next = async () => {
         if ((step === 0 || step === 1) && !(await save({ ...draft, enabled: true }))) return
         go(Math.min(step + 1, WIZ_STEPS.length - 1))
@@ -5063,7 +5068,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'],
