@@ -35,7 +35,6 @@ function archiveMetadata(file) {
     if (metadata.schema !== 1 || metadata.kind !== 'browsing') return {}
     const url = new URL(metadata.url)
     let id = ''
-    if (metadata.platform === '抖音') id = /^\/(?:video|note)\/(\d{5,25})\/?$/.exec(url.pathname)?.[1]
     if (metadata.platform === '小红书') id = /^\/explore\/([a-f0-9]{24})\/?$/i.exec(url.pathname)?.[1]
     if (metadata.platform === '触站') id = /^\/draw\/(\d{1,15})\/?$/.exec(url.pathname)?.[1]
     if (metadata.platform === '淘宝') id = url.searchParams.get('id')
@@ -87,7 +86,6 @@ function remoteImage(value) {
 // 公开作品链接重新构造，不把 Cookie、分享令牌或任意查询参数带进正文。
 function sourceLink(platform, item) {
   const id = String(item.id || '')
-  if (platform === '抖音' && /^\d{5,25}$/.test(id)) return 'https://www.douyin.com/video/' + id
   if (platform === '小红书' && /^[a-f0-9]{24}$/i.test(id)) return 'https://www.xiaohongshu.com/explore/' + id
   if (platform === '淘宝' && /^\d{5,25}$/.test(id)) return 'https://item.taobao.com/item.htm?id=' + id
   if (platform === '触站' && /^\d{1,15}$/.test(id)) return 'https://www.huashi6.com/draw/' + id
@@ -107,7 +105,6 @@ export function collectSources(api, settings, history = [], now = Date.now()) {
   if (settings.browsing) {
     const platforms = [
       ['xhs', '小红书', ['read', 'share']],
-      ['douyin', '抖音', ['read', 'share']],
       ['taobao', '淘宝', ['select', 'share']],
       ['huashi6', '触站', ['read', 'share']],
     ]

@@ -1148,7 +1148,7 @@ body[data-ds-dark-theme] .ab-root{
       ] },
       { id: 'extensions', label: '扩展', icon: 'puzzle', pages: [
         { id: 'modules', label: '模块管理', search: '扩展 已安装 内置 自己写 模板 安全模式' },
-        { id: 'market', label: '模块库', search: '插件 社区 下载 安装 桌宠 抖音 小黑盒 空间互动' },
+        { id: 'market', label: '模块库', search: '插件 社区 下载 安装 外部模块 空间互动' },
       ] },
     ]
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))

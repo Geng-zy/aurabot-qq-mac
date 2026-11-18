@@ -4,7 +4,7 @@
 
 ## 1.5.10
 
-- 桌宠、抖音、小黑盒彻底外置：核心不再保留专用面板、`/panel/pet/*` 代理、专用配置和根路由兼容；需要时从「AuraBot 模块库」单独安装。群管模块回到内置清单，路由为 `/groups/roles`；只有社区模块走 `/ext/<id>`。
+- 删除桌宠、抖音、小黑盒的全部核心代码、配置、面板、路由和默认模块库入口；插件不再自带或默认提供这些模块。群管回归内置清单，路由为 `/groups/roles`。
 - 删除 5 个旧模块路径 re-export（`modules/qq-api`、`qq-tools`、`qzone-social`、`features/qzone-social.js`）。旧插件迁移时按新路径改 import，不再由核心 shim 兜底。
 - 保留 `qq_api` 的 100+ OneBot 动作和 QZone / 空间互动；这两块不受外置影响。
 - 客户端改为硬依赖 DSH `@deepseek-ai/dsh-client-ui-primitives`：按钮、开关、提示条、图标和剪贴板使用宿主控件；需要 DSH `0.2.2-rc.3` 或更新版本，旧 DSH 不再支持。旧 `ab-btn` / `ab-switch` / `ab-toast` 样式已删除。

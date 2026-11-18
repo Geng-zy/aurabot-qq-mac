@@ -34,7 +34,7 @@ test('备份、暂存、启动时换上：内容一致，旧文件留底，排�
   put('modules-data/pet/app/node_modules/electron/a', 'x')
 
   const b = await api.createBackup({ version: '1.2.0-beta.1' })
-  assert.equal(b.files, 7)
+  assert.equal(b.files, 8)
   assert.deepEqual(b.skipped, [])
   assert.deepEqual(api.listBackups().map((x) => x.name), [b.name])
 
@@ -46,7 +46,7 @@ test('备份、暂存、启动时换上：内容一致，旧文件留底，排�
   const r = await api.stageRestore(b.file)
   assert.equal(r.ok, true)
   assert.equal(read('memories.json'), '新电脑的', '运行中不替换')
-  assert.equal(api.pendingRestore().files, 7)
+  assert.equal(api.pendingRestore().files, 8)
 
   // 备份来自别的路径：配置里的旧路径要换成这台电脑的
   const pending = join(root, '.restore-pending.json')
@@ -57,7 +57,7 @@ test('备份、暂存、启动时换上：内容一致，旧文件留底，排�
   }))
   writeFileSync(pending, JSON.stringify({ ...JSON.parse(readFileSync(pending, 'utf8')), dataDir: oldRoot }))
 
-  assert.equal(api.applyPendingRestore(123), 7)
+  assert.equal(api.applyPendingRestore(123), 8)
   assert.equal(read('memories.json'), '记忆🤔')
   assert.equal(read('personas/鱼.md'), '人设')
   assert.equal(readFileSync(join(root, 'stickers/a.png')).length, 5000)

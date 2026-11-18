@@ -187,7 +187,7 @@ test('items 钩子加入的工具文字不能进入 TTS 或文字回落', async 
   assert.equal(s.sent.length, 0)
 })
 
-test('空间和桌宠的独立路径复用同一清洗，截断及去 HTML 前先删除工具参数', async (t) => {
+test('空间和外部模块的独立路径复用同一清洗，截断及去 HTML 前先删除工具参数', async (t) => {
   const s = setup(t)
   const calls = []
   const qzone = createQzone({ getConfig: () => s.cfg, log: s.log, onebot: { async call(action, params) { calls.push({ action, params }); return { tid: '1' } } } })
