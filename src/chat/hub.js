@@ -1391,7 +1391,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     let items = r.items
     if (opts.own) items = items.map((item) => {
       if (item.code || !['text', 'voice'].includes(item.kind)) return item
-      return { ...item, value: polishChatProse(item.value, opts.userText) }
+      return { ...item, value: polishChatProse(item.value, opts.userText, cfg.chat?.clicheFilters || []) }
     })
     // 分条发出的中间段（chat.everyStep）：只发她当时说的原话，不做语音转换、不补表情、不按概率改形态，
     // 免得一段闲聊被拆成语音条和表情乱入。标签、markdown 图片照旧解析。

@@ -23,6 +23,8 @@ test('闲聊去掉空套话，摸摸时不把饥饿状态带进回复', () => {
   assert.equal(polishChatProse('这个账我记住了。'), '嗯')
   assert.equal(polishChatProse('你去，我跟'), '嗯')
   assert.equal(polishChatProse('这句话稳？', '你在吗？'), '啊？')
+  assert.equal(polishChatProse('这句话很稳', '', ['这句话很稳']), '嗯')
+  assert.equal(polishChatProse('这句话很稳，不过我不太同意', '', ['这句话很稳']), '这句话很稳，不过我不太同意')
   for (const [draft, expected] of [
     ['好的，我看看', '我看看'],
     ['收到，明天给你', '明天给你'],

@@ -188,7 +188,7 @@ export const DEFAULTS = {
   // everyStep：一轮里她分几段说就发几条（默认关 = 只发最后一段）
   // rescueFromThinking：整轮一段正文都没写时，从思考里捞出她自己定稿的那段（默认关，捞不到就不发）
   // turnTimeoutMinutes：一轮跑超过这么多分钟就强制放开（模型 / 工具卡死时私聊会一直不理人）；0 = 不兜底
-  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false, thinkingGuard: true, replyMarker: false, shareRecentWithModules: false, turnTimeoutMinutes: 30 },
+  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false, thinkingGuard: true, replyMarker: false, shareRecentWithModules: false, turnTimeoutMinutes: 30, clicheFilters: [] },
   // 聊天流水 chatlog/ 留多久（记忆本身在心智核心里）
   memory: { keepChatlogDays: 7, keepChatlogSet: false },
   song: {
@@ -497,6 +497,8 @@ export function normalize(raw) {
   c.chat.shareRecentWithModules = bool(c.chat.shareRecentWithModules, false)
   c.chat.replyMarker = bool(c.chat.replyMarker?.enabled ?? c.chat.replyMarker, false)
   c.chat.turnTimeoutMinutes = num(c.chat.turnTimeoutMinutes, 30, 0, 180)
+  c.chat.clicheFilters = (Array.isArray(c.chat.clicheFilters) ? c.chat.clicheFilters : String(c.chat.clicheFilters || '').split(/[\n,，;；]+/))
+    .map((s) => String(s).trim()).filter(Boolean).slice(0, 100)
   // 老版本的 0 是当时的默认值，不是谁选的：升级后改成留 7 天，以后面板里再选 0 才算数
   const keepUnset = raw?.memory?.keepChatlogDays === 0 && !raw.memory.keepChatlogSet
   c.memory.keepChatlogDays = keepUnset ? 7 : num(c.memory.keepChatlogDays, 7, -1, 3650)

@@ -2139,6 +2139,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '回复防漏', hint: '过滤明显混进回复的思考和草稿，保留围栏中的代码' }, f.sw('chat.thinkingGuard')),
           h(Row, { label: '严格正文标记', hint: '只发送完整标记内的正文。缺失时尝试重写一次' }, f.sw('chat.replyMarker')),
           h(Row, { label: '话写在思考里也捞出来', hint: '她偶尔把要说的话全写在思考里，正文是空的，这一轮就什么都发不出去。打开后从思考里找她自己定稿的那段，找不到就不发。默认关' }, f.sw('chat.rescueFromThinking')),
+          h(Row, { label: '不要说的台词', hint: '一行一条。她整条回复都是这些台词时会改成「嗯」或「啊？」；正常句子里出现不会乱删。' }, f.list('chat.clicheFilters', { placeholder: '一行一条，例如：这句话稳' })),
           h(Row, { label: '一轮最多等多久（分钟）', hint: '模型或工具卡住时，超过这么多分钟就强制放开，后面的消息正常开新一轮；不然会一直哑着。填 0 不兜底。默认 30' }, f.num('chat.turnTimeoutMinutes', { min: 0, max: 180 })),
         ),
         h(TitleFilter, { draft, setDraft }),
