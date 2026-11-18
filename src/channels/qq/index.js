@@ -39,7 +39,8 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn('处理 QQ 事件出错：', error.message) } } }
 
   const endpoint = () => {
-    const s = getConfig().snowluma || {}
+    const cfg = getConfig() || {}
+    const s = cfg.platforms?.qq || cfg.snowluma || {}
     return { httpUrl: s.httpUrl || '', wsUrl: s.wsUrl || '', httpToken: s.httpToken || '', wsToken: s.wsToken || '' }
   }
 

@@ -68,6 +68,8 @@ export const DEFAULTS = {
     httpToken: '',
     wsToken: '',
   },
+  // 多平台配置的起点。QQ 的旧字段仍保留在 snowluma，normalize 时两边会同步。
+  platforms: { qq: { label: 'QQ', enabled: true, httpUrl: '', wsUrl: '', httpToken: '', wsToken: '' } },
   model: { provider: '', model: '', reasoningEffort: 'low', vision: 'auto' }, // 留空 = 跟随 DSH 默认；vision: auto/on/off
   // 按聊天选模型（管理员在面板「模型」页设）：私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认 > 上面的全局模型；没写的一级退到下一级
   chatModels: { privateDefault: { provider: '', model: '', reasoningEffort: '' }, groupDefault: { provider: '', model: '', reasoningEffort: '' }, privates: {}, groups: {} },
@@ -486,6 +488,17 @@ export function normalize(raw) {
   for (const id of ['speakup', 'mood', 'purpose', 'memory']) if (isObj(c.modules)) delete c.modules[id]
   // 老配置里插件自己管 SnowLuma 用的设置（只有原版的 Windows 才有），这里用不到
   for (const k of ['dir', 'autoStart', 'webuiPort', 'webuiPassword', 'passwordAuto', 'autoAttach']) delete c.snowluma[k]
+  // 平台配置：新代码读 platforms.qq，旧代码仍读 snowluma；两边保持同步。
+  const legacySnow = isObj(c.snowluma) ? c.snowluma : {}
+  const rawQq = isObj(raw?.platforms?.qq) ? raw.platforms.qq : {}
+  const qqPlatform = isObj(c.platforms?.qq) ? c.platforms.qq : {}
+  const pick = (k) => String(rawQq[k] !== undefined ? rawQq[k] : (qqPlatform[k] || legacySnow[k] || '')).trim()
+  c.platforms = { ...(isObj(c.platforms) ? c.platforms : {}), qq: {
+    ...qqPlatform,
+    label: String(qqPlatform.label || 'QQ'), enabled: bool(qqPlatform.enabled, true),
+    httpUrl: pick('httpUrl'), wsUrl: pick('wsUrl'), httpToken: pick('httpToken'), wsToken: pick('wsToken'),
+  } }
+  c.snowluma = { ...legacySnow, httpUrl: c.platforms.qq.httpUrl, wsUrl: c.platforms.qq.wsUrl, httpToken: c.platforms.qq.httpToken, wsToken: c.platforms.qq.wsToken }
   c.chat = c.chat || {}
   c.chat.seedHistory = bool(c.chat.seedHistory, false)
   c.chat.seedHistoryCount = num(c.chat.seedHistoryCount, 20, 1, BIG)
@@ -636,7 +649,7 @@ export function normalize(raw) {
 }
 
 // 面板里不回传原文的字段：路径（几层都行）
-const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
+const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['platforms', 'qq', 'httpToken'], ['platforms', 'qq', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
 // 扩展模块设置里的密码类字段（模块加载时登记）：['ext', 模块id, 字段]
 const extraSecrets = new Map()
 export function registerSecretField(path) { extraSecrets.set(path.join('\u0000'), path) }
