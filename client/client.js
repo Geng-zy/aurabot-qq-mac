@@ -10,6 +10,19 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const { useState, useEffect, useRef, useCallback, useMemo, useId, Fragment } = React
     const h = React.createElement
+    // DSH UI primitives 是宿主提供的可选能力：有就用宿主的 Button/Switch，没有就保留原生控件。
+    let uiPrimitives
+    let uiPrimitivesLoaded = false
+    const primitives = () => {
+      if (uiPrimitivesLoaded) return uiPrimitives
+      uiPrimitivesLoaded = true
+      try {
+        if (typeof require === 'function') uiPrimitives = require('@deepseek-ai/dsh-client-ui-primitives') || null
+      } catch (error) {
+        uiPrimitives = null
+      }
+      return uiPrimitives
+    }
     // DSH 的桌面判断优先；没有 primitives 时退回 navigator.platform（测试和旧宿主也能用）。
     const isMacLike = () => {
       try {
@@ -879,6 +892,10 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 基础控件 ----------------
     function Switch({ on, onChange, disabled, title, label }) {
+      const p = primitives()
+      if (p && typeof p.Switch === 'function') {
+        return h(p.Switch, { checked: !!on, onChange, label: label || title || '开关', disabled: !!disabled, title })
+      }
       return h('button', { type: 'button', className: cx('ab-switch', on && 'on'), onClick: () => !disabled && onChange(!on), disabled, title, role: 'switch', 'aria-label': label, 'aria-checked': !!on })
     }
     function Row({ label, hint, details, className, children }) {
@@ -909,10 +926,18 @@ body[data-ds-dark-theme] .ab-root{
     }
     function Btn({ kind, small, onClick, disabled, children, title, expanded, controls }) {
       const [busy, setBusy] = useState(false)
+      const run = async () => { if (!onClick) return; setBusy(true); try { await onClick() } finally { setBusy(false) } }
+      const p = primitives()
+      // 只迁 DSH 明确有的两种外观；danger / 其它业务 kind 保留原生样式，避免语义丢失。
+      if (p && p.Button && (kind === 'primary' || kind === 'ghost')) {
+        return h(p.Button, {
+          variant: kind, size: small ? 'sm' : 'md', title, disabled: disabled || busy,
+          'aria-expanded': expanded, 'aria-controls': controls, onClick: run,
+        }, busy ? [h('i', { key: 's', className: 'ab-spin' }), ' 处理中'] : children)
+      }
       return h('button', {
         type: 'button', title, className: cx('ab-btn', kind, small && 'sm'), disabled: disabled || busy,
-        'aria-expanded': expanded, 'aria-controls': controls,
-        onClick: async () => { if (!onClick) return; setBusy(true); try { await onClick() } finally { setBusy(false) } },
+        'aria-expanded': expanded, 'aria-controls': controls, onClick: run,
       }, busy ? [h('i', { key: 's', className: 'ab-spin' }), ' 处理中'] : children)
     }
 
