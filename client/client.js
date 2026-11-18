@@ -1793,12 +1793,12 @@ body[data-ds-dark-theme] .ab-root{
       const load = async (id) => {
         const r = await get('/persona/get?id=' + encodeURIComponent(id))
         if (!r.ok) return
-        const server = { id: r.persona.id, name: r.persona.name, tags: (r.persona.tags || []).join('，'), secs: splitPersona(r.persona.body) }
+        const server = { id: r.persona.id, name: r.persona.name, nickname: r.persona.nickname || '', tags: (r.persona.tags || []).join('，'), secs: splitPersona(r.persona.body) }
         let draft = null
         try { const raw = localStorage.getItem(personaDraftKey(id)); if (raw) { const d = JSON.parse(raw); if (d && d.id === id && typeof d.body === 'string' && d.body !== r.persona.body) draft = d } } catch (e) {}
         setEdit(server)
         setDirty(false)
-        setRestore(draft ? { body: draft.body, name: draft.name, tags: draft.tags, at: draft.at || 0 } : null)
+        setRestore(draft ? { body: draft.body, name: draft.name, nickname: draft.nickname, tags: draft.tags, at: draft.at || 0 } : null)
         setPending({})
       }
       useEffect(() => { load(sel) }, [sel])
@@ -1806,13 +1806,13 @@ body[data-ds-dark-theme] .ab-root{
       useEffect(() => {
         if (!edit || !dirty) return
         const t = setTimeout(() => {
-          try { localStorage.setItem(personaDraftKey(edit.id), JSON.stringify({ id: edit.id, name: edit.name, tags: edit.tags, body: joinPersona(edit.secs), at: Date.now() })) } catch (e) {}
+          try { localStorage.setItem(personaDraftKey(edit.id), JSON.stringify({ id: edit.id, name: edit.name, nickname: edit.nickname, tags: edit.tags, body: joinPersona(edit.secs), at: Date.now() })) } catch (e) {}
         }, 200)
         return () => clearTimeout(t)
       }, [edit, dirty])
       const restoreDraft = () => {
         if (!restore) return
-        setEdit({ ...edit, name: restore.name ?? edit.name, tags: restore.tags ?? edit.tags, secs: splitPersona(restore.body) })
+        setEdit({ ...edit, name: restore.name ?? edit.name, nickname: restore.nickname ?? edit.nickname, tags: restore.tags ?? edit.tags, secs: splitPersona(restore.body) })
         setDirty(true)
         setRestore(null)
         toast('已恢复上次的改动（还没保存，确认后点「保存人格」）', 'ok')
@@ -1826,7 +1826,7 @@ body[data-ds-dark-theme] .ab-root{
       const body = edit ? joinPersona(edit.secs) : ''
       const waiting = Object.keys(pending).length
       const save = async () => {
-        const r = await post('/persona/save', { id: edit.id, name: edit.name, tags: edit.tags.split(/[,，\s]+/).filter(Boolean), body })
+        const r = await post('/persona/save', { id: edit.id, name: edit.name, nickname: edit.nickname || '', tags: edit.tags.split(/[,，\s]+/).filter(Boolean), body })
         toast(r.message || (r.ok ? '保存好了' : '没保存成功'))
         if (r.ok) { setDirty(false); setRestore(null); try { localStorage.removeItem(personaDraftKey(edit.id)) } catch (e) {} refresh() }
       }
@@ -1870,6 +1870,7 @@ body[data-ds-dark-theme] .ab-root{
             h(Btn, { small: true, kind: 'primary', onClick: restoreDraft }, '恢复'),
             h(Btn, { small: true, kind: 'ghost', onClick: discardDraft }, '丢弃')) : null,
           h(Row, { label: '名字' }, h('input', { className: 'ab-input', value: edit.name, onChange: (e) => patch({ name: e.target.value }) })),
+          h(Row, { label: '小名', hint: '和「人格与自我」里的小名联动' }, h('input', { className: 'ab-input', value: edit.nickname || '', onChange: (e) => patch({ nickname: e.target.value }) })),
           h(Row, { label: '标签', hint: '用逗号隔开' }, h('input', { className: 'ab-input', value: edit.tags, onChange: (e) => patch({ tags: e.target.value }) })),
           h('div', { className: 'ab-flex', style: { marginTop: 14 } },
             h(Seg, { value: whole ? 'whole' : 'secs', onChange: (v) => setMode(v === 'whole'), options: [{ value: 'secs', label: '分节' }, { value: 'whole', label: '整段' }] }),

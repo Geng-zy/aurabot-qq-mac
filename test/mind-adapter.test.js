@@ -22,6 +22,17 @@ function adapter({ at = T0, persona = null, cfg = { ownerQQ: '1' } } = {}) {
 
 const msg = (over = {}) => ({ chatId: 'group:9', kind: 'group', userId: '2', nickname: '甲', text: '你好', messageId: 'm1', ...over })
 
+test('人格卡的名字和小名与自我身份双向联动', () => {
+  const { a, setCard } = adapter({ persona: { id: 'p1', name: '小鱼', nickname: '鲸鲸', hasName: true, hasNickname: true, body: '你是小鱼。' } })
+  a.syncPersona('owner', '测试')
+  assert.equal(a.mind.identity().name, '小鱼')
+  assert.equal(a.mind.identity().nickname, '鲸鲸')
+  setCard({ id: 'p1', name: '阿鱼', nickname: '小鲸', hasName: true, hasNickname: true, body: '你是阿鱼。' })
+  a.syncPersona('owner', '测试')
+  assert.equal(a.mind.identity().name, '阿鱼')
+  assert.equal(a.mind.identity().nickname, '小鲸')
+})
+
 test('发出去的消息段翻成文字：@、表情、语音、图片都有交代，引用不算', () => {
   const text = segmentsText([
     { type: 'reply', data: { id: '1' } },

@@ -58,10 +58,12 @@ export function createSelf({ mind, mem, opts, log, ownerOf, outreach, now }) {
       const p = opts.persona?.()
       if (!p || !String(p.body || '').trim()) return false
       const body = String(p.body).trim()
-      if (body === mind.personaCard()) return false
+      const current = mind.identity()
+      const name = String(p.name || '').trim() && (p.hasName || p.name !== p.id) ? String(p.name).trim() : current.name
+      const nickname = p.hasNickname ? String(p.nickname || '').trim() : current.nickname
+      if (body === mind.personaCard() && name === current.name && nickname === current.nickname) return false
       const first = !mind.listVersions('persona', 1).length
-      const name = mind.identity().name || String(p.name || '').trim()
-      mind.setPersonaCard(body, { by: first ? 'migration' : by, reason: first ? '从面板的人格卡迁移' : reason, name })
+      mind.setPersonaCard(body, { by: first ? 'migration' : by, reason: first ? '从面板的人格卡迁移' : reason, name, nickname })
       return true
     } catch (error) {
       log.warn('人格卡同步失败：', error.message)

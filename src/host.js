@@ -252,8 +252,9 @@ export function apply(ctx) {
         const id = getConfig().persona.current
         const cur = readPersona(id)
         if (!cur) return
-        if (what === 'persona') savePersona(id, { name: cur.name, tags: cur.tags, body: after })
-        if (what === 'name') savePersona(id, { name: after, tags: cur.tags, body: cur.body })
+        if (what === 'persona') savePersona(id, { name: cur.name, tags: cur.tags, body: after, nickname: cur.nickname })
+        if (what === 'name') savePersona(id, { name: after, tags: cur.tags, body: cur.body, nickname: cur.nickname })
+        if (what === 'nickname') savePersona(id, { name: cur.name, tags: cur.tags, body: cur.body, nickname: after })
       },
       // 群名（聊天中枢查到过的；没查到就显示群号）
       groupName: (gid, platform) => platform === LEGACY_PLATFORM ? hub?.groupNames?.get?.(String(gid)) || '' : '',
@@ -1023,7 +1024,7 @@ export function apply(ctx) {
         mind.mind.restorePersona(Number(b.id))
         const id = getConfig().persona.current
         const cur = readPersona(id)
-        if (cur) savePersona(id, { name: cur.name, tags: cur.tags, body: mind.mind.personaCard() })
+        if (cur) savePersona(id, { name: cur.name, tags: cur.tags, body: mind.mind.personaCard(), nickname: cur.nickname })
         return { ok: true, message: '人格卡退回了' }
       }
       if (b.kind === 'traits') { mind.mind.personality.restore(Number(b.id)); return { ok: true, message: '性格退回了' } }

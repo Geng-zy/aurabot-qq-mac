@@ -24,13 +24,14 @@ export function seedPersonas() {
 
 export function parsePersona(id, raw) {
   let text = String(raw || '').replace(/^﻿/, '')
-  const meta = { id, name: id, tags: [] }
+  const meta = { id, name: id, nickname: '', tags: [], hasName: false, hasNickname: false }
   const m = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
   if (m) {
     for (const line of m[1].split(/\r?\n/)) {
       const kv = line.match(/^(\w+):\s*(.*)$/)
       if (!kv) continue
-      if (kv[1] === 'name') meta.name = kv[2].trim()
+      if (kv[1] === 'name') { meta.name = kv[2].trim(); meta.hasName = true }
+      if (kv[1] === 'nickname') { meta.nickname = kv[2].trim(); meta.hasNickname = true }
       if (kv[1] === 'tags') meta.tags = kv[2].replace(/^\[|\]$/g, '').split(/[,，]/).map((s) => s.trim()).filter(Boolean)
     }
     text = text.slice(m[0].length)
@@ -64,14 +65,16 @@ export function readPersona(id) {
   return { ...parsePersona(safeId(id), readFileSync(f, 'utf8')), raw: readFileSync(f, 'utf8') }
 }
 
-export function savePersona(id, { name, tags, body }) {
+export function savePersona(id, { name, tags, body, nickname }) {
   const sid = safeId(id)
   if (!sid) throw new Error('人格 id 只能用英文字母、数字、- 和 _')
   const content = String(body || '').trim()
   if (!content) throw new Error('人格内容不能是空的')
   if ([...content].length > MAX_PERSONA_CHARS) throw new Error(`人格卡最多 ${MAX_PERSONA_CHARS} 字，避免每轮提示词无限膨胀`)
+  const previous = readPersona(sid)
+  const nick = nickname === undefined ? (previous?.hasNickname ? previous.nickname : undefined) : String(nickname || '').replace(/\n/g, ' ').trim()
   mkdirSync(dir(), { recursive: true })
-  const head = `---\nname: ${String(name || sid).replace(/\n/g, ' ')}\ntags: [${(tags || []).join(', ')}]\n---\n\n`
+  const head = `---\nname: ${String(name || sid).replace(/\n/g, ' ')}${nick !== undefined ? `\nnickname: ${nick}` : ''}\ntags: [${(tags || []).join(', ')}]\n---\n\n`
   writeFileSync(join(dir(), `${sid}.md`), head + content + '\n', 'utf8')
   return readPersona(sid)
 }
