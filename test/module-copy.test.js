@@ -17,7 +17,7 @@ test('模块页不再用「提交教程」「复制给 DSH 的话」这种含糊
 test('模块提示词只让 DSH 改 modules 目录，不碰插件源码', () => {
   const reg = read('src/core/module-registry.js')
   assert.match(reg, /只改 .*modules/)
-  assert.match(reg, /不要动插件本身的源码/)
+  assert.match(reg, /不要改插件本身的源码/)
   assert.match(reg, /不要 import 插件 src\/ 内部路径/)
   assert.match(reg, /扩展 → 模块管理/)
 })

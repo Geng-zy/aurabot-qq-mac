@@ -127,11 +127,31 @@ export function createModuleRegistry({ state, builtinDefs, getConfig, setConfig,
 
   function promptFor(id) {
     const dir = id ? join(userDir(), id) : userDir()
-    return `帮我修改 AuraBot（大肥鱼 QQ 插件）的外部模块：${dir}\n`
-      + `先完整读一遍「${join(userDir(), DOC)}」和「${join(userDir(), TYPES)}」，了解模块怎么写、能用哪些 api 接口，再按我的要求改：\n`
-      + '【这里写你想让她多会什么、改成什么样】\n'
-      + `只改 ${userDir()}（modules/）里的文件，不要动插件本身的源码；模块只用 api.* 公开接口，不要 import 插件 src/ 内部路径。`
-      + '改完保存会自动重新加载；到面板「扩展 → 模块管理」看有没有报错，再告诉我怎么试。'
+    return `帮我写/改 AuraBot（大肥鱼 QQ 插件）的外部模块。模块目录：${dir}
+当前插件版本：${version}；扩展接口：v${API_VERSION}
+
+开始前请完整读：
+- ${join(userDir(), DOC)}
+- ${join(userDir(), TYPES)}
+
+要求：
+1. 只改 ${dir}（也就是 modules/）里的文件；不要改插件本身的源码、API.md 或 aurabot.d.ts。
+2. 入口用 index.mjs，id 必须和目录名一致；模块只用 api.* 公开接口，不要 import 插件 src/ 内部路径，也不要依赖 globalThis.aurabot。
+3. 先判断这个功能该用哪种入口：
+   - 用户发消息触发 → api.on('message') 或 api.command
+   - 模型需要主动调用 → api.tool，description 必须写清「什么时候用、用来做什么」
+   - 需要影响模型判断 → api.rule / api.context
+   - 她自己在合适的时候去做 → api.mind.offer，不要用 api.every 替她决定
+4. 工具结果要如实返回。没有真的执行成功，不要写「已经完成」；失败时说明卡在哪。
+5. 需要联网、读写文件、启动程序、动态执行代码或使用插件内部接口时，在 module.json 的 capabilities 里声明，并在代码里限制范围和错误处理。模块和插件在同一进程运行，能力声明不是沙箱。
+6. 不要把账号、Cookie、API key、聊天原文或记忆原文写进代码、日志或返回值。不要替她改人格。
+7. 写完后保存；到面板「扩展 → 模块管理」看有没有加载错误，用模拟测试跑一遍；真实 QQ 私聊/群聊再试。不要只写代码不验证。
+
+我的需求：
+【这里写你想让她多会什么、改成什么样】
+
+请直接修改代码并告诉我改了哪些文件、怎么测试；不要只给示例片段。
+`
   }
 
   return { capabilitiesOf, status, installDocs, create, fork, promptFor }
