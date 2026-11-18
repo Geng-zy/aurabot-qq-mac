@@ -210,7 +210,7 @@ export function createEmotion(deps) {
   function describe({ people = [], body, window, name = (x) => x } = {}) {
     const { mood, active } = state(body)
     const lines = [`【心情】${mood.label}`]
-    const shown = active.filter((e) => e.intensity >= 0.12).slice(0, 5).map((e) =>
+    const shown = active.filter((e) => e.intensity >= 0.2).slice(0, 4).map((e) =>
       window !== undefined && (e.source === 'deep' || e.window !== window) ? { ...e, target: '', why: '' } : e)
     if (shown.length) {
       lines.push('【此刻的感受】' + shown.map((e) => {
