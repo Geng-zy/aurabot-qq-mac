@@ -1,7 +1,7 @@
 // 备份恢复后再重启：配置、人格和模块清单必须从恢复后的数据目录读，而不是内存里的旧值。
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, cpSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createFakeDsh } from './helpers/fake-dsh.js'
@@ -31,10 +31,13 @@ before(async () => {
   process.env.AURABOT_WORKSPACE = join(dataDir, 'ws')
   mkdirSync(join(dataDir, 'ws'), { recursive: true })
   mkdirSync(join(dataDir, 'personas'), { recursive: true })
+  mkdirSync(join(dataDir, 'modules', 'restore-demo'), { recursive: true })
+  cpSync(join(import.meta.dirname, 'fixtures', 'restore-demo', 'index.mjs'), join(dataDir, 'modules', 'restore-demo', 'index.mjs'))
   writeFileSync(join(dataDir, 'personas', 'dafeiyu.md'), '---\nname: 大肥鱼\n---\n恢复后的人格\n')
   writeFileSync(join(dataDir, 'config.json'), JSON.stringify({
     enabled: false, dryRun: true, setupDone: true, botQQ: BOT, ownerQQ: OWNER, ownerName: '恢复前的管理员',
     persona: { current: 'dafeiyu' },
+    modules: { 'restore-demo': { enabled: true } },
     allow: { private: [OWNER], groups: [] },
     snowluma: { autoStart: false, autoAttach: false, dir: join(dataDir, 'none') },
     voice: { engine: 'system', autoChance: 0 },
@@ -60,6 +63,9 @@ test('备份 → 恢复 → 重启：配置和人格都读恢复后的版本', a
   const first = await state()
   assert.equal(first.config.ownerName, '恢复前的管理员')
   assert.equal(readFileSync(join(dataDir, 'personas', 'dafeiyu.md'), 'utf8').includes('恢复后的人格'), true)
+  assert.ok(first.modules.some((m) => m.id === 'restore-demo'), '备份里的外部模块要在恢复后重新加载')
+  const ping = await fake.call('/ext/restore-demo/ping')
+  assert.equal(ping.json().pong, true)
 
   // 第一次启动已经把待恢复文件换上；再启动一次模拟重启，不能又读回旧内存
   fake.dispose()
