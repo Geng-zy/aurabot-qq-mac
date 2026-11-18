@@ -146,7 +146,9 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
   function wanted(id, users) {
     if (!isEnabled(id)) return null
     const hasUser = isUserOn() && users.some((u) => u.id === id)
-    if (hasUser && !(builtinDefs.has(id) && modCfg(id).useBuiltin)) return 'user'
+    // 群管回归内置：老用户数据目录里残留的同名社区模块不再覆盖内置版。
+    const preferBuiltin = id === 'group-admin'
+    if (hasUser && !(builtinDefs.has(id) && (preferBuiltin || modCfg(id).useBuiltin))) return 'user'
     return builtinDefs.has(id) ? 'builtin' : null
   }
 
