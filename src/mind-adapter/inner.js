@@ -3,20 +3,24 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { estimateTokens } from '../mind/budget.js'
 
 export function createInner({ mind, opts, now, log, isClosed, debug, local, checkOutreach: checkOutreachFn }) {
-  let lastChatAt = 0
+  let lastChatAt = 0 // 任何她能感知到的活动：做动作时先让一让
+  let lastRelevantAt = 0 // 真正和她发生关系的对话：才推迟走神
   let activityVersion = 0
   const actionContext = new AsyncLocalStorage()
   let doing = null
   let innerRunning = false
 
-  function noteChatActivity() {
-    lastChatAt = now()
+  function noteChatActivity(info = {}) {
+    const at = now()
+    lastChatAt = at
+    // 群聊旁听默认 direct:false，不把她的意识流完全停掉；私聊、被叫到、管理员说话才算相关。
+    if (info.direct !== false || info.owner === true) lastRelevantAt = at
     activityVersion++
   }
 
   function canThink() {
     return !isClosed() && !doing && opts.getConfig()?.enabled !== false && !debug() && !opts.foregroundBusy?.() && mind.setting('attention.inner') !== false
-      && now() - lastChatAt >= (Number(mind.setting('attention.afterChatMinutes')) || 0) * 60000
+      && now() - lastRelevantAt >= (Number(mind.setting('attention.afterChatMinutes')) || 0) * 60000
       && !mind.body.state({ persist: false }).asleep
   }
 

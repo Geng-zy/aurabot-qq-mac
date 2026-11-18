@@ -2710,7 +2710,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 心智核心：单一注意力——她正在别的聊天里回话，这一段先等着，回完再看（管理员的可以插队）
     if (attentionBlocked(chatId, p)) {
       p.waiting = true
-      attentionQueue.add(chatId)
+      attentionQueue.set(chatId, { at: Date.now(), priority: attentionPriority(chatId, p) })
       // 兜底：那边卡住没 release，过一会儿再看一眼
       setTimeout(() => { if (pending.get(chatId)?.waiting && !disposed) flush(chatId).catch(() => {}) }, 30_000)
       return
@@ -2831,8 +2831,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 单一注意力（心智核心的设置）----------
-  const attentionQueue = new Set() // 在等她回完别处的聊天
+  const attentionQueue = new Map() // chatId → { at, priority }：在等她回完别处的聊天
   const ownerIn = (p) => [...(p?.senders || [])].some((u) => isOwner(getConfig(), u, p.chat.chatId)) || (p?.chat?.kind === 'private' && isOwner(getConfig(), p.chat.userId, p.chat.chatId))
+  function attentionPriority(chatId, p) {
+    if (ownerIn(p)) return 3
+    if (p?.chat?.kind === 'private') return 2
+    if (p?.mustReply) return 1
+    return 0
+  }
   function attentionBlocked(chatId, p) {
     let a = null
     try { a = mind?.attention?.() } catch (error) {}
@@ -2844,11 +2850,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   function drainAttention() {
     if (!attentionQueue.size || disposed) return
     if ([...busy.keys()].some((k) => !k.startsWith('system:') && isBusy(k))) return
-    const waiting = [...attentionQueue].filter((id) => pending.get(id)?.waiting)
+    const waiting = [...attentionQueue.entries()].filter(([id]) => pending.get(id)?.waiting)
     attentionQueue.clear()
-    for (const id of waiting) attentionQueue.add(id)
+    for (const [id, item] of waiting) attentionQueue.set(id, item)
     if (!waiting.length) return
-    const next = waiting.find((id) => ownerIn(pending.get(id))) || waiting[0]
+    waiting.sort((a, b) => b[1].priority - a[1].priority || a[1].at - b[1].at)
+    const next = waiting[0][0]
     attentionQueue.delete(next)
     const p = pending.get(next)
     if (p) p.waiting = false

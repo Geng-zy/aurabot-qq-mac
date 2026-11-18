@@ -8,7 +8,7 @@ export function createTurnContext({ mind, windowOf, parseChat, personIn, noteCha
     const chatId = windowOf(chat?.chatId)
     if (!parseChat(chatId)) return null
     const senders = [...new Set(speakers.map((speaker) => personIn(chatId, speaker)).filter(Boolean))]
-    if (senders.length) noteChatActivity()
+    if (senders.length) noteChatActivity({ chatId, direct, owner: senders.some((id) => mind.isOwner(id)) })
     speakersOf.set(chatId, senders)
     const ticket = {}
     const wasDebug = debug()

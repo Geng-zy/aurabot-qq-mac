@@ -7,7 +7,7 @@ export function createPerception({ mind, log, now, debug, syncOwner, noteChatAct
       const who = personIn(msg.chatId, msg.userId)
       if (notRemembered(who)) return false
       syncOwner()
-      if (msg.kind === 'private' || msg.mentioned) noteChatActivity()
+      if (msg.kind === 'private' || msg.mentioned) noteChatActivity({ chatId: msg.chatId, direct: true, owner: mind.isOwner(who) })
       const receivedAt = now()
       const eventAt = Number(msg.time) * 1000
       const at = Number.isFinite(eventAt) && eventAt > 0 ? Math.min(receivedAt, eventAt) : receivedAt
@@ -44,7 +44,7 @@ export function createPerception({ mind, log, now, debug, syncOwner, noteChatAct
     try {
       const target = parseChat(chatId)
       if (!target || (target.kind === 'private' && notRemembered(refOfChat(chatId)))) return false
-      noteChatActivity()
+      noteChatActivity({ chatId, direct: true, owner: isOwnerChat(chatId) })
       const text = segmentsText(message, note)
       if (!text) return false
       const window = windowOf(chatId)

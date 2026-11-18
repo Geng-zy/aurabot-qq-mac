@@ -28,10 +28,10 @@ export function createTurnFlow({ mind, log, now, debug, syncOwner, noteChatActiv
   function noteTurn(chatId, senders = []) {
     if (debug()) return
     try {
-      noteChatActivity()
       mind.body.spend(Number(mind.setting('body.energyPerTurn')) || 0)
       const people = [...new Set(senders.map((u) => personIn(chatId, u)).filter(Boolean))]
       const withOwner = people.some((id) => mind.isOwner(id))
+      noteChatActivity({ chatId, direct: true, owner: withOwner })
       if (withOwner) mind.body.noteOwner()
       for (const id of people) if (!notRemembered(id)) mind.relations.touch(id, now())
       mind.motivation.satisfy('companion', withOwner ? 0.2 : 0.08)
