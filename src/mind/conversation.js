@@ -124,7 +124,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
     return { reply: true }
   }
 
-  async function appraise(window, event, people, state, isCurrent, observations) {
+  async function appraise(window, event, people, state, isCurrent, observations, { record = true } = {}) {
     if (!event || !people.length || !memory.canThink() || setting('emotion.appraise') === false || assessing.has(window)) return null
     if (people.some((id) => person(id)?.noMemory)) return null
     assessing.add(window)
@@ -148,7 +148,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       const item = emotionFrom(result)
       const source = recent.findLast((row) => row.dir === 'in' && row.who === result.target && row.text.includes(result.evidence) &&
         (observations ? observations.some((line) => line.speaker === row.who && line.text === row.text.trim()) : event === row.text.trim()))
-      if (item || result.corrects) emotion.feel(item ? [item] : [], {
+      if (record && (item || result.corrects)) emotion.feel(item ? [item] : [], {
         window, source: 'appraisal', eventId: source ? 'perception:' + source.id : randomUUID(),
         revision: result.corrects ? { eventId: result.corrects, target: result.target } : null,
       })
@@ -179,7 +179,8 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       const recall = memory.workingMemory({ cue: event, contextCue: context, window, people: speakers, readOnly, isCurrent: current, limit, compact: compactRecall, embeddingTimeoutMs: Math.min(1800, Math.max(1, timeoutMs * 0.6)) })
         .then((value) => { if (current()) working = value })
         .catch((error) => log.debug('回复前回忆未完成：', error.message))
-      const evaluate = readOnly ? null : appraise(window, observedEvent, speakers, state, current, utterances?.filter((line) => observedEvent.includes(line.text)))
+      // 群聊旁听仍评价，用来决定要不要接话；默认不把旁听情绪记进她的情绪，避免水话让她情绪起伏。
+      const evaluate = readOnly ? null : appraise(window, observedEvent, speakers, state, current, utterances?.filter((line) => observedEvent.includes(line.text)), { record: direct || setting('emotion.appraiseAmbient') === true })
         .then((value) => { if (current()) appraisal = value })
         .catch((error) => log.debug('回复前评价未完成：', error.message))
       await Promise.race([Promise.all([recall, evaluate]), new Promise((resolve) => { timer = setTimeout(resolve, timeoutMs) })])
@@ -212,7 +213,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
       const current = feeling()
       const mustReply = direct && isOwner(who) && setting('identity.mustReplyOwner') === true
       const publicOnly = !isOwnerWindow(window) || !isOwner(who)
-      const feelings = emotion.describe({ window, body: current.body, people: [who], name: (id) => person(id)?.name || '对方' })
+      const feelings = emotion.prompt({ window, body: current.body, people: [who], name: (id) => person(id)?.name || '对方' })
       const system = [
         selfPrompt({ publicOnly }), feelings, describeSpeechPlan(turn.plan),
         mustReply ? '管理员正在叫你。给他一条简短的正文回应；需要确认时问一句。' : '',

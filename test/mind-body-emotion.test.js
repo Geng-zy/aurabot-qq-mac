@@ -357,12 +357,26 @@ test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
   await a.beforeTurn(chat, '在吗', ['1'])
   const ctx = a.contextFor({ chat })
   assert.match(ctx, /【身体】精力/)
-  assert.match(ctx, /【心情】/)
-  assert.match(ctx, /对2很生气（被抢话）/)
+  assert.match(ctx, /【此刻的你】/)
   assert.match(ctx, /不是眼前的人/)
   assert.doesNotMatch(a.contextFor({ chat: { chatId: 'group:9', kind: 'group' } }), /被抢话/)
+  assert.doesNotMatch(ctx, /【此刻的感受】|对2很生气/)
   assert.ok(a.rules().some((r) => r.includes('<feel>')))
   assert.ok(a.rules().every((r) => !/大肥鱼|鲸/.test(r)), '规矩是通用的')
+})
+
+test('给模型的情绪提示只说行为，不列情绪名和原因', () => {
+  const { a } = adapter()
+  const m = a.mind
+  m.emotion.feel([{ name: '生气', intensity: 0.9, target: 'qq:1', why: '被抢话' }], { window: 'qq:private:1' })
+  const same = m.emotion.prompt({ people: ['qq:1'], body: { energy: 0.9, sleepiness: 0.1 }, window: 'qq:private:1', name: () => '甲' })
+  assert.match(same, /【此刻的你】/)
+  assert.match(same, /话会比平时短/)
+  assert.match(same, /和眼前这个人有关/)
+  assert.doesNotMatch(same, /生气|被抢话|0\.9/)
+  const other = m.emotion.prompt({ people: ['qq:3'], body: { energy: 0.9, sleepiness: 0.1 }, window: 'qq:private:1', name: () => '甲' })
+  assert.match(other, /不是眼前的人/)
+  assert.doesNotMatch(other, /生气|被抢话/)
 })
 
 test('一轮聊完花精力；和管理员聊着会熬夜', () => {

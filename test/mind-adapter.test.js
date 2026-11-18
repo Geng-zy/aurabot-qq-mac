@@ -479,7 +479,8 @@ test('回复前评价有实际情绪，超时后返回的评价不写入下一�
   t.after(() => a.close())
   const chat = { kind: 'private', chatId: 'private:1', userId: '1' }
   await a.beforeTurn(chat, '我记得今天对你很重要', ['1'])
-  assert.match(a.contextFor({ chat }), /感激.*今天对你很重要/)
+  assert.match(a.contextFor({ chat }), /语气会跟着变一点|和眼前这个人有关/)
+  assert.doesNotMatch(a.contextFor({ chat }), /感激|今天对你很重要/)
   assert.equal(a.mind.emotion.state().active[0].target, 'qq:1')
   slow = true
   await a.beforeTurn(chat, '另外还有一件事', ['1'], { timeoutMs: 10 })

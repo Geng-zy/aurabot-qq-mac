@@ -60,7 +60,7 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
       const includeHunger = args.chat?.kind === 'system' || args.userText === undefined || isFoodTopic(args.userText)
       if (args.publicOnly) {
         const { body, mood } = mind.feeling()
-        return [...parts, mind.body.describe(body, { includeHunger }), `【心情】${mood.label}`].join('\n')
+        return [...parts, mind.body.describe(body, { includeHunger }), mind.emotion.prompt({ body, people: [] })].join('\n')
       }
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)
@@ -69,7 +69,7 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
         const b = mind.body.state({ persist: false })
         parts.push(mind.body.describe(b, { includeHunger }))
         const people = args.chat.kind === 'system' ? [] : speakersOf.get(chatId) || [personIn(chatId, args.chat.userId)].filter(Boolean)
-        parts.push(mind.emotion.describe({ window: chatId, people, body: b, name: (pid) => (mind.isOwner(pid) ? '管理员' : mind.person(pid)?.name || shortId(pid)) }))
+        parts.push(mind.emotion.prompt({ window: chatId, people, body: b, name: (pid) => (mind.isOwner(pid) ? '管理员' : mind.person(pid)?.name || shortId(pid)) }))
       }
       const wm = getTurnContext()?.workingOf(chatId)
       if (wm?.text && wm.recalled.every((ref) => mem.visibleIn(mem.row(ref), chatId))) {

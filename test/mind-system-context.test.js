@@ -12,13 +12,13 @@ test('后台会话：有身体和心情、别的聊天刚发生的；没有「�
   const sys = a.contextFor({ chat: { chatId: 'system:tophub', kind: 'system', title: '读热榜' } })
   assert.match(sys, /【此刻】/)
   assert.match(sys, /精力|困|饿|累|精神/, '身体状态')
-  assert.match(sys, /生气/, '心情')
+  assert.match(sys, /话会比平时短|不是眼前的人/, '情绪提示')
   assert.match(sys, /别的聊天里刚发生的[\s\S]*群里聊到唱歌/)
   const publishing = a.contextFor({ chat: { chatId: 'system:diary:public', kind: 'system' }, publicOnly: true })
-  assert.match(publishing, /【心情】/)
+  assert.match(publishing, /【此刻的你】/)
   assert.doesNotMatch(publishing, /被骂了|群里聊到唱歌/)
   const chat = a.contextFor({ chat: { chatId: 'private:1', kind: 'private', userId: '1' } })
-  assert.match(chat, /生气/, '聊天里也一样')
+  assert.match(chat, /话会比平时短|不是眼前的人/, '聊天里也一样')
 })
 
 test('离线向量单独标记索引，检索与精排均不走远程', async (t) => {

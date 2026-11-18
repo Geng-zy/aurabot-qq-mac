@@ -100,6 +100,7 @@ export const PARAMS = [
   // ---------- 情绪 ----------
   { key: 'emotion.durationScale', group: 'emotion', label: '情绪持续时间倍数', def: 1, min: 0.25, max: 4, step: 0.05, source: 'Verduyn & Lavrijsen 2015 图 1（27 种情绪完全恢复的中位数：悲伤 120 小时、仇恨 60、快乐 35、羞愧 0.5……；233 名高中生的回忆报告）', hint: '各情绪的基础持续时间按研究；这里整体放大或缩小。事件越重要持续越久。' },
   { key: 'emotion.appraise', group: 'emotion', label: '回复前评价感受', def: true, source: '设计决定（参考情绪评价理论）', hint: '她在回复前结合事件、关系与身体状态评价感受。使用后台模型预算，超时或出错时照常回复。' },
+  { key: 'emotion.appraiseAmbient', group: 'emotion', label: '群聊旁听也记感受', def: false, source: EXP, hint: '关闭时群聊旁听仍会判断要不要接话，但不把旁听情绪记进她的状态；只有直接对她说的话才改变情绪。' },
   { key: 'emotion.baselineValence', group: 'emotion', label: '平时的心情水位', def: 0.15, min: -0.5, max: 0.6, step: 0.05, source: 'Diener & Diener 1996（大多数人平时是轻度愉快的）', hint: '没什么事时心情回到哪里（-1 到 1）。属于性格，以后会随性格慢慢变。' },
   { key: 'emotion.rekindle', group: 'emotion', label: '想起旧事重新点燃的程度', def: 0.5, min: 0, max: 1, step: 0.05, source: 'Verduyn & Lavrijsen 2015（反复去想让情绪持续更久）；比例是经验值', hint: '想起一件带着情绪的事，当时的情绪按这个比例重新冒出来。' },
   { key: 'emotion.hungerMood', group: 'emotion', label: '饿了心情变差多少', def: 0.15, min: 0, max: 0.5, step: 0.05, source: EXP, hint: '很饿时心情往下拉的幅度。' },
