@@ -5084,6 +5084,19 @@ body[data-ds-dark-theme] .ab-root{
         toastTimer.current = setTimeout(() => setToastMsg(null), 3200)
       }
       useEffect(() => () => clearTimeout(toastTimer.current), [])
+      const toastView = (msg) => {
+        const p = primitives()
+        if (p && typeof p.Toast === 'function') {
+          return h(p.Toast, {
+            key: msg.kind + ':' + msg.text,
+            text: msg.text,
+            tone: msg.kind === 'ok' ? 'success' : undefined,
+            holdMs: 2200,
+            onDone: () => setToastMsg(null),
+          })
+        }
+        return h('div', { className: cx('ab-toast', msg.kind), role: 'status' }, msg.text)
+      }
       const reload = useCallback(async () => {
         if (writeLock.current) return
         const revision = ++stateRevision.current
@@ -5202,7 +5215,7 @@ body[data-ds-dark-theme] .ab-root{
       if (showWizard) {
         return h('div', { className: 'ab-root', ref: scrollRef }, h('div', { className: 'ab-standalone' },
           h(Wizard, { st, draft, setDraft, save, toast, reload, onClose: () => setWizardOpen(false) }),
-          toastMsg ? h('div', { className: cx('ab-toast', toastMsg.kind), role: 'status' }, toastMsg.text) : null))
+          toastMsg ? toastView(toastMsg) : null))
       }
       return h('div', { className: 'ab-root', ref: scrollRef },
         h('div', { className: 'ab-workspace' },
@@ -5230,7 +5243,7 @@ body[data-ds-dark-theme] .ab-root{
                 h('kbd', { className: 'ab-kbd' }, isMacLike() ? '⌘ S' : 'Ctrl S'),
                 h(Btn, { kind: 'ghost', disabled: saving, onClick: () => setDraft(clone(cfg)) }, '撤销'),
                 h(Btn, { kind: 'primary', disabled: saving, onClick: () => save() }, '保存设置')) : null))),
-        toastMsg ? h('div', { className: cx('ab-toast', toastMsg.kind), role: 'status' }, toastMsg.text) : null)
+        toastMsg ? toastView(toastMsg) : null)
     }
 
     function apply(ctx) {
