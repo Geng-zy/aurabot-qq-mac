@@ -5,7 +5,7 @@ export function createSnapshot({ opts, mind, log, trashDir }) {
     const day = mind.today()
     if (mind._store.get('snapshot.lastDay') === day) return null
     try {
-      const file = mind.snapshot({ keep: mind.setting('memory.snapshotKeep'), trashDir })
+      const file = mind.snapshot({ keep: mind.setting('memory.snapshotKeep') })
       mind._store.set('snapshot.lastDay', day)
       log.info('心智快照：', file)
       return file
