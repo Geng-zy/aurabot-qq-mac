@@ -234,7 +234,7 @@ test('管理员私聊「在吗」：建会话（完整权限 preset）、按 |||
   assert.deepEqual(msgs.slice(0, 2), ['在呢', '刚睡醒 嗯…'])
   const turn = fake.turns.at(-1)
   assert.equal(turn.preset, 'aurabot-private-long')
-  assert.match(turn.ctxText, /闲聊或接梗时.*挑一个具体细节直接回/)
+  assert.match(turn.ctxText, /像手机聊天.*先接对方刚说的一个细节/)
   assert.ok(mock.sent('set_input_status').some((c) => c.params.user_id === Number(OWNER) && c.params.event_type === 1), '等回复时显示正在输入')
   assert.match(turn.userText, /^【私聊】xiaoming\(10000001\)：在吗/)
   const ws = fake.workspaces[0]
@@ -391,7 +391,7 @@ test('群聊：没叫她不回；@她必回（群聊 preset，只有管理员那
   await until(() => sentTo('group', '555').length >= 1)
   const turn = fake.turns.at(-1)
   assert.equal(turn.preset, 'aurabot-social')
-  assert.match(turn.ctxText, /闲聊或接梗时.*挑一个具体细节直接回/)
+  assert.match(turn.ctxText, /像手机聊天.*先接对方刚说的一个细节/)
   assert.match(turn.userText, /@了你/)
   assert.match(turn.userText, /今天天气不错/, '带上了群里刚才的聊天')
   const reply = sentTo('group', '555').at(-1).params.message
@@ -423,7 +423,7 @@ test('群聊摸摸不复读饥饿，私聊也收掉套话，主动问饿不饿�
   }
   try {
     const group = await send(grp(groupId, '777', [{ type: 'at', data: { qq: BOT } }, ...text(comfort)]), '蹭蹭')
-    assert.match(group.ctxText, /身体感受可以自然影响语气/)
+    assert.match(group.ctxText, /身体感受自然影响语气/)
     assert.doesNotMatch(group.ctxText, /【身体】[^\n]*饿/)
     const dm = await send(priv(OWNER, text('原有人物口吻回归')), '明天帮你看看。')
     assert.doesNotMatch(dm.ctxText, /【身体】[^\n]*饿/)
