@@ -251,6 +251,9 @@ body[data-ds-dark-theme] .ab-root{
 .ab-row>.ab-label>b{display:block;color:var(--ab-text);font-weight:630}
 .ab-row>.ab-label>small{display:block;color:var(--ab-sub);font-size:12px;line-height:1.5;margin-top:2px}
 .ab-row>.ab-ctl{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap;min-width:0;max-width:50%}
+.ab-row.ab-block{flex-direction:column;align-items:stretch;gap:8px}
+.ab-row.ab-block>.ab-label{max-width:none}
+.ab-row.ab-block>.ab-ctl{max-width:none;justify-content:flex-start;flex:auto}
 .ab-row>.ab-ctl:empty{display:none}
 .ab-row>.ab-ctl>*{min-width:0;max-width:100%}
 .ab-row:has(>.ab-ctl>.wide,>.ab-ctl .ab-range)>.ab-ctl{flex:0 1 min(46%,350px)}
@@ -1630,7 +1633,7 @@ body[data-ds-dark-theme] .ab-root{
           h('td', { style: { width: 24 } }, it.ok === true ? '✓' : it.ok === false ? '✗' : '·'),
           h('td', null, it.label),
           h('td', null, it.detail, it.ok === false && it.hint ? h('div', { className: 'ab-small ab-muted' }, it.hint) : null))))))) : null
-      const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 8 } },
+      const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 10, gap: 12 } },
         h(Btn, { small: true, kind: 'primary', onClick: runDiag }, '一键诊断'),
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
@@ -1644,7 +1647,7 @@ body[data-ds-dark-theme] .ab-root{
           ),
           !conn && st.onebot.problem ? h('div', { className: 'ab-note warn', style: { marginTop: 10 } }, st.onebot.problem) : null,
           testBtns, diagView,
-          h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测'),
+          h('div', { style: { marginTop: 12 } }, h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测')),
         ),
         h(Card, { fold: conn ? 'qq-endpoint' : undefined, section: conn ? undefined : 'qq-endpoint', title: 'QQ 网关配置', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
           desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
@@ -3895,9 +3898,9 @@ body[data-ds-dark-theme] .ab-root{
       }, [cur])
       const pick = (root) => setDraft(setPath(draft, 'song.root', root === s.defaultRoot ? '' : root))
       return h('div', { style: { width: '100%' } },
-        h('div', { className: 'ab-drives' },
-          h('button', { type: 'button', className: cx('ab-drive', !val && 'on'), onClick: () => pick(s.defaultRoot) }, h('b', null, '默认位置'), h('small', null, s.defaultRoot))),
-        h('input', { className: 'ab-input wide', style: { marginTop: 8 }, value: val, placeholder: '或者自己填路径，留空 = 默认位置（' + s.defaultRoot + '）', onChange: (e) => setDraft(setPath(draft, 'song.root', e.target.value)) }),
+        h('div', { className: 'ab-flex', style: { gap: 8, width: '100%' } },
+          h('input', { className: 'ab-input', style: { flex: '1 1 280px', minWidth: 0 }, value: val, placeholder: '留空 = 默认位置（' + s.defaultRoot + '）', onChange: (e) => setDraft(setPath(draft, 'song.root', e.target.value)) }),
+          h(Btn, { small: true, kind: val ? 'ghost' : 'primary', onClick: () => pick(s.defaultRoot) }, val ? '用默认位置' : '默认位置')),
         chk ? h('div', { className: 'ab-small', style: { marginTop: 4, color: !chk.ok || chk.warn ? 'var(--ab-warn)' : 'var(--ab-sub)' } },
           !chk.ok ? chk.message : ['装在 ' + cur, chk.freeGB !== null ? '这个磁盘还剩 ' + chk.freeGB + ' GB' : '', chk.warn].filter(Boolean).join('；')) : null,
         val && val !== s.root && s.voices.length ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 2 } }, '换位置后，已导入的音色要重新导入（或把原来的 models 文件夹搬过去）') : null)
@@ -3952,7 +3955,7 @@ body[data-ds-dark-theme] .ab-root{
             SONG_PARTS.map(([k, label]) => h('div', { key: k, className: cx('ab-check', s.parts[k] && 'done') }, h('i', null, s.parts[k] ? '✓' : '·'), label)),
             h('div', { className: cx('ab-check', s.voices.length && 'done'), title: s.voices.map((v) => v.id).join('、') }, h('i', null, s.voices.length ? '✓' : '·'), s.voices.length ? '音色模型 ×' + s.voices.length : '音色模型（在下面导入）')),
           s.install.running ? null : h('div', { style: { marginTop: 12 } },
-            h(Row, { label: '装到哪里', hint: '装完约 5 GB，音色模型也放这里。改了要先保存设置再点安装' }, h(RootPicker, { draft, setDraft, s })),
+            h(Row, { className: 'ab-block', label: '装到哪里', hint: '装完约 5 GB，音色模型也放这里。改了要先保存设置再点安装' }, h(RootPicker, { draft, setDraft, s })),
             h(Row, { label: '下载源', hint: '自动：安装前先测一下，官方源慢就用国内镜像（阿里云 / 南京大学 / npmmirror）' },
               h(Select, { value: draft.song.pypiMirror || 'auto', width: 220, onChange: (v) => setDraft(setPath(draft, 'song.pypiMirror', v)), options: [{ value: 'auto', label: '自动（推荐）' }, { value: 'cn', label: '一直用国内镜像' }, { value: 'off', label: '只用官方源' }] }))),
           h('div', { className: 'ab-flex', style: { marginTop: 12 } },
