@@ -100,6 +100,7 @@ export function needStrengths(trait) {
  */
 export function createMotivation(deps) {
   const { store, now, setting } = deps
+  const random = deps.random || Math.random
   const M = (k) => setting('motivation.' + k)
   const actions = new Map() // id → 动作定义（模块和对接层登记，不进库）
 
@@ -183,7 +184,7 @@ export function createMotivation(deps) {
    */
   function offer(a) {
     if (!a || !a.id || typeof a.run !== 'function') throw new Error('动作要有 id 和 run')
-    actions.set(a.id, { effort: 0.2, delayHours: 0.05, cooldownMinutes: 60, payoff: 0.6, keywords: [], needs: {}, ...a })
+    actions.set(a.id, { effort: 0.2, delayHours: 0.05, cooldownMinutes: 60, payoff: 0.6, keywords: [], needs: {}, record: false, ...a })
     return () => actions.delete(a.id)
   }
 
@@ -229,10 +230,26 @@ export function createMotivation(deps) {
     return out.sort((x, y) => y.motive - x.motive)
   }
 
-  /** 挑一件去做：能做、不在冷却、动力最大而且过了门槛的那件；都不够就犯懒（返回 null）。 */
-  function choose(st) {
+  /**
+   * 挑一件去做：能做、不在冷却、动力过了门槛。
+   * 默认取动力最高的一件；soft=true 时在几件够想做的事之间按动力加权摇摆，
+   * 让「临时改主意 / 再躺一会儿」自然出现，而不是永远执行最高分。
+   */
+  function choose(st, { soft = false } = {}) {
     const th = Number(M('actThreshold')) || 0.5
-    return motives(st).find((m) => m.available && !m.cooling && m.motive >= th) || null
+    const pool = motives(st).filter((m) => m.available && !m.cooling && m.motive >= th)
+    if (!pool.length) return null
+    const temperature = clamp(M('pickTemperature'), 0, 1)
+    if (!soft || temperature <= 0) return pool[0]
+    const top = pool[0].motive
+    const weights = pool.map((m) => Math.exp((m.motive - top) / Math.max(0.05, temperature * 2)))
+    const total = weights.reduce((a, b) => a + b, 0)
+    let r = random() * total
+    for (let i = 0; i < pool.length; i++) {
+      r -= weights[i]
+      if (r <= 0) return pool[i]
+    }
+    return pool[0]
   }
 
   /** 去做；做完按结果学。 */
@@ -286,6 +303,7 @@ export function createMotivation(deps) {
     s.log.unshift({ at: now(), id, label: a.label, ok: Boolean(r.ok), summary: String(r.summary || '').slice(0, 120), outcome })
     s.log = s.log.slice(0, 100)
     save(s)
+    if (a.record === true && r?.ok) r.record = true
     return r
   }
 
@@ -297,6 +315,17 @@ export function createMotivation(deps) {
     if (!l) return
     l.expect = clamp(l.expect + lr * (clamp(outcome) - l.expect), 0.05, 1)
     save(s)
+  }
+
+  /** 给聊天用的自然提示：最近做过什么、心里想做什么；只给管理员私聊。 */
+  function prompt({ owner = false, body } = {}) {
+    const s = advance(load(), body)
+    const recent = s.log.find((x) => x.ok && now() - x.at <= 3 * HOUR)
+    const want = owner ? s.wants.find((w) => !w.internal && w.strength >= 0.5) : null
+    const bits = []
+    if (recent) bits.push(`你刚${recent.label}${recent.summary ? `，${recent.summary}` : ''}`)
+    if (want) bits.push(`你心里还有点想${want.text}，但不着急`)
+    return bits.length ? `（${bits.join('；')}）` : ''
   }
 
   function state(body) {
@@ -311,5 +340,5 @@ export function createMotivation(deps) {
     }
   }
 
-  return { offer, motives, choose, act, feedback, satisfy, want, closeWant, satisfyWants, state, NEEDS }
+  return { offer, motives, choose, act, feedback, satisfy, want, closeWant, satisfyWants, state, prompt, NEEDS }
 }

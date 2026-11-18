@@ -64,9 +64,9 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
       }
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)
+      const b = args.chat ? mind.body.state({ persist: false }) : null
       // 身体和心情：QQ 聊天、她自己去做事的后台会话（读热榜、写空间……）都带上，哪里都是同一个她
       if (args.chat) {
-        const b = mind.body.state({ persist: false })
         parts.push(mind.body.describe(b, { includeHunger }))
         const people = args.chat.kind === 'system' ? [] : speakersOf.get(chatId) || [personIn(chatId, args.chat.userId)].filter(Boolean)
         parts.push(mind.emotion.prompt({ window: chatId, people, body: b, name: (pid) => (mind.isOwner(pid) ? '管理员' : mind.person(pid)?.name || shortId(pid)) }))
@@ -84,6 +84,10 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
       if (thought) parts.push('（你刚才独自想了一会儿。）')
       const current = getInner().doing()
       if (current) parts.push(`（你本来在${current.label}，有人找你就先放下了。）`)
+      if (args.chat && isOwnerChat(chatId) && !current) {
+        const mot = mind.motivation?.prompt?.({ owner: true, body: b })
+        if (mot) parts.push(mot)
+      }
       const social = getRelationContext()(args.chat)
       if (social) parts.push(social)
       if (isOwnerChat(chatId) && !debug()) {

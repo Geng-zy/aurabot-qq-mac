@@ -148,6 +148,28 @@ test('做还是不做：无聊了就去刷；累坏了就犯懒；做过了冷�
   assert.notEqual(m.motivation.choose(fresh)?.id, 'browse', '刚做过，冷却中')
 })
 
+test('几件动力接近的事之间会临时改主意', () => {
+  let t = T0
+  const m = createMind({ memoryDb: true, now: () => t, ownerId: 'qq:1', random: () => 0.99 })
+  m.updateSettings({ 'motivation.pickTemperature': 1 })
+  m.motivation.offer({ id: 'a', label: '逛热榜', needs: { fun: 1 }, effort: 0.1, delayHours: 0.1, run: async () => ({ ok: true }) })
+  m.motivation.offer({ id: 'b', label: '看视频', needs: { fun: 1 }, effort: 0.1, delayHours: 0.1, run: async () => ({ ok: true }) })
+  t = T0 + 8 * H
+  assert.equal(m.motivation.choose({ body: { energy: 0.9, sleepiness: 0.2, hunger: 0 }, mood: { v: 0.1 } }, { soft: true }).id, 'b')
+})
+
+test('动机提示只给最近做过的事和还想做的事，不列执行日志', async () => {
+  const { m } = mind()
+  m.motivation.offer({ id: 'x', label: '逛热榜', needs: { fun: 1 }, record: true, run: async () => ({ ok: true, summary: '看完了' }) })
+  await m.motivation.act('x')
+  m.motivation.want('还想逛逛', { strength: 0.8 })
+  const text = m.motivation.prompt({ owner: true })
+  assert.match(text, /逛热榜/)
+  assert.match(text, /看完了/)
+  assert.match(text, /还想逛逛/)
+  assert.doesNotMatch(text, /motive|log|outcome/)
+})
+
 test('从结果里学：比预想的开心下次更想做，没做成就没那么想了；过后才知道的结果也能学', async () => {
   const { m } = mind()
   let outcome = { ok: true, outcome: 1 }
@@ -394,6 +416,7 @@ function adapter({ random = () => 0.1, reply = '念头：有点想他\n感受：
 
 test('闲着时：按走神比例想一步，想找管理员的念头够强就去找；找了你没回之前不再追着发', async () => {
   const { a, sent, set } = adapter()
+  a.mind.updateSettings({ 'motivation.pickTemperature': 0 })
   set(T0 + 20 * H) // 一整天没人理
   const r = await a.innerTick()
   assert.ok(r.thought, '想了一步')
@@ -541,11 +564,20 @@ test('睡着、刚聊完、正在做事时不走神；内心活动可以关掉',
   assert.equal(await a.innerTick(), null)
 })
 
+test('真正做完的自主行动会留一条简短经历', async () => {
+  const { a } = adapter()
+  a.moduleApi('demo').offer({ id: 'browse', label: '逛热榜', record: true, run: async () => ({ ok: true, summary: '看完了几条' }) })
+  const r = await a.runAction('demo:browse')
+  assert.equal(r.ok, true)
+  const entries = a.mind.memory.list({ q: '看完了几条' })
+  assert.ok(entries.some((x) => x.gist.includes('逛热榜')), '行动结果进入记忆')
+})
+
 test('模块交给她的事：按动力去做；模块停了就撤掉', async () => {
   const { a, set } = adapter({ reply: '念头：好无聊\n打算：无' })
   let n = 0
   const off = a.moduleApi('tophub').offer({ id: 'browse', label: '逛热榜', needs: { fun: 1 }, effort: 0.1, run: async () => { n++; return { ok: true, outcome: 0.8 } } })
-  a.mind.updateSettings({ 'motivation.dailyOutreachCap': 0, 'motivation.quietHours': '00:00-23:59' }) // 不让「找管理员」抢
+  a.mind.updateSettings({ 'motivation.dailyOutreachCap': 0, 'motivation.quietHours': '00:00-23:59', 'motivation.pickTemperature': 0 }) // 不让「找管理员」抢，固定取最高分
   set(T0 + 10 * H)
   await a.innerTick()
   await new Promise((x) => setTimeout(x, 10))

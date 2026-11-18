@@ -46,9 +46,22 @@ export function createInner({ mind, opts, now, log, isClosed, debug, local, chec
       try { thought = await mind.inner.step({ canCommit }) } catch (error) { log.debug('想事出错：', error.message) }
     }
     if (!canCommit()) return null
-    const pick = mind.motivation.choose({ body: mind.body.state(), mood: mind.feeling().mood, boredom: mind.inner.boredom() })
+    const pick = mind.motivation.choose({ body: mind.body.state(), mood: mind.feeling().mood, boredom: mind.inner.boredom() }, { soft: true })
     if (pick) runAction(pick.id).catch(() => {})
     return { thought, did: pick?.id || '' }
+  }
+
+  function recordAction(id, label, result) {
+    if (!result?.ok || result.record !== true || !result.summary) return
+    try {
+      const at = now()
+      mind.memory.insert({
+        id: `action:${id}:${Math.floor(at / 60000)}`,
+        at, window: '', gist: `自己${label}${result.summary ? `：${result.summary}` : ''}`,
+        kind: 'event', speaker: 'self', importance: 0.35, attention: 1,
+        extra: { actionId: id, action: true },
+      })
+    } catch (error) { log.debug('行动结果没记进记忆：', error.message) }
   }
 
   async function runAction(id, scheduled) {
@@ -69,7 +82,10 @@ export function createInner({ mind, opts, now, log, isClosed, debug, local, chec
       await checkpoint()
       const context = { checkpoint, signal: controller.signal, budgetBlocked: 0 }
       const r = await actionContext.run(context, () => scheduled ? scheduled.run(context) : mind.motivation.act(id, context))
-      if (r?.ok && !scheduled) mind.inner.relieve(0.5)
+      if (r?.ok && !scheduled) {
+        mind.inner.relieve(0.5)
+        recordAction(id, label, r)
+      }
       return r
     } catch (error) {
       return { ok: false, summary: error.message }

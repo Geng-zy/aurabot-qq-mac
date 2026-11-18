@@ -112,6 +112,7 @@ export const PARAMS = [
 
   // ---------- 动机与行动 ----------
   { key: 'motivation.actThreshold', group: 'motivation', label: '去做事的动力门槛', def: 0.5, min: 0.1, max: 0.95, step: 0.05, source: 'Steel 2007（时间动机理论的结构；门槛为经验值）', hint: '动力超过这个值才会真的去做；越高越容易犯懒。' },
+  { key: 'motivation.pickTemperature', group: 'motivation', label: '在几件想做的事之间摇摆', def: 0.35, min: 0, max: 1, step: 0.05, source: EXP, hint: '几件事动力接近时，她有多可能在它们之间临时改主意；0 = 永远选最高分，1 = 更随性。' },
   { key: 'motivation.dailyOutreachCap', group: 'motivation', label: '每天最多主动找人几次', def: 0, min: 0, max: 50, step: 1, source: '设计决定', hint: '0 表示不设上限，由她自己拿捏分寸。' },
   { key: 'motivation.quietHours', group: 'motivation', label: '主动找你的勿扰时段', def: '', source: '设计决定', hint: '例如 00:00-08:00；留空表示不设，她按对你作息的了解自己判断。' },
   { key: 'motivation.rewardLearning', group: 'motivation', label: '从结果里学的快慢', def: 0.2, min: 0, max: 1, step: 0.05, source: 'Lefebvre 等 2017；2021 Scientific Reports（具体学习率待查，暂取中等）', hint: '一次结果比预想好/坏，对以后想不想做的影响有多大。' },
