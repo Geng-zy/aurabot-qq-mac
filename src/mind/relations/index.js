@@ -112,10 +112,12 @@ export function createRelations(deps) {
     const scorePassion = id0.sexualDesire && deps.isOwnerWindow(window)
     let passionApplied = false
     const pester = []
+    const seenPeople = new Set()
     let updated = 0
     for (const e of list) {
       const who = String(e?.who || '')
-      if (!who || !spoke.has(who)) continue
+      if (!who || !spoke.has(who) || seenPeople.has(who)) continue
+      seenPeople.add(who)
       const g = get(who)
       const r = g.rel
       const tom = g.tom
@@ -332,7 +334,11 @@ export function createRelations(deps) {
    */
   function prompt(ids, { nameOf = (id) => id, window = '', privateDetails = true, canSee = () => true } = {}) {
     const lines = []
-    for (const id of [...new Set(ids)].slice(0, 3)) {
+    const ordered = [...new Set(ids)].sort((a, b) => {
+      const A = get(a), B = get(b)
+      return Number(B.owner) - Number(A.owner) || B.rel.closeness - A.rel.closeness || (B.rel.lastContact || 0) - (A.rel.lastContact || 0)
+    }).slice(0, 4)
+    for (const id of ordered) {
       const g = get(id)
       const r = g.rel
       const t = g.tom
