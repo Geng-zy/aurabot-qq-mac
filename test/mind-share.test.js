@@ -52,14 +52,3 @@ test('两天没机会说就算了；调试模式不记', async () => {
   assert.equal((await d.a.moduleApi('tophub').share({ text: 'x' })).ok, false)
   assert.equal(d.notes.length, 0)
 })
-
-test('历史 B 站待分享不再出现在对话，其他待分享照常提示', () => {
-  const { a } = setup()
-  a.mind._store.set('shares', [
-    { at: T0, text: '旧版待分享视频', by: 'bili', shown: 0 },
-    { at: T0, text: '一条热榜消息', by: 'tophub', shown: 0 },
-  ])
-  const context = a.contextFor({ chat: owner })
-  assert.doesNotMatch(context, /旧版待分享视频/)
-  assert.match(context, /一条热榜消息/)
-})

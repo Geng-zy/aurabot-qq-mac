@@ -81,8 +81,6 @@ before(async () => {
     snowluma: { autoStart: false, autoAttach: false, httpUrl: mock.httpUrl, wsUrl: mock.wsUrl, httpToken: mock.token, wsToken: mock.token, dir: join(dataDir, 'no-snowluma') },
     voice: { engine: 'system', autoChance: 0 }, stickers: { autoChance: 0 },
     merge: { waitSec: 0.2, maxSec: 2 },
-    bili: { enabled: true, cookie: 'old-login', ffmpegPath: '/opt/bin/ffmpeg' },
-    profilePerms: { biliSign: 'all' },
     files: { enabled: true, maxMB: 5, dirs: [dataDir], imageByPath: true },
   }))
   writeMod('echo', echoCode('pong'))
@@ -208,21 +206,6 @@ test('新建模块：从模板建，能直接跑', async () => {
   assert.equal(m.running, 'user', m.error)
   assert.deepEqual(m.tools, ['my_ext_keywords'])
   assert.equal((await fake.call('/modules/create', { id: 'Bad Id' })).json().ok, false)
-})
-
-test('旧版 B 站配置不会重新启用内置功能，ffmpeg 路径继续可用', async () => {
-  assert.equal(await mod('bili'), undefined)
-  assert.doesNotMatch(fake.variables.get('aurabot_rules_private')(), /你会刷 B 站|bili_watch/)
-  const agent = [...fake.agents.values()].find((a) => String(a.preset).startsWith('aurabot-private'))
-  assert.ok(agent)
-  assert.ok([...agent.tools.keys()].every((name) => !name.startsWith('bili_') && !['qq_send_shot', 'qq_list_shots'].includes(name)))
-  for (const path of ['/bili/state', '/bili/qr/start', '/bili/danmaku/send', '/bili/shots']) {
-    assert.ok(!fake.routes.has('/aurabot/api' + path))
-  }
-  const cfg = (await fake.call('/state')).json().config
-  assert.equal(cfg.local.ffmpegPath, '/opt/bin/ffmpeg')
-  assert.equal(Object.hasOwn(cfg, 'bili'), false)
-  assert.equal(Object.hasOwn(cfg.profilePerms, 'biliSign'), false)
 })
 
 test('模块设置里的密码不回传给面板', async () => {

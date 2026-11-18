@@ -390,19 +390,6 @@ test('生图仅开放明确勾选的 QQ 会话，旧授权不会迁入', async (
   assert.deepEqual(removedChat.drawAllow, { private: [], groups: [] })
 })
 
-test('升级只保留旧版 B 站配置里的共享 ffmpeg 路径', async () => {
-  const { normalize, mergeFromPanel, publicConfig } = await import('../src/core/config.js')
-  const raw = { bili: { ffmpegPath: ' /opt/bin/ffmpeg ', cookie: 'legacy-cookie' }, local: { asr: true } }
-  const config = normalize(raw)
-  assert.equal(config.local.ffmpegPath, '/opt/bin/ffmpeg')
-  assert.equal(config.local.asr, true)
-  assert.equal(Object.hasOwn(config, 'bili'), false)
-  assert.equal(Object.hasOwn(publicConfig(raw), 'bili'), false)
-  assert.equal(normalize({ ...raw, local: { ffmpegPath: '/usr/local/bin/ffmpeg' } }).local.ffmpegPath, '/usr/local/bin/ffmpeg')
-  assert.equal(normalize({ ...raw, local: { ffmpegPath: '' } }).local.ffmpegPath, '')
-  assert.equal(mergeFromPanel(config, { local: { ffmpegPath: '' } }).local.ffmpegPath, '')
-})
-
 test('空间互动：说说下的评论整理成上下文', async () => {
   const { summarizeComments } = await import('../src/channels/qq/features/qzone-social/social.js')
   const comments = [

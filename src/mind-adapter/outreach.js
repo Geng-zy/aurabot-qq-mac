@@ -8,7 +8,7 @@ export function createOutreach({ mind, opts, ownerOf, ownerChat, parseChat, now,
 
   /** 和管理员私聊时想起来的「之前想给他看的」：每条最多想起两次，两天后就算了。 */
   function pendingShares() {
-    const list = sharesOf().filter((x) => x.by !== 'bili' && now() - x.at < SHARE_TTL && x.shown < 2)
+    const list = sharesOf().filter((x) => now() - x.at < SHARE_TTL && x.shown < 2)
     if (!list.length) return ''
     mind._store.set('shares', list.map((x) => ({ ...x, shown: x.shown + 1 })))
     return '（你之前刷到、想给他看的：' + list.slice(0, 4).map((x) => x.text + (x.url ? ' ' + x.url : '') + (x.hint ? `（${x.hint}）` : '')).join('；') + '。聊到合适的时候可以提，不提也行。）'

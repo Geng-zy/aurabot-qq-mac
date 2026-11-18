@@ -477,9 +477,7 @@ export function normalize(raw) {
   delete q.intervalMin // 什么时候逛空间由她自己决定（心智核心的动机）
   for (const k of ['tts', 'image', 'song', 'asr', 'video']) c.local[k] = bool(c.local[k], false)
   c.local.videoTimeoutMin = num(c.local.videoTimeoutMin, 20, 1, BIG)
-  // 旧版把共享的 ffmpeg 路径放在 B 站设置里。只迁移路径，保留显式清空。
-  c.local.ffmpegPath = String(raw?.local?.ffmpegPath ?? raw?.bili?.ffmpegPath ?? '').trim()
-  delete c.bili
+  c.local.ffmpegPath = String(raw?.local?.ffmpegPath ?? '').trim()
   // 心智核心接手以后不用的旧设置：主动搭话、心情、旧记忆模块（向量密钥先搬到 mind.embedKey）
   const oldVectorKey = String(raw?.memory?.vector?.apiKey || '').trim()
   delete c.speakUp
@@ -687,7 +685,6 @@ export function saveConfig(cfg, previous = loadConfig()) {
 export function publicConfig(cfg) {
   const c = structuredClone(cfg)
   delete c.ownerAuthorization
-  delete c.bili
   for (const item of c.imageGen?.fallbacks || []) {
     item.apiKeySet = Boolean(item.apiKey)
     item.apiKey = ''
