@@ -36,7 +36,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
         return null
       }
       rec.exports = exports
-      log.info(`模块「${def.name || id}」${source !== 'user' ? '' : existsSync(join(rec.dir, '.aurabot-source.json')) ? '（模块市场）' : '（自己写的）'}已启动`)
+      log.info(`模块「${def.name || id}」${source !== 'user' ? '' : existsSync(join(rec.dir, '.aurabot-source.json')) ? '（模块库）' : '（自己写的）'}已启动`)
       emit('module/start', id)
     } catch (error) {
       if (disposed || rec.stopped || live.get(id) !== rec) return null
@@ -146,8 +146,8 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
   function wanted(id, users) {
     if (!isEnabled(id)) return null
     const hasUser = isUserOn() && users.some((u) => u.id === id)
-    // 群管回归内置：老用户数据目录里残留的同名社区模块不再覆盖内置版。
-    const preferBuiltin = id === 'group-admin'
+    // 群管回归内置：老用户数据目录里残留的同名社区模块不再覆盖内置版；从面板 fork 出来的仍然用用户版。
+    const preferBuiltin = id === 'group-admin' && !modCfg(id).forkedFrom
     if (hasUser && !(builtinDefs.has(id) && (preferBuiltin || modCfg(id).useBuiltin))) return 'user'
     return builtinDefs.has(id) ? 'builtin' : null
   }

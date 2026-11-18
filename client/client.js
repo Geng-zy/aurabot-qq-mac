@@ -1148,7 +1148,7 @@ body[data-ds-dark-theme] .ab-root{
       ] },
       { id: 'extensions', label: '扩展', icon: 'puzzle', pages: [
         { id: 'modules', label: '模块管理', search: '扩展 已安装 内置 自己写 模板 安全模式' },
-        { id: 'market', label: '模块市场', search: '插件 社区 下载 安装 桌宠 抖音 小黑盒 空间互动' },
+        { id: 'market', label: '模块库', search: '插件 社区 下载 安装 桌宠 抖音 小黑盒 空间互动' },
       ] },
     ]
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))
@@ -4056,7 +4056,7 @@ body[data-ds-dark-theme] .ab-root{
         }
       }
       return h('div', { className: 'ab-grid' },
-        slot === 'video' ? h(Card, { title: '本地视频脚本', desc: '生成视频需要可用的本机服务和接入脚本。' }) : slot ? null : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH 的话」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
+        slot === 'video' ? h(Card, { title: '本地视频脚本', desc: '生成视频需要可用的本机服务和接入脚本。' }) : slot ? null : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
           h('div', { className: 'ab-flex' },
             h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, st ? st.dir : '…'),
             h(Btn, { small: true, onClick: () => post('/local/open').then((r) => toast(r.message)) }, '打开文件夹')),
@@ -4068,7 +4068,7 @@ body[data-ds-dark-theme] .ab-root{
             x.last ? h('span', { className: 'ab-small', style: { color: x.last.ok ? 'var(--ab-ok)' : 'var(--ab-err)' } }, ' · 上次' + (x.last.ok ? '成功，' + x.last.message : '出错：' + x.last.message)) : null),
           h('div', { className: 'ab-flex' },
             x.exists ? null : h(Btn, { small: true, kind: 'primary', disabled: !!busy, onClick: () => act('/local/template', x.slot, 't') }, '生成模板'),
-            h(Btn, { small: true, onClick: () => { clipboard(x.prompt).then(() => toast('复制好了，粘给 DSH，再把【】里那句换成你的情况', 'ok'), () => toast('复制失败，手动选中复制吧', 'err')) } }, '复制给 DSH 的话'),
+            h(Btn, { small: true, onClick: () => { clipboard(x.prompt).then(() => toast('修改提示词复制好了，粘给 DSH，再把【】里那句换成你的情况', 'ok'), () => toast('复制失败，手动选中复制吧', 'err')) } }, '复制给 DSH'),
             x.exists && (x.slot === 'tts' || x.slot === 'image') ? h(Btn, { small: true, disabled: !!busy, onClick: () => act('/local/test', x.slot, 'x') }, busy === x.slot + 'x' ? '正在试…' : '试一下') : null),
           x.slot === 'video' ? h(Row, { label: '最多等多久', hint: '生视频很慢，超过这个时间算失败' }, f.num('local.videoTimeoutMin', { min: 1 }), h('span', { className: 'ab-muted' }, '分钟')) : null,
           x.slot === 'image' && img ? h('img', { src: 'data:image/png;base64,' + img, style: { marginTop: 10, maxWidth: 240, borderRadius: 8 } }) : null)),
@@ -4120,7 +4120,7 @@ body[data-ds-dark-theme] .ab-root{
           h('div', { className: 'acts' },
             m.builtin && !m.hasUser ? h(Btn, { small: true, onClick: () => act('/modules/fork', { id: m.id }, '复制好了'), title: '把这个内置模块的源码复制到 modules/' + m.id + '/，改了就替换内置的' }, '复制一份来改') : null,
             m.hasUser ? h(Btn, { small: true, onClick: () => post('/modules/open?id=' + encodeURIComponent(m.id)).then((r) => toast(r.message)) }, '打开文件夹') : null,
-            m.hasUser ? h(Btn, { small: true, onClick: () => get('/modules/prompt?id=' + encodeURIComponent(m.id)).then((r) => copy(r.prompt, toast, '复制好了，粘给 DSH，把【】里那句换成你想要的')) }, '复制给 DSH 的话') : null,
+            m.hasUser ? h(Btn, { small: true, onClick: () => get('/modules/prompt?id=' + encodeURIComponent(m.id)).then((r) => copy(r.prompt, toast, '修改提示词复制好了，粘给 DSH，把【】里那句换成你想要的')) }, '复制给 DSH') : null,
             m.hasUser && !m.safeSkipped ? h(Btn, { small: true, onClick: () => act('/modules/reload', { id: m.id }, '重新加载好了') }, '重新加载') : null)),
         h('div', { className: 'side' },
           h(Switch, { on: m.enabled, onChange: (v) => setMod({ enabled: v }), title: m.enabled ? '关掉这个模块' : '打开这个模块' }),
@@ -4180,16 +4180,16 @@ body[data-ds-dark-theme] .ab-root{
         get('/modules/tutorial').then((r) => (r.ok ? setText(r.text) : setErr(r.message)))
       }
       return h('details', { className: 'ab-card', onToggle: open },
-        h('summary', { style: { cursor: 'pointer', fontWeight: 620 } }, '想自己写一个？提交教程'),
-        h('p', { className: 'ab-desc', style: { marginTop: 8 } }, '从零写一个模块并提交到市场。不会写代码也行：复制全文粘给 DSH，告诉它你想要什么。'),
+        h('summary', { style: { cursor: 'pointer', fontWeight: 620 } }, '想自己写一个模块？'),
+        h('p', { className: 'ab-desc', style: { marginTop: 8 } }, '从零写一个模块，或者改现有模块。不会写代码也行：复制教程给 DSH，告诉它你想要什么。'),
         h('div', { className: 'ab-flex', style: { marginBottom: 10 } },
-          h(Btn, { small: true, kind: 'primary', disabled: !text, onClick: () => copy(text, toast, '教程复制好了') }, '一键复制'),
+          h(Btn, { small: true, kind: 'primary', disabled: !text, onClick: () => copy(text, toast, '写模块教程复制好了') }, '复制教程'),
           h('a', { className: 'ab-small', href: TUTORIAL_URL, target: '_blank', rel: 'noreferrer' }, '在 GitHub 上看')),
         err ? h('div', { className: 'ab-note warn' }, err) : null,
         text ? h('pre', { className: 'ab-small', style: { whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 420, overflow: 'auto', margin: 0 } }, text) : (err ? null : h('div', { className: 'ab-small ab-muted' }, '加载中…')))
     }
 
-    /** 模块市场：逛、搜、装、更新、卸载社区模块。安装前给用户看来源和能力，能力声明不是沙箱。 */
+    /** 模块库：逛、搜、装、更新、卸载社区模块。安装前给用户看来源和能力，能力声明不是沙箱。 */
     const CAP_LABEL = { network: '联网', filesystem: '读写本机文件', process: '启动其他程序', 'dynamic-code': '动态执行代码', 'plugin-config': '读写插件配置（含账号 Cookie）', 'plugin-internals': '使用插件内部接口' }
     const CATEGORY_LABEL = { platform: '逛平台', social: '聊天互动', creative: '创作', desktop: '桌面', manage: '管理', tool: '工具' }
     const capText = (m) => (m.capabilities || []).map((c) => CAP_LABEL[c] || c)
@@ -4310,15 +4310,15 @@ body[data-ds-dark-theme] .ab-root{
         if (!r.ok) return toast(r.message, 'err')
         setNewId(''); setNewName('')
         setModules(r.list)
-        copy(r.prompt, toast, '建好了，「复制给 DSH 的话」已经复制好，粘给 DSH 让它帮你写')
+        copy(r.prompt, toast, '建好了，修改提示词已复制，粘给 DSH 让它帮你写')
         reload()
       }
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '已安装', right: h(Btn, { small: true, kind: 'primary', onClick: () => go('market') }, '逛模块市场'), desc: 'ta的每项本事都是一个模块：能单独关掉；能复制一份来改，改了就替换内置的；也能自己写新模块，让ta学会你想要的任何事。自己写的东西放在下面这个文件夹，插件升级不会动；改完保存几秒内自动生效，不用重启。不会写代码？点「复制给 DSH 的话」，粘给 DSH，说你想要什么。' },
+        h(Card, { title: '已安装', right: h(Btn, { small: true, kind: 'primary', onClick: () => go('market') }, '逛模块库'), desc: 'ta的每项本事都是一个模块：能单独关掉；能复制一份来改，改了就替换内置的；也能自己写新模块，让ta学会你想要的任何事。自己写的东西放在下面这个文件夹，插件升级不会动；改完保存几秒内自动生效，不用重启。不会写代码？点「复制给 DSH」，粘给 DSH，说你想要什么。' },
           h('div', { className: 'ab-flex' },
             h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, data.dir),
             h(Btn, { small: true, onClick: () => post('/modules/open').then((r) => toast(r.message)) }, '打开文件夹'),
-            h(Btn, { small: true, onClick: () => copy(data.prompt, toast, '复制好了，粘给 DSH，把【】里那句换成你想要的') }, '复制给 DSH 的话'),
+            h(Btn, { small: true, onClick: () => copy(data.prompt, toast, '修改提示词复制好了，粘给 DSH，把【】里那句换成你想要的') }, '复制给 DSH'),
             h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/modules/reload', {}); setModules(r.list); toast(r.message) } }, '重新检查')),
           h(Row, { label: '安全模式', hint: '打开后你写的模块一个都不加载，内置的全部恢复。出了问题先开它，看是不是你的模块引起的。' },
             h(Switch, { on: st.config.safeMode, onChange: async (v) => { const r = await post('/save', { safeMode: v }); toast(v ? '安全模式开了：只跑内置模块' : '安全模式关了', 'ok'); setModules(r.modules); reload() } })),

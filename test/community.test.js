@@ -209,7 +209,7 @@ test('测试版：市场最低版本比较', async () => {
   assert.equal(compareVersions('1.2.0-beta.2', '1.2.0-beta.1'), 0)
 })
 
-test('提交教程随插件发布', () => {
+test('写模块教程随插件发布', () => {
   const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
   assert.ok(pkg.files.includes('docs/MODULE-TUTORIAL.md'))
   const doc = readFileSync(new URL('../docs/MODULE-TUTORIAL.md', import.meta.url), 'utf8')

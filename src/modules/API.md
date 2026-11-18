@@ -329,6 +329,7 @@ return function Panel({ settings, save, toast }) {
 | `imagegen` | 生图 | `enabled()` `generate(描述) → Buffer` |
 | `diary` | 空间日记 | `writeDiary()` `post(正文, { images, visibility })` `remove(tid)` `history()` `nextTime()` |
 | `song` | 翻唱 | `request({ song, pitch, chatId })` `search(关键词)` `status()` `install()` |
+| `group-admin` | 群管 | 无对外导出；注册 `qq_group_admin` 工具、群身份上下文，和 `/groups/roles` 面板接口 |
 
 QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`）和空间互动（`qzone-social`）。实现位于 `src/channels/qq/features/`，沿用原有设置和模块 id。空间互动仍可用 `api.use('qzone-social')` 调用 `run({ force })`、`state()`。
 
@@ -355,7 +356,7 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 
 ## 社区模块
 
-市场读取 [macOS 分支模块库](https://github.com/Geng-zy/aurabot-qq-mac-mods) 和 [上游社区模块库](https://github.com/aureth-labs/dsh-aurabot-qq-mods)。同名条目优先显示 macOS 版本。安装后保存在 `modules/<id>/`，`.aurabot-source.json` 记录来源与版本。为本分支投稿请参见 [模块教程](../../docs/MODULE-TUTORIAL.md)。
+模块库读取 [macOS 分支模块库](https://github.com/Geng-zy/aurabot-qq-mac-mods) 和 [上游社区模块库](https://github.com/aureth-labs/dsh-aurabot-qq-mods)。同名条目优先显示 macOS 版本。安装后保存在 `modules/<id>/`，`.aurabot-source.json` 记录来源与版本。为本分支投稿请参见 [模块教程](../../docs/MODULE-TUTORIAL.md)。
 
 ## 替换内置模块
 
@@ -399,4 +400,4 @@ QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`
 - 面板「已安装」页：每个模块在不在跑、用的是内置的还是你的、启动报错、运行中最近的报错
 - 面板「日志」页：模块的日志按模块 id 分类
 - **安全模式**：「已安装」页打开后，你写的模块一个都不加载，内置的全部恢复。用来判断「是我的模块的问题还是插件的问题」
-- 不会写？在「已安装」页点「复制给 DSH 的话」，粘给 DSH，写上你想要什么，它会读这份说明帮你写
+- 不会写？在「已安装」页点「复制给 DSH」，粘给 DSH，写上你想要什么，它会读这份说明帮你写

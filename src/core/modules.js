@@ -140,7 +140,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
   const modCfg = (id) => getConfig().modules?.[id] || {}
   const isEnabled = (id) => modCfg(id).enabled !== false
   const isUserOn = () => !getConfig().safeMode
-  // 接口挂在哪：内置模块（以及从内置搬到社区库的那几个）沿用原来的根路径，别的模块挂在自己的 /ext/<id>/ 下。
+  // 接口挂在哪：内置模块沿用原来的根路径，社区/自己写的模块挂在自己的 /ext/<id>/ 下。
   // 面板里的 call('/x') 要用同一份判断决定基址（见 status().routesAtRoot），两边不能各算各的。
   const routesAtRoot = (id) => builtinDefs.has(id)
 

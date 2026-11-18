@@ -119,7 +119,7 @@ export function createLocal({ getConfig, log }) {
     return { ok: true, created: true, path: dest, message: '模板放好了，照里面的注释改，或者让 DSH 帮你改' }
   }
 
-  /** 复制给 DSH 的话：让它读说明、改脚本。 */
+  /** 复制给 DSH：让它读说明、改脚本。 */
   function promptFor(slot) {
     const s = SLOTS[slot]
     return `帮我修改 Aurabot（大肥鱼 QQ 插件）的本地接口脚本：${pathOf(slot)}\n`

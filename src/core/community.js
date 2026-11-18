@@ -6,7 +6,7 @@
 // - 写 .aurabot-source.json 记来源；没有这个文件的同名文件夹是用户自己写的，绝不覆盖
 // - 能力声明不是沙箱：安装前面板要把来源和能力给用户看
 //
-// 从内置搬到社区库的模块（MOVED），老用户升级时自动装回来，只装一次，卸载后不会再装。
+// 从内置搬到社区库的模块（MOVED）；目前群管已回归内置，表为空，保留接口给以后搬家用。
 
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
@@ -242,7 +242,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
   const exclusive = (fn) => {
     if (busy) return Promise.resolve({ ok: false, message: '上一个操作还没做完，稍等' })
     busy = Promise.resolve().then(fn).catch((error) => {
-      log.warn('模块市场操作失败：', error?.message || error)
+      log.warn('模块库操作失败：', error?.message || error)
       return { ok: false, message: String(error?.message || error) }
     }).finally(() => { busy = null; progress = null })
     return busy
