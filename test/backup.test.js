@@ -123,7 +123,7 @@ test('会话目录名和 DSH 的规则一致', () => {
   assert.equal(api.sessionDirName('D:\\knorvia studio开发'), '--D-knorvia~0020studio~5F00~53D1--')
 })
 
-test('市场模块只记名字，会话带上并放回工作区目录，已有的不覆盖', async () => {
+test('模块库模块只记名字，会话带上并放回工作区目录，已有的不覆盖', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aurabot-home-'))
   process.env.DSH_HOME = home
   const ws = join(home, 'qq-chats')
@@ -140,7 +140,7 @@ test('市场模块只记名字，会话带上并放回工作区目录，已有�
   assert.deepEqual(b.market, ['heybox'])
   assert.equal(b.sessions, 2)
 
-  // 新电脑：市场模块没装，自己写的模块被清空，有一个同名会话
+  // 新电脑：模块库模块没装，自己写的模块被清空，有一个同名会话
   rmSync(join(root, 'modules'), { recursive: true, force: true })
   rmSync(join(sess, 'session-a'), { recursive: true, force: true })
   writeFileSync(join(sess, 'session-b', 'session.v4.jsonl.zstd'), '这台电脑的')
@@ -149,7 +149,7 @@ test('市场模块只记名字，会话带上并放回工作区目录，已有�
   api.applyPendingRestore(456)
 
   assert.equal(read('modules/mine/index.mjs'), 'mine')
-  assert.equal(existsSync(join(root, 'modules/heybox')), false, '市场模块不打包')
+  assert.equal(existsSync(join(root, 'modules/heybox')), false, '模块库模块不打包')
   assert.deepEqual(api.pendingModules(), ['heybox'])
   assert.equal(readFileSync(join(sess, 'session-a', 'session.v4.jsonl.zstd'), 'utf8'), 'A')
   assert.equal(readFileSync(join(sess, 'session-b', 'session.v4.jsonl.zstd'), 'utf8'), '这台电脑的')

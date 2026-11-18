@@ -6,7 +6,7 @@
 
 `createModules` 是一个大闭包，`live / errors / routes / listeners / revisions / generation / userSeen / syncing` 被 registry、loader、module-api、panel 四组职责共享。直接按函数切文件会破坏热重载和 `generation` 失效语义。
 
-已完成（1.5.10 beta）：`module-state.js` / `module-code.js` / `module-panel.js` / `module-api.js` / `module-registry.js` / `module-loader.js`，`modules.js` 从 900 行降到 190 行，只保留组合根。
+已完成（1.5.10 beta）：`module-state.js` / `module-code.js` / `module-panel.js` / `module-api.js` / `module-registry.js` / `module-loader.js`，`modules.js` 从 900 行降到 186 行，只保留组合根。
 
 原计划顺序：
 
@@ -62,7 +62,7 @@ node --test "test/**/*.test.js"
 
 ## 7. 心智对接层分层（1.5.10 beta 后续）
 
-`src/mind-adapter/index.js` 已从 1,725 行降到约 300 行，拆出：
+`src/mind-adapter/index.js` 已从 1,725 行降到 299 行，拆出：
 
 - `context.js` / `context-text.js`：上下文拼装、纯文本常量
 - `permission.js` / `outreach.js` / `offers.js`：权限、主动联系、自主行动

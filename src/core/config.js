@@ -727,7 +727,6 @@ export function mergeFromPanel(current, incoming) {
       return { ...item, apiKey: item.apiKey === null ? '' : item.apiKey || (sameEndpoint ? old.apiKey : '') }
     })
   }
-  // 管理员的抖音 secUid / uid / 昵称只能由「核对」写入，面板存配置时保留原值
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''
   if (incoming?.group?.overrides) next.group.overrides = incoming.group.overrides

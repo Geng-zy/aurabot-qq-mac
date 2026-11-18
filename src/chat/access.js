@@ -94,7 +94,7 @@ export const ownerOrFree = (cfg, allOwner) => freeWill(cfg) || Boolean(allOwner)
 export const PROFILE_PERM_LEVELS = ['off', 'owner', 'all']
 const OWNER_PROFILE_KEYS = ['qqNickname', 'qqSignature', 'qqAvatar', 'qqFriendRequest', 'whitelist']
 export const PROFILE_PERM_KEYS = [...OWNER_PROFILE_KEYS]
-/** 没设过的档位：一律默认仅管理员（含抖音浏览/互动/改资料项；用户要放开自己在面板开）。 */
+/** 没设过的档位：一律默认仅管理员；需要放开时在面板单独开。 */
 export const profilePermDefault = (key) => 'owner'
 export const permOf = (cfg, key) => {
   const p = cfg?.profilePerms?.[key]

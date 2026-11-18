@@ -331,6 +331,8 @@ return function Panel({ settings, save, toast }) {
 | `song` | 翻唱 | `request({ song, pitch, chatId })` `search(关键词)` `status()` `install()` |
 | `group-admin` | 群管 | 无对外导出；注册 `qq_group_admin` 工具、群身份上下文，和 `/groups/roles` 面板接口 |
 
+> 群管 `group-admin` 默认优先内置版：老数据目录里残留的同名模块不会覆盖它。要改群管，请在「模块管理」点「复制一份来改」，生成的用户版会优先于内置版。
+
 QQ 渠道随壳提供基础 QQ 工具（`qq-tools`）、OneBot 接口（`qq-api`）和空间互动（`qzone-social`）。实现位于 `src/channels/qq/features/`，沿用原有设置和模块 id。空间互动仍可用 `api.use('qzone-social')` 调用 `run({ force })`、`state()`。
 
 ## 心智核心

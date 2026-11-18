@@ -461,7 +461,7 @@ export function apply(ctx) {
   const booted = mods.boot()
   booted.then(() => (unloaded ? [] : community.migrate())).catch((error) => log.warn('搬到社区库的模块处理失败：', error.message))
     .then(async () => {
-      // 恢复备份后把市场模块装回来；没装上的留着，下次启动再试
+      // 恢复备份后把模块库里的模块装回来；没装上的留着，下次启动再试
       const left = []
       for (const id of pendingModules()) {
         if (unloaded) return
@@ -638,15 +638,6 @@ export function apply(ctx) {
   }
 
   // ---------- 面板：对外接口聚合 ----------
-  // 面板令牌脱敏：任何 32 位以上的十六进制串（模块 token、bridge token 等）只留尾 4 位。
-  const HEX_RE = /[0-9a-f]{32,}/gi
-  function redactTokens(value) {
-    const walk = (v) => typeof v === 'string' ? v.replace(HEX_RE, (m) => '（已脱敏…' + m.slice(-4) + '）')
-      : Array.isArray(v) ? v.map(walk)
-      : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => /token|secret/i.test(k) && typeof x === 'string' && x ? [k, '（已脱敏…' + String(x).slice(-4) + '）'] : [k, walk(x)]))
-      : v
-    return walk(value)
-  }
 
   route('/state', async () => overview())
   // token 用量与花费：今日 / 昨日 / 近 7 天 / 近 30 天，各带模块明细

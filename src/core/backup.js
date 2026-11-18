@@ -36,8 +36,9 @@ const STORE_EXT = /\.(png|jpe?g|gif|webp|mp3|mp4|m4a|ogg|opus|webm|zip|7z|rar|pt
 
 /**
  * 不进备份的东西。logs、缓存没有价值；edge-profile 是浏览器资料，登录态绑定这台电脑，
- * 带过去也用不了。市场模块不打包，恢复后按名单重新下载。
+ * 带过去也用不了。模块库模块不打包，恢复后按名单重新下载。
  */
+// 外部浏览器模块的登录 profile 不打包（历史目录名仍按 douyin/edge-profile 处理）。
 const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache', 'douyin/edge-profile']
 // 仅配置备份：媒体不进包，但保留体积很小的聊天流水和当前工作区 DSH 会话
 // 旧版的截图库仍可能留在数据目录，继续排除在仅配置备份之外。
@@ -698,7 +699,7 @@ function planSessionRestore(data, info) {
   return { target, home, files }
 }
 
-/** 恢复后还没下载的市场模块。 */
+/** 恢复后还没下载的模块库模块。 */
 export function pendingModules() {
   try { return JSON.parse(readFileSync(modulesFile(), 'utf8')) } catch (error) { return [] }
 }
