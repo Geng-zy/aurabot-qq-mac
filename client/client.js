@@ -1594,7 +1594,7 @@ body[data-ds-dark-theme] .ab-root{
         h('div', { className: 'ab-grid ab-g2' },
           h(Card, { title: '模块来源' }, h('dl', { className: 'ab-about-origin' },
             entry('macOS 分支模块库', link(MODULE_REPOS.mac, 'https://github.com/' + MODULE_REPOS.mac)),
-            entry('上游社区模块库', link(MODULE_REPOS.upstream, 'https://github.com/' + MODULE_REPOS.upstream)))),
+            entry('上游模块库（只读参考）', link(MODULE_REPOS.upstream, 'https://github.com/' + MODULE_REPOS.upstream)))),
           h(Card, { title: '来源与许可' }, h('dl', { className: 'ab-about-origin' },
             entry('上游项目', link('aureth-labs/dsh-aurabot-qq', UPSTREAM_REPO), ' · ', link('上游贡献者', UPSTREAM_REPO + '/graphs/contributors')),
             entry('许可证', link('MIT（插件代码）', PROJECT_REPO + '/blob/main/LICENSE'), ' · ', link('素材和第三方署名', PROJECT_REPO + '/blob/main/THIRD-PARTY-NOTICES.md'))))))
@@ -4263,7 +4263,7 @@ body[data-ds-dark-theme] .ab-root{
         const originNote = otherSource ? `当前安装来自 ${MODULE_REPOS[m.installedRegistry]}。` + (m.switchSource ? `更新将切换到 ${MODULE_REPOS[m.registry]}。` : '') : ''
         const note = [m.delisted ? '已从市场下架' : '', m.foreign ? '有同名的自己写的文件夹，不会覆盖' : '', originNote, m.blocked].filter(Boolean).join(' · ')
         return h('div', { key: m.id, className: 'ab-card', style: { display: 'flex', flexDirection: 'column' } },
-          h('h3', null, m.name, MODULE_REPOS[m.registry] ? h('span', { className: 'ab-badge', title: MODULE_REPOS[m.registry] }, m.registry === 'mac' ? 'macOS 模块库' : '上游模块库') : null, m.update ? h('span', { className: 'ab-badge' }, '可更新') : null),
+          h('h3', null, m.name, MODULE_REPOS[m.registry] ? h('span', { className: 'ab-badge', title: MODULE_REPOS[m.registry] }, m.registry === 'mac' ? 'macOS 模块库' : '上游参考') : null, m.update ? h('span', { className: 'ab-badge' }, '可更新') : null),
           h('div', { className: 'ab-small ab-muted' }, 'v' + (m.installed || m.version) + (m.update ? ' → v' + m.version : '') + (CATEGORY_LABEL[m.category] ? ' · ' + CATEGORY_LABEL[m.category] : '') + (m.author ? ' · ' + m.author : '') + (m.license ? ' · ' + m.license : '')),
           h('p', { className: 'ab-desc', style: { margin: '8px 0' } }, m.description),
           capText(m).length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 10 } }, '会用到：' + capText(m).join('、')) : null,
@@ -4276,7 +4276,7 @@ body[data-ds-dark-theme] .ab-root{
       }
       return h('div', { className: 'ab-grid' },
         progBar,
-        h(Card, { title: 'AuraBot 模块库', desc: '这里装的是 AuraBot 自己的 .mjs 模块，不是 DSH 插件；DSH 插件请用 DSH 的插件市场管理。模块库读取 macOS 分支和上游两个模块库，同名条目优先显示 macOS 版本。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
+        h(Card, { title: 'AuraBot 模块库', desc: '这里装的是 AuraBot 自己的 .mjs 模块，不是 DSH 插件；DSH 插件请用 DSH 的插件市场管理。只安装本分支模块库；上游模块只读参考，不能安装。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
           h('div', { className: 'ab-flex' },
             h('input', { className: 'ab-input', placeholder: '搜模块', value: q, onChange: (e) => setQ(e.target.value) }),
             chip('all', '全部'), chip('installed', '已安装'), chip('update', '可更新')),

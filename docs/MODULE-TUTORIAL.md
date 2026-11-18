@@ -112,6 +112,6 @@ modules/fortune/
 
 ## 5. 合并以后
 
-合并后由模块库维护者打包、发布 Release 并更新 `registry` 分支的索引。更新索引后，面板刷新市场即可看到。
+合并后由模块库维护者打包、发布 Release 并更新 `main` 分支的 `registry/index.json`。更新索引后，面板刷新市场即可看到。
 
 以后改模块，记得把 `module.json` 和 `index.mjs` 里的 `version` 一起升上去，已发布的版本不能修改。

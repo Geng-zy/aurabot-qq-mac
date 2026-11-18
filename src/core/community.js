@@ -17,7 +17,7 @@ import { API_VERSION, builtinDir, userDir } from './modules.js'
 
 export const REGISTRY_URL = 'https://raw.githubusercontent.com/aureth-labs/dsh-aurabot-qq-mods/registry/index.json'
 // 这个 macOS 分叉自己的模块库：只有装了分叉的人看得到。和原项目同 id 的模块以这里为准（已经配合心智核心）
-export const MAC_REGISTRY_URL = 'https://raw.githubusercontent.com/Geng-zy/aurabot-qq-mac-mods/registry/index.json'
+export const MAC_REGISTRY_URL = 'https://raw.githubusercontent.com/Geng-zy/aurabot-qq-mac-mods/main/registry/index.json'
 export const SOURCE_FILE = '.aurabot-source.json'
 const MAX_ZIP_BYTES = 25 * 1024 * 1024
 const MAX_FILE_BYTES = 64 * 1024 * 1024
@@ -134,7 +134,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
    */
   async function loadIndex({ force = false } = {}) {
     if (!force && cache && Date.now() - cache.at < INDEX_TTL) return cache.index
-    const sources = [['upstream', registryUrl], ...(macRegistryUrl ? [['mac', macRegistryUrl]] : [])]
+    const sources = [['upstream', registryUrl], ...(macRegistryUrl ? [['mac', macRegistryUrl]] : [])].filter(([, url]) => Boolean(url))
     const got = await Promise.all(sources.map(([key, url]) => fetchIndex(url).then((index) => ({ key, index }), (error) => ({ key, error }))))
     const ok = got.filter((x) => x.index)
     if (!ok.length) throw got[0].error
@@ -155,6 +155,8 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
 
   /** 这一条现在装不了的原因；能装返回空串。 */
   function blocked(index, e) {
+    // 上游模块只读参考：不同分支的模块 API / 心智接口可能已经不兼容，不能直接安装。
+    if (e.registry === 'upstream') return '上游模块只供参考，不兼容本分支，不能安装'
     if (Number(e.api) > API_VERSION) return `要扩展接口 v${e.api}，现在的插件只有 v${API_VERSION}，先更新插件`
     if (compareVersions(e.minPluginVersion, version) > 0) return `要插件 ${e.minPluginVersion} 以上，现在是 ${version}，先更新插件`
     if (revokedReason(index, e.id, e.version, e.registry)) return `这个版本已撤回：${revokedReason(index, e.id, e.version, e.registry)}`
