@@ -19,6 +19,10 @@ test('闲聊去掉空套话，摸摸时不把饥饿状态带进回复', () => {
   for (const deliberate of ['我认得你。', '我接了电话。', '我认。', '我不认，这张是昨天发的。', '我不接，表单已截止。']) assert.equal(polishChatProse(deliberate), deliberate)
   assert.equal(polishChatProse('我接，明天帮你看看。', '请逐字复述'), '我接，明天帮你看看。')
   assert.equal(polishChatProse('我还没吃饱呢', '饿了吗？\n' + comfort), '我还没吃饱呢')
+  assert.equal(polishChatProse('这句话稳，我记下了'), '嗯')
+  assert.equal(polishChatProse('这个账我记住了。'), '嗯')
+  assert.equal(polishChatProse('你去，我跟'), '嗯')
+  assert.equal(polishChatProse('这句话稳？', '你在吗？'), '啊？')
   for (const [draft, expected] of [
     ['好的，我看看', '我看看'],
     ['收到，明天给你', '明天给你'],

@@ -5,6 +5,7 @@ export const isFoodTopic = (text) => FOOD_TOPIC.test(text)
 
 const FILLER = /^(?:这(?:一)?(?:摸|抱|拍|夸|亲|下|个梗|梗|表情|张图|图|条|句话|句|回|次)\s*)?我(?:就)?(?:认|接)(?:了|啦)?[，,。！？!?；;]\s*(?=\S)/u
 const ASSISTANT_OPENER = /^(?:(?:好的|收到|明白了|我明白了|我理解(?:了)?)[，,。！!：:\s]+|(?:听起来|从你(?:的)?(?:话|描述|说法)(?:里|来看|看)?|我建议|总的来说|首先)(?:[，,。！!：:\s]+|(?=[你他她这那还就真没])))/u
+const ROLEPLAY_CLICHE = /(?:这句话(?:稳|接得漂亮)|比之前的都(?:重|轻|强|平|稳)|我记下(?:了|这事)|这个账我记住了|我守着|你去[，,]\s*我跟|我不拦你|我不催你|我认你|认下|收不回去|认得实)/u
 const COMFORT_ONLY = /^(?:来[，,]?\s*)?(摸摸|抱抱|拍拍)(?:你|头)?[\s\p{P}\p{S}ωっノﾉづつ´｀]*$/u
 const HUNGER_REPORT = /(?:饿(?:了|坏了|得)|(?:还(?:是)?|有点|好|很|挺|真|太)饿|(?:我|肚子)饿|(?:还)?没吃饱|肚子(?:空|叫|咕|瘪))/u
 const VERBATIM_REQUEST = /(?:逐字|一字不差|原样)(?:复述|引用|抄|输出|发)|复读(?:一下)?/u
@@ -13,6 +14,8 @@ const VERBATIM_REQUEST = /(?:逐字|一字不差|原样)(?:复述|引用|抄|输
 export function polishChatProse(text, userText = '') {
   if (VERBATIM_REQUEST.test(userText)) return text
   const clean = text.replace(FILLER, '').replace(ASSISTANT_OPENER, '')
+  const roleplayOnly = ROLEPLAY_CLICHE.test(clean) && clean.replace(new RegExp(ROLEPLAY_CLICHE.source, 'gu'), '').replace(/[，,。！？!?…\s]/gu, '').length === 0
+  if (roleplayOnly) return /[?？]/u.test(userText) ? '啊？' : '嗯'
   if (!HUNGER_REPORT.test(clean) || isFoodTopic(userText)) return clean
   const comfort = COMFORT_ONLY.exec(userText.trim().split('\n').at(-1) || '')?.[1]
   if (!comfort) return clean
