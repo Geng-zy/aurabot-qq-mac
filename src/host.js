@@ -391,7 +391,7 @@ export function apply(ctx) {
 
   // ---------- 模块 ----------
   const core = {
-    hub, onebot, local, groupRoles, mutes, logger, bridge: null, tasks, taskRequesters,
+    hub, onebot, channels, platforms: channels, local, groupRoles, mutes, logger, bridge: null, tasks, taskRequesters,
     root: ROOT,
     ask: (opts) => askModel(ctx, { cfg: getConfig(), ...opts }),
     listModels,
@@ -615,6 +615,11 @@ export function apply(ctx) {
       home: homedir(),
       config: publicConfig(cfg),
       onebot: await qq.status(),
+      channels: channels.list().map((ch) => ({
+        platform: ch.platform, label: ch.label || ch.platform,
+        state: typeof ch.state === 'function' ? ch.state() : '', ready: typeof ch.ready === 'function' ? ch.ready() : false,
+        caps: { ...(ch.caps || {}) },
+      })),
       outbox: outbox.status(),
       stats: hub.stats(),
       offpeak: (() => { const now = new Date(); const holidays = cfg.cost?.offPeakHolidays || []; const next = nextChange(now, { holidays }); return { peak: isPeak(now, { holidays }), next: next?.at || 0 } })(),

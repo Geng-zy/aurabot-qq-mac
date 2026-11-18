@@ -172,6 +172,7 @@ QQ 管理员命令的参数或回执涉及隐私时，可用 `api.command({ name
 | `hub` | 聊天中枢：`deliver(chatId, text)` `sendText` `sendVoice(chatId, 文字)` `sendVoiceFile(chatId, 音频文件)` `sendImage` `sendSticker(chatId, 名字)` `sendSegments` `runSystemTurn(名字, 标题, 提示词)` `pushToSession(...)` `resetChat(chatId)` `groupName(群号)` `turnHasOwner(sessionId)`（只表示本轮有人是管理员，别拿它做权限门，用下面的 `turnSendersAllOwner`） `turnSendersAllOwner(sessionId)` `referenceImage(chat, 'last' 或 'quote')`（取当前聊天最近收到 / 引用的图，返回 Buffer，沿用短期缓存） `chatOfSession(sessionId)` `stats()` `sessions()` `chatLogOf(日期)` `lastChatAt` `lastOwnerChatAt` …… |
 | `media` | 通用媒体读取与转换辅助：`mimeOf(bytes)`、`avatar()`、`sticker(md5)`、`ffmpegPath()`、`parseWav(bytes)`、`toMono16k(bytes)`，详见下文（1.2.3 起） |
 | `onebot` | QQ 网关：`call(action, params, { timeoutMs })`、`state` |
+| `channels` | 平台连接注册表：`get(platform)`、`list()`、`of(chatId/personId)`、`can(ref, cap)`；新模块优先用它，QQ 旧模块仍可用 `onebot` |
 | `local` | 本地接口（「本地接口」页那四项）：`active(slot)` `call(slot, 参数)` |
 | `groupRoles` | 她在各群的身份：`get(群号)` `canManage(role)` `label(role)` |
 | `mutes` | 闭嘴状态：`muted(chatId)` `set(chatId, 分钟)` `clear(chatId)` |
