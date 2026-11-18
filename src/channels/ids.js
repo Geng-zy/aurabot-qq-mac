@@ -8,7 +8,7 @@
 /** 没写平台的旧 id 算哪个平台。 */
 export const LEGACY_PLATFORM = 'qq'
 
-const PLATFORM_RE = /^[a-z][a-z0-9_-]{0,31}$/
+export const PLATFORM_RE = /^[a-z][a-z0-9_-]{0,31}$/
 const KINDS = ['private', 'group']
 
 const clean = (v) => String(v ?? '').trim()

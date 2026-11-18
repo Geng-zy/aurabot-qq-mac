@@ -1,7 +1,7 @@
 // 聊天平台的连接层：壳通过这里收发消息，不直接碰任何平台的接口。QQ 是第一个（./qq/），以后的飞书、企业微信照同一个接口写。
 // 接口说明见 docs/DESIGN.md「聊天平台的连接层」。
 
-import { parseChat, parsePerson } from './ids.js'
+import { PLATFORM_RE, parseChat, parsePerson } from './ids.js'
 
 export * from './ids.js'
 
@@ -61,7 +61,30 @@ export const CAPS = {
   groupAdmin: '群管（禁言、踢人、改名片……）',
 }
 
-const REQUIRED = ['platform', 'start', 'stop', 'send', 'on', 'ready']
+export const REQUIRED_CHANNEL_METHODS = Object.freeze(['platform', 'start', 'stop', 'send', 'on', 'ready'])
+export const OPTIONAL_CHANNEL_METHODS = Object.freeze([
+  'restart', 'status', 'selfId', 'state', 'member', 'members', 'user', 'group', 'history', 'getMessage',
+  'react', 'poke', 'typing', 'recall', 'call', 'isDefiniteFailure', 'textSegments',
+])
+
+/**
+ * 检查一个平台连接是否符合最小契约。平台适配器可以在自己的目录里做更强的检查；
+ * 这里只保证壳不会把“少了 send/on”的实现注册进来，导致运行时才炸。
+ * @param {Partial<Channel>} channel
+ * @returns {Channel}
+ */
+export function validateChannel(channel) {
+  if (!channel || typeof channel !== 'object') throw new Error('平台连接必须是一个对象')
+  for (const k of REQUIRED_CHANNEL_METHODS) {
+    if (channel[k] === undefined || channel[k] === null) throw new Error(`连接少了 ${k}`)
+    if (k !== 'platform' && typeof channel[k] !== 'function') throw new Error(`连接的 ${k} 必须是函数`)
+  }
+  if (!PLATFORM_RE.test(String(channel.platform))) throw new Error(`平台 id 不合法：${channel.platform}`)
+  if (channel.caps !== undefined && (!channel.caps || typeof channel.caps !== 'object' || Array.isArray(channel.caps))) {
+    throw new Error('连接的 caps 必须是对象')
+  }
+  return channel
+}
 
 /** 所有平台的连接。 */
 export function createChannels() {
@@ -69,8 +92,9 @@ export function createChannels() {
   return {
     /** 加一个连接；同一个平台只能有一个。 */
     add(channel) {
-      for (const k of REQUIRED) if (channel?.[k] === undefined) throw new Error(`连接少了 ${k}`)
+      validateChannel(channel)
       if (map.has(channel.platform)) throw new Error(`已经有 ${channel.platform} 的连接了`)
+      if (!channel.caps) channel.caps = {}
       map.set(channel.platform, channel)
       return channel
     },
