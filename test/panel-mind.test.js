@@ -29,7 +29,8 @@ function setupPanel({ globals = {}, onEffect = () => {} } = {}) {
     },
     useEffect: onEffect, useCallback: (fn) => fn, useMemo: (fn) => fn(),
   }
-  const panel = loader.factory(() => React).__panelTest
+  const primitives = { Button: 'dsh-button', Switch: 'dsh-switch', Toast: 'dsh-toast', writeClipboard: async () => {}, isDarwinDesktop: () => false }
+  const panel = loader.factory((name) => name === 'react' ? React : primitives).__panelTest
   const render = (component, props) => { hook = 0; return component(props) }
   return { panel, slots, render }
 }

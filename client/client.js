@@ -21,6 +21,9 @@ window.__ModuleLoader__.load({
       } catch (error) {
         uiPrimitives = null
       }
+      if (!uiPrimitives || !uiPrimitives.Button || !uiPrimitives.Switch || !uiPrimitives.Toast) {
+        throw new Error('AuraBot 需要 DSH 的 client-ui-primitives 才能显示界面')
+      }
       return uiPrimitives
     }
     // DSH 的桌面判断优先；没有 primitives 时退回 navigator.platform（测试和旧宿主也能用）。
@@ -42,8 +45,7 @@ window.__ModuleLoader__.load({
     const get = (p) => fetch(API + p, { cache: 'no-store' }).then((r) => r.json()).catch((e) => ({ ok: false, message: '连不上插件：' + e.message }))
     const clipboard = async (text) => {
       const p = primitives()
-      if (p && typeof p.writeClipboard === 'function') return p.writeClipboard(text)
-      return navigator.clipboard.writeText(text)
+      return p.writeClipboard(text)
     }
     const post = (p, body) =>
       fetch(API + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
@@ -274,17 +276,6 @@ body[data-ds-dark-theme] .ab-root{
 .ab-input:focus,.ab-select:focus,.ab-textarea:focus{border-color:var(--ab-sea);box-shadow:0 0 0 3px var(--ab-foam-2)}
 .ab-input{width:240px;max-width:100%}.ab-input.sm{width:90px}.ab-input.wide{width:100%}
 .ab-textarea{width:100%;min-height:90px;resize:vertical;line-height:1.55;font-family:var(--dsh-font-family-code,ui-monospace,monospace);font-size:12.5px}
-.ab-btn{border:1px solid var(--ab-line-2);background:var(--ab-card);color:var(--ab-text);padding:6px 14px;border-radius:8px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.ab-btn:hover{background:var(--ab-hover)}
-.ab-btn:disabled{opacity:.5;cursor:default}
-.ab-btn.primary{background:#326e60;border-color:#326e60;color:#fff}
-.ab-btn.primary:hover{filter:brightness(1.07)}
-.ab-btn.danger{color:var(--ab-err)}
-.ab-btn.ghost{border-color:transparent;background:transparent;color:var(--ab-sub)}
-.ab-btn.sm{padding:3px 10px;font-size:12px}
-.ab-switch{position:relative;width:38px;height:22px;border-radius:999px;background:var(--ab-line-2);border:0;cursor:pointer;flex:none;transition:background .15s}
-.ab-switch:after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:left .15s}
-.ab-switch.on{background:var(--ab-sea)}.ab-switch.on:after{left:19px}
 .ab-switch-row{display:flex;align-items:center;gap:10px}
 .ab-seg{display:inline-flex;border:1px solid var(--ab-line-2);border-radius:9px;overflow:hidden}
 .ab-seg button{border:0;background:transparent;padding:6px 14px;font:inherit;color:var(--ab-sub);cursor:pointer;border-left:1px solid var(--ab-line)}
@@ -476,7 +467,6 @@ body[data-ds-dark-theme] .ab-root{
 .ab-mood > i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--ab-sky),var(--ab-sea))}
 .ab-savebar{position:sticky;bottom:12px;margin-top:16px;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:var(--ab-card);border:1px solid var(--ab-sea);box-shadow:0 6px 24px rgba(0,0,0,.12);z-index:6}
 .ab-savebar .msg{flex:1;color:var(--ab-deep);font-weight:560}
-.ab-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);padding:9px 16px;border-radius:10px;background:var(--dsw-alias-toast-bg,#1f2328);color:var(--dsw-alias-toast-label,#fff);font-size:13px;z-index:50;box-shadow:0 6px 24px rgba(0,0,0,.2);max-width:80vw}
 .ab-empty{padding:28px 12px;text-align:center;color:var(--ab-dim)}
 .ab-empty .big{font-size:28px;margin-bottom:4px}
 .ab-table{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -528,7 +518,6 @@ body[data-ds-dark-theme] .ab-root{
 .ab-choice b{display:flex;align-items:center;gap:6px;font-weight:600}
 .ab-choice small{display:block;color:var(--ab-dim);font-size:11.5px;margin-top:3px;line-height:1.45}
 .ab-tab .dirty{width:6px;height:6px;border-radius:50%;background:var(--ab-warn)}
-.ab-toast.ok{background:var(--ab-ok);color:#fff}.ab-toast.err{background:var(--ab-err);color:#fff}
 .ab-kbd{font-family:var(--dsh-font-family-code,monospace);font-size:11px;padding:0 5px;border:1px solid var(--ab-line-2);border-radius:5px;color:var(--ab-dim)}
 .ab-spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:abSpin .7s linear infinite;vertical-align:-2px}
 @keyframes abSpin{to{transform:rotate(360deg)}}
@@ -568,11 +557,10 @@ body[data-ds-dark-theme] .ab-root{
 .ab-input,.ab-select,.ab-textarea,.ab-sel-btn{border-radius:10px;transition:border-color .12s,box-shadow .12s}
 .ab-input:hover,.ab-textarea:hover{border-color:var(--ab-sky)}
 .ab-textarea{font-family:inherit;font-size:13px}
-.ab-btn{border-radius:10px;transition:background .12s,border-color .12s,box-shadow .12s,filter .12s}
 
 
-.ab-btn.danger:hover{background:rgba(207,34,46,.07);border-color:rgba(207,34,46,.3)}
-.ab-switch{width:40px;height:23px}.ab-switch:after{width:17px;height:17px}.ab-switch.on:after{left:20px}
+.ab-link-btn{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:8px;border:1px solid var(--ab-line-2);color:var(--ab-text);text-decoration:none;font-size:12px}
+.ab-danger{color:var(--ab-err)}
 .ab-note{border-radius:12px;padding:11px 14px;line-height:1.6}
 .ab-choice{border-radius:14px;padding:12px 14px}
 .ab-choice.on b{color:var(--ab-deep)}
@@ -788,15 +776,14 @@ body[data-ds-dark-theme] .ab-root{
   .ab-memory-totals .ab-metric:nth-child(3){border-inline-start:0;padding-inline-start:0}
   .ab-memory-totals .ab-metric:nth-child(4){border-inline-start:1px solid var(--ab-line);padding-inline-start:13px}
   .ab-activity .ab-metric:nth-child(4){border-inline-start:0;padding-inline-start:0}
-  .ab-row:has(>.ab-ctl:not(:empty)):not(:has(>.ab-ctl>:only-child:is(.ab-switch,.sm,.ab-btn,.ab-number-ctl))){flex-direction:column;align-items:stretch}
-  .ab-row>.ab-ctl:not(:has(>:only-child:is(.ab-switch,.sm,.ab-btn,.ab-number-ctl))){max-width:none;flex:auto;justify-content:flex-start}
-  .ab-row .ab-btn{white-space:normal}
+  .ab-row:has(>.ab-ctl:not(:empty)):not(:has(>.ab-ctl>:only-child:is([role=switch],.sm,.ab-number-ctl))){flex-direction:column;align-items:stretch}
+  .ab-row>.ab-ctl:not(:has(>:only-child:is([role=switch],.sm,.ab-number-ctl))){max-width:none;flex:auto;justify-content:flex-start}
   .ab-row .ab-sel-pop{inset-inline:0 auto;max-width:100%}
   .ab-li .meta{flex-basis:100%}
   .ab-li .body{flex-basis:100%}
   .ab-people-grid,.ab-people-groups{gap:10px}
   .ab-person-scores{grid-template-columns:repeat(auto-fit,minmax(min(100%,72px),1fr))}
-  .ab-person-actions .ab-btn{flex:0 1 auto}
+  .ab-person-actions button{flex:0 1 auto}
   .ab-savebar{flex-wrap:wrap;gap:6px}
   .ab-savebar .msg{flex-basis:100%}
 }
@@ -835,9 +822,8 @@ body[data-ds-dark-theme] .ab-root{
 .ab-finder-item,.ab-run-option,.ab-sel-opt,.ab-seg button{
   transition:background-color var(--ab-quick) ease,color var(--ab-quick) ease,border-color var(--ab-quick) ease
 }
-.ab-btn:not(:disabled):active,.ab-find-btn:active,.ab-run-btn:active{filter:brightness(.91)}
 .ab-content,.ab-standalone,.ab-stage-collapse .ab-page-nav{animation:abPageIn var(--ab-reveal) var(--ab-ease)}
-.ab-savebar,.ab-toast,.ab-person-details{animation:abPageIn var(--ab-quick) var(--ab-ease)}
+.ab-savebar,.ab-person-details{animation:abPageIn var(--ab-quick) var(--ab-ease)}
 .ab-finder,.ab-run-pop,.ab-sel-pop,.ab-fold[open]>.ab-fold-body{animation:abPopIn var(--ab-quick) var(--ab-ease)}
 @keyframes abPageIn{from{opacity:0;translate:0 5px}to{opacity:1;translate:none}}
 @keyframes abPopIn{from{opacity:0;translate:0 -4px}to{opacity:1;translate:none}}
@@ -901,10 +887,7 @@ body[data-ds-dark-theme] .ab-root{
     // ---------------- 基础控件 ----------------
     function Switch({ on, onChange, disabled, title, label }) {
       const p = primitives()
-      if (p && typeof p.Switch === 'function') {
-        return h(p.Switch, { checked: !!on, onChange, label: label || title || '开关', disabled: !!disabled, title })
-      }
-      return h('button', { type: 'button', className: cx('ab-switch', on && 'on'), onClick: () => !disabled && onChange(!on), disabled, title, role: 'switch', 'aria-label': label, 'aria-checked': !!on })
+      return h(p.Switch, { checked: !!on, onChange, label: label || title || '开关', disabled: !!disabled, title })
     }
     function Row({ label, hint, details, className, children }) {
       const id = useId()
@@ -920,7 +903,7 @@ body[data-ds-dark-theme] .ab-root{
           desc ? h('p', { className: 'ab-desc' }, desc) : null,
           children,
           collapseAtEnd ? h('div', { className: 'ab-fold-footer' },
-            h('button', { type: 'button', className: 'ab-btn ghost sm', onClick: (e) => {
+            h(Btn, { small: true, kind: 'ghost', onClick: (e) => {
               const card = e.currentTarget.closest('details')
               const summary = card.querySelector('summary')
               card.open = false
@@ -936,15 +919,11 @@ body[data-ds-dark-theme] .ab-root{
       const [busy, setBusy] = useState(false)
       const run = async () => { if (!onClick) return; setBusy(true); try { await onClick() } finally { setBusy(false) } }
       const p = primitives()
-      // 只迁 DSH 明确有的两种外观；danger / 其它业务 kind 保留原生样式，避免语义丢失。
-      if (p && p.Button && (kind === 'primary' || kind === 'ghost')) {
-        return h(p.Button, {
-          variant: kind, size: small ? 'sm' : 'md', title, disabled: disabled || busy,
-          'aria-expanded': expanded, 'aria-controls': controls, onClick: run,
-        }, busy ? [h('i', { key: 's', className: 'ab-spin' }), ' 处理中'] : children)
-      }
-      return h('button', {
-        type: 'button', title, className: cx('ab-btn', kind, small && 'sm'), disabled: disabled || busy,
+      return h(p.Button, {
+        variant: kind === 'primary' ? 'primary' : kind === 'danger' ? 'outline' : 'ghost',
+        size: small ? 'sm' : 'md',
+        className: kind === 'danger' ? 'ab-danger' : undefined,
+        title, disabled: disabled || busy,
         'aria-expanded': expanded, 'aria-controls': controls, onClick: run,
       }, busy ? [h('i', { key: 's', className: 'ab-spin' }), ' 处理中'] : children)
     }
@@ -1601,7 +1580,7 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     function About({ st }) {
-      const link = (label, href, button = false) => h('a', { href, className: button ? 'ab-btn sm' : undefined, target: '_blank', rel: 'noreferrer' }, label)
+      const link = (label, href, button = false) => h('a', { href, className: button ? 'ab-link-btn' : undefined, target: '_blank', rel: 'noreferrer' }, label)
       const entry = (title, ...content) => h('div', { key: title }, h('dt', null, title), h('dd', null, ...content))
       return h('div', { className: 'ab-grid' },
         h(Card, { className: 'ab-about-project', title: 'AuraBot for macOS', desc: 'v' + st.version + ' · 面板 API v' + (st.apiVersion || '?') },
@@ -2782,7 +2761,7 @@ body[data-ds-dark-theme] .ab-root{
           onBlur: () => { if (!picking && name !== (it.name || '')) save({ name }, '名字') } }),
         h('input', { className: 'tg', value: tags, placeholder: '加标签，空格隔开', title: '标签，空格或逗号隔开，最多 5 个', readOnly: Boolean(picking), tabIndex: picking ? -1 : undefined, onChange: (e) => setTags(e.target.value),
           onBlur: () => { if (!picking && tags.trim() !== tagText) save({ tags: tags.split(/[\s,，、#]+/).map((x) => x.trim()).filter(Boolean).slice(0, 5) }, '标签') } }),
-        picking ? null : h('button', { type: 'button', className: 'ab-btn sm danger x', title: '删除', onClick: async () => { if (!confirm('删掉这张表情？（QQ 收藏里也会删）')) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
+        picking ? null : h(Btn, { small: true, kind: 'danger', title: '删除', onClick: async () => { if (!confirm('删掉这张表情？（QQ 收藏里也会删）')) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
       )
     }
 
@@ -4462,7 +4441,7 @@ body[data-ds-dark-theme] .ab-root{
               return h('div', { key: it.file, className: 'ab-shot' },
                 h('a', { href: src, target: '_blank', rel: 'noreferrer' }, h('img', { src, alt: '她的形象', loading: 'lazy' })),
                 h('div', { className: 'cap' }, it.primary ? '★ 主图' : h('a', { href: '#', onClick: (e) => { e.preventDefault(); act('/image/appearance/primary', { file: it.file }, '设成主图了') } }, '设为主图')),
-                h('button', { type: 'button', className: 'ab-btn sm danger x', title: '移到废纸篓', onClick: () => { if (confirm('把这张移到废纸篓？')) act('/image/appearance/delete', { file: it.file }, '移到废纸篓了') } }, '✕'))
+                h(Btn, { small: true, kind: 'danger', title: '移到废纸篓', onClick: () => { if (confirm('把这张移到废纸篓？')) act('/image/appearance/delete', { file: it.file }, '移到废纸篓了') } }, '✕'))
             })),
         h(Row, { label: '形象描述', hint: '画她自己时加进提示词。可以点「看图写一段」让能看图的模型写，也可以自己写、改' },
           h('div', { style: { flex: 1 } },
@@ -4511,7 +4490,7 @@ body[data-ds-dark-theme] .ab-root{
       return h('div', { className: 'ab-shot' },
         h('a', { href: src, target: '_blank', rel: 'noreferrer' }, h('img', { src, alt: cap, loading: 'lazy' })),
         h('div', { className: 'cap', title: cap }, cap + (when ? '　' + when : '')),
-        h('button', { type: 'button', className: 'ab-btn sm danger x', title: '删除', onClick: onDelete }, '✕'),
+        h(Btn, { small: true, kind: 'danger', title: '删除', onClick: onDelete }, '✕'),
       )
     }
 
@@ -5119,16 +5098,13 @@ body[data-ds-dark-theme] .ab-root{
       useEffect(() => () => clearTimeout(toastTimer.current), [])
       const toastView = (msg) => {
         const p = primitives()
-        if (p && typeof p.Toast === 'function') {
-          return h(p.Toast, {
-            key: msg.kind + ':' + msg.text,
-            text: msg.text,
-            tone: msg.kind === 'ok' ? 'success' : undefined,
-            holdMs: 2200,
-            onDone: () => setToastMsg(null),
-          })
-        }
-        return h('div', { className: cx('ab-toast', msg.kind), role: 'status' }, msg.text)
+        return h(p.Toast, {
+          key: msg.kind + ':' + msg.text,
+          text: msg.text,
+          tone: msg.kind === 'ok' ? 'success' : undefined,
+          holdMs: 2200,
+          onDone: () => setToastMsg(null),
+        })
       }
       const reload = useCallback(async () => {
         if (writeLock.current) return
