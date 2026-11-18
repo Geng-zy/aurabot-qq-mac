@@ -43,6 +43,10 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     const s = cfg.platforms?.qq || cfg.snowluma || {}
     return { httpUrl: s.httpUrl || '', wsUrl: s.wsUrl || '', httpToken: s.httpToken || '', wsToken: s.wsToken || '' }
   }
+  const enabled = () => {
+    const cfg = getConfig() || {}
+    return cfg.enabled !== false && cfg.platforms?.qq?.enabled !== false
+  }
 
   let gwState = 'stopped'
   // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
@@ -243,13 +247,13 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     /** 机器人号改了、连接设置改了：旧的核对结果作废。 */
     resetAccount() { wrongAccount = '' },
     resetInbox() { inbox.suspend() },
-    start() { if (!disposed) gw.start() },
+    start() { if (!disposed && enabled()) gw.start() },
     stop() { gw.stop() },
-    restart() { if (!disposed) gw.restart() },
+    restart() { if (!disposed && enabled()) gw.restart() },
     /** 看门狗：总开关开着、上次没连错号，就保持连着。 */
     watch() {
       if (disposed) return
-      if (!getConfig().enabled) { if (gw.state !== 'stopped') gw.stop(); return }
+      if (!enabled()) { if (gw.state !== 'stopped') gw.stop(); return }
       // 上次连上的不是机器人号：等管理员点「重新连接」或改设置再连
       if (wrongAccount) return
       if (gw.state === 'stopped') gw.start()
@@ -272,7 +276,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     /** 面板「重新连接」：等几秒看结果，别只回一句「正在重连」。 */
     async reconnect() {
       if (disposed) return { ok: false, message: 'QQ 连接已关闭' }
-      if (!getConfig().enabled) return { ok: false, message: connectionProblem() }
+      if (!enabled()) return { ok: false, message: 'QQ 平台已停用' }
       wrongAccount = ''
       gw.restart()
       for (let i = 0; i < 24 && !disposed && !ready() && !wrongAccount; i++) await new Promise((r) => setTimeout(r, 500))
