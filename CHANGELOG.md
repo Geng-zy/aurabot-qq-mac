@@ -7,7 +7,7 @@
 - 桌宠、抖音、小黑盒彻底外置：核心不再保留专用面板、`/panel/pet/*` 代理、专用配置和根路由兼容；需要时从「AuraBot 模块库」单独安装。群管模块也统一改为 `/ext/group-admin/...`。
 - 删除 5 个旧模块路径 re-export（`modules/qq-api`、`qq-tools`、`qzone-social`、`features/qzone-social.js`）。旧插件迁移时按新路径改 import，不再由核心 shim 兜底。
 - 保留 `qq_api` 的 100+ OneBot 动作和 QZone / 空间互动；这两块不受外置影响。
-- 客户端按钮、开关和提示条优先使用 DSH `@deepseek-ai/dsh-client-ui-primitives`；宿主没有该模块时回退到原有控件。
+- 客户端改为硬依赖 DSH `@deepseek-ai/dsh-client-ui-primitives`：按钮、开关、提示条、图标和剪贴板使用宿主控件；需要 DSH `0.2.2-rc.3` 或更新版本，旧 DSH 不再支持。旧 `ab-btn` / `ab-switch` / `ab-toast` 样式已删除。
 - 修复连接页「一键诊断 / 测试连接 / 重新连接」间距过紧，以及翻唱「装到哪里」占用过高的问题。
 - 心智对接层和记忆核心完成模块化拆分；行为保持不变。
 - dsh-purge 只适配当前最新版 1.7.18，不再维护旧版本矩阵。
