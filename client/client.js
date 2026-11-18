@@ -2147,7 +2147,7 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '连着接话几次', hint: '她会自己判断该不该停，这里只是兜底：没人叫她时最多连着接几次。0 = 不接话' }, f.range('group.engagedMax', 0, 10, 1, (v) => v + ' 次')),
           h(Row, { label: '最多说几次' }, f.range('group.burstMax', 1, 20, 1, (v) => v + ' 次'), h('span', { className: 'ab-muted' }, '/'), f.range('group.burstWindowSec', 30, 600, 30, (v) => Math.round(v / 6) / 10 + ' 分钟')),
         ),
-        h(Card, { fold: 'qq-interject', title: '群聊插话与限制', desc: '没人叫她的时候插不插话由她自己：看她的性格（爱社交那一项）、此刻的心情和精力、群里在聊的和她记得的事、她的爱好有多相关、在场的人和她多亲近；看完群里在聊什么，她也可以决定不说话。睡没睡由她的身体管，不用设静默时段。整体多爱接话、每小时最多几次在「心智设置 → 社会认知与关系」里调。' },
+        h(Card, { fold: 'qq-interject', title: '群聊插话与限制', desc: '没人叫她的时候插不插话由她自己：看她的性格（爱社交那一项）、此刻的心情和精力、群里在聊的和她记得的事、她的爱好有多相关、在场的人和她多亲近；看完群里在聊什么，她也可以决定不说话。睡没睡由她的身体管，不用设静默时段。整体多爱接话、每小时最多几次在「设置 → 社会认知与关系」里调。' },
           h(Row, { label: '冷却', hint: '两次主动插话至少隔多久' }, f.range('group.cooldownSec', 0, 600, 10, (v) => v + ' 秒')),
           h(Row, { label: '群冷清时不插话', hint: '最近几分钟内消息少于这个数就不插' }, f.num('group.minRecentMessages', { min: 0 }), h('span', { className: 'ab-muted' }, '条 / '), f.num('group.activeWindowSec', { min: 30 }), h('span', { className: 'ab-muted' }, '秒')),
           h('div', { className: 'ab-note', style: { marginTop: 8 } }, 'ta被叫到或插上话以后算「加入了话题」：话题还和ta相关、ta 3 分钟内说过话，就会接着聊下去（每次看完群里新说的一段再回），不受冷却限制；话题跑偏或者ta选择不说话就退出。'),
@@ -2991,7 +2991,7 @@ body[data-ds-dark-theme] .ab-root{
             h(Btn, { small: true, disabled: !x.available || Boolean(busy), onClick: () => act('/mind/act', { id: x.id }, x.id) }, busy === x.id ? '在做…' : '让她现在去')))) : h(Empty, { text: '还没有模块交给她事情做' }),
           (m.log || []).length ? h('div', { style: { marginTop: 12 } }, h('b', null, '最近做过的'), h('div', { className: 'ab-list' }, m.log.slice(0, 10).map((x, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, timeAgo(x.at)), h('div', { className: 'body' }, (x.ok ? '' : '没做成：') + x.label + (x.summary ? '——' + x.summary : '')))))) : null),
-        h(Card, { fold: 'mind-outreach', title: '主动找你', desc: '想你了、有事想分享、答应你的事做好了、要申请权限时，她自己决定找不找你。你没回之前她不会追着发；一直没回她会有点失落。勿扰时段和每天上限在「心智设置 → 动机与行动」里设（默认不设，由她自己拿捏）。' },
+        h(Card, { fold: 'mind-outreach', title: '主动找你', desc: '想你了、有事想分享、答应你的事做好了、要申请权限时，她自己决定找不找你。你没回之前她不会追着发；一直没回她会有点失落。勿扰时段和每天上限在「设置 → 动机与行动」里设（默认不设，由她自己拿捏）。' },
           d.outreach.pending ? h('p', null, '刚找过你，还在等你回：' + d.outreach.pending.reason) : null,
           (d.outreach.log || []).length ? h('div', { className: 'ab-list' }, d.outreach.log.slice(0, 10).map((x, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, timeAgo(x.at) + (x.kind === 'permission' ? ' · 申请权限' : '')), h('div', { className: 'body' }, x.reason)))) : h('p', { className: 'ab-muted' }, '还没主动找过你')),
@@ -3124,7 +3124,7 @@ body[data-ds-dark-theme] .ab-root{
         const timer = setInterval(refresh, 5000)
         return () => { active = false; clearInterval(timer) }
       }, [backend])
-      // 选了模型直接存进心智设置（和「心智设置」页是同一处）
+      // 选了模型直接存进设置（和「设置」页是同一处）
       const pickMind = async (key, m) => { const r = await post('/mind/settings/save', { patch: { [key]: m } }); if (r && r.ok === false) toast(r.message, 'err'); loadMs() }
       const privacy = typeof ms?.[shareEveryday] === 'boolean' ? h(Card, { section: 'memory-privacy', title: '私聊隐私', className: 'ab-privacy' },
           h(Row, { className: 'ab-param-row', label: '跨会话使用日常片段', hint: '你们的私聊原话和私密经历留在原会话。关掉后，日常片段也留在原会话。你指定会话的分享仍然有效。' },
@@ -3138,10 +3138,10 @@ body[data-ds-dark-theme] .ab-root{
           ])),
           offline ? h('div', { className: 'ab-muted ab-small' },
             vp?.backend !== 'local' ? '保存设置后切换到离线模型。' : vp.error || '本机模型 bge-small-zh-v1.5 已就绪。') : null,
-          !offline ? h(Row, { label: '向量服务密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「心智设置 → 记忆」里打开）都用它' }, f.text('mind.embedKey', { type: 'password', placeholder: mc.embedKeySet ? '已保存（不改就留空）' : '没有就留空' })) : null,
+          !offline ? h(Row, { label: '向量服务密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「设置 → 记忆」里打开）都用它' }, f.text('mind.embedKey', { type: 'password', placeholder: mc.embedKeySet ? '已保存（不改就留空）' : '没有就留空' })) : null,
           !offline && ms ? h(Row, { label: '向量模型', hint: '现在用的：' + (ms['memory.embedModel'] || '—') + '。换了以后，旧记忆她每晚睡觉时分批重新算' },
             h('div', { style: { flex: 1 } }, h(ModelPicker, { kind: 'embedding', keyFrom: 'mind', toast, baseUrl: ms['memory.embedUrl'], apiKey: mc.embedKey, value: ms['memory.embedModel'], onPick: (m) => pickMind('memory.embedModel', m) }))) : null,
-          !offline && ms ? h(Row, { label: '精排模型', hint: '现在用的：' + (ms['memory.rerankModel'] || '—') + (ms['memory.rerank'] ? '' : '（精排没开，在「心智设置 → 记忆」打开）') },
+          !offline && ms ? h(Row, { label: '精排模型', hint: '现在用的：' + (ms['memory.rerankModel'] || '—') + (ms['memory.rerank'] ? '' : '（精排没开，在「设置 → 记忆」打开）') },
             h('div', { style: { flex: 1 } }, h(ModelPicker, { kind: 'rerank', keyFrom: 'mind', toast, baseUrl: ms['memory.embedUrl'], apiKey: mc.embedKey, value: ms['memory.rerankModel'], onPick: (m) => pickMind('memory.rerankModel', m) }))) : null,
           vp && vp.backend === backend && vp.total ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, vp.done >= vp.total ? '全部 ' + vp.total + ' 条记忆都算好了（' + vp.model + '）。' : '已经按意思算好 ' + vp.done + ' / ' + vp.total + ' 条（' + vp.model + '）。换过向量模型或刚填密钥时，剩下的她每晚睡觉时分批算，没算到的照常按字找。') : null),
         h(Card, { fold: 'memory-chat-log', title: '聊天流水保留', desc: '聊天中枢自己的近几天流水（空间日记等功能会看今天的）。她的完整经历在心智核心里，和这个无关。' },
@@ -3221,7 +3221,7 @@ body[data-ds-dark-theme] .ab-root{
             h('span', null, timeAgo(x.at)), h('b', null, deg(x.i) + x.name), x.why ? h('small', null, x.why) : null)))) : null)
     }
 
-    // ---------- 心智核心：记忆、人物、心智设置 ----------
+    // ---------- 心智核心：记忆、人物、设置 ----------
     const MIND_KIND = { event: '经历', experience: '看过的', fact: '知道的事', hearsay: '听说的', belief: '我觉得', intention: '要做的事', semantic: '整理出来的', noted: '特意记下的', 'public-note': '可聊的片段', 'shared-note': '允许分享的片段', dream: '梦', 'own-post': '自己发过的', pending: '惦记别人的事', date: '每年的日子', 'day-summary': '那天的回顾', 'week-summary': '那一周的回顾', 'month-summary': '那个月的回顾' }
     const MIND_LEVEL = { clear: '记得清楚', vague: '只记得大概', tip: '要很强的线索才想得起' }
     const mindDay = (at) => {
@@ -3621,13 +3621,13 @@ body[data-ds-dark-theme] .ab-root{
           (ps.habits || []).length ? h('div', { className: 'ab-list' }, ps.habits.map((x) => h('div', { key: x.id, className: 'ab-li' },
             h('div', { className: 'meta' }, (x.active ? '已经是习惯' : '还在形成') + ' · 出现过 ' + x.count + ' 次'),
             h('div', { className: 'body' }, x.sit + '时，' + x.act)))) : h(Empty, { text: '还没有' })),
-        h(Card, { title: '她自己写下的', desc: '她想通了可以随时改这些（人格卡、名字、价值观、爱好、外貌、自我故事、想变成的样子），改完会给你发通知（「心智设置 → 身份」里可以关），不需要你同意。年龄、生日、「专一」只有你能改。你也可以在这里改。' },
+        h(Card, { title: '她自己写下的', desc: '她想通了可以随时改这些（人格卡、名字、价值观、爱好、外貌、自我故事、想变成的样子），改完会给你发通知（「设置 → 身份」里可以关），不需要你同意。年龄、生日、「专一」只有你能改。你也可以在这里改。' },
           h(Row, { label: '名字', hint: d.identity.name || '（没有）' }, h(Btn, { small: true, onClick: () => changeSelf('name', '名字') }, '改')),
           h(Row, { label: '小名', hint: d.identity.nickname || '（没有）' }, h(Btn, { small: true, onClick: () => changeSelf('nickname', '小名') }, '改')),
           h(Row, { label: '价值观', hint: d.profile.values || '（没写）' }, h(Btn, { small: true, onClick: () => changeSelf('values', '价值观') }, '改')),
           h(Row, { label: '爱好', hint: (d.profile.hobbies || '（没写）') + '（群里聊到这些，她更想接话）' }, h(Btn, { small: true, onClick: () => changeSelf('hobbies', '爱好') }, '改')),
           h(Row, { label: '外貌', hint: d.profile.looks || '（没写）' }, h(Btn, { small: true, onClick: () => changeSelf('looks', '外貌') }, '改')),
-          h(Row, { label: '对你的称呼', hint: '她现在叫你「' + (d.ownerCall || '管理员') + '」' + (d.profile.ownerCall ? '' : '（你一开始设的）') + '。' + (d.ownerCallOk === true ? '她可以自己换个叫法，会通知你。' : '她现在不能自己改：' + d.ownerCallOk + '。') + '开关在「心智设置 → 身份」。' },
+          h(Row, { label: '对你的称呼', hint: '她现在叫你「' + (d.ownerCall || '管理员') + '」' + (d.profile.ownerCall ? '' : '（你一开始设的）') + '。' + (d.ownerCallOk === true ? '她可以自己换个叫法，会通知你。' : '她现在不能自己改：' + d.ownerCallOk + '。') + '开关在「设置 → 身份」。' },
             h(Btn, { small: true, onClick: () => changeSelf('ownerCall', '对你的称呼') }, '改')),
           h(Row, { label: '想变成的样子', hint: (d.profile.goals || []).length ? d.profile.goals.map((g) => g.text).join('；') : '（没有）' }, (d.profile.goals || []).length ? h(Btn, { small: true, onClick: async () => { const g = d.profile.goals[0]; if (!confirm('删掉「' + g.text + '」？')) return; await post('/mind/self/goal/drop', { text: g.text }); load() } }, '删一个') : null)),
         h(Card, { fold: 'self-story', title: '她的故事', desc: '她用自己的话写的「我是怎么变成现在这样的」（叙事身份，McAdams）；有重要的经历时，睡觉整理会更新，重要的经历成为新的一章。', right: h(Btn, { small: true, onClick: () => changeSelf('story', '她的故事', true) }, '改') },
@@ -3797,8 +3797,8 @@ body[data-ds-dark-theme] .ab-root{
           if (jump.setting.advanced) setAdvanced(true)
         }
       }, [jump])
-      if (!d) return h(Card, { title: '心智设置' }, h('p', { className: 'ab-muted' }, '读取中…'))
-      if (!d.ok) return h(Card, { title: '心智设置' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      if (!d) return h(Card, { title: '设置' }, h('p', { className: 'ab-muted' }, '读取中…'))
+      if (!d.ok) return h(Card, { title: '设置' }, h(Empty, { text: d.message || '心智核心没起来' }))
       const update = async (key, body, reset = false) => {
         if (saving.current) return
         saving.current = true
@@ -3834,9 +3834,9 @@ body[data-ds-dark-theme] .ab-root{
       })
       return h('div', { className: 'ab-grid' },
         h(Card, { className: 'ab-settings-tools' }, h('div', { className: 'ab-settings-toolbar' },
-          h('input', { className: 'ab-input', type: 'search', value: search, placeholder: '搜索设置，例如跨会话、情绪、预算', 'aria-label': '搜索心智设置', onChange: (e) => { setSearch(e.target.value); setExact('') } }),
+          h('input', { className: 'ab-input', type: 'search', value: search, placeholder: '搜索设置，例如跨会话、情绪、预算', 'aria-label': '搜索设置', onChange: (e) => { setSearch(e.target.value); setExact('') } }),
           hasAdvanced ? h('div', { className: 'ab-switch-row' }, h('span', null, '显示高级'), h(Switch, { label: '显示高级', on: advanced, onChange: (v) => { setAdvanced(v); setExact('') } })) : null),
-          h('nav', { className: 'ab-settings-nav', 'aria-label': '心智设置分类' }, groups.map((g) =>
+          h('nav', { className: 'ab-settings-nav', 'aria-label': '设置分类' }, groups.map((g) =>
             h('button', { key: g.id, type: 'button', 'aria-current': !words.length && current?.id === g.id ? 'true' : undefined, onClick: () => { setSearch(''); setExact(''); setGroup(g.id) } }, g.label)))),
         h('div', { className: 'ab-grid ab-settings-body' },
           !words.length && current?.id === 'local' ? h(MindLocalModel, { toast, settings: d.values }) : null,
