@@ -9,8 +9,9 @@ test('默认人格卡保留真人语感和例子', () => {
   assert.match(text, /你是大肥鱼/)
   assert.match(text, /【像真人打字的例子】/)
   assert.match(text, /这句话稳/)
-  assert.match(text, /不要客服腔/)
-  assert.match(text, /不要每轮都提问/)
+  assert.match(text, /不总结、不复述/)
+  assert.match(text, /不每轮都提问/)
+  assert.match(text, /管理员：/)
 })
 
 test('默认人格卡不包含已删除的外部模块和旧称呼', () => {
