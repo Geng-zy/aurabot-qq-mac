@@ -1,7 +1,7 @@
 // 端到端：假 DSH 宿主 + 假 QQ 网关，跑通 Aurabot 整条链路。
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
-import { copyFileSync, mkdtempSync, writeFileSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { startMockOneBot } from './helpers/mock-onebot.js'
@@ -157,8 +157,6 @@ before(async () => {
   writeFileSync(outsideFilePath, '不在工作区里的文件')
   mock = await startMockOneBot({ selfId: BOT })
   mkdirSync(dataDir, { recursive: true })
-  mkdirSync(join(dataDir, 'modules', 'group-admin'), { recursive: true })
-  copyFileSync(new URL('./helpers/group-admin.mjs', import.meta.url), join(dataDir, 'modules', 'group-admin', 'index.mjs')) // 群管已搬到社区库，这里当成已安装
   writeFileSync(join(dataDir, 'config.json'), JSON.stringify({
   freedom: false,
     enabled: true,
@@ -496,14 +494,14 @@ test('心智先决定是否插话，被直接叫到时仍给会话回复', async
   }
 })
 
-test('群管模块路由：只挂在 /ext/group-admin/groups/roles，旧根路由不再保留', async () => {
-  const r = await fake.call('/ext/group-admin/groups/roles')
+test('群管内置模块路由：挂在根路径 /groups/roles，/ext 不再保留', async () => {
+  const r = await fake.call('/groups/roles')
   assert.equal(r.status, 200)
   const body = r.json()
   assert.equal(body.ok, true)
   assert.ok(Array.isArray(body.list), '返回群身份列表')
-  const old = await fake.call('/groups/roles')
-  assert.equal(old.json().moduleOff, true, '旧根路由没有注册，只返回模块未开兜底')
+  const old = await fake.call('/ext/group-admin/groups/roles')
+  assert.equal(old.json().moduleOff, true, '内置模块不再走 /ext')
 })
 
 test('群管：群友要求禁言被拒绝，管理员要求才执行', async () => {

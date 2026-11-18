@@ -186,21 +186,19 @@ test('替换内置要确认；卸载默认保留设置，purge 才清', async ()
   assert.equal(s.cfg().ext['demo-h'], undefined)
 })
 
-test('迁移：只装在用的，只装一次，卸载后不再装；失败下次重试', async () => {
-  const packs = [pack('group-admin', '1.0.0')]
-  const s = setup(packs, { cfg: { setupDone: true, modules: { 'group-admin': { enabled: true } } } })
-  assert.deepEqual((await s.c.migrate()).map((x) => x.id), ['group-admin'])
-  assert.equal(s.cfg().communityMigrated['group-admin'], 'installed')
-  await s.c.remove('group-admin')
+test('迁移：没有已搬走的模块时只记录空表，不会安装任何东西', async () => {
+  const s = setup([pack('group-admin', '1.0.0')], { cfg: { setupDone: true, modules: { 'group-admin': { enabled: true } } } })
   assert.deepEqual(await s.c.migrate(), [])
+  assert.deepEqual(s.cfg().communityMigrated, {})
   assert.equal(existsSync(join(userDir(), 'group-admin')), false)
 })
 
-test('迁移：插件卸载后旧实例不再安装、不写配置', async () => {
+test('迁移：插件卸载后旧实例不写配置', async () => {
   let alive = true
-  let config = { setupDone: true, modules: { 'group-admin': { enabled: true } } }
+  let config = { setupDone: true }
   let writes = 0
   const c = createCommunity({ mods: { status: () => [], sync: async () => {}, stop: () => true }, getConfig: () => config, setConfig: (n) => { writes++; config = n }, log: { info() {}, warn() {} }, version: '1.2.0', alive: () => alive, registryUrl: 'https://x/index.json', macRegistryUrl: '', fetcher: async () => { alive = false; return { ok: false, status: 500 } } })
+  alive = false
   await c.migrate()
   assert.equal(writes, 0)
 })

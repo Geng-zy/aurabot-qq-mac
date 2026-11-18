@@ -52,10 +52,8 @@ async function readBody(r, onBytes) {
   return Buffer.concat(chunks)
 }
 
-/** 搬到社区库的原内置模块：id → 老用户是否在用（在用才自动装回来）。 */
-export const MOVED = {
-  'group-admin': (cfg) => cfg.modules?.['group-admin']?.enabled === true,
-}
+/** 需要通过市场自动搬家的模块；目前没有（群管已回到内置）。 */
+export const MOVED = {}
 
 /** 只比 x.y.z：1.2.0-beta.1 算满足 minPluginVersion 1.2.0，模块不用跟着测试版改版本要求。 */
 export function compareVersions(a, b) {
