@@ -97,10 +97,10 @@ export function effortForScene(scene, setting, body, fallback = 'low') {
   return wanted === 'max' ? 'high' : 'low'
 }
 
-export function speechScene(text, appraisal) {
+export function speechScene(text, appraisal, owner = false) {
   if (/逐步|多步骤|复杂任务|重构|完整实现|排查.{0,15}(原因|问题)|debug|refactor/i.test(text)) return 'task'
   if (appraisal?.relevance >= 0.75 && (Math.abs(appraisal.impact) >= 0.5 || appraisal.unfairness >= 0.5)) return 'important'
-  return 'casual'
+  return owner ? 'casualOwner' : 'casualOther'
 }
 
 export function createConversation({ memory, emotion, body, relations, feeling, setting, isOwner, isOwnerWindow, history, perceive, person, selfPrompt, personaCard, publicPersona, goals, canon, now, random, speak, log }) {
@@ -225,7 +225,7 @@ export function createConversation({ memory, emotion, body, relations, feeling, 
         recent.length ? '【本会话之前的话】\n' + recent.map((line) => `${line.direction === 'in' ? '对方' : '你'}：${line.text}`).join('\n') : '',
         `【对方刚说】\n${String(text).slice(-4000)}`,
       ].filter(Boolean).join('\n\n')
-      const effort = setting('models.adaptiveDepth') ? effortForScene(speechScene(text, turn.appraisal), setting, current.body) : undefined
+      const effort = setting('models.adaptiveDepth') ? effortForScene(speechScene(text, turn.appraisal, isOwnerWindow(window)), setting, current.body) : undefined
       const request = async (prompt, input, maxTokens, reasoningEffort, ms) => {
         const controller = new AbortController()
         const timer = setTimeout(() => controller.abort(new Error('等回复超时')), ms)

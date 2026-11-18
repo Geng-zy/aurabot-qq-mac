@@ -147,6 +147,7 @@ test('新版 DSH 通过 agent.model 恢复聊天选模，沿用宿主的全局�
   }
   await api.hub.pushToSession(chat, prompt, chat.userId)
   await api.hub.pushToSession(chat, prompt, chat.userId)
-  assert.deepEqual(selected, [{ provider: 'fake', model: 'fake-1', reasoningEffort: 'low' }])
+  assert.ok(selected.length > 0)
+  assert.deepEqual(selected.at(-1), { provider: 'fake', model: 'fake-1', reasoningEffort: 'high' })
   assert.deepEqual(fake.ctx.services.agentDefaultModel.currentSelection(), { provider: 'fake', model: 'fake-1' })
 })

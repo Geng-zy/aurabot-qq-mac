@@ -154,7 +154,7 @@ export const PARAMS = [
 
 const effortOptions = [{ value: 'low', label: '低' }, { value: 'high', label: '高' }, { value: 'max', label: '最高' }]
 for (const [scene, label, def] of [
-  ['casual', '日常聊天', 'low'], ['important', '重要对话或冲突', 'high'], ['task', '多步骤任务', 'max'],
+  ['casualOwner', '日常聊天 · 管理员', 'high'], ['casualOther', '日常聊天 · 其他人', 'low'], ['important', '重要对话或冲突', 'high'], ['task', '多步骤任务', 'max'],
   ['record', '整理对话和记录状态', 'low'], ['appraisal', '评价刚发生的事', 'low'],
   ['reconsolidate', '回忆后重新整理', 'low'], ['think', '日常念头的远程备用', 'low'], ['privacy', '判断私密内容能不能说', 'low'],
   ['consolidate', '睡眠整理', 'high'], ['review', '日、周和月回顾', 'high'], ['dream', '正式做梦', 'high'],
@@ -190,6 +190,11 @@ export function resolveSettings(saved = {}) {
     const p = byKey.get(key)
     if (!p || value === undefined) continue
     out[key] = clampParam(p, value)
+  }
+  // 旧版只有一个「日常聊天」档位：保留用户当时的选择，分别作为管理员/其他人起点。
+  if (saved?.['models.effort.casual'] !== undefined) {
+    if (saved['models.effort.casualOwner'] === undefined) out['models.effort.casualOwner'] = clampParam(byKey.get('models.effort.casualOwner'), saved['models.effort.casual'])
+    if (saved['models.effort.casualOther'] === undefined) out['models.effort.casualOther'] = clampParam(byKey.get('models.effort.casualOther'), saved['models.effort.casual'])
   }
   return out
 }

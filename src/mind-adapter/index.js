@@ -164,8 +164,8 @@ export function createMindAdapter(opts) {
     return effortForScene(scene, mind.setting, mind.body.state({ persist: false }), EFFORT[scene])
   }
 
-  function chatEffort(text, appraisal) {
-    return mind.setting('models.adaptiveDepth') ? effortFor(speechScene(text, appraisal)) : ''
+  function chatEffort(text, appraisal, owner = false) {
+    return mind.setting('models.adaptiveDepth') ? effortFor(speechScene(text, appraisal, owner)) : ''
   }
 
   function endTurn(chatId) { return turnContext.endTurn(chatId) }
@@ -199,7 +199,7 @@ export function createMindAdapter(opts) {
   })
   const { noteChatActivity, canThink, innerTick, runAction, reserveActionModel, actionBudget } = inner
 
-  turnContext = createTurnContext({ mind, windowOf, parseChat, personIn, noteChatActivity, syncOwner, speakersOf, debug, isClosed: () => closed, chatEffort })
+  turnContext = createTurnContext({ mind, windowOf, parseChat, personIn, noteChatActivity, syncOwner, speakersOf, debug, isClosed: () => closed, isOwnerChat, chatEffort })
 
 
   // ---------- 忘掉一个人（面板「关系」页） ----------

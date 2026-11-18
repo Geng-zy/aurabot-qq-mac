@@ -5,6 +5,7 @@ import { mkdtempSync, rmSync, readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createMindAdapter, segmentsText, windowOf } from '../src/mind-adapter/index.js'
+import { speechScene } from '../src/mind/conversation.js'
 import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
 import { createFakeDsh } from './helpers/fake-dsh.js'
@@ -395,6 +396,15 @@ test('迁移的群印象仍用于群聊，私人相处经验不会流入群聊�
   assert.match(JSON.stringify(a.mind.relations.get('qq:2')), /别提他前任/)
   assert.match(ctx, /- 这个群：热闹；互怼是亲近；在这里聊久了：消息短/)
   assert.match(a.selfPrompt(), /不知不觉会用的说法】hhh/)
+})
+
+test('日常聊天按管理员和其他人分开：管理员默认高，其他人默认低', () => {
+  const { a } = adapter()
+  assert.equal(a.mind.setting('models.effort.casualOwner'), 'high')
+  assert.equal(a.mind.setting('models.effort.casualOther'), 'low')
+  assert.equal(speechScene('哈哈', {}, true), 'casualOwner')
+  assert.equal(speechScene('哈哈', {}, false), 'casualOther')
+  assert.equal(speechScene('请逐步重构这个模块', {}, false), 'task')
 })
 
 test('主回复的思考深度不会被场景包装覆盖，隐私判断也有自己的档位', async () => {

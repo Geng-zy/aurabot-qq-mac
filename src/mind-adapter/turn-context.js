@@ -1,5 +1,5 @@
 // 回复前准备：本轮记忆工作区、群成员映射、准备竞态和结束清理。
-export function createTurnContext({ mind, windowOf, parseChat, personIn, noteChatActivity, syncOwner, speakersOf, debug, isClosed, chatEffort }) {
+export function createTurnContext({ mind, windowOf, parseChat, personIn, noteChatActivity, syncOwner, speakersOf, debug, isClosed, isOwnerChat, chatEffort }) {
   const working = new Map() // chatId → { text, at }
   const preparing = new Map()
 
@@ -22,7 +22,7 @@ export function createTurnContext({ mind, windowOf, parseChat, personIn, noteCha
       })
       if (!turn || !isCurrent()) return null
       working.set(chatId, { text: turn.memory.text, recalled: turn.memory.recalled, plan: turn.plan })
-      return { ...turn.plan, thinking: chatEffort(text, turn.appraisal) }
+      return { ...turn.plan, thinking: chatEffort(text, turn.appraisal, isOwnerChat(chatId)) }
     } finally {
       if (preparing.get(chatId) === ticket) preparing.delete(chatId)
     }
