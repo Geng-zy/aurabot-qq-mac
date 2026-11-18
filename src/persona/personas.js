@@ -39,6 +39,7 @@ export function parsePersona(id, raw) {
 }
 
 const safeId = (id) => String(id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
+const MAX_PERSONA_CHARS = 20000
 
 export function listPersonas() {
   seedPersonas()
@@ -66,10 +67,12 @@ export function readPersona(id) {
 export function savePersona(id, { name, tags, body }) {
   const sid = safeId(id)
   if (!sid) throw new Error('人格 id 只能用英文字母、数字、- 和 _')
-  if (!String(body || '').trim()) throw new Error('人格内容不能是空的')
+  const content = String(body || '').trim()
+  if (!content) throw new Error('人格内容不能是空的')
+  if ([...content].length > MAX_PERSONA_CHARS) throw new Error(`人格卡最多 ${MAX_PERSONA_CHARS} 字，避免每轮提示词无限膨胀`)
   mkdirSync(dir(), { recursive: true })
   const head = `---\nname: ${String(name || sid).replace(/\n/g, ' ')}\ntags: [${(tags || []).join(', ')}]\n---\n\n`
-  writeFileSync(join(dir(), `${sid}.md`), head + String(body).trim() + '\n', 'utf8')
+  writeFileSync(join(dir(), `${sid}.md`), head + content + '\n', 'utf8')
   return readPersona(sid)
 }
 
