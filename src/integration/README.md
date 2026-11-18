@@ -31,7 +31,7 @@ Aurabot 不需要重复实现审批、沙箱、工具权限这些事。真正需
 
 ## 兼容与取舍
 
-见 [docs/PURGE-COMPAT.md](../../docs/PURGE-COMPAT.md)：当前只适配最新版 1.7.18；组装阶段贴锁、`llm/stream` 重建 options、包 `llm.stream` 都不成立，最终采用 provider adapter 出口的人设前置。
+见 [docs/PURGE-COMPAT.md](../../docs/PURGE-COMPAT.md)：当前适配最新版 1.7.20；组装阶段贴锁、`llm/stream` 重建 options、包 `llm.stream` 都不成立，最终采用 provider adapter 出口的人设前置。
 
 ## 契约
 

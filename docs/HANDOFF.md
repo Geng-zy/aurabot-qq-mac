@@ -5,7 +5,7 @@
 ## 接手所需环境
 
 - 代码与离线测试使用 Node.js ≥ 22.13。依赖由 DSH 宿主提供，源仓库无需先下载 QQ 网关、模型或媒体环境来跑 `npm test`。
-- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.5.10` 的工作区恢复针对 DSH `0.2.2-rc.3`。内置本地生图另需 macOS 26 或更新版本。
+- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.5.10` 的工作区恢复已在 DSH `0.2.2-rc.4` 验证。内置本地生图另需 macOS 26 或更新版本。
 - 向原仓库 `main` 推送和发 GitHub Release 需要仓库写权限。在终端用 `gh auth status` 确认 GitHub CLI 登录了有权限的账号。开发和离线测试不需要 GitHub 写权限。
 
 ```bash
@@ -88,7 +88,7 @@ dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
 
 - 本版本的生图基于自然语言和工具调用。旧画图命令不再提交任务，升级后新生图白名单需要在面板按会话配置。管理员群聊也按会话白名单核验。
 - DSH 版本、聊天预设、当前人设、已存在的会话历史和生图供应方都可能影响实机表现。桌面普通会话与 QQ 会话应分别验收。出现差异时固定模型和用户请求，再单独改变预设或历史等一个变量。
-- dsh-purge 是独立的 DSH 插件，宿主补丁对所有会话全局生效。AuraBot 只在 [`src/integration/purge-scope.js`](../src/integration/purge-scope.js) 处理三件事：维护工具只在本机管理员私聊可见；人格卡尾部带身份锁定（preset 变量 `{{aurabot_identity_lock}}`），维护段只补执行约束，大肥鱼人设只读；维护段为空时提示词保持原样。宿主维护插件把注入排到最前时，`src/integration/persona-hoist.js` 会在 provider adapter 出口把「人格卡 + 规则 + 身份锁定」搬回 system 最前。`purge_*` 工具名由 [`host-tools.js`](../src/integration/host-tools.js) 按公开定义、会话可限制名单、探测报错三种方式发现，三条都失败时按一个都不给处理。已对当前最新版 dsh-purge `1.7.18` 跑过接缝与真实 DSH 请求验证。日志里出现某段系统提示词只说明该轮带入了它，QQ 端的工具调用和任务结果仍需分别核验。
+- dsh-purge 是独立的 DSH 插件，宿主补丁对所有会话全局生效。AuraBot 只在 [`src/integration/purge-scope.js`](../src/integration/purge-scope.js) 处理三件事：维护工具只在本机管理员私聊可见；人格卡尾部带身份锁定（preset 变量 `{{aurabot_identity_lock}}`），维护段只补执行约束，大肥鱼人设只读；维护段为空时提示词保持原样。宿主维护插件把注入排到最前时，`src/integration/persona-hoist.js` 会在 provider adapter 出口把「人格卡 + 规则 + 身份锁定」搬回 system 最前。`purge_*` 工具名由 [`host-tools.js`](../src/integration/host-tools.js) 按公开定义、会话可限制名单、探测报错三种方式发现，三条都失败时按一个都不给处理。已对当前最新版 dsh-purge `1.7.20` 跑过接缝与真实 DSH 请求验证。日志里出现某段系统提示词只说明该轮带入了它，QQ 端的工具调用和任务结果仍需分别核验。
 - 主要回归路径是管理员私聊、已开放的普通私聊、已开放的群聊、未开放的会话、正式与调试的隔离，以及重启后的工作区会话恢复。选用有权限的测试账号、公开样本和独立数据目录。
 
 完整入口见[功能、设计与实现](FEATURES-AND-IMPLEMENTATION.md)、[用户手册](USER-MANUAL.md)、[历史设计](DESIGN.md)、[模块教程](MODULE-TUTORIAL.md)和[更新记录](../CHANGELOG.md)。接手时先核对文档对应的发布版本与本机实际加载版本。
