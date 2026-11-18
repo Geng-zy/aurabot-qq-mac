@@ -176,7 +176,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
       installed: src?.version || '',
       installedRegistry,
       foreign: !src && hasFolder(e.id), // 同名文件夹是用户自己写的
-      // 装着的是另一个库的同名模块（比如原项目的 tophub，而分叉库里有配合心智核心的版本）：也算有更新，换过来
+      // 装着的是另一个库的同名模块（比如原项目里有同名的旧模块，而分叉库里有兼容的版本）：也算有更新，换过来
       update: Boolean(src && (switchSource ? !index.partial : compareVersions(e.version, src.version) > 0)),
       switchSource: switchSource && !index.partial,
       blocked: blocked(index, e),

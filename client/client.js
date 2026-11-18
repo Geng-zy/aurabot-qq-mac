@@ -4395,12 +4395,6 @@ body[data-ds-dark-theme] .ab-root{
         m.panel ? h(ExtPanel, { m, settings, draftSettings, setSettings, toast, reload }) : null)
     }
 
-    const DOUYIN_KIND = { watch: '看了', look: '点开看', like: '点赞', comment: '评论', share: '分享给你', dm: '回你私信', 'dry:dm': '试运行·私信', 'dry:like': '试运行·点赞', 'dry:comment': '试运行·评论', error: '没成功' }
-
-    const HEYBOX_KIND = { browse: '逛了一圈', like: '点了赞', comment: '发了评论', post: '发了帖', delete: '删了帖' }
-    // 发帖风格的中文名（面板和排期卡片共用，避免两处写岔）
-    const HEYBOX_STYLE_LABEL = { diary: '大肥鱼日记', news: '热搜文', mix: '肥鱼热搜', deal: '每日羊毛' }
-
 
     /** 「她的画作」：读存图目录里最近的 N 张，可以单张删除、开文件夹。 */
     /**

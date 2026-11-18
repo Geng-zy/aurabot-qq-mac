@@ -65,7 +65,7 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)
       const b = args.chat ? mind.body.state({ persist: false }) : null
-      // 身体和心情：QQ 聊天、她自己去做事的后台会话（读热榜、写空间……）都带上，哪里都是同一个她
+      // 身体和心情：QQ 聊天、她自己做事的后台会话（写空间、整理东西……）都带上，哪里都是同一个她
       if (args.chat) {
         parts.push(mind.body.describe(b, { includeHunger }))
         const people = args.chat.kind === 'system' ? [] : speakersOf.get(chatId) || [personIn(chatId, args.chat.userId)].filter(Boolean)
