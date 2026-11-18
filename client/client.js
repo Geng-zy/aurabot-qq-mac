@@ -40,6 +40,11 @@ window.__ModuleLoader__.load({
 
     // ---------------- 小工具 ----------------
     const get = (p) => fetch(API + p, { cache: 'no-store' }).then((r) => r.json()).catch((e) => ({ ok: false, message: '连不上插件：' + e.message }))
+    const clipboard = async (text) => {
+      const p = primitives()
+      if (p && typeof p.writeClipboard === 'function') return p.writeClipboard(text)
+      return navigator.clipboard.writeText(text)
+    }
     const post = (p, body) =>
       fetch(API + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) })
         .then((r) => r.json())
@@ -1022,7 +1027,7 @@ body[data-ds-dark-theme] .ab-root{
       const rows = all.filter((x) => (kind === 'all' || x.kind === kind) &&
         (!key || x.name.toLowerCase().includes(key) || x.id.includes(key) || x.label.toLowerCase().includes(key)))
       const copy = (x) => {
-        try { navigator.clipboard.writeText(x.id) } catch (e) {}
+        clipboard(x.id).catch(() => {})
         setCopied(x.id)
         setTimeout(() => setCopied(''), 1200)
       }
@@ -1229,7 +1234,30 @@ body[data-ds-dark-theme] .ab-root{
       moon: 'M20.4 15.3A8.8 8.8 0 0 1 8.7 3.6 9 9 0 1 0 20.4 15.3z',
       meal: 'M4 11h16a8 8 0 0 1-16 0zm4 8h8M9 8V4m6 4V3',
     }
-    const navIcon = (name) => h('svg', { className: 'ab-icon', viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: ICONS[name] || name }))
+    // 有 DSH primitives 时优先用宿主图标；没有对应图标或没有 primitives 时保留自己的 SVG。
+    const ICON_COMPONENTS = {
+      mind: 'IconThinkOutlineRegular',
+      sparkles: 'IconSparkleRegular',
+      settings: 'IconSettingsOutlineRegular',
+      puzzle: 'IconPluginPinwheelOutlineRegular',
+      find: 'IconSearchOutlineRegular',
+      next: 'IconChevronRightOutlineRegular',
+      chevron: 'IconChevronDownOutlineRegular',
+      close: 'IconCloseOutlineRegular',
+      mic: 'IconMicrophoneOutlineRegular',
+      video: 'IconPlayOutlineRegular',
+      lock: 'IconShieldOutlineRegular',
+      memory: 'IconDatabaseOutlineRegular',
+      pulse: 'IconGaugeOutlineRegular',
+      bolt: 'IconEnhanceOutlineRegular',
+      moon: 'IconDarkOutlineRegular',
+    }
+    const navIcon = (name) => {
+      const p = primitives()
+      const component = ICON_COMPONENTS[name] && p?.[ICON_COMPONENTS[name]]
+      if (typeof component === 'function') return h(component, { className: 'ab-icon' })
+      return h('svg', { className: 'ab-icon', viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: ICONS[name] || name }))
+    }
 
     const unsavedDot = () => h('i', { className: 'ab-unsaved-dot', title: '有未保存的设置' })
     const pageNavId = (group, rail) => (rail ? 'ab-rail-pages-' : 'ab-stage-pages-') + group.id
@@ -1397,7 +1425,9 @@ body[data-ds-dark-theme] .ab-root{
             h(Btn, { small: true, kind: 'ghost', onClick: () => this.setState({ error: null }) }, '再试一次')))
       }
     }
-    const copy = (text, toast, msg) => { try { navigator.clipboard.writeText(text); if (msg) toast(msg, 'ok') } catch (e) { toast('复制失败，手动选中复制吧', 'err') } }
+    const copy = (text, toast, msg) => {
+      Promise.resolve().then(() => clipboard(text)).then(() => { if (msg) toast(msg, 'ok') }, () => toast('复制失败，手动选中复制吧', 'err'))
+    }
 
     /** 版本更新说明：插件更新交给 DSH 插件管理器，这里只在版本变化后显示一次 CHANGELOG。 */
     function UpdateNotes({ st }) {
@@ -3867,7 +3897,7 @@ body[data-ds-dark-theme] .ab-root{
           h('b', null, '人声分离模型下不动？'), ' 安装时会自动试好几个源（断了能接着下，太慢会换源）。实在不行，用浏览器或下载工具把下面还缺的文件下好（同一个文件名的几个地址是同一个文件，任选一个），拖进上面这个框就行，插件会核对文件对不对：',
           (s.separatorLinks || []).map((u) => h('div', { key: u, className: 'ab-flex', style: { marginTop: 4 } },
             h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, u),
-            h(Btn, { small: true, kind: 'ghost', onClick: () => { navigator.clipboard.writeText(u); toast('复制了', 'ok') } }, '复制')))) : null,
+            h(Btn, { small: true, kind: 'ghost', onClick: () => { clipboard(u).then(() => toast('复制了', 'ok'), () => toast('复制失败，手动选中复制吧', 'err')) } }, '复制')))) : null,
         s.voices.length && !s.enabled ? h('div', { className: 'ab-note warn', style: { marginTop: 10 } }, '音色导入好了，但翻唱开关还没开（这一页最上面），打开并保存后ta才会唱。') : null,
         s.profileJob ? h('div', { className: cx('ab-note', s.profileJob.ok === false && 'err'), style: { marginTop: 10 } }, (s.profileJob.running ? '⏳ ' : '') + '音色档案「' + s.profileJob.id + '」：' + s.profileJob.message) : null,
         s.voices.length === 0 ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '还没有音色。') :
@@ -3970,7 +4000,7 @@ body[data-ds-dark-theme] .ab-root{
             h('div', null, s.install.message),
             h('div', { className: 'ab-flex', style: { marginTop: 8 } },
               h(Btn, { small: true, kind: 'primary', onClick: async () => { const r = await post('/song/install'); toast(r.message); setTimeout(load, 800) } }, '再试一次'),
-              h(Btn, { small: true, onClick: () => { try { navigator.clipboard.writeText(['Aurabot ' + st.version + ' 翻唱安装失败', s.install.message, '', s.install.error || '', '', ...(s.install.log || []).slice(-30)].join('\n')); toast('报错复制好了，发给作者就行', 'ok') } catch (e) { toast('复制失败，展开「详细日志」手动复制吧', 'err') } } }, '复制报错'),
+              h(Btn, { small: true, onClick: () => { clipboard(['Aurabot ' + st.version + ' 翻唱安装失败', s.install.message, '', s.install.error || '', '', ...(s.install.log || []).slice(-30)].join('\n')).then(() => toast('报错复制好了，发给作者就行', 'ok'), () => toast('复制失败，展开「详细日志」手动复制吧', 'err')) } }, '复制报错'),
               h('span', { className: 'ab-muted ab-small' }, '已经下好的部分不会重下'))) : null,
         ),
         h(VoiceImport, { s, toast, onChange: load }),
@@ -4059,7 +4089,7 @@ body[data-ds-dark-theme] .ab-root{
             x.last ? h('span', { className: 'ab-small', style: { color: x.last.ok ? 'var(--ab-ok)' : 'var(--ab-err)' } }, ' · 上次' + (x.last.ok ? '成功，' + x.last.message : '出错：' + x.last.message)) : null),
           h('div', { className: 'ab-flex' },
             x.exists ? null : h(Btn, { small: true, kind: 'primary', disabled: !!busy, onClick: () => act('/local/template', x.slot, 't') }, '生成模板'),
-            h(Btn, { small: true, onClick: () => { navigator.clipboard.writeText(x.prompt); toast('复制好了，粘给 DSH，再把【】里那句换成你的情况', 'ok') } }, '复制给 DSH 的话'),
+            h(Btn, { small: true, onClick: () => { clipboard(x.prompt).then(() => toast('复制好了，粘给 DSH，再把【】里那句换成你的情况', 'ok'), () => toast('复制失败，手动选中复制吧', 'err')) } }, '复制给 DSH 的话'),
             x.exists && (x.slot === 'tts' || x.slot === 'image') ? h(Btn, { small: true, disabled: !!busy, onClick: () => act('/local/test', x.slot, 'x') }, busy === x.slot + 'x' ? '正在试…' : '试一下') : null),
           x.slot === 'video' ? h(Row, { label: '最多等多久', hint: '生视频很慢，超过这个时间算失败' }, f.num('local.videoTimeoutMin', { min: 1 }), h('span', { className: 'ab-muted' }, '分钟')) : null,
           x.slot === 'image' && img ? h('img', { src: 'data:image/png;base64,' + img, style: { marginTop: 10, maxWidth: 240, borderRadius: 8 } }) : null)),
