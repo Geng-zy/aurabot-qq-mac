@@ -55,7 +55,7 @@ export function createInner({ mind, opts, now, log, isClosed, debug, local, chec
     if (!result?.ok || result.record !== true || !result.summary) return
     try {
       const at = now()
-      const summary = String(result.summary).slice(0, 120)
+      const summary = String(result.summary).slice(0, 300)
       mind.memory.insert({
         id: `action:${id}:${Math.floor(at / 60000)}`,
         at, window: '', gist: `自己${label}${summary ? `：${summary}` : ''}`,

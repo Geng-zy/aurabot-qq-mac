@@ -10,7 +10,7 @@ export function createSocial({ mind, mem, opts, now, windowOf, refOfChat, dayKey
     const byWindow = new Map()
     for (const r of rows) {
       if (!mem.visibleIn({ ...r, data: JSON.parse(r.json) }, here)) continue
-      if (!byWindow.has(r.window)) { if (byWindow.size >= 3) continue; byWindow.set(r.window, []) }
+      if (!byWindow.has(r.window)) { if (byWindow.size >= 5) continue; byWindow.set(r.window, []) }
       const list = byWindow.get(r.window)
       if (list.length < per) list.push(r)
     }
@@ -23,7 +23,7 @@ export function createSocial({ mind, mem, opts, now, windowOf, refOfChat, dayKey
       const label = kind === 'group' ? `群「${opts.groupName?.(id, platform) || id}」` : `私聊「${mind.person(refOfChat(w))?.name || id}」`
       const lines = list.reverse().map((r) => `  ${dayKey(r.at, tz)} ${shortTime(r.at, tz).slice(6)} ${[...String(r.gist).replace(/\s+/g, ' ')].slice(0, 80).join('')}`)
       const block = `${label}\n${lines.join('\n')}`
-      if (total + block.length > 700 && blocks.length) break
+      if (total + block.length > 1500 && blocks.length) break
       total += block.length
       blocks.push(block)
     }

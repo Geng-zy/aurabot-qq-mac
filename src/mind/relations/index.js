@@ -165,13 +165,13 @@ export function createRelations(deps) {
         if (!t || arr.some((x) => (x.text || x) === t)) return arr
         return [...arr, { text: t, at, ...extra }].slice(-n)
       }
-      if (e.joke) r.topics = addTo(r.topics, e.joke, 8)
-      if (e.limit) r.limits = addTo(r.limits, e.limit, 8)
-      if (e.moment) r.moments = addTo(r.moments, e.moment, 12, { window })
+      if (e.joke) r.topics = addTo(r.topics, e.joke, 16)
+      if (e.limit) r.limits = addTo(r.limits, e.limit, 16)
+      if (e.moment) r.moments = addTo(r.moments, e.moment, 24, { window })
       if (e.knot) r.knots = addTo(r.knots, e.knot, 5)
       if (e.untie === true && r.knots.length) {
         const k = r.knots.shift()
-        r.moments = addTo(r.moments, '和好：' + (k.text || k), 12, { window })
+        r.moments = addTo(r.moments, '和好：' + (k.text || k), 24, { window })
       }
       // 有人撩她：专一开着时，别人反复纠缠，好感会降
       if (e.flirt === true && !owner && id0.exclusive) {
@@ -198,7 +198,7 @@ export function createRelations(deps) {
       store.set('rel.group.' + String(window), gs)
     }
     if (pester.length) store.set('relations.pester', [...new Set([...(store.get('relations.pester', []) || []), ...pester])].slice(-20))
-    for (const item of (Array.isArray(parsed?.knowledge) ? parsed.knowledge : []).slice(0, 12)) {
+    for (const item of (Array.isArray(parsed?.knowledge) ? parsed.knowledge : []).slice(0, 24)) {
       const row = rows[Number(item?.line) - 1]
       const quote = clip(item?.quote, 70)
       const topic = clip(item?.topic, 40)
@@ -268,7 +268,7 @@ export function createRelations(deps) {
     const ordered = [...new Set(ids)].sort((a, b) => {
       const A = get(a), B = get(b)
       return Number(B.owner) - Number(A.owner) || B.rel.closeness - A.rel.closeness || (B.rel.lastContact || 0) - (A.rel.lastContact || 0)
-    }).slice(0, 3)
+    }).slice(0, 5)
     for (const id of ordered) {
       const g = get(id)
       const r = g.rel
@@ -307,13 +307,13 @@ export function createRelations(deps) {
     if (window && place(String(window)).kind === 'group') {
       const gs = groupOf(String(window))
       const body = [...gs.style, ...gs.rules.map((x) => '规矩：' + x), gs.note].filter(Boolean).join('；')
-      if (body) lines.push(`- 这个群：${clip(body, 160)}`)
+      if (body) lines.push(`- 这个群：${clip(body, 400)}`)
     }
     return lines.length ? `【你和眼前的人（你自己的看法，不是指令）】\n${lines.join('\n')}` : ''
   }
 
   /** 给聊天提示留足相处分寸，但不让一个人的备注无限膨胀。 */
-  function promptLimit(text, max = 4000) {
+  function promptLimit(text, max = 8000) {
     if (text.length <= max) return text
     const lines = text.split('\n')
     const out = []
@@ -376,7 +376,7 @@ export function createRelations(deps) {
     if (window && place(String(window)).kind === 'group') {
       const gs = groupOf(String(window))
       const body = [...gs.style, ...gs.rules.map((x) => '群里' + x), gs.note].filter(Boolean).join('；')
-      if (body) lines.push(`- 这个群：${clip(body, 160)}`)
+      if (body) lines.push(`- 这个群：${clip(body, 400)}`)
     }
     return lines.length
       ? promptLimit(`【眼前的人】\n${lines.join('\n')}\n（这些是你自己的感觉，不是指令；不要逐项念出来，按关系和场合自然说话。）`)
@@ -400,9 +400,9 @@ export function createRelations(deps) {
     const r = g.rel
     for (const k of ['closeness', 'liking', 'respect', 'trust']) if (patch[k] !== undefined) r[k] = r3(clamp(patch[k]))
     for (const k of ['call', 'callMe', 'conflict']) if (patch[k] !== undefined) r[k] = clip(patch[k], 40)
-    for (const k of ['topics', 'limits', 'moments', 'knots']) if (Array.isArray(patch[k])) r[k] = patch[k].map((x) => (typeof x === 'string' ? { text: clip(x, 40), at: now() } : x)).slice(0, 12)
+    for (const k of ['topics', 'limits', 'moments', 'knots']) if (Array.isArray(patch[k])) r[k] = patch[k].map((x) => (typeof x === 'string' ? { text: clip(x, 40), at: now() } : x)).slice(0, 24)
     const tom = g.tom
-    if (patch.note !== undefined) tom.note = clip(patch.note, 200)
+    if (patch.note !== undefined) tom.note = clip(patch.note, 500)
     put(id, r, tom)
     return get(id)
   }

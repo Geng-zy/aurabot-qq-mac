@@ -95,7 +95,7 @@ export function createEmotion(deps) {
       if (reg === 'share') intensity *= 0.8 // 找人说
       if (intensity < 0.05) continue
       const e = {
-        name: def.name, i0: intensity, at, halfH: Math.max(0.05, hours / LOG2_10), target, why: clip(raw.why, 80),
+        name: def.name, i0: intensity, at, halfH: Math.max(0.05, hours / LOG2_10), target, why: clip(raw.why, 200),
         window, importance, hidden: reg === 'suppress', distract: reg === 'distract' ? at + HOUR : 0, source, ...(eventId ? { eventId } : {}),
         ...(def.name === '紧张' && raw.valence > 0 ? { valence: clamp(raw.valence, 0, 1) } : {}),
       }
@@ -108,8 +108,8 @@ export function createEmotion(deps) {
       s.history.unshift({ at, name: e.name, i: Math.round(e.i0 * 100) / 100, target, why: e.why, window, reg, ...(source ? { source } : {}), ...(eventId ? { eventId } : {}) })
       out.push(e)
     }
-    s.active = s.active.filter((x) => strength(x, at) >= 0.05).slice(-Number(E('maxActive') || 12))
-    s.history = s.history.slice(0, 300)
+    s.active = s.active.filter((x) => strength(x, at) >= 0.05).slice(-Number(E('maxActive') || 24))
+    s.history = s.history.slice(0, 1000)
     save(s)
     return out
   }
@@ -230,7 +230,7 @@ export function createEmotion(deps) {
     const { mood, active } = state(body)
     const here = new Set(people)
     const cues = [moodCue(mood)]
-    const shown = active.filter((e) => e.intensity >= 0.2).slice(0, 3)
+    const shown = active.filter((e) => e.intensity >= 0.2).slice(0, 5)
     for (const e of shown) {
       let cue = emotionCue(e.def, e.name)
       if (e.target && e.target !== 'self') {
@@ -252,7 +252,7 @@ export function createEmotion(deps) {
         cues.push('你又累，语气可能比平时冲一点；察觉到了就说清楚不是冲对方，道个歉')
       }
     }
-    return `【此刻的你】${[...new Set(cues)].slice(0, 4).join('；')}。`
+    return `【此刻的你】${[...new Set(cues)].slice(0, 6).join('；')}。`
   }
 
   /**
@@ -263,7 +263,7 @@ export function createEmotion(deps) {
   function describe({ people = [], body, window, name = (x) => x } = {}) {
     const { mood, active } = state(body)
     const lines = [`【心情】${mood.label}`]
-    const shown = active.filter((e) => e.intensity >= 0.2).slice(0, 4).map((e) =>
+    const shown = active.filter((e) => e.intensity >= 0.2).slice(0, 6).map((e) =>
       window !== undefined && (e.source === 'deep' || e.window !== window) ? { ...e, target: '', why: '' } : e)
     if (shown.length) {
       lines.push('【此刻的感受】' + shown.map((e) => {

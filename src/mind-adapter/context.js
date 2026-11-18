@@ -6,7 +6,7 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
    * 正文里已经有的收到的消息去掉。没给 current 时，去掉末尾刚到的那几条。
    * 更早没回的（比如群里潜水看到的）照样给。
    */
-  function carryOver(chatId, { current = '', query = '', limit = 30, maxChars = Number(mind.setting('memory.workingChars')) || 1800, batchMs = 10 * 60000, allowLine = () => true } = {}) {
+  function carryOver(chatId, { current = '', query = '', limit = 50, maxChars = Number(mind.setting('memory.workingChars')) || 5000, batchMs = 10 * 60000, allowLine = () => true } = {}) {
     const window = windowOf(chatId)
     const terms = limit > 2 && query && mem.pendingThrough(window) ? keywords(query) : []
     const rows = mind.history(window, { limit: limit + (terms.length ? 120 : 20), audienceWindow: window }).filter(allowLine)

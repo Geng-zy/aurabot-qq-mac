@@ -154,7 +154,7 @@ export function createMotivation(deps) {
     const w = { id: 'w' + now().toString(36) + Math.floor(Math.random() * 1e4), text: t, need: NEED.has(need) ? need : '', action: String(action || ''), strength: clamp(strength), at: now(), status: 'open' }
     if (internal) w.internal = true
     s.wants.unshift(w)
-    s.wants = s.wants.slice(0, 50)
+    s.wants = s.wants.slice(0, 100)
     save(s)
     return w
   }
@@ -301,7 +301,7 @@ export function createMotivation(deps) {
       s.wants = s.wants.filter((w) => !handled.has(w.id))
     }
     s.log.unshift({ at: now(), id, label: a.label, ok: Boolean(r.ok), summary: String(r.summary || '').slice(0, 120), outcome })
-    s.log = s.log.slice(0, 100)
+    s.log = s.log.slice(0, 300)
     save(s)
     if (a.record === true && r?.ok) r.record = true
     return r

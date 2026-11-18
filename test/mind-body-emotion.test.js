@@ -159,7 +159,7 @@ test('感受里的 emoji 不会被切成半个', () => {
   m.emotion.feel([{ name: '快乐', intensity: 0.5, why: '一'.repeat(79) + '😀😀' }])
   const why = m.emotion.state().active[0].why
   assert.equal(why.isWellFormed(), true)
-  assert.equal([...why].length, 80)
+  assert.equal([...why].length, 81)
 })
 
 // ---------- 身体 ----------

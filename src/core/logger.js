@@ -55,7 +55,7 @@ export function createLogger({ dsh, retainDays = 14 } = {}) {
       for (const lv of LEVELS) c[lv] = (...args) => write(lv, area, args.map(fmt).join(' '))
       return c
     },
-    recent(limit = 200, filter = {}) {
+    recent(limit = 1000, filter = {}) {
       return ring
         .filter((e) => (!filter.level || LEVELS.indexOf(e.level) >= LEVELS.indexOf(filter.level)) && (!filter.area || e.area === filter.area))
         .slice(-limit)
