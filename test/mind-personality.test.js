@@ -243,6 +243,7 @@ test('她自己改自己：要有理由；存版本；改名后叫她的名字�
   const r = env.m.self.change({ what: 'name', content: '阿鱼', why: '大家都这么叫我' })
   assert.equal(r.ok, true)
   assert.equal(env.m.identity().name, '阿鱼')
+  assert.match(env.m.personaCard(), /你是阿鱼/, '改名时人格卡里的旧名字一起改掉')
   assert.ok(env.m.wakeWords().includes('阿鱼'))
   assert.equal(env.m.listVersions('self', 1)[0].by, 'self')
   assert.match(env.m.listVersions('persona', 1)[0].reason, /改名：小鱼 → 阿鱼/)
@@ -254,6 +255,14 @@ test('她自己改自己：要有理由；存版本；改名后叫她的名字�
   assert.match(p, /价值观：对朋友讲义气/)
   assert.match(p, /爱好：唱歌、看番/)
   assert.match(p, /【年龄】你 18 岁/)
+})
+
+test('人格卡超长明确拒绝，不静默截断', () => {
+  const env = mk()
+  const r = env.m.self.change({ what: 'persona', content: '字'.repeat(12001), why: '想写长一点' })
+  assert.equal(r.ok, false)
+  assert.match(r.message, /最多 12000 字/)
+  assert.equal(env.m.personaCard(), '')
 })
 
 test('专一和年龄是管理员设定的：她改人格卡、写目标时写不进去', () => {

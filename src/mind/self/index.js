@@ -44,9 +44,16 @@ export function createSelf(deps) {
 
   function profile() {
     const p = store.get('self.profile', null)
-    return p && typeof p === 'object' ? { values: '', hobbies: '', looks: '', goals: [], story: { text: '', chapters: [], at: 0 }, ...p } : { values: '', hobbies: '', looks: '', goals: [], story: { text: '', chapters: [], at: 0 } }
+    return p && typeof p === 'object' ? { values: '', hobbies: '', looks: '', goals: [], story: { text: '', summary: '', chapters: [], at: 0 }, ...p } : { values: '', hobbies: '', looks: '', goals: [], story: { text: '', chapters: [], at: 0 } }
   }
   function saveProfile(p) { store.set('self.profile', p) }
+  /** 改一个自我字段时，把人格卡里同一个旧说法一起换掉；找不到旧说法就只改自我字段。 */
+  function syncCard(before, after) {
+    const old = String(before || '')
+    const card = String(deps.personaCard() || '')
+    if (!old || old === after) return card
+    return card.split(old).join(String(after || ''))
+  }
 
   // ---------- 对管理员的称呼 ----------
   /** 她现在怎么叫管理员：她自己改过就用她的，没改过用管理员一开始设的。 */
@@ -97,29 +104,38 @@ export function createSelf(deps) {
     }
     if (what === 'name' && !content) return { ok: false, message: '名字不能是空的' }
     if ((what === 'name' || what === 'nickname') && [...content].length > 20) return { ok: false, message: '名字太长了' }
-    if (what === 'persona' && content.length < 20) return { ok: false, message: '人格卡要写完整的（整段新的人格卡原文）' }
+    if (what === 'persona' && [...content].length < 20) return { ok: false, message: '人格卡要写完整的（整段新的人格卡原文）' }
     const limit = what === 'persona' ? MAX_PERSONA_CHARS : what === 'story' ? 3000 : what === 'ownerCall' ? 12 : 600
-    const after = content.slice(0, limit)
+    if ([...content].length > limit) return { ok: false, message: `${WHAT[what]}最多 ${limit} 字，超出的部分没有保存；请先压缩或删减。` }
+    const after = content
     const reason = (by === 'self' ? '她自己改的：' : by === 'owner' ? '管理员改的：' : '') + (why || WHAT[what])
     if (what === 'persona') deps.setPersonaCard(after, { by, reason })
-    else if (what === 'name') deps.setPersonaCard(deps.personaCard(), { by, reason: `改名：${before || '（没有）'} → ${after}。${why}`, name: after })
-    else if (what === 'nickname') deps.setPersonaCard(deps.personaCard(), { by, reason: `改小名：${before || '（没有）'} → ${after}。${why}`, nickname: after })
-    else if (what === 'goal') {
+    else if (what === 'name') {
+      const card = syncCard(id.name, after)
+      deps.setPersonaCard(card, { by, reason: `改名：${before || '（没有）'} → ${after}。${why}${card !== deps.personaCard() ? '（人格卡里的旧名字已一起改掉）' : ''}`, name: after })
+    } else if (what === 'nickname') {
+      const card = syncCard(id.nickname, after)
+      deps.setPersonaCard(card, { by, reason: `改小名：${before || '（没有）'} → ${after}。${why}${card !== deps.personaCard() ? '（人格卡里的旧小名已一起改掉）' : ''}`, nickname: after })
+    } else if (what === 'goal') {
       if (!after) return { ok: false, message: '想变成什么样？' }
       const trait = TRAIT.has(c.trait) ? c.trait : ''
       const dir = Number(c.dir) > 0 ? 1 : Number(c.dir) < 0 ? -1 : 0
       p.goals = [{ text: after.slice(0, 120), trait, dir: trait ? dir || 1 : 0, at: now() }, ...p.goals.filter((g) => g.text !== after)].slice(0, 5)
       saveProfile(p)
     } else if (what === 'ownerCall') {
+      const card = syncCard(ownerCall(), after)
       p.ownerCall = after
       saveProfile(p)
+      if (card !== deps.personaCard()) deps.setPersonaCard(card, { by, reason: `改称呼：${before || '（没有）'} → ${after}。${why}（人格卡里的旧称呼已一起改掉）` })
       try { deps.onOwnerCall?.(after) } catch {}
     } else if (what === 'story') {
-      p.story = { ...p.story, text: after, at: now(), shareable: by === 'owner', from: [] }
+      p.story = { ...p.story, text: after, summary: '', at: now(), shareable: by === 'owner', from: [] }
       saveProfile(p)
     } else {
+      const card = syncCard(before, after)
       p[what] = after
       saveProfile(p)
+      if (card !== deps.personaCard()) deps.setPersonaCard(card, { by, reason: `${WHAT[what]}更新：${String(before).slice(0, 80)} → ${after.slice(0, 80)}。${why}（人格卡里的旧说法已一起改掉）` })
     }
     deps.addVersion('self', { what, before: String(before).slice(0, 20000), after, ...(what === 'story' ? { beforeSources } : {}) }, { by, reason })
     log.info(`${by === 'self' ? '她' : '管理员'}改了${WHAT[what]}：${why.slice(0, 60)}`)
@@ -179,7 +195,8 @@ export function createSelf(deps) {
     if (!story || !from.every(isVisible) || JSON.stringify(current.story) !== JSON.stringify(p.story)) return null
     const before = p.story.text
     const chapter = String(j?.chapter || '').trim().slice(0, 20)
-    current.story = { text: story.slice(0, 3000), at: now(), chapters: chapter ? [...p.story.chapters, { at: now(), title: chapter }].slice(-40) : p.story.chapters, shareable: true, from }
+    const summary = String(j?.summary || '').trim().slice(0, 300)
+    current.story = { text: story.slice(0, 3000), summary, at: now(), chapters: chapter ? [...p.story.chapters, { at: now(), title: chapter }].slice(-40) : p.story.chapters, shareable: true, from }
     saveProfile(current)
     deps.addVersion('self', { what: 'story', before, after: current.story.text, beforeSources: p.story.from || [], sources: from }, { by: 'sleep', reason: chapter ? `自我故事新的一章：${chapter}` : '睡觉时更新了自我故事' })
     return { chapter, length: story.length }
@@ -214,7 +231,7 @@ export function createSelf(deps) {
     if (publicPersona) return [publicPersona.card, publicPersona.name ? `你的名字是「${publicPersona.name}」。` : ''].filter(Boolean).join('\n')
     const parts = [deps.personaCard()]
     const nameLine = [id.name ? `你现在的名字是「${id.name}」` : '', id.nickname ? `小名「${id.nickname}」` : ''].filter(Boolean).join('，')
-    if (nameLine) parts.push(`【你的名字】${nameLine}（以这里为准）。`)
+    if (nameLine) parts.push(`【你的名字】${nameLine}（如果人格卡里已经写了名字，以人格卡为准）。`)
     if (p.ownerCall) parts.push(`【你怎么叫管理员】你现在叫他「${p.ownerCall}」（这是你自己改的，以这里为准）。`)
     if (id.age !== null && id.age !== undefined) parts.push(`【年龄】你 ${id.age} 岁${id.birthday ? `，生日是 ${id.birthday}` : ''}（以这里为准）。`)
     // 人格卡是她现在的底稿；下面这些只作补充。她自己换过人格卡时，新卡优先。
@@ -231,9 +248,10 @@ export function createSelf(deps) {
     if (p.story.text && p.story.shareable && (p.story.from || []).every(isVisible)) {
       const chars = [...p.story.text]
       const chapters = (p.story.chapters || []).slice(-3).map((x) => x.title).filter(Boolean)
-      const body = chars.length > 900 ? chars.slice(-700).join('') : p.story.text
-      const head = chars.length > 900 ? '（最近一段）' : ''
-      parts.push('【你的故事（你自己写的，只作背景）】\n' + (chapters.length ? '最近几章：' + chapters.join('、') + '。\n' : '') + head + body + (chars.length > 900 ? '……' : ''))
+      const summary = String(p.story.summary || '').trim()
+      const body = summary || (chars.length > 900 ? chars.slice(-700).join('') : p.story.text)
+      const head = summary ? '故事摘要：' : chars.length > 900 ? '（最近一段）' : ''
+      parts.push('【你的故事（你自己写的，只作背景）】\n' + (chapters.length ? '最近几章：' + chapters.join('、') + '。\n' : '') + head + body + (summary || chars.length <= 900 ? '' : '……'))
     }
     return parts.filter((x) => String(x || '').trim()).join('\n\n')
   }
