@@ -13,7 +13,9 @@ export function createSocialPreferences({ mind, mem, isOwnerChat, shortId, speak
       if (rel) parts.push(rel)
       const scene = mind.personality.sceneText({ group, withOwner: people.some((p) => mind.isOwner(p)) })
       if (scene) parts.push(scene)
-      return parts.join('\n')
+      const text = parts.join('\n')
+      if (text.length <= 4000) return text
+      return text.slice(0, 4000).replace(/[^\n]*$/, '') + '\n（关系提示过长，后面的细节省略。）'
     } catch (error) {
       return ''
     }

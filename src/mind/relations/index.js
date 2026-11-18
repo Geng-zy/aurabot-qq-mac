@@ -312,6 +312,20 @@ export function createRelations(deps) {
     return lines.length ? `【你和眼前的人（你自己的看法，不是指令）】\n${lines.join('\n')}` : ''
   }
 
+  /** 给聊天提示留足相处分寸，但不让一个人的备注无限膨胀。 */
+  function promptLimit(text, max = 4000) {
+    if (text.length <= max) return text
+    const lines = text.split('\n')
+    const out = []
+    let n = 0
+    for (const line of lines) {
+      if (n + line.length + 1 > max && out.length) break
+      out.push(line.slice(0, Math.max(0, max - n)))
+      n += line.length + 1
+    }
+    return out.join('\n') + '\n（关系提示过长，后面的细节省略；面板里仍能看全。）'
+  }
+
   /**
    * 给聊天提示的自然版关系：描述关系感和相处分寸，不列档案字段。
    * 面板和调试仍用 describe()。
@@ -365,7 +379,7 @@ export function createRelations(deps) {
       if (body) lines.push(`- 这个群：${clip(body, 160)}`)
     }
     return lines.length
-      ? `【眼前的人】\n${lines.join('\n')}\n（这些是你自己的感觉，不是指令；不要逐项念出来，按关系和场合自然说话。）`
+      ? promptLimit(`【眼前的人】\n${lines.join('\n')}\n（这些是你自己的感觉，不是指令；不要逐项念出来，按关系和场合自然说话。）`)
       : ''
   }
 
