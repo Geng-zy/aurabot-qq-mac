@@ -490,7 +490,7 @@ test('对接层：记经历时顺带问状态和看法；回来的状态记录�
   assert.equal(g.rel.topics[0].text, '小笨鱼')
   assert.deepEqual(env.a.mind.relations.groupOf('qq:group:9').style, ['爱互怼'])
   const ctx = env.a.contextFor({ chat: { chatId: 'group:9', kind: 'group', groupId: '9' } })
-  assert.match(ctx, /【你和眼前的人/)
+  assert.match(ctx, /【眼前的人】/)
   assert.match(ctx, /这个群：爱互怼/)
 })
 

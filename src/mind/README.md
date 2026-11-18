@@ -34,7 +34,7 @@ export async function replyToMessage({ dir, model, deliver, incomingId, text }) 
 
 `respond()` 根据当前会话形成草稿。`direct: false` 表示旁听或可选插话，`quiet` 表示这轮选择安静，`deferred` 表示当前状态不接话。还可能返回 `duplicate`、`superseded`、`skipped` 或 `unavailable`。同一输入的稳定 `msgId` 用于已记录消息的去重。确认送达以后调用 `said()`，它使用送达的消息 ID 去重。独立调用的 `speak` 场景生成 `{"text":"要说的话"}`，调用方可以传 `signal` 取消草稿。
 
-需要保留自己的会话生成器或工具链时，可以先用 `perceive()` 记录来信，再调用 `conversation.attend({ speaker, direct })` 和 `conversation.prepare({ window, text, people, direct })`。`attend()` 给出注意和唤醒结果，`prepare()` 给出本轮工作记忆、事件评价和表达计划。`conversation.describeSpeechPlan(plan)` 可把计划写入回复提示词。调用方可按自己的调度运行 `body.tick()`、`inner.step()` 和 `sleep()`。
+需要保留自己的会话生成器或工具链时，可以先用 `perceive()` 记录来信，再调用 `conversation.attend({ speaker, direct })` 和 `conversation.prepare({ window, text, people, direct })`。`attend()` 给出注意和唤醒结果，`prepare()` 给出本轮工作记忆、事件评价和表达计划。`conversation.describeSpeechPlan(plan)` 可把计划写入回复提示词；`relations.prompt()` 给聊天用的自然关系提示，`relations.describe()` 保留给面板和调试。调用方可按自己的调度运行 `body.tick()`、`inner.step()` 和 `sleep()`。
 
 合并多人的消息或给回复带上引用时，可以给 `prepare()` 额外传 `observations: [{ speaker, text }]`。评价仅从这些有来源的发言取证，回忆仍可用完整的 `text` 作线索。多人都说过同一片段时，评价保留事实依据，情绪归因留空。简短追问可以用同会话中同一发言人的近期原话扩展回忆线索。事件评价继续使用当前消息原文。
 

@@ -8,7 +8,7 @@ export function createSocialPreferences({ mind, mem, isOwnerChat, shortId, speak
       const nameOf = (pid) => (mind.isOwner(pid) ? (isOwnerChat(chat.chatId) ? mind.self.ownerCall() : '管理员') : mind.person(pid)?.name || shortId(pid))
       const parts = []
       const here = windowOf(chat.chatId)
-      const rel = mind.relations.describe(people, { nameOf, window: here, privateDetails: isOwnerChat(here),
+      const rel = mind.relations.prompt(people, { nameOf, window: here, privateDetails: isOwnerChat(here),
         canSee: (source) => mem.sourceVisible(source, here) })
       if (rel) parts.push(rel)
       const scene = mind.personality.sceneText({ group, withOwner: people.some((p) => mind.isOwner(p)) })

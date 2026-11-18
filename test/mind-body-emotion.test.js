@@ -365,6 +365,18 @@ test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
   assert.ok(a.rules().every((r) => !/大肥鱼|鲸/.test(r)), '规矩是通用的')
 })
 
+test('聊天里的关系提示是相处分寸，不是人物档案', () => {
+  const { a } = adapter()
+  const text = a.mind.relations.prompt(['qq:2'], { nameOf: () => '甲', window: 'qq:private:2', privateDetails: true })
+  assert.match(text, /【眼前的人】/)
+  assert.match(text, /甲/)
+  assert.doesNotMatch(text, /closeness|liking|trust|【你和眼前的人/)
+
+  const { a: b } = adapter()
+  const privateText = b.mind.relations.prompt(['qq:1'], { nameOf: () => '管理员', window: 'qq:private:1', privateDetails: true })
+  assert.match(privateText, /最亲近的人/)
+})
+
 test('给模型的情绪提示只说行为，不列情绪名和原因', () => {
   const { a } = adapter()
   const m = a.mind

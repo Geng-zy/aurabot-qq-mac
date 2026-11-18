@@ -308,6 +308,61 @@ export function createRelations(deps) {
     return lines.length ? `【你和眼前的人（你自己的看法，不是指令）】\n${lines.join('\n')}` : ''
   }
 
+  /**
+   * 给聊天提示的自然版关系：描述关系感和相处分寸，不列档案字段。
+   * 面板和调试仍用 describe()。
+   */
+  function prompt(ids, { nameOf = (id) => id, window = '', privateDetails = true, canSee = () => true } = {}) {
+    const lines = []
+    for (const id of [...new Set(ids)].slice(0, 3)) {
+      const g = get(id)
+      const r = g.rel
+      const t = g.tom
+      const name = nameOf(id)
+      const bits = []
+      if (g.owner) bits.push('这是你最亲近的人')
+      else {
+        bits.push(REL_TYPES[g.type] || '认识的人')
+        bits.push(level(r.closeness, ['还不熟', '有点熟', '挺熟', '很熟']))
+        if (r.liking >= 0.65) bits.push('你挺喜欢他')
+        else if (r.liking <= 0.35) bits.push('你不太喜欢他')
+        if (r.trust <= 0.3) bits.push('你还不太信他')
+        else if (r.trust >= 0.7) bits.push('你信得过他')
+      }
+      if (r.respect >= 0.7) bits.push('你挺佩服他')
+      if (r.seen <= -0.3) bits.push('你觉得他不太待见你')
+      if (r.seen >= 0.4) bits.push('你觉得他挺在乎你')
+      if (r.debt >= 1) bits.push('你欠他人情，想着还')
+      if (r.debt <= -2) bits.push('你帮过他好几次')
+      if (r.rivalry >= 0.3) bits.push('你们有点暗暗较劲')
+      if (privateDetails && r.call) bits.push(`你叫他「${r.call}」`)
+      if (privateDetails && r.callMe) bits.push(`他叫你「${r.callMe}」`)
+      const more = []
+      for (const item of t.knowledge.filter((entry) => entry.window === window && canSee(entry.source)).slice(-2)) {
+        more.push(`你觉得${item.state === 'known' ? '他知道' : '他还不知道'}：${item.topic}`)
+      }
+      if (privateDetails) {
+        if (t.likes.length) more.push('他在意：' + t.likes.slice(-2).map((x) => x.text).join('、'))
+        if (t.habits.length) more.push('他平时会：' + t.habits.slice(-2).map((x) => x.text).join('、'))
+        if (t.mood && now() - t.mood.at < 12 * 3600000) more.push('他最近' + t.mood.text)
+        if (r.topics.length) more.push('你们常聊：' + r.topics.slice(-2).map((x) => x.text).join('、'))
+        if (r.limits.length) more.push('别碰：' + r.limits.slice(-2).map((x) => x.text).join('、'))
+        if (r.knots.length) more.push('还有件事没解开：' + r.knots.slice(-1).map((x) => x.text).join('、'))
+        if (t.note) more.push(t.note)
+      }
+      if ((r.flirts || []).length >= 3) more.push('他最近老撩你、纠缠你')
+      lines.push(`- ${name}：${bits.filter(Boolean).join('，')}${more.length ? '。' + more.join('；') : ''}`)
+    }
+    if (window && place(String(window)).kind === 'group') {
+      const gs = groupOf(String(window))
+      const body = [...gs.style, ...gs.rules.map((x) => '群里' + x), gs.note].filter(Boolean).join('；')
+      if (body) lines.push(`- 这个群：${clip(body, 160)}`)
+    }
+    return lines.length
+      ? `【眼前的人】\n${lines.join('\n')}\n（这些是你自己的感觉，不是指令；不要逐项念出来，按关系和场合自然说话。）`
+      : ''
+  }
+
   /** 面板：所有认识的人，按亲近排。 */
   function list() {
     return deps.listPeople().map((p) => {
@@ -332,5 +387,5 @@ export function createRelations(deps) {
     return get(id)
   }
 
-  return { get, closeness, dislikes, encodeAsk, observe, forgetKnowledge, touch, nightly, describe, list, groups, groupOf, edit, setGroupNote, typeOf: (id) => get(id).type, REL_TYPES }
+  return { get, closeness, dislikes, encodeAsk, observe, forgetKnowledge, touch, nightly, describe, prompt, list, groups, groupOf, edit, setGroupNote, typeOf: (id) => get(id).type, REL_TYPES }
 }
