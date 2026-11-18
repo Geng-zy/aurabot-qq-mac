@@ -311,7 +311,7 @@ test('自我故事：有重要的新经历才写，一天最多一次；只用�
   assert.equal(r.chapter, '第一次唱歌')
   assert.equal(calls[0].scene, 'selfstory')
   assert.match(calls[0].system, /不编没发生过的事/)
-  assert.match(env.m.selfPrompt(), /【你的故事（你自己写的）】\n我是从一个只会潜水的小透明/)
+  assert.match(env.m.selfPrompt(), /【你的故事（你自己写的，只作背景）】[\s\S]*我是从一个只会潜水的小透明/)
   env.set(T0 + 2 * H)
   assert.equal(await env.m.self.updateStory({ ask, episodes: () => [{ id: 'b', at: T0 + H, gist: 'x', importance: 0.9 }] }), null, '一天最多一次')
 })

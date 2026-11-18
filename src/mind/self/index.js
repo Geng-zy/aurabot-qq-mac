@@ -217,16 +217,24 @@ export function createSelf(deps) {
     if (nameLine) parts.push(`【你的名字】${nameLine}（以这里为准）。`)
     if (p.ownerCall) parts.push(`【你怎么叫管理员】你现在叫他「${p.ownerCall}」（这是你自己改的，以这里为准）。`)
     if (id.age !== null && id.age !== undefined) parts.push(`【年龄】你 ${id.age} 岁${id.birthday ? `，生日是 ${id.birthday}` : ''}（以这里为准）。`)
+    // 人格卡是她现在的底稿；下面这些只作补充。她自己换过人格卡时，新卡优先。
+    parts.push('（上面的人格卡是你现在的底稿。下面名字、称呼、年龄、自己写下的内容、习惯和故事都只是补充；和人格卡冲突时以人格卡为准，不要逐条念出来。）')
     const own = [
       p.values ? `价值观：${p.values}` : '',
       p.hobbies ? `爱好：${p.hobbies}` : '',
       p.looks ? `外貌：${p.looks}` : '',
-      p.goals.length ? `想变成的样子：${p.goals.map((g) => g.text).join('；')}` : '',
+      p.goals.length ? `想变成的样子（是目标，不是现在）：${p.goals.map((g) => g.text).join('；')}` : '',
     ].filter(Boolean)
     if (own.length) parts.push('【你自己写下的】\n' + own.join('\n'))
     const words = store.get('self.habitWords', [])
     if (Array.isArray(words) && words.length) parts.push(`【你平时不知不觉会用的说法】${words.join('、')}（自然带一点就好，别刻意）`)
-    if (p.story.text && p.story.shareable && (p.story.from || []).every(isVisible)) parts.push('【你的故事（你自己写的）】\n' + [...p.story.text].slice(0, 400).join('') + (p.story.text.length > 400 ? '……' : ''))
+    if (p.story.text && p.story.shareable && (p.story.from || []).every(isVisible)) {
+      const chars = [...p.story.text]
+      const chapters = (p.story.chapters || []).slice(-3).map((x) => x.title).filter(Boolean)
+      const body = chars.length > 900 ? chars.slice(-700).join('') : p.story.text
+      const head = chars.length > 900 ? '（最近一段）' : ''
+      parts.push('【你的故事（你自己写的，只作背景）】\n' + (chapters.length ? '最近几章：' + chapters.join('、') + '。\n' : '') + head + body + (chars.length > 900 ? '……' : ''))
+    }
     return parts.filter((x) => String(x || '').trim()).join('\n\n')
   }
 
