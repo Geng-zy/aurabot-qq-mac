@@ -13,7 +13,7 @@
 
 | 能力 | 为什么保留 |
 |---|---|
-| `src/core/community.js` + 模块库 | 装的是 AuraBot 自己的 `.mjs` 模块，不是 DSH 插件；`dsh-market` 不能安装这种模块。面板已改名为「AuraBot 模块库」并在说明里区分 |
+| `src/core/community.js` + 模块库 | 装的是 AuraBot 自己的 `.mjs` 模块，不是 DSH 插件；`dsh-market` 不能安装这种模块。面板名为「模块库」，并在说明里区分上游参考和本分支可安装 |
 | `src/core/models-list.js` | 按用户临时填的 `baseUrl + apiKey` 问外部生图/ASR/向量/精排服务的 `/models`；DSH 只知道 profile 里注册的 provider |
 | `src/tools/tools.js` | DSH `defineTool` 的 `parameters` 是 schema spec，AuraBot 模块一直传 JSON Schema，还要 `slow`/`render` 元数据；这是适配层，直接 re-export 会改坏所有模块工具 |
 | `src/core/modules.js` | 和 Cordis 插件生命周期有重叠，但 AuraBot 模块是「按 QQ 会话挂载的能力」，不是 profile 级插件；整体迁移属于 P2 |

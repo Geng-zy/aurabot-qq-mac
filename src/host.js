@@ -66,11 +66,6 @@ const PKG = (() => {
 const VERSION = PKG.version
 const PREFIX = '/aurabot/api'
 
-/**
- * 这个 DSH 会话是不是 Aurabot 的 QQ 聊天会话（私聊/群聊各对应一个 DSH 会话）。
- * 桌宠的干活状态只该跟 DSH 自己发起的活儿走，聊天回合不算（#184：每句聊天都弹完工气泡太吵）。
- */
-
 export function apply(ctx) {
   const logger = createLogger({ dsh: ctx })
   const log = logger.child('core')
@@ -384,7 +379,7 @@ export function apply(ctx) {
       try { path = new URL(req.url, 'http://x').pathname } catch (error) {}
       // 【复审 2·P1-2】模块 prefix 路由也过 CSRF：实测本机 socket + 恶意 Origin 能跨站打
       // POST /aurabot/api/<模块>/run、/ext/<模块>/run 等无 token 的模块路由。
-      // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；桌宠 native 客户端不带 Origin，
+      // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；外部模块客户端不带 Origin，
       // 不受影响；桌面面板的 fetch 是同源，也不受影响。
       if (csrfBlocked(req, res)) return undefined
       if (mods.routeAccess(path) === 'panel' && (panelBlocked(req, res, true) || adminHostBlocked(req, res))) return undefined
@@ -642,8 +637,8 @@ export function apply(ctx) {
     }
   }
 
-  // ---------- 面板：目的机制 / 桌宠 聚合 ----------
-  // 面板令牌脱敏：任何 32 位以上的十六进制串（pet host-token、bridge token 等）只留尾 4 位。
+  // ---------- 面板：对外接口聚合 ----------
+  // 面板令牌脱敏：任何 32 位以上的十六进制串（模块 token、bridge token 等）只留尾 4 位。
   const HEX_RE = /[0-9a-f]{32,}/gi
   function redactTokens(value) {
     const walk = (v) => typeof v === 'string' ? v.replace(HEX_RE, (m) => '（已脱敏…' + m.slice(-4) + '）')

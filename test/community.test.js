@@ -234,7 +234,7 @@ test('安装：替换内置必须确认，索引 replacesBuiltin 漏填也拦（
   assert.match(String(r.message), /替换内置/)
 })
 
-test('两个模块库：原项目的和分叉自己的合在一起；同 id 以分叉的为准，从哪个库装就记哪个库', async () => {
+test('两个模块库：上游只读参考，同 id 以本分支为准，本分支可安装', async () => {
   const up = pack('both-mod', '1.0.0')
   const upOnly = pack('up-only', '1.0.0')
   const mac = pack('both-mod', '1.1.0')

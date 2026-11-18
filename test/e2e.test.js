@@ -279,7 +279,7 @@ test('系统会话超时会及时返回，晚到的回复不会发到 QQ', async
   await assert.rejects(api.hub.runSystemTurn('timeout-test', '超时测试', '慢慢想', { timeoutMs: 50 }), /等太久/)
   assert.ok(Date.now() - start < 1500)
   await assert.rejects(api.hub.runSystemTurn('timeout-test', '超时测试', '下一轮', { timeoutMs: 50 }), /冷却中/)
-  // key：同一个模块的多种后台用途各走一条会话（桌宠的「碎碎念」和「行为大脑」就是这种关系）。
+  // key：同一个模块的多种后台用途各走一条会话（外部模块的不同后台用途就是这种关系）。
   // 上面那条还挂着没结束，这里换 key 必须能立刻跑起来——不再撞「上一轮还没结束」。
   const before = fake.workspaces[0].sessionIds.length
   const keyed = await api.hub.runSystemTurn('timeout-test', '另一种用途', '三', { timeoutMs: 4000, key: 'behavior' })

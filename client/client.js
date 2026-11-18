@@ -1161,7 +1161,7 @@ body[data-ds-dark-theme] .ab-root{
         ['qq-owner', '管理员与私聊权限', '管理员 QQ号 给她自由 完整 受限 纯聊天 称呼'],
         ['qq-notices', 'DSH 授权与通知', '审批 批准 提问 工作区'],
         ['qq-host-tools', '本机工具与发文件', '群里的本机工具 终端 文件 下载口 长任务 子智能体'],
-        ['qq-profile', '改资料与名单', '头像 昵称 签名 好友申请 改白名单 抖音 小黑盒 权限'],
+        ['qq-profile', '改资料与名单', '头像 昵称 签名 好友申请 改白名单 外部模块权限'],
         ['qq-group-admin', '群管权限', '禁言 公告 踢人 群主 头衔'],
         ['qq-commands', 'QQ 命令', '斜杠 命令列表'],
       ],
@@ -4776,7 +4776,7 @@ body[data-ds-dark-theme] .ab-root{
             h('label', { className: 'ab-small', style: { display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer', marginTop: 10 } },
               h('input', { type: 'checkbox', checked: form.webdavConfigOnly, onChange: set('webdavConfigOnly') }), '仅备份配置文件（不含画作、表情、截图等媒体）'),
             h('div', { className: 'ab-small ab-muted', style: { marginTop: 4, lineHeight: 1.7 } },
-              '勾选后打包 config.json、人格、心智核心（她的记忆、情绪、性格、关系）、日记、模块配置、聊天流水和当前工作区 DSH 会话；不包含画作 imagegen、表情 stickers、旧版截图、抖音资料、语音缓存、市场模块代码、日志和缓存。上传的 zip 会明显更小；远端保留份数对完整备份和仅配置备份分别计算。'))
+              '勾选后打包 config.json、人格、心智核心（她的记忆、情绪、性格、关系）、日记、模块配置、聊天流水和当前工作区 DSH 会话；不包含画作 imagegen、表情 stickers、旧版截图、外部模块数据、语音缓存、模块库代码、日志和缓存。上传的 zip 会明显更小；远端保留份数对完整备份和仅配置备份分别计算。'))
           : h('div', null,
             h('div', { className: 'ab-flex', style: { marginTop: 10 } },
               Field('Gitee 用户名', 'owner', '如 gitee.com/小鱼 里的「小鱼」'),
@@ -4888,14 +4888,14 @@ body[data-ds-dark-theme] .ab-root{
                     h(Btn, { small: true, disabled: busy, onClick: () => restoreRemote(name) }, '拉回并恢复'))))),
           ]),
         h(Card, { fold: 'backup-exclusions', title: '备份范围', desc: '这些要在新电脑上重新弄一下。' },
-          h('div', { className: 'ab-small ab-muted' }, 'DSH 自己的设置和模型密钥、QQ 网关 SnowLuma 的登录、QQ 工作区以外的 DSH 会话；抖音和小黑盒的浏览器登录要重新扫码；日志和缓存不备份；翻唱环境和桌宠的 Electron 要重新安装；数据目录以外的路径（比如 ffmpeg、本地图片文件夹）在新电脑上要重新填。')))
+          h('div', { className: 'ab-small ab-muted' }, 'DSH 自己的设置和模型密钥、QQ 网关 SnowLuma 的登录、QQ 工作区以外的 DSH 会话；外部模块的浏览器登录要重新扫码；日志和缓存不备份；翻唱环境和外部桌面模块的 Electron 要重新安装；数据目录以外的路径（比如 ffmpeg、本地图片文件夹）在新电脑上要重新填。')))
     }
 
-    /** 浏览器：需要浏览器的功能（逛网页 / 刷抖音 / 小红书 / 小黑盒验证）走哪个浏览器。 */
+    /** 浏览器：需要浏览器的功能（逛网页 / 平台验证）走哪个浏览器。 */
     function Browser({ st, draft, setDraft }) {
       const on = (draft.browser && draft.browser.useDshSidebar) === true
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '使用 DSH 侧边浏览器', desc: '打开后，ta 需要浏览器的功能都连 DSH 的共享浏览器（侧边浏览器）：画面在 DSH 右侧「Agent 浏览器」里实时可见、可直接接手点按；不再为逛网页 / 刷抖音 / 小红书 / 小黑盒验证各开一个独立窗口。关掉则回到原来的专用浏览器（每模块独立窗口、独立登录资料）。' },
+        h(Card, { title: '使用 DSH 侧边浏览器', desc: '打开后，ta 需要浏览器的功能都连 DSH 的共享浏览器（侧边浏览器）：画面在 DSH 右侧「Agent 浏览器」里实时可见、可直接接手点按；不再为逛网页 / 平台验证各开一个独立窗口。关掉则回到原来的专用浏览器（每模块独立窗口、独立登录资料）。' },
           h(Row, { label: '使用 DSH 侧边浏览器', hint: '共享一个浏览器实例；切换过去后各平台要在共享浏览器里重新登录一次' },
             h(Switch, { on, onChange: (v) => setDraft(setPath(draft, 'browser.useDshSidebar', v)) })),
           on

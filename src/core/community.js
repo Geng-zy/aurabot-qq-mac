@@ -129,7 +129,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
   }
 
   /**
-   * 两个模块库合在一起：原项目的（upstream）和这个分叉自己的（mac）。
+   * 读取本分支模块库（mac）；上游索引只作参考，条目会标成 blocked，不能安装。
    * 每条记下来自哪个库、下载地址的前缀；同 id 的以分叉的为准。一个库读不到不耽误另一个，两个都读不到才报错。
    */
   async function loadIndex({ force = false } = {}) {

@@ -328,7 +328,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     getConfig, log, trashDir, mind, hooks, cleaningFor,
   })
 
-  /** 她在 QQ 之外说的话（桌宠气泡）：记进这个聊天，对方在 QQ 回她时她知道在接哪句（#133）。 */
+  /** 外部模块在 QQ 之外说的话：记进这个聊天，对方在 QQ 回她时她知道在接哪句（#133）。 */
   function noteSaid(chatId, text) {
     logChat(chatId, 'bot', text)
     saidElsewhere.set(chatId, [...(saidElsewhere.get(chatId) || []), { at: Date.now(), text: String(text).slice(0, 300) }].slice(-5))
@@ -1588,7 +1588,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // 用量：DSH 把每次模型调用的 token 数记在这个事件里（含重试）。
       // 平时按「聊天」记账；如果这一步是在处理某个工具的结果（比如聊天里让她生图），
       // 算到那个工具所属的模块名下，别把生图的消耗全算成聊天。
-      // 系统会话（刷小黑盒 / 日记 / 目的引擎那种）本来就按来源记，不受影响。
+      // 系统会话（外部模块后台 / 日记 / 目的引擎那种）本来就按来源记，不受影响。
       if (d.usage) {
         const used = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
           .reduce((sum, key) => sum + (Number(d.usage[key]) || 0), 0)
@@ -3229,7 +3229,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   /** 后台任务（写日记、主动搭话的草稿）：在专用会话里跑一轮，拿到正文但不自动转发。
-   *  key：同一个模块有**多种**后台用途时用来分会话（如桌宠的「碎碎念」和「行为大脑」）——
+   *  key：同一个模块有**多种**后台用途时用来分会话（如外部模块的不同后台用途）——
    *  不带 key 走 `<name>` 那条（向后兼容，老会话继续复用），带 key 走 `<name>:<key>`，
    *  于是工作区里各自一条会话、进度互不阻塞，也不会把两种提示词混进同一段上下文。 */
   async function runSystemTurn(name, title, prompt, { timeoutMs = 180000, noTools = false, publicOnly = false, key: scope = '' } = {}) {

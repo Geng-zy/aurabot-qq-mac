@@ -12,7 +12,7 @@ export const DEFAULTS = {
   dryRun: true, // 试运行：只记日志不真发（记忆照写）
   debug: false, // 调试：不真发 + 什么都不写进记忆/流水，只在日志里看（和试运行互斥）
   setupDone: false, // 首次使用向导走完了没有
-  communityMigrated: {}, // 搬到社区库的模块处理过没有（id → installed / skipped / kept），只处理一次
+  communityMigrated: {}, // 旧版模块搬家记录（目前没有搬家模块，保留兼容）
   botQQ: '', // 机器人 QQ 号（向导里填）
   ownerQQ: '', // 管理员 QQ 号（向导里填）
   ownerName: '管理员',
@@ -55,7 +55,7 @@ export const DEFAULTS = {
   // publicHostname：面板经反代对外时的域名（如 panel.example.com）；CSRF 同源校验把
   //   这个域名的 Origin 也算同源。留空 = 只有回环 Origin 算同源。
   security: { dangerConfirm: false, ssrfMode: 'strict', panelRemoteAccess: false, trustedProxy: '', publicHostname: '' },
-  // 浏览器（全局）：useDshSidebar = 需要浏览器的模块（逛网页 / 刷抖音 / 小红书 / 小黑盒验证）
+  // 浏览器（全局）：useDshSidebar = 需要浏览器的外部模块（网页、平台验证等）
   // 连 DSH 侧边浏览器的共享实例（ego，画面在 DSH 右侧实时可见），不为每个模块各开一个独立窗口。
   browser: { useDshSidebar: false },
   // DeepSeek 峰谷省钱模式（默认关，现有行为不变）：打开后只把「不着急的后台模型调用」尽量挪到谷时，
