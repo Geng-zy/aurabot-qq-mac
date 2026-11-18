@@ -146,6 +146,7 @@ export const PARAMS = [
   // ---------- 模型和预算 ----------
   { key: 'models.deepThinkDaily', group: 'models', label: '每天最多深想几次', def: 30, min: 0, max: 500, step: 1, source: '设计决定', hint: '超出的按重要程度排到第二天；聊天不受影响。' },
   { key: 'models.backgroundTokensDaily', group: 'models', label: '每天后台最多用多少 token', def: 1500000, min: 0, max: 20000000, step: 100000, unit: 'token', source: '设计决定（按价格表约 ¥3/天上限）', hint: '状态记录、睡觉整理、深想、自己去做事合计；超了就排到第二天。' },
+  { key: 'models.backgroundSafety', group: 'models', label: '后台预算安全余量', def: 0.1, min: 0, max: 0.5, step: 0.05, source: EXP, hint: '估算会留一点余量，避免实际返回比估算高时悄悄超预算；0 = 不留余量。', advanced: true },
   { key: 'models.localModelDir', group: 'models', label: '本地小模型位置', def: '', source: '设计决定（实测 Qwen3.5-9B 4 位：深想判断 10/10，约 1.6 秒一步，峰值约 6 GB 内存；4B 版 8/10 且会编记忆，没选）', hint: '模型文件夹（MLX 格式）。留空 = 用对接层装好的默认位置。没装时日常念头改用聊天模型，想得慢一些。' },
   { key: 'models.localPython', group: 'models', label: '本地小模型用的 Python', def: '', source: '设计决定', hint: '装了 mlx-lm 的 Python。留空 = 用对接层装好的默认位置。' },
   { key: 'models.localIdleMinutes', group: 'models', label: '本地小模型闲置多久自动停', def: 30, min: 5, max: 240, step: 5, unit: '分钟', source: EXP, hint: '停了省内存（约 6 GB），下次要用时再启动（要等一会儿）。', advanced: true },
@@ -161,7 +162,7 @@ for (const [scene, label, def] of [
   ['creative', '主动创作的灵感', 'low'], ['permission', '申请权限', 'high'], ['traits', '从人格卡推算性格', 'high'], ['selfstory', '写自我故事', 'max'],
 ]) PARAMS.push({
   key: 'models.effort.' + scene, group: 'models', label, def, options: effortOptions, source: '设计决定',
-  hint: '用时和成本随思考档位增加。宿主模型支持的档位以模型配置为准。', advanced: true,
+  hint: '用于这个任务；日常聊天主回复还会按内容自动归到日常/重要/多步骤。用时和成本随档位增加，宿主模型支持的档位以模型配置为准。',
 })
 PARAMS.push(
   { key: 'models.adaptiveDepth', group: 'models', label: '按对话内容调整思考深度', def: true, source: '设计决定', hint: '重要对话或多步骤任务会用各自的思考档位。' },

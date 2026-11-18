@@ -20,9 +20,11 @@ export function createBudget({ store, today, setting }) {
   /** 这次还能不能花：估计的 token 加上今天已花的不超过上限。深想另有次数上限。 */
   function allow(kind, estimate = 0) {
     const cap = Number(setting('models.backgroundTokensDaily'))
+    const safety = Math.max(0, Math.min(0.5, Number(setting('models.backgroundSafety')) || 0))
+    const guarded = Math.ceil(Math.max(0, Number(estimate) || 0) * (1 + safety))
     const s = spent()
     const pending = [...reservations].filter((r) => r.day === s.day)
-    if (store.get('budget.unlimitedDay') !== s.day && Number.isFinite(cap) && s.tokens + pending.reduce((sum, r) => sum + r.estimate, 0) + estimate > cap) return false
+    if (store.get('budget.unlimitedDay') !== s.day && Number.isFinite(cap) && s.tokens + pending.reduce((sum, r) => sum + r.estimate, 0) + guarded > cap) return false
     if (kind === 'deep') {
       const n = (s.byKind.deep?.calls || 0) + pending.filter((r) => r.kind === 'deep').length
       if (n >= Number(setting('models.deepThinkDaily'))) return false
@@ -30,8 +32,10 @@ export function createBudget({ store, today, setting }) {
     return true
   }
   function reserve(kind, estimate) {
+    const safety = Math.max(0, Math.min(0.5, Number(setting('models.backgroundSafety')) || 0))
+    const guarded = Math.ceil(Math.max(0, Number(estimate) || 0) * (1 + safety))
     if (!allow(kind, estimate)) return null
-    const ticket = { kind, estimate, day: today() }
+    const ticket = { kind, estimate: guarded, day: today() }
     reservations.add(ticket)
     return (used) => {
       if (reservations.delete(ticket) && used !== undefined) {
