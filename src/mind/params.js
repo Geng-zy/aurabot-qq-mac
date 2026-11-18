@@ -81,7 +81,7 @@ export const PARAMS = [
   { key: 'memory.rerankTopN', group: 'memory', label: '精排看前几条', def: 20, min: 2, max: 50, step: 1, source: EXP, hint: '越多越准、越慢。', advanced: true },
   { key: 'memory.rerankTimeoutMs', group: 'memory', label: '精排最多等多久', def: 1500, min: 300, max: 8000, step: 100, unit: '毫秒', source: EXP, hint: '超过就这一轮按原来的顺序。', advanced: true },
   { key: 'memory.versionKeep', group: 'memory', label: '自动保留的版本数', def: 100, min: 5, max: 500, step: 5, source: EXP, hint: '人格、特质等的旧版本超过这个数自动清理（她标为重要的转折点不清）。', advanced: true },
-  { key: 'memory.snapshotKeep', group: 'memory', label: '保留几份每日快照', def: 21, min: 2, max: 90, step: 1, source: '经验值', hint: '完整快照用于恢复心智数据库。', advanced: true },
+  { key: 'memory.snapshotKeep', group: 'memory', label: '保留几份每日快照', def: 10, min: 2, max: 10, step: 1, source: '经验值', hint: '完整快照用于恢复心智数据库。', advanced: true },
   { key: 'memory.baseStability', group: 'memory', label: '一件普通小事记多牢', def: 0.6, min: 0.1, max: 5, step: 0.1, unit: '天', source: 'FSRS-4.5 默认参数（开源间隔重复算法，用数亿次复习记录拟合的幂函数遗忘模型；初次记住的稳定性按回答难易为 0.49 / 1.40 / 3.71 / 13.82 天，这里取最弱两档之间，因为聊天里的事不是刻意背的；取值是经验值）', hint: '稳定性 = 记得还有九成把握的天数。情绪、重要程度、专心程度会在这个基础上加成。', advanced: true },
   { key: 'memory.levelClear', group: 'memory', label: '记得清楚的线', def: 0.5, min: 0.2, max: 0.9, step: 0.05, source: EXP, hint: '记忆强度高于这条线，大意和细节都记得。', advanced: true },
   { key: 'memory.levelVague', group: 'memory', label: '只记得大概的线', def: 0.2, min: 0.05, max: 0.6, step: 0.05, source: EXP, hint: '在这条线和「记得清楚」之间，只记得「好像有这么回事」。', advanced: true },

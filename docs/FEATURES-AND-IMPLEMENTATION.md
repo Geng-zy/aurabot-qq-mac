@@ -61,7 +61,7 @@
 - **文件与授权。** 文件发送按当前轮发言者、目标会话和配置目录核对。跨环境发送可用网关文件接口、编码后的内容或临时中继。群聊可仅给管理员开本机工具，混有他人发言的轮次会收起这类工具。DSH 的授权和问题通知可按工作区配置，管理员可从 QQ 私聊回应符合条件的待处理授权。 [文件中继](../src/chat/file-relay.js) · [会话权限](../src/chat/access.js) · [授权](../src/security/approval.js) · [通知](../src/features/notice.js)
 - **宿主维护工具边界。** 宿主插件注册在根作用域的工具（如 `purge_*`）会被社交预设继承。AuraBot 按会话把它们收窄到完整权限的管理员私聊，并在执行入口复核发言人、机器人账号和管理员授权版本；其他会话的提示词仍按 DSH 的设置接收维护插件的追加内容。 [接缝](../src/integration/host-tools.js) · [会话工具闸](../src/chat/tool-scope.js)
 - **面板和数据边界。** 宿主接口负责来源、请求类型及配置权限，默认管理限本机访问。运行模式包括正式、试运行、调试和停用。插件数据默认放在 `~/.dsh/plugins-data/aurabot/`，宿主另存 DSH 会话。默认工作区和按需本地环境位于 `~/Aurabot/`。备份可包含设置、模块、记忆、文件和会话，按所选范围打包，可能带凭据。 [宿主管理接口](../src/host.js) · [存储路径](../src/core/store.js) · [备份实现](../src/core/backup.js)
-- **日志、用量与恢复。** 面板提供最近活动和各模块的用量统计，费用按配置价格估算。工作区维护入口处理目录迁移、会话健康与归档。支持本地归档、暂存恢复、可选 Gitee 或 WebDAV 云备份，WebDAV 可选仅配置。插件更新交给 DSH 的插件管理器；AuraBot 只保留只读的版本说明。 [用量](../src/core/usage.js) · [工作区迁移](../src/core/workspace-move.js) · [云备份](../src/core/backup-push.js) · [版本说明](../src/core/changelog.js)
+- **日志、用量与恢复。** 面板提供最近活动和各模块的用量统计，费用按配置价格估算。工作区维护入口处理目录迁移、会话健康与归档。支持本地归档、暂存恢复、可选 Gitee 或 WebDAV 云备份，WebDAV 可选仅配置；本机备份、恢复前留底和远端备份均保留最近 10 份。插件更新交给 DSH 的插件管理器；AuraBot 只保留只读的版本说明。 [用量](../src/core/usage.js) · [工作区迁移](../src/core/workspace-move.js) · [云备份](../src/core/backup-push.js) · [版本说明](../src/core/changelog.js)
 
 ## 设计沿革、当前限制与待验证
 

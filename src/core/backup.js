@@ -33,6 +33,8 @@ const MAX_EXPANDED = 8 * 1024 ** 3
 const MAX_DIRECTORY = 32 * 1024 ** 2
 const MAX_MANIFEST = 8 * 1024 ** 2
 const STORE_EXT = /\.(png|jpe?g|gif|webp|mp3|mp4|m4a|ogg|opus|webm|zip|7z|rar|pth|index|onnx|safetensors)$/i
+const KEEP_BACKUPS = 10
+const KEEP_PRE_RESTORE = 10
 
 /**
  * 不进备份的东西。logs、缓存没有价值；edge-profile 是浏览器资料，登录态绑定这台电脑，
@@ -304,7 +306,8 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
     if (checkPath(data, tmpRel).key !== tempKey) throw unsafePath(tmpRel)
     checkPath(data, finalRel)
     await rename(tmp, final)
-    return { file: final, name, files: entries.length - 1, bytes, skipped: skippedFiles, market, sessions, configOnly: Boolean(configOnly) }
+    const pruned = pruneLocalBackups()
+    return { file: final, name, files: entries.length - 1, bytes, skipped: skippedFiles, market, sessions, configOnly: Boolean(configOnly), pruned }
   } catch (error) {
     await fh.close().catch(() => {})
     try {
@@ -671,6 +674,7 @@ export function applyPendingRestore(now = Date.now()) {
     })
     if (sessions) removeChecked(data, '.restore-sessions', true)
     removeChecked(data, '.restore', true)
+    prunePreRestore()
     return files.length
   } catch (error) {
     keepJob = error.code === 'RESTORE_ROLLBACK_FAILED'
@@ -719,6 +723,32 @@ export function pendingRestore() {
   try { return JSON.parse(readFileSync(pendingFile(), 'utf8')) } catch (error) { return null }
 }
 
+/** 本机备份只留最近 10 份，按修改时间从新到旧；上传中的 incoming.zip 不动。 */
+export function pruneLocalBackups(keep = KEEP_BACKUPS) {
+  const dir = backupsDir()
+  let names = []
+  try { names = readdirSync(dir).filter((n) => /^aurabot-(?:backup|config)-\d{8}-\d{4}\.zip$/.test(n)) } catch { return 0 }
+  const files = names.map((name) => ({ name })).sort((a, b) => b.name.localeCompare(a.name))
+  let removed = 0
+  for (const { name } of files.slice(Math.max(0, Math.max(1, Number(keep) || KEEP_BACKUPS)))) {
+    try { rmSync(join(dir, name), { force: true }); removed++ } catch {}
+  }
+  return removed
+}
+
+/** 恢复前留底目录也只留最近 10 份，避免每次恢复都堆一份完整旧目录。 */
+export function prunePreRestore(keep = KEEP_PRE_RESTORE) {
+  const dir = backupsDir()
+  let names = []
+  try { names = readdirSync(dir).filter((n) => /^pre-restore-\d+$/.test(n)) } catch { return 0 }
+  const dirs = names.map((name) => ({ name })).sort((a, b) => b.name.localeCompare(a.name, undefined, { numeric: true }))
+  let removed = 0
+  for (const { name } of dirs.slice(Math.max(1, Number(keep) || KEEP_PRE_RESTORE))) {
+    try { rmSync(join(dir, name), { recursive: true, force: true }); removed++ } catch {}
+  }
+  return removed
+}
+
 export function listBackups() {
   try {
     return readdirSync(backupsDir()).filter((n) => n.endsWith('.zip') && n !== 'incoming.zip').map((name) => {
@@ -752,7 +782,9 @@ export function stageReceivedBackup(buf, name = 'incoming.zip') {
       renameSync(source.path, target.path)
       const published = checkPath(data, rel)
       if (!published.info || !sameRenamedFile(source.info, published.info)) throw unsafePath(rel)
-      return await stageBackup(published.path, { data, rel, key: published.key })
+      const staged = await stageBackup(published.path, { data, rel, key: published.key })
+      pruneLocalBackups()
+      return staged
     } finally {
       try {
         if (checkPath(data, temporary).key === key) removeChecked(data, temporary)

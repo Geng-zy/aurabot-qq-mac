@@ -4729,7 +4729,7 @@ body[data-ds-dark-theme] .ab-root{
         setForm({
           provider: v.provider === 'webdav' ? 'webdav' : 'gitee',
           enabled: !!v.enabled, owner: v.owner || '', repo: v.repo || '', token: '', branch: v.branch || 'master',
-          time: v.time || '03:30', keep: v.keep || 7, autoCreate: v.autoCreate !== false, forceOverwrite: !!v.forceOverwrite,
+          time: v.time || '03:30', keep: v.keep || 10, autoCreate: v.autoCreate !== false, forceOverwrite: !!v.forceOverwrite,
           webdavUrl: v.webdav?.url || '', webdavUsername: v.webdav?.username || '', webdavPassword: '', webdavConfigOnly: v.webdav?.configOnly === true,
         })
       })
@@ -4791,7 +4791,7 @@ body[data-ds-dark-theme] .ab-root{
               h('label', { className: 'ab-small', style: { display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' } }, h('input', { type: 'checkbox', checked: form.forceOverwrite, onChange: set('forceOverwrite') }), '允许覆盖已有内容的仓库'))),
         h('div', { className: 'ab-flex', style: { marginTop: 8 } },
           Field('每天几点备份', 'time', '如 03:30'),
-          Field('远端留几份', 'keep', '如 7')),
+          Field('远端留几份', 'keep', '如 10')),
         h('div', { className: 'ab-flex', style: { marginTop: 10, alignItems: 'center' } },
           h('span', { className: 'ab-flex' },
             h(Btn, { small: true, kind: 'primary', disabled: running, onClick: async () => after(await call('/backup/remote/config', saveBody()), true) }, '保存设置'),

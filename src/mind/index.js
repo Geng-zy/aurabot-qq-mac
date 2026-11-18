@@ -615,7 +615,7 @@ export function createMind(opts) {
 
   // ---------- 备份 ----------
   /** 存一份快照到 dir/snapshots/，按保留份数清理旧的（移到 trashDir，不直接删）。 */
-  function snapshot({ keep = 14, trashDir } = {}) {
+  function snapshot({ keep = 10, trashDir } = {}) {
     if (opts.memoryDb) throw new Error('内存数据库不做快照')
     const dir = join(opts.dir, 'snapshots')
     mkdirSync(dir, { recursive: true })
@@ -628,7 +628,14 @@ export function createMind(opts) {
       if (trashDir) {
         mkdirSync(trashDir, { recursive: true })
         renameSync(join(dir, f), join(trashDir, f))
+      } else {
+        rmSync(join(dir, f), { force: true })
       }
+    }
+    // 废纸篓里的旧快照也只留 10 份，避免长期累积。
+    if (trashDir && existsSync(trashDir)) {
+      const trashed = readdirSync(trashDir).filter((f) => /^mind-.*\.sqlite$/.test(f)).sort()
+      for (const f of trashed.slice(0, Math.max(0, trashed.length - 10))) rmSync(join(trashDir, f), { force: true })
     }
     return target
   }

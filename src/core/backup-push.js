@@ -63,7 +63,7 @@ function gitEnv(token) {
 /** 保留 N 份的淘汰计划：输入归档根下的文件夹名（一份备份一个文件夹），倒序留前 N 个。纯函数方便测试。 */
 export function prunePlan(dirs, keep) {
   const valid = dirs.filter((d) => /^aurabot-backup-\d{8}-\d{4}$/.test(d)).sort().reverse()
-  const n = Math.max(1, keep)
+  const n = Math.min(10, Math.max(1, keep))
   return { keep: valid.slice(0, n), drop: valid.slice(n) }
 }
 
@@ -286,7 +286,7 @@ async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } = {}) {
   let warning = ''
   try {
     const remote = await webdavList(folder, auth, password)
-    const keep = Math.max(1, Math.round(Number(r.keep) || 7))
+    const keep = Math.max(1, Math.round(Number(r.keep) || 10))
     const prefix = name.startsWith('aurabot-config-') ? 'aurabot-config-' : 'aurabot-backup-'
     const sorted = [...new Set([name, ...remote.filter((n) => n.startsWith(prefix))])].sort().reverse()
     kept = Math.min(keep, sorted.length)
@@ -301,7 +301,7 @@ async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } = {}) {
   } catch (error) {
     warning = '上传成功，但清理旧备份失败：' + redact(error.message, password)
   }
-  const keep = Math.max(1, Math.round(Number(r.keep) || 7))
+  const keep = Math.max(1, Math.round(Number(r.keep) || 10))
   return {
     ok: true,
     name,
@@ -386,7 +386,7 @@ async function pushBackupGitee(r, { version = '', onLog = () => {} } = {}) {
 
   // 淘汰计划：归档根下一份备份一个文件夹，倒序留最近 N 个文件夹，远端与本地的旧文件夹一起清
   const dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
-  const plan = prunePlan([...dirs.filter((d) => d !== base), base], Math.max(1, Math.round(Number(r.keep) || 7)))
+  const plan = prunePlan([...dirs.filter((d) => d !== base), base], Math.max(1, Math.round(Number(r.keep) || 10)))
   for (const old of plan.drop) {
     rmSync(join(root, old), { recursive: true, force: true })
     await runGit(['rm', '-r', '-f', '--ignore-unmatch', `backups/${old}`], { cwd: wd, token, onLog })

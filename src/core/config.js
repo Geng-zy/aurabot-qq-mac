@@ -226,7 +226,7 @@ export const DEFAULTS = {
       token: '', // 私人令牌（要 projects + repo 权限），存配置时按密钥处理
       branch: 'master', // 推到哪个分支
       time: '03:30', // 每天几点自动备份并推送
-      keep: 7, // 远端保留最近几份
+      keep: 10, // 远端保留最近几份
       autoCreate: true, // 远端没有这个仓库时自动建一个私有的
       forceOverwrite: false, // 允许覆盖「已有内容但不是本工具推的」仓库（清空远端历史重推）：面板显式勾选才开
     },

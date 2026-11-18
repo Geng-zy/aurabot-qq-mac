@@ -179,7 +179,7 @@ SnowLuma 没有 macOS 版，在 Mac 上用 OrbStack（或 Docker Desktop）跑�
 | DSH 启动时报「Web authentication failed」 | 先完全退出 DSH，再重新打开并检查是否需要登录。如果仍失败，记录 DSH 版本和报错时间，检查 DSH 的宿主日志。 |
 
 所有日志都在：`~/.dsh/plugins-data/aurabot/logs/`
-所有数据（设置、人格、表情、日记）都在：`~/.dsh/plugins-data/aurabot/`；她的心智（记忆、情绪、性格、关系）在其中的 `mind/mind.sqlite`，每天自动存一份快照到 `mind/snapshots/`（旧的移到废纸篓）。
+所有数据（设置、人格、表情、日记）都在：`~/.dsh/plugins-data/aurabot/`；她的心智（记忆、情绪、性格、关系）在其中的 `mind/mind.sqlite`，每天自动存一份快照到 `mind/snapshots/`，最多保留 10 份（更早的自动删除）。
 
 ## 五、关于账号安全
 

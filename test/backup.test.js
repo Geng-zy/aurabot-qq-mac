@@ -467,3 +467,21 @@ test('LA-21 提交标记移动失败时回退配置、模块登记和数据，�
   assert.deepEqual(api.pendingModules(), ['sample'])
   assert.equal(api.pendingRestore(), null)
 })
+
+test('本机备份、恢复前留底只保留最近 10 份', () => {
+  const backups = join(root, 'backups')
+  mkdirSync(backups, { recursive: true })
+  for (let i = 1; i <= 12; i++) {
+    const day = String(i).padStart(2, '0')
+    writeFileSync(join(backups, `aurabot-backup-202611${day}-0300.zip`), 'x')
+    mkdirSync(join(backups, `pre-restore-${1700000000000 + i}`))
+  }
+  api.pruneLocalBackups()
+  api.prunePreRestore()
+  const zips = readdirSync(backups).filter((n) => /^aurabot-backup-/.test(n)).sort()
+  const pre = readdirSync(backups).filter((n) => /^pre-restore-/.test(n)).sort()
+  assert.equal(zips.length, 10)
+  assert.equal(pre.length, 10)
+  assert.equal(zips.includes('aurabot-backup-20261101-0300.zip'), false, '最早的 zip 被删除')
+  assert.equal(pre.includes('pre-restore-1700000000001'), false, '最早的留底被删除')
+})
