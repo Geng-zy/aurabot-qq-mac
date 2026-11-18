@@ -6,6 +6,7 @@
 
 import { parseJson } from '../memory/index.js'
 import { TRAIT, TRAITS } from '../personality/traits.js'
+import { MAX_PERSONA_CHARS } from '../../persona/personas.js'
 
 const DAY = 86400000
 const WHAT = {
@@ -97,7 +98,7 @@ export function createSelf(deps) {
     if (what === 'name' && !content) return { ok: false, message: '名字不能是空的' }
     if ((what === 'name' || what === 'nickname') && [...content].length > 20) return { ok: false, message: '名字太长了' }
     if (what === 'persona' && content.length < 20) return { ok: false, message: '人格卡要写完整的（整段新的人格卡原文）' }
-    const limit = what === 'persona' ? 20000 : what === 'story' ? 3000 : what === 'ownerCall' ? 12 : 600
+    const limit = what === 'persona' ? MAX_PERSONA_CHARS : what === 'story' ? 3000 : what === 'ownerCall' ? 12 : 600
     const after = content.slice(0, limit)
     const reason = (by === 'self' ? '她自己改的：' : by === 'owner' ? '管理员改的：' : '') + (why || WHAT[what])
     if (what === 'persona') deps.setPersonaCard(after, { by, reason })
