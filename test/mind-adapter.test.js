@@ -397,6 +397,21 @@ test('迁移的群印象仍用于群聊，私人相处经验不会流入群聊�
   assert.match(a.selfPrompt(), /不知不觉会用的说法】hhh/)
 })
 
+test('主回复的思考深度不会被场景包装覆盖，隐私判断也有自己的档位', async () => {
+  let t = T0
+  const asks = []
+  const a = createMindAdapter({
+    memoryDb: true, getConfig: () => ({ ownerQQ: '1' }), now: () => t,
+    ask: async (o) => { asks.push(o); return o.scene === 'speak' ? '{"text":"嗯"}' : '{"episodes":[]}' },
+  })
+  try {
+    await a.mind.conversation.respond({ window: 'demo:private:1', speaker: 'qq:1', msgId: 'x', text: '请逐步解释一下' })
+    const speak = asks.find((o) => o.scene === 'speak')
+    assert.equal(speak.reasoningEffort, 'max', '多步骤回复仍用 max，不被包装成 undefined')
+    assert.equal(a.mind.setting('models.effort.privacy'), 'low', '隐私判断有独立档位')
+  } finally { a.close() }
+})
+
 test('聊天停下来自动记；困了在夜里睡着，睡够了醒来，醒来整理记忆', async () => {
   const { a, asks, set } = memAdapter()
   a.perceive({ chatId: 'private:1', userId: '1', nickname: '管理员', text: '我明天要考试', messageId: 'x1' })

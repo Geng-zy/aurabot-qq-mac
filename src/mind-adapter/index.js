@@ -94,7 +94,7 @@ export function createMindAdapter(opts) {
   const mind = createMind({
     dir: opts.dir, ownerId: ownerOf(), publicName: '大肥鱼', now, log, memoryDb: opts.memoryDb, random: opts.random,
     ownerName: () => String(opts.getConfig()?.ownerName || ''),
-    model: opts.ask ? (request) => opts.ask({ ...request, reasoningEffort: effortFor(request.scene) }) : undefined,
+    model: opts.ask ? (request) => opts.ask({ ...request, reasoningEffort: request.reasoningEffort || effortFor(request.scene) }) : undefined,
   })
   const trashDir = opts.trashDir || join(homedir(), '.Trash')
   const mem = mind.memory

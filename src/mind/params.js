@@ -156,7 +156,7 @@ const effortOptions = [{ value: 'low', label: '低' }, { value: 'high', label: '
 for (const [scene, label, def] of [
   ['casual', '日常聊天', 'low'], ['important', '重要对话或冲突', 'high'], ['task', '多步骤任务', 'max'],
   ['record', '整理对话和记录状态', 'low'], ['appraisal', '评价刚发生的事', 'low'],
-  ['reconsolidate', '回忆后重新整理', 'low'], ['think', '日常念头的远程备用', 'low'],
+  ['reconsolidate', '回忆后重新整理', 'low'], ['think', '日常念头的远程备用', 'low'], ['privacy', '判断私密内容能不能说', 'low'],
   ['consolidate', '睡眠整理', 'high'], ['review', '日、周和月回顾', 'high'], ['dream', '正式做梦', 'high'],
   ['deep', '深想', 'high'], ['outreach', '主动找人', 'high'], ['reminder', '约定提醒', 'low'],
   ['creative', '主动创作的灵感', 'low'], ['permission', '申请权限', 'high'], ['traits', '从人格卡推算性格', 'high'], ['selfstory', '写自我故事', 'max'],
