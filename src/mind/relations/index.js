@@ -19,7 +19,7 @@ function fresh(trustBase = 0.5) {
     closeness: 0.05, liking: 0.5, respect: 0.5, trust: trustBase, seen: 0,
     intimacy: 0, passion: 0, commitment: 0, investment: 0, debt: 0, dominance: 0, rivalry: 0,
     call: '', callMe: '', topics: [], limits: [], moments: [], knots: [], conflict: '',
-    first: null, against: 0, n: 0, private: 0, lastContact: 0, flirts: [],
+    first: null, against: 0, n: 0, private: 0, lastContact: 0, flirts: [], log: [],
   }
 }
 function freshMind() {
@@ -90,7 +90,7 @@ export function createRelations(deps) {
     return `- "rel"：这段里和你说过话的人，你对他们的看法有没有变化（只写有变化或新了解到的人，没有就空数组）。每项：
   {"who":"id","d":{"close":亲近 -1到1,"like":喜欢,"respect":尊重和欣赏,"trust":信任,"seen":你感觉他怎么看你},"kept":他说到做到了 true / 失约了 false（没有就不写）,
    "helped":"me（他帮了你）/ them（你帮了他）","call":"你怎么叫他（可选）","callMe":"他怎么叫你（可选）","likes":"他喜欢或在意的（可选）","habit":"他的说话习惯或作息（可选）",
-   "mood":"他现在大概的心情、在忙什么（可选）","joke":"你们之间的老梗（可选）","limit":"他不喜欢被开的玩笑、不能提的事（可选）","moment":"这段关系的转折点，比如第一次见面、吵得最凶、和好（可选）",
+   "mood":"他现在大概的心情、在忙什么（可选）","joke":"你们之间的老梗（可选）","limit":"他不喜欢被开的玩笑、不能提的事（可选）","moment":"这段关系的转折点，比如第一次见面、吵得最凶、和好（可选）","weight":0到1（这件事对关系有多重要；没有就省略）,
    "knot":"新结下的心结（可选）","untie":心结解开了 true（可选）,"flirt":他在撩你或表白 true（可选）,"rival":和他有比较、争宠 true（可选）}
   d 里只写变了的；数值是这段里变化的方向和大小（0.3 就是明显变好一点），不是总分。${passion}
 - "knowledge"：此人明确表明自己知道或还不知道的事。写 {"who":"id","line":他说的行号,"quote":"他的连续原话","state":"known 或 unknown","topic":"十几个字的主题"}。不要凭沉默、转述或猜测填写。
@@ -123,7 +123,9 @@ export function createRelations(deps) {
       const tom = g.tom
       const owner = g.owner
       const d = e.d && typeof e.d === 'object' ? e.d : {}
-      const step = (x) => Math.max(-1, Math.min(1, Number(x) || 0)) * 0.08 // 一段对话最多动 0.08
+      const rawWeight = Number(e.weight)
+      const weight = Number.isFinite(rawWeight) ? 0.5 + clamp(rawWeight, 0, 1) : 1
+      const step = (x) => Math.max(-1, Math.min(1, Number(x) || 0)) * 0.08 * weight // 一段对话最多动 0.08；重要的事可到 1.5 倍
       // 第一印象：头几次相处定下来；之后和它相反的变化只算一半，要好几次相反的经历才改得过来
       const like = step(d.like)
       if (r.first === null && like) r.first = Math.sign(like)
@@ -186,6 +188,12 @@ export function createRelations(deps) {
       if (e.likes) tom.likes = addTo(tom.likes, e.likes, 8)
       if (e.habit) tom.habits = addTo(tom.habits, e.habit, 6)
       if (e.mood) tom.mood = { text: clip(e.mood, 40), at }
+      const changed = []
+      if (likeD) changed.push('喜欢')
+      if (step(d.close)) changed.push('亲近')
+      if (step(d.respect)) changed.push('尊重')
+      if (tr) changed.push('信任')
+      if (changed.length) r.log = [...(r.log || []), { at, what: changed.join('、'), why: clip(e.why || e.moment || e.knot || (e.kept === false ? '失约' : e.kept === true ? '守约' : ''), 80) }].slice(-20)
       put(who, r, tom)
       updated++
     }

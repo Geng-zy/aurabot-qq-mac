@@ -338,6 +338,16 @@ test('关系：只认这段里真说过话的人；信任掉得比涨得快；�
   assert.ok(R.get('qq:2').rel.trust < t1 - 0.1, '放鸽子掉信任')
 })
 
+test('关系变化可以按这件事的重要性加权，并留下简短原因', () => {
+  const env = mk()
+  const R = env.m.relations
+  const before = R.get('qq:2').rel.closeness
+  R.observe({ rel: [{ who: 'qq:2', d: { close: 1 }, weight: 1, why: '一起扛过一件难事' }] }, { window: 'qq:group:9', rows: relRows('qq:2') })
+  const after = R.get('qq:2')
+  assert.ok(after.rel.closeness > before + 0.09, '重要的事比普通闲聊推动更多')
+  assert.match(after.rel.log.at(-1).why, /一起扛过/)
+})
+
 test('专一：亲密、激情、承诺只对管理员；别人再亲近也最多是好朋友；关掉专一就可能成恋人', () => {
   const env = mk()
   const R = env.m.relations
