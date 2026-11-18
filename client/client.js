@@ -4285,6 +4285,7 @@ body[data-ds-dark-theme] .ab-root{
         !data ? h(Empty, { icon: '⏳', text: '加载中…' }) : null,
         data && data.ok === false ? h('div', { className: 'ab-note warn' }, '市场打不开：' + data.message) : null,
         data?.partial ? h('div', { className: 'ab-note warn' }, '部分模块库暂时无法访问，当前列表可能不完整。') : null,
+        data?.referenceUnavailable ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '上游参考库暂时读不到，不影响本分支模块安装。') : null,
         data && data.ok !== false && !shown.length ? h(Empty, { icon: '🐟', text: list.length ? '没有符合条件的模块' : '市场里还没有模块' }) : null,
         shown.length ? h('div', { className: 'ab-grid', style: { gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' } }, shown.map(card)) : null,
         h(ModuleTutorial, { toast }))

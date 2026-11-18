@@ -145,7 +145,9 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
       for (const e of index.modules || []) byId.set(e.id, { ...e, registry: key, assetsBase: String(index.assetsBase || '') })
       for (const r of index.revoked || []) revoked.push({ ...r, registry: key })
     }
-    const index = { schema: 1, modules: [...byId.values()], revoked, generatedAt: ok.map((x) => x.index.generatedAt || '').sort().at(-1) || '', partial: got.some((x) => x.error) }
+    const requiredError = got.some((x) => x.key === 'mac' && x.error)
+    const referenceUnavailable = got.some((x) => x.key === 'upstream' && x.error)
+    const index = { schema: 1, modules: [...byId.values()], revoked, generatedAt: ok.map((x) => x.index.generatedAt || '').sort().at(-1) || '', partial: requiredError, referenceUnavailable }
     cache = { at: Date.now(), index }
     return index
   }
@@ -193,7 +195,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
     })
     const regOf = (id) => readSource(id)?.registry || 'upstream'
     const revoked = entries.concat(delisted).filter((e) => e.installed && revokedReason(index, e.id, e.installed, regOf(e.id))).map((e) => ({ id: e.id, version: e.installed, reason: revokedReason(index, e.id, e.installed, regOf(e.id)) }))
-    return { list: [...entries, ...delisted], revoked, generatedAt: index.generatedAt || '', partial: Boolean(index.partial) }
+    return { list: [...entries, ...delisted], revoked, generatedAt: index.generatedAt || '', partial: Boolean(index.partial), referenceUnavailable: Boolean(index.referenceUnavailable) }
   }
 
   async function download(index, e) {
