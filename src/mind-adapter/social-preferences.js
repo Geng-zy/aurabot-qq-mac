@@ -13,7 +13,7 @@ export function createSocialPreferences({ mind, mem, isOwnerChat, shortId, speak
       if (rel) parts.push(rel)
       const scene = mind.personality.sceneText({ group, withOwner: people.some((p) => mind.isOwner(p)) })
       if (scene) parts.push(scene)
-      return parts.join('\n').slice(0, 1200)
+      return parts.join('\n')
     } catch (error) {
       return ''
     }

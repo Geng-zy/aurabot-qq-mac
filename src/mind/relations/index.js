@@ -265,7 +265,11 @@ export function createRelations(deps) {
    */
   function describe(ids, { nameOf = (id) => id, window = '', privateDetails = true, canSee = () => true } = {}) {
     const lines = []
-    for (const id of [...new Set(ids)].slice(0, 3)) {
+    const ordered = [...new Set(ids)].sort((a, b) => {
+      const A = get(a), B = get(b)
+      return Number(B.owner) - Number(A.owner) || B.rel.closeness - A.rel.closeness || (B.rel.lastContact || 0) - (A.rel.lastContact || 0)
+    }).slice(0, 3)
+    for (const id of ordered) {
       const g = get(id)
       const r = g.rel
       const t = g.tom
@@ -347,6 +351,8 @@ export function createRelations(deps) {
         if (t.mood && now() - t.mood.at < 12 * 3600000) more.push('他最近' + t.mood.text)
         if (r.topics.length) more.push('你们常聊：' + r.topics.slice(-2).map((x) => x.text).join('、'))
         if (r.limits.length) more.push('别碰：' + r.limits.slice(-2).map((x) => x.text).join('、'))
+        if (r.conflict) more.push('你们现在有点别扭：' + r.conflict)
+        if (r.moments.length) more.push('你们一起记得：' + r.moments.slice(-2).map((x) => x.text).join('、'))
         if (r.knots.length) more.push('还有件事没解开：' + r.knots.slice(-1).map((x) => x.text).join('、'))
         if (t.note) more.push(t.note)
       }

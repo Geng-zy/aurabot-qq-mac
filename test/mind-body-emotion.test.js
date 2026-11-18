@@ -367,9 +367,11 @@ test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
 
 test('聊天里的关系提示是相处分寸，不是人物档案', () => {
   const { a } = adapter()
+  a.mind.relations.edit('qq:2', { conflict: '上次聊得有点僵', moments: ['一起看过海'] })
   const text = a.mind.relations.prompt(['qq:2'], { nameOf: () => '甲', window: 'qq:private:2', privateDetails: true })
   assert.match(text, /【眼前的人】/)
   assert.match(text, /甲/)
+  assert.match(text, /有点别扭|一起记得/)
   assert.doesNotMatch(text, /closeness|liking|trust|【你和眼前的人/)
 
   const { a: b } = adapter()
