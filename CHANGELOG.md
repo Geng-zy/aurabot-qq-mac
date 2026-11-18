@@ -4,11 +4,15 @@
 
 ## 1.5.10
 
-- 移除 AuraBot 的自更新检查与一键更新：插件更新统一交给 DSH 插件管理器，AuraBot 只保留只读的版本说明（`/changelog`）。
-- 兼容旧模块路径的 5 个 re-export 文件标记为 deprecated，下个大版本删除；模块市场明确为「AuraBot 模块库」，DSH 插件仍走 DSH 插件市场。
-- 角色措辞统一：插件、面板、提示词和文档里的旧称呼统一改为「管理员」；旧配置里的默认称呼在加载时自动迁移，群管理角色改称「群管理员」以免混淆。
-- 核对后保留 `models-list.js`（临时外部服务的模型发现）和 `tools/tools.js`（DSH defineTool 的 JSON Schema 适配层），二者与 DSH 同名能力不等价。
-
+- 桌宠、抖音、小黑盒彻底外置：核心不再保留专用面板、`/panel/pet/*` 代理、专用配置和根路由兼容；需要时从「AuraBot 模块库」单独安装。群管模块也统一改为 `/ext/group-admin/...`。
+- 删除 5 个旧模块路径 re-export（`modules/qq-api`、`qq-tools`、`qzone-social`、`features/qzone-social.js`）。旧插件迁移时按新路径改 import，不再由核心 shim 兜底。
+- 保留 `qq_api` 的 100+ OneBot 动作和 QZone / 空间互动；这两块不受外置影响。
+- 客户端按钮、开关和提示条优先使用 DSH `@deepseek-ai/dsh-client-ui-primitives`；宿主没有该模块时回退到原有控件。
+- 修复连接页「一键诊断 / 测试连接 / 重新连接」间距过紧，以及翻唱「装到哪里」占用过高的问题。
+- 心智对接层和记忆核心完成模块化拆分；行为保持不变。
+- dsh-purge 只适配当前最新版 1.7.18，不再维护旧版本矩阵。
+- 移除 AuraBot 自更新检查与一键更新：插件更新统一交给 DSH 插件管理器，AuraBot 只保留只读版本说明（`/changelog`）。
+- 角色措辞统一：插件、面板、提示词和文档里的旧称呼统一改为「管理员」；旧配置里的默认称呼在加载时自动迁移。
 ## 1.5.9
 
 - 适配 dsh-purge 1.7.15 与 1.7.18：两版的核心 rewrite、complete 保注入和 `purge_*` 工具行为一致；新增跨版本集成用例，可直接用 `PURGE_IDENTITY_PATH` 指向任一版本验证。
