@@ -418,7 +418,7 @@ test('主回复的思考深度不会被场景包装覆盖，隐私判断也有�
     await a.mind.conversation.respond({ window: 'demo:private:1', speaker: 'qq:1', msgId: 'x', text: '请逐步解释一下' })
     const speak = asks.find((o) => o.scene === 'speak')
     assert.equal(speak.reasoningEffort, 'max', '多步骤回复仍用 max，不被包装成 undefined')
-    assert.equal(a.mind.setting('models.effort.privacy'), 'low', '隐私判断有独立档位')
+    assert.equal(a.mind.setting('models.effort.privacy'), 'high', '隐私判断有独立档位')
   } finally { a.close() }
 })
 
@@ -428,7 +428,7 @@ test('聊天停下来自动记；困了在夜里睡着，睡够了醒来，醒�
   set(T0 + 10 * 60000)
   await a.encodeTick()
   assert.equal(asks.filter((o) => o.scene === 'record').length, 1)
-  assert.equal(asks[0].reasoningEffort, 'low', '记经历用低思考深度')
+  assert.equal(asks[0].reasoningEffort, 'high', '记经历用高思考深度')
   assert.deepEqual((await a.bodyTick()).map((e) => e.kind), [], '白天不睡')
   set(Date.UTC(2026, 10, 10, 15, 50)) // 上海 23:50
   assert.deepEqual((await a.bodyTick()).map((e) => e.kind), ['slept'])

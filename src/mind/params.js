@@ -155,11 +155,11 @@ export const PARAMS = [
 const effortOptions = [{ value: 'low', label: '低' }, { value: 'high', label: '高' }, { value: 'max', label: '最高' }]
 for (const [scene, label, def] of [
   ['casualOwner', '日常聊天 · 管理员', 'high'], ['casualOther', '日常聊天 · 其他人', 'low'], ['important', '重要对话或冲突', 'high'], ['task', '多步骤任务', 'max'],
-  ['record', '整理对话和记录状态', 'low'], ['appraisal', '评价刚发生的事', 'low'],
-  ['reconsolidate', '回忆后重新整理', 'low'], ['think', '日常念头的远程备用', 'low'], ['privacy', '判断私密内容能不能说', 'low'],
+  ['record', '整理对话和记录状态', 'high'], ['appraisal', '评价刚发生的事', 'high'],
+  ['reconsolidate', '回忆后重新整理', 'low'], ['think', '日常念头的远程备用', 'low'], ['privacy', '判断私密内容能不能说', 'high'],
   ['consolidate', '睡眠整理', 'high'], ['review', '日、周和月回顾', 'high'], ['dream', '正式做梦', 'high'],
-  ['deep', '深想', 'high'], ['outreach', '主动找人', 'high'], ['reminder', '约定提醒', 'low'],
-  ['creative', '主动创作的灵感', 'low'], ['permission', '申请权限', 'high'], ['traits', '从人格卡推算性格', 'high'], ['selfstory', '写自我故事', 'max'],
+  ['deep', '深想', 'max'], ['outreach', '主动找人', 'high'], ['reminder', '约定提醒', 'low'],
+  ['creative', '主动创作的灵感', 'high'], ['permission', '申请权限', 'high'], ['traits', '从人格卡推算性格', 'high'], ['selfstory', '写自我故事', 'max'],
 ]) PARAMS.push({
   key: 'models.effort.' + scene, group: 'models', label, def, options: effortOptions, source: '设计决定',
   hint: '用于这个任务；日常聊天主回复还会按内容自动归到日常/重要/多步骤。用时和成本随档位增加，宿主模型支持的档位以模型配置为准。',

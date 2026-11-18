@@ -30,7 +30,7 @@ export function localModelPaths(setting) {
   }
 }
 
-export const EFFORT = { record: 'low', appraisal: 'low', reconsolidate: 'low', think: 'low', privacy: 'low', casualOwner: 'high', casualOther: 'low', consolidate: 'high', dream: 'high', deep: 'high', outreach: 'high', reminder: 'low', permission: 'high', traits: 'high', selfstory: 'high' }
+export const EFFORT = { record: 'high', appraisal: 'high', reconsolidate: 'low', think: 'low', privacy: 'high', casualOwner: 'high', casualOther: 'low', consolidate: 'high', review: 'high', dream: 'high', deep: 'max', outreach: 'high', reminder: 'low', creative: 'high', permission: 'high', traits: 'high', selfstory: 'max' }
 
 /** 发出去的 OneBot 消息段 → 她「说了什么」的文字。 */
 export function segmentsText(message, note = '') {
