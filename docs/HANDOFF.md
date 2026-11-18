@@ -5,7 +5,7 @@
 ## 接手所需环境
 
 - 代码与离线测试使用 Node.js ≥ 22.13。依赖由 DSH 宿主提供，源仓库无需先下载 QQ 网关、模型或媒体环境来跑 `npm test`。
-- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.5.10` 的工作区恢复按 DSH `0.2.2-rc.4` 源码核对。内置本地生图另需 macOS 26 或更新版本。
+- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.5.10` 的工作区恢复按 DSH `0.2.2-rc.3` 适配。内置本地生图另需 macOS 26 或更新版本。
 - 向原仓库 `main` 推送和发 GitHub Release 需要仓库写权限。在终端用 `gh auth status` 确认 GitHub CLI 登录了有权限的账号。开发和离线测试不需要 GitHub 写权限。
 
 ```bash

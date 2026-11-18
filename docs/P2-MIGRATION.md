@@ -48,11 +48,11 @@ node scripts/check-syntax.mjs
 node --test "test/**/*.test.js"
 ```
 
-当前：314 个文件语法通过，1528 个测试通过，0 失败。
+当前：359 个文件语法通过，1526 个测试通过，0 失败。
 
 ## 6. 真实环境核验（2026-11-17）
 
-隔离 profile：`DSH_HOME=/tmp/dsh-e2e-home`，DSH `0.2.2-rc.4`，AuraBot `1.5.10`，dsh-purge `1.7.20`，Mock OneBot + fake OpenAI provider。
+隔离 profile：`DSH_HOME=/tmp/dsh-e2e-home`，DSH `0.2.2-rc.3`，AuraBot `1.5.10`，dsh-purge `1.7.20`，Mock OneBot + fake OpenAI provider。
 
 - `/aurabot/api/state` 返回 `200`，`onebot.state=connected`，`ownerName` 从旧默认值迁移为 `管理员`；
 - 私聊消息进入真实 DSH 会话，模型请求的 system 长 27,849 字符；
