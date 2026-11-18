@@ -182,7 +182,7 @@ export function createInner(deps) {
     const ms = deps.motivation.state(b)
     if (ms.wants.length) parts.push(`（你心里有点想${ms.wants.slice(0, 3).map((w) => w.text).join('；')}，但不着急。）`)
     const can = deps.motivation.motives({ body: b, mood: e.mood }).filter((m) => m.available).map((m) => m.label)
-    if (can.length) parts.push(`（现在能做的：${can.slice(0, 6).join('、')}。）`)
+    if (can.length) parts.push(`（现在能做的：${can.slice(0, 5).join('、')}。）`)
     if (s.boredom >= 0.5) parts.push('（有点无聊了）')
     const last = s.log.filter((x) => !x.repeated && now() - x.at < AFFECT_WINDOW && (x.deep || !x.feel || emotionOf(x.feel.name)?.v >= 0)).slice(0, 1)
       .map((x) => `${shortTime(x.at, deps.tz())} ${x.deep?.thought || x.thought}`)

@@ -7,8 +7,8 @@ import { dirname } from 'node:path'
 import { dataDir, ensureDir } from '../../core/store.js'
 
 const DEFAULT_TTL = 5 * 60_000
-const DEFAULT_MAX_ITEMS = 500
-const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
+const DEFAULT_MAX_ITEMS = 300
+const DEFAULT_MAX_BYTES = 8 * 1024 * 1024
 
 const ttlForKind = (kind) => {
   if (kind === 'proactive') return 60_000

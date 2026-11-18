@@ -25,7 +25,7 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
 
   function persist() {
     const finished = [...records.values()].filter((item) => !ACTIVE.has(item.state)).sort((a, b) => b.updatedAt - a.updatedAt)
-    for (const item of finished.slice(500)) records.delete(item.id)
+    for (const item of finished.slice(300)) records.delete(item.id)
     writeJson(file, [...records.values()])
   }
   if (Array.isArray(saved) && saved.some((item) => ACTIVE.has(item?.state))) persist()
@@ -80,7 +80,7 @@ export function createTasks({ file = dataDir('creative-tasks.json'), log, now = 
   }
 
   function start({ kind, chatId, requesters = [], run }) {
-    if (closed || waiting.size >= 16) return { ok: false, message: '后台任务暂时排满了' }
+    if (closed || waiting.size >= 12) return { ok: false, message: '后台任务暂时排满了' }
     let id
     do { id = randomUUID().slice(0, 8) } while (records.has(id))
     const item = { id, kind, chatId: normChat(chatId), requesters: [...new Set(requesters)], state: 'queued', stage: '', updatedAt: now() }

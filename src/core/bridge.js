@@ -76,7 +76,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
       const r = await fn.apply(m, Array.isArray(args) ? args : args === undefined ? [] : [args])
       return { ok: true, result: safeJson(r) }
     },
-    events: ({ after = 0, limit = 100 } = {}) => ({ ok: true, seq, list: events.filter((e) => e.seq > Number(after || 0)).slice(0, Math.min(1000, Number(limit) || 100)) }),
+    events: ({ after = 0, limit = 100 } = {}) => ({ ok: true, seq, list: events.filter((e) => e.seq > Number(after || 0)).slice(0, Math.min(600, Number(limit) || 100)) }),
   }
 
   // ---------- 1. 给别的 DSH 插件的服务 ----------

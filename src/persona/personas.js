@@ -39,7 +39,7 @@ export function parsePersona(id, raw) {
 }
 
 const safeId = (id) => String(id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
-const MAX_PERSONA_CHARS = 50000
+const MAX_PERSONA_CHARS = 12000
 
 export function listPersonas() {
   seedPersonas()

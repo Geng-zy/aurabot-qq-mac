@@ -11,7 +11,7 @@ export function createOutreach({ mind, opts, ownerOf, ownerChat, parseChat, now,
     const list = sharesOf().filter((x) => x.by !== 'bili' && now() - x.at < SHARE_TTL && x.shown < 2)
     if (!list.length) return ''
     mind._store.set('shares', list.map((x) => ({ ...x, shown: x.shown + 1 })))
-    return '（你之前刷到、想给他看的：' + list.slice(0, 5).map((x) => x.text + (x.url ? ' ' + x.url : '') + (x.hint ? `（${x.hint}）` : '')).join('；') + '。聊到合适的时候可以提，不提也行。）'
+    return '（你之前刷到、想给他看的：' + list.slice(0, 4).map((x) => x.text + (x.url ? ' ' + x.url : '') + (x.hint ? `（${x.hint}）` : '')).join('；') + '。聊到合适的时候可以提，不提也行。）'
   }
 
   function outreachState() {
@@ -65,7 +65,7 @@ export function createOutreach({ mind, opts, ownerOf, ownerChat, parseChat, now,
       const at = now()
       o.day === mind.today() ? o.count++ : (o.day = mind.today(), o.count = 1)
       if (lastOwnerAt < startedAt) o.pending = { at, reason: why, kind }
-      o.log = [{ at, reason: why, kind }, ...o.log].slice(0, 100)
+      o.log = [{ at, reason: why, kind }, ...o.log].slice(0, 75)
       mind._store.set('outreach', o)
       return { ok: true, summary: why, outcome: 0.5 }
     } catch (error) {
