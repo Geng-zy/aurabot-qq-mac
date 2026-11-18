@@ -566,7 +566,7 @@ test('睡着、刚聊完、正在做事时不走神；内心活动可以关掉',
 
 test('真正做完的自主行动会留一条简短经历', async () => {
   const { a } = adapter()
-  a.moduleApi('demo').offer({ id: 'browse', label: '逛热榜', record: true, run: async () => ({ ok: true, summary: '看完了几条' }) })
+  a.moduleApi('demo').offer({ id: 'browse', label: '逛热榜', run: async () => ({ ok: true, summary: '看完了几条' }) })
   const r = await a.runAction('demo:browse')
   assert.equal(r.ok, true)
   const entries = a.mind.memory.list({ q: '看完了几条' })

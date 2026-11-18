@@ -184,7 +184,7 @@ export function createMotivation(deps) {
    */
   function offer(a) {
     if (!a || !a.id || typeof a.run !== 'function') throw new Error('动作要有 id 和 run')
-    actions.set(a.id, { effort: 0.2, delayHours: 0.05, cooldownMinutes: 60, payoff: 0.6, keywords: [], needs: {}, record: false, ...a })
+    actions.set(a.id, { effort: 0.2, delayHours: 0.05, cooldownMinutes: 60, payoff: 0.6, keywords: [], needs: {}, record: true, ...a })
     return () => actions.delete(a.id)
   }
 
