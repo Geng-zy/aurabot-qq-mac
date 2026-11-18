@@ -99,7 +99,7 @@ export function createModulePanel({ state, isDisposed, note, log, getConfig, bui
 
   async function handle(path, req, res) {
     const r = routes.get(path)
-    if (!r || !live.has(r.id)) return { ok: false, message: '这个功能所在的模块没开（面板「已安装」里看看）', moduleOff: true }
+    if (!r || !live.has(r.id)) return { ok: false, message: '这个功能所在的模块没开（面板「扩展 → 模块管理」里看看）', moduleOff: true }
     return r.handler(req, res)
   }
 

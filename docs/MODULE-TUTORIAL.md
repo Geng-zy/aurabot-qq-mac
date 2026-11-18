@@ -29,7 +29,7 @@ export default {
 }
 ```
 
-能用的接口都在数据目录的 `modules/API.md`。不会写代码也没关系：在「已安装」页点「复制给 DSH」，让 DSH 帮你写。
+能用的接口都在数据目录的 `modules/API.md`。不会写代码也没关系：在「扩展 → 模块管理」点「复制给 DSH」，让 DSH 帮你写。
 
 **模块要让她「自己去做」一件事**（逛什么、刷什么、写点什么）时，别用 `api.every` 定时替她做，交给心智核心，由她闲着、想做的时候自己去；做过、看过的事记成她的经历：
 
@@ -53,7 +53,7 @@ setup(api) {
 
 ## 2. 放进仓库
 
-在 GitHub 上 Fork [macOS 分支模块库](https://github.com/Geng-zy/aurabot-qq-mac-mods)，克隆到本地，然后把模块文件夹复制到 `modules/fortune/`。一个模块至少要这四个文件：
+在 GitHub 上 Fork [macOS 分支模块库](https://github.com/Geng-zy/aurabot-qq-mac-mods)，克隆到本地，然后把模块文件夹复制到 `modules/fortune/`。本分支模块库只收按当前 `api: 1` 写的模块；上游模块只读参考，不要直接搬进来。一个模块至少要这四个文件：
 
 ```
 modules/fortune/
@@ -80,7 +80,7 @@ modules/fortune/
   "author": "你的名字",
   "license": "MIT",
   "api": 1,
-  "minPluginVersion": "1.2.0",
+  "minPluginVersion": "1.5.10",
   "requires": [],
   "capabilities": []
 }
@@ -88,11 +88,12 @@ modules/fortune/
 
 - `id`、`version`、`api` 要和 `index.mjs` 里的一样。
 - `category` 从这些里选：`platform` 逛平台、`social` 聊天互动、`creative` 创作、`desktop` 桌面、`manage` 管理、`tool` 工具。
-- `capabilities` 写模块用到的能力：联网 `network`、读写文件 `filesystem`、启动程序 `process`、动态执行代码 `dynamic-code`、读写配置 `plugin-config`、用内部对象 `plugin-internals`。安装前，用户会看到这份声明。
+- 实现只用 `api.*`，不要 import 插件 `src/` 内部路径。
+- `capabilities` 写模块用到的能力：联网 `network`、读写文件 `filesystem`、启动程序 `process`、动态执行代码 `dynamic-code`、读写配置 `plugin-config`、用内部对象 `plugin-internals`。安装前，用户会看到这份声明；能力声明不是沙箱，代码里仍要限制范围并处理错误。
 
 ## 3. 本地检查
 
-在模块库根目录运行 `node scripts/pack.mjs --check`，检查模块清单和入口。运行 `node scripts/pack.mjs` 可在 `dist/` 试生成 ZIP 和索引。还要在 AuraBot 的模块管理页确认能加载并试用。
+在模块库根目录运行 `node scripts/pack.mjs --check`，检查模块清单和入口。这个命令不会生成 ZIP，也不会改索引。运行 `node scripts/pack.mjs` 可在 `dist/` 试生成 ZIP 和索引。还要在 AuraBot 的模块管理页确认能加载并试用。
 
 ## 4. 提交给模块库（可选）
 
