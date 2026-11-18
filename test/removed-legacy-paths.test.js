@@ -28,3 +28,11 @@ test('STABLE_ROUTES 不再存在，社区模块统一走 /ext', () => {
   assert.equal(src.includes('STABLE_ROUTES'), false)
   assert.match(src, /routesAtRoot\s*=\s*\(id\)\s*=>\s*builtinDefs\.has\(id\)/)
 })
+
+test('旧配置键不再进入核心配置', async () => {
+  const { normalize } = await import('../src/core/config.js')
+  const cfg = normalize({ douyin: { enabled: true }, heybox: { enabled: true }, pet: { enabled: true } })
+  assert.equal('douyin' in cfg, false)
+  assert.equal('heybox' in cfg, false)
+  assert.equal('pet' in cfg, false)
+})

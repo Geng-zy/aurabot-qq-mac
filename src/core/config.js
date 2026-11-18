@@ -316,6 +316,10 @@ function normalizeNotice(v, legacyNotify) {
 
 export function normalize(raw) {
   const c = deepMerge(DEFAULTS, raw)
+  // 桌宠 / 抖音 / 小黑盒已外置：旧配置里残留的键不再进入核心配置。
+  delete c.pet
+  delete c.douyin
+  delete c.heybox
   c.enabled = bool(c.enabled, false)
   c.dryRun = bool(c.dryRun, true)
   c.debug = bool(c.debug, false)
