@@ -182,6 +182,22 @@ test('睡觉：白天不睡；醒着很久又到了夜里就睡；睡够了早�
   assert.ok(m.body.state().energy > 0.8, '睡一觉精力回来了')
 })
 
+test('离线超过一天：身体补算睡眠周期，不会回来才突然睡', () => {
+  const { m, set } = mind({ settings: { 'body.hunger': false } })
+  set(T0 + 3 * 24 * H)
+  const body = m.body.state()
+  assert.equal(body.asleep, false, '下午应该是醒着的')
+  assert.ok(body.lastSleep && body.lastSleep.hours > 5, '离线期间至少睡过一觉')
+  assert.ok(body.energy > 0.4, '补算后精力不是空的')
+})
+
+test('聊天里的身体提示是行为倾向，不主动播报状态', () => {
+  const { m } = mind()
+  const text = m.body.prompt({ energy: 0.1, sleepiness: 0.2, hunger: 0.8, groggy: false, shift: 0 })
+  assert.match(text, /有点累|很饿/)
+  assert.doesNotMatch(text, /【身体】|精力|困意/)
+})
+
 test('和管理员聊着就熬着不睡，代价是第二天早上更困', () => {
   const { m, set } = mind({ settings: { 'body.hunger': false } })
   set(T0 + 15.8 * H)
@@ -356,7 +372,7 @@ test('上下文里有身体和心情；规矩里教她写 <feel>', async () => {
   const chat = { chatId: 'private:1', kind: 'private', userId: '1' }
   await a.beforeTurn(chat, '在吗', ['1'])
   const ctx = a.contextFor({ chat })
-  assert.match(ctx, /【身体】精力/)
+  assert.match(ctx, /精神不错|有点累|不用主动报身体状态/)
   assert.match(ctx, /【此刻的你】/)
   assert.match(ctx, /不是眼前的人/)
   assert.doesNotMatch(a.contextFor({ chat: { chatId: 'group:9', kind: 'group' } }), /被抢话/)

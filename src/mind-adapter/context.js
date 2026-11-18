@@ -60,14 +60,14 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
       const includeHunger = args.chat?.kind === 'system' || args.userText === undefined || isFoodTopic(args.userText)
       if (args.publicOnly) {
         const { body, mood } = mind.feeling()
-        return [...parts, mind.body.describe(body, { includeHunger }), mind.emotion.prompt({ body, people: [] })].join('\n')
+        return [...parts, mind.body.prompt(body, { includeHunger }), mind.emotion.prompt({ body, people: [] })].filter(Boolean).join('\n')
       }
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)
       const b = args.chat ? mind.body.state({ persist: false }) : null
       // 身体和心情：QQ 聊天、她自己做事的后台会话（写空间、整理东西……）都带上，哪里都是同一个她
       if (args.chat) {
-        parts.push(mind.body.describe(b, { includeHunger }))
+        parts.push(mind.body.prompt(b, { includeHunger }))
         const people = args.chat.kind === 'system' ? [] : speakersOf.get(chatId) || [personIn(chatId, args.chat.userId)].filter(Boolean)
         parts.push(mind.emotion.prompt({ window: chatId, people, body: b, name: (pid) => (mind.isOwner(pid) ? '管理员' : mind.person(pid)?.name || shortId(pid)) }))
       }

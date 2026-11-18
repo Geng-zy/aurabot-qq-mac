@@ -11,6 +11,7 @@ import { localParts, parseRange, parseHm, minuteOfDay } from '../clock.js'
 
 const HOUR = 3600000
 const MIN = 60000
+const CATCHUP_GAP = 24 * HOUR
 const clamp = (x, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, Number(x) || 0))
 
 /** 时区相对 UTC 的偏移（小时）。 */
@@ -69,14 +70,18 @@ export function createBody(deps) {
     s.tz = tz
   }
 
-  /** 时间推进到 at：精力、困、饿按时间常数变化。返回这段时间里发生的事。 */
-  function advance(s, at) {
+  /**
+   * 时间推进到 at：精力、困、饿按时间常数变化。
+   * 超过一天的离线间隔会补算睡眠周期，但只留下最终状态，不补发一堆历史事件。
+   */
+  function advance(s, at, { sleep = false } = {}) {
     const events = []
     followTimezone(s, at)
     const rise = Number(B('sleepRiseHours')) || 18.2
     const decay = Number(B('sleepDecayHours')) || 4.2
     const recover = Number(B('energyRecoverPerHour')) || 0
     const hungerHours = Number(B('hungerHours')) || 5
+    const catchUp = sleep && at - s.at >= CATCHUP_GAP
     let t = s.at
     while (t < at) {
       const dt = Math.min(10 * MIN, at - t)
@@ -96,6 +101,23 @@ export function createBody(deps) {
         s.shift = Math.abs(s.shift) <= step ? 0 : s.shift - Math.sign(s.shift) * step
       }
       t += dt
+      // 长时间离线：按生物钟补睡/醒，否则回来时会“一直醒着然后突然睡”。
+      if (catchUp) {
+        const C = circadian(t, s)
+        const p = propensity(s.S, C)
+        if (!s.asleep) {
+          const stayUp = t - (s.ownerAt || 0) < Number(B('stayUpMinutes') ?? 20) * MIN
+          if (p >= Number(B('sleepThreshold')) && C > 0 && !stayUp) {
+            s.asleep = true
+            s.sleepAt = t
+            s.wokenBy = ''
+          }
+        } else {
+          const n = night()
+          const pastEnd = ((minuteOfDay(t, deps.tz()) - n.end + 1440) % 1440) / 60
+          if (p <= Number(B('wakeThreshold')) || (pastEnd >= 3 && pastEnd < 12)) wakeUp(s, t, '')
+        }
+      }
     }
     s.at = at
     return events
@@ -111,7 +133,7 @@ export function createBody(deps) {
   function tick() {
     const at = now()
     const s = load()
-    const events = advance(s, at)
+    const events = advance(s, at, { sleep: true })
     const C = circadian(at, s)
     const p = propensity(s.S, C)
     if (!s.asleep) {
@@ -222,9 +244,24 @@ export function createBody(deps) {
   function state({ persist = true } = {}) {
     const at = now()
     const s = load()
-    advance(s, at)
+    advance(s, at, { sleep: true })
     if (persist) save(s)
     return view(s, at)
+  }
+
+  /** 给聊天用的自然身体提示：只说会影响怎么说，不让她主动报状态。 */
+  function prompt(v = state(), { includeHunger = true } = {}) {
+    const cues = []
+    if (v.groggy) cues.push('刚睡醒，脑子还慢半拍')
+    else if (v.sleepiness >= 0.75) cues.push('很困，话会短，反应慢')
+    else if (v.energy < 0.25) cues.push('有点累，不想多解释')
+    else if (v.energy >= 0.75) cues.push('精神不错')
+    if (includeHunger) {
+      if (v.hunger >= 0.8) cues.push('很饿，注意力容易飘到吃的上')
+      else if (v.hunger >= 0.6) cues.push('有点饿')
+    }
+    if (v.shift && Math.abs(v.shift) >= 1) cues.push('还在倒时差')
+    return cues.length ? `（${cues.join('；')}；不用主动报身体状态。）` : ''
   }
 
   /** 给她看的身体状态。 */
@@ -243,5 +280,5 @@ export function createBody(deps) {
     return '【身体】' + parts.join('，')
   }
 
-  return { tick, wake, sleepNow, feed, spend, noteOwner, state, describe }
+  return { tick, wake, sleepNow, feed, spend, noteOwner, state, describe, prompt }
 }

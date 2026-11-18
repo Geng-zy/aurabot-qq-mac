@@ -424,11 +424,11 @@ test('群聊摸摸不复读饥饿，私聊也收掉套话，主动问饿不饿�
   try {
     const group = await send(grp(groupId, '777', [{ type: 'at', data: { qq: BOT } }, ...text(comfort)]), '蹭蹭')
     assert.match(group.ctxText, /身体感受自然影响语气/)
-    assert.doesNotMatch(group.ctxText, /【身体】[^\n]*饿/)
+    assert.doesNotMatch(group.ctxText, /有点饿|很饿/)
     const dm = await send(priv(OWNER, text('原有人物口吻回归')), '明天帮你看看。')
-    assert.doesNotMatch(dm.ctxText, /【身体】[^\n]*饿/)
+    assert.doesNotMatch(dm.ctxText, /有点饿|很饿/)
     const food = await send(priv(OWNER, text('饿了吗？饥饿话题回归')), '我还没吃饱呢')
-    assert.match(food.ctxText, /【身体】[^\n]*饿了/)
+    assert.match(food.ctxText, /有点饿|很饿/)
   } finally {
     core._store.set('body', original)
     api.setConfig(cfg)
