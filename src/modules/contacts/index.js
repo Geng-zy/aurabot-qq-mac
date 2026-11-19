@@ -18,6 +18,8 @@ export function cleanId(v) {
 }
 
 /** 白名单增删的纯逻辑：返回 { ok, message, next? }。next = 改完后的这张表（没变化时不给）。 */
+const ownerOf = (cfg) => String(cfg?.platforms?.qq?.ownerQQ || cfg?.ownerQQ || '')
+
 export function planWhitelist(cfg, { action, kind, id }) {
   const act = String(action || '').trim().toLowerCase()
   if (!['add', 'remove'].includes(act)) return { ok: false, message: 'action 只能是 add 或 remove' }
@@ -109,7 +111,7 @@ export default {
       list.push(req)
       saveGroupPending(list)
       const cfg = api.config()
-      if (cfg.ownerQQ && (cfg.profilePerms?.qqFriendRequest || 'owner') !== 'off') {
+      if (ownerOf(cfg) && (cfg.profilePerms?.qqFriendRequest || 'owner') !== 'off') {
         const note = req.comment ? `，验证消息：「${req.comment}」` : ''
         const plain = `${groupRequestText(req, cfg.platforms?.qq?.botQQ || cfg.botQQ)}${note}。可以让我列出待处理的加群申请并通过或拒绝。`
         tellOwner(`${groupRequestText(req, cfg.platforms?.qq?.botQQ || cfg.botQQ)}${note}。这要他拿主意：他让你通过或拒绝，你就去办（能列出待处理的加群申请）。`, plain)
@@ -144,7 +146,7 @@ export default {
       return run(args, cfg)
     }
 
-    const groupOwner = (chat) => chat.kind === 'private' && Boolean(api.config().ownerQQ) && String(chat.userId) === String(api.config().ownerQQ)
+    const groupOwner = (chat) => chat.kind === 'private' && Boolean(ownerOf(api.config())) && String(chat.userId) === ownerOf(api.config())
     const guardedGroup = (chat, sessionId, run) => guarded('qqFriendRequest', chat, sessionId, async (args, cfg) => {
       if (!groupOwner(chat) || !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员私聊才能处理加群申请' }
       return run(args, cfg)
