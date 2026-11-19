@@ -591,7 +591,12 @@ export function apply(ctx) {
   // ---------- 启动 / 看门狗 ----------
   async function watchdog() {
     if (unloaded) return
-    for (const ch of channels.list()) ch.watch?.()
+    for (const ch of channels.list()) {
+      try {
+        if (typeof ch.watch === 'function') ch.watch()
+        else if (typeof ch.state !== 'function' || ch.state() === 'stopped') ch.start()
+      } catch (error) { log.debug(`平台 ${ch.platform} 看门狗失败：`, error.message) }
+    }
   }
   const safe = (fn, label) => () => { Promise.resolve().then(fn).catch((error) => log.warn(`${label}出错：`, error.message)) }
   ctx.effect(() => ctx.interval(safe(watchdog, '看门狗'), 30_000), 'aurabot: 看门狗')
