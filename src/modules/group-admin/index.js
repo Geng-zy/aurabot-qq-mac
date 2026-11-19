@@ -38,12 +38,15 @@ export default {
           // 这一轮里管理员说过话才行；群里别人顺带插话不影响，但谁都不能拿群管对付管理员
           if (!hub.turnHasOwner(sessionId)) return { ok: false, message: '只有管理员能让我做群管操作' }
           const cfg = api.config()
+          const qqCfg = cfg.platforms?.qq || {}
+          const allowGroups = qqCfg.allow?.groups || cfg.allow.groups
+          const ownerQQ = String(qqCfg.ownerQQ || cfg.ownerQQ)
           const gid = Number(group_id || (chat.kind === 'group' ? chat.groupId : 0))
           if (!gid) return { ok: false, message: '不知道是哪个群' }
-          if (!cfg.allow.groups.includes(String(gid))) return { ok: false, message: '这个群不在白名单里' }
+          if (!allowGroups.includes(String(gid))) return { ok: false, message: '这个群不在白名单里' }
           const uid = Number(user_id || 0)
           if (action !== 'notice' && !uid) return { ok: false, message: '要说清楚对谁（QQ 号）' }
-          if (uid && String(uid) === String(cfg.ownerQQ) && action !== 'unban' && action !== 'title') return { ok: false, message: '不能对管理员做这个' }
+          if (uid && String(uid) === ownerQQ && action !== 'unban' && action !== 'title') return { ok: false, message: '不能对管理员做这个' }
           const role = await groupRoles.get(gid, { fresh: true })
           if (role && !groupRoles.canManage(role)) return { ok: false, message: '我在这个群只是普通成员，没有管理权限' }
           if (role === 'admin' && action === 'title') return { ok: false, message: '改专属头衔要群主才行，我只是管理员' }
@@ -63,7 +66,8 @@ export default {
 
     api.route('/groups/roles', async () => {
       const cfg = api.config()
-      const list = await Promise.all(cfg.allow.groups.map(async (gid) => {
+      const groups = cfg.platforms?.qq?.allow?.groups || cfg.allow.groups
+      const list = await Promise.all(groups.map(async (gid) => {
         const role = await groupRoles.get(gid, { fresh: true })
         return { groupId: gid, name: await hub.groupName(String(gid)), role, label: role ? groupRoles.label(role) : '查不到（她在群里吗？）', canManage: groupRoles.canManage(role) }
       }))
