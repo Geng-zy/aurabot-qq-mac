@@ -76,6 +76,7 @@ const sessionKey = (id) => {
   return s.startsWith('session-') ? s.slice(8) : s
 }
 const chatInfo = (chatId) => parseChat(chatId) || { kind: '', id: '', platform: '' }
+const groupKey = (chatId) => { const c = parseChat(chatId); return c?.kind === 'group' ? normChat(chatId) : String(chatId || '') }
 
 /**
  * hooks（扩展模块用，都可以不传）：
@@ -1483,7 +1484,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     outputScope.getStore().checkedText = items.filter((item) => ['text', 'voice'].includes(item.kind)).map((item) => item.value)
     // 一段只有一个人明确 @ / 引用她时，第一条回复引用并 @ 那个人；多人同时叫她不猜。
     // 模型明确选了引用编号时尊重它，不再自动引用另一条。
-    const refs = inGroup ? groupRefs.get(chatInfo(chatId).id) || {} : {}
+    const refs = inGroup ? groupRefs.get(groupKey(chatId)) || {} : {}
     const explicit = items.some((item) => item.replyTo)
     const firstSendable = items.findIndex((item) => item.kind === 'text' || item.kind === 'voice' || item.kind === 'image' || (item.kind === 'sticker' && cfg.stickers.enabled && Boolean(item.value && typeof item.value === 'object' ? item.value : stickers.match(item.value))))
     const feedIndex = opts.feed ? items.findLastIndex(({ kind }) => kind === 'text' || kind === 'voice') : -1
@@ -2467,7 +2468,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (x.mid && x.mid !== '0') refs[i + 1 + refOffset] = { mid: x.mid, uid: x.uid, direct: Boolean(x.direct) }
       return `[${i + 1 + refOffset}] ${line(x)}\n【本条来源】${x.mid && x.mid !== '0' ? '平台收到的' + senderLabel(chat.chatId, x.uid) + '的消息' : '会话事件'}`
     })
-    groupRefs.set(chat.groupId, refs)
+    groupRefs.set(groupKey(chat.chatId), refs)
     const observations = fresh.filter((x) => x.uid && x.observedText).map((x) => ({ speaker: x.uid, text: x.observedText, replyId: x.replyId }))
     const query = fresh.map((x) => x.observedText ?? x.text).filter(Boolean).join('\n')
     // 按每个人最后一次发言的先后排列，供记忆挑选最近的说话人。
@@ -2772,7 +2773,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const refOffset = Math.max(0, ...Object.keys(p.retryRefs || {}).map(Number))
       const gp = await groupPrompt(p.chat, p.mode, p.images, refOffset)
       if (disposed) return
-      if (p.retryRefs) groupRefs.set(gid, { ...p.retryRefs, ...groupRefs.get(gid) })
+      const gkey = groupKey(p.chat.chatId)
+      if (p.retryRefs) groupRefs.set(gkey, { ...p.retryRefs, ...groupRefs.get(gkey) })
       if (gp.speakers.length) lastSpeaker.set(chatId, [...p.senders].pop() || gp.speakers.at(-1))
       const fresh = [{ type: 'text', text: gp.text + hint }, ...gp.images]
       content = p.retryContent ? [...p.retryContent, ...fresh] : fresh
@@ -2810,7 +2812,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       p.retryQuery = p.query
       p.retryObservations = p.observations
       p.retrySpeakers = p.speakers
-      p.retryRefs = groupRefs.get(p.chat.groupId) || {}
+      p.retryRefs = groupRefs.get(groupKey(p.chat.chatId)) || {}
       p.images = []
     }
     const next = pending.get(chatId)
