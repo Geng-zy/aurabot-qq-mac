@@ -17,7 +17,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   let polling = null
   const cfg = () => getConfig()?.platforms?.telegram || {}
   const token = () => String(cfg().token || '').trim()
-  const base = () => `https://api.telegram.org/bot${token()}`
+  const base = () => `${String(cfg().apiBase || 'https://api.telegram.org').replace(/\/+$/, '')}/bot${token()}`
   const ready = () => state === 'connected' && Boolean(me)
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn?.('Telegram 事件处理失败：', error.message) } } }
 

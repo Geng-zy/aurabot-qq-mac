@@ -29,7 +29,11 @@ export function createChannelManager({ log } = {}) {
     of: registry.of,
     can: registry.can,
     status: registry.status,
-    startAll: registry.startAll,
+    startAll() {
+      for (const ch of registry.list()) {
+        try { Promise.resolve(ch.start()).catch((error) => log?.warn?.(`平台 ${ch.platform} 启动失败：`, error.message)) } catch (error) { log?.warn?.(`平台 ${ch.platform} 启动失败：`, error.message) }
+      }
+    },
     stopAll: registry.stopAll,
     /** 订阅所有平台事件；返回取消订阅。 */
     on(fn) {
