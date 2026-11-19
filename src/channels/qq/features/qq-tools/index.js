@@ -85,6 +85,10 @@ export default {
   description: '翻当前聊天的记录（qq_chat_history）；管理员私聊里让她主动给白名单里的人和群发消息（qq_send_message）；把本机文件发到 QQ（qq_send_file，图片会直接显示成图）——私聊里随时能发，群里只在她管理员开口的那一轮能发',
   setup(api) {
     const { hub, onebot } = api.core
+    const qqCfg = () => api.config().platforms?.qq || {}
+    const allowOf = (cfg) => qqCfg().allow || cfg.allow || {}
+    const ownerOf = (cfg) => String(qqCfg().ownerQQ || cfg.ownerQQ || '')
+    const botOf = (cfg) => String(qqCfg().botQQ || cfg.botQQ || '')
     api.tool(({ chat, level, sessionId }) => {
       if (platformOf(chat.chatId) !== 'qq') return []
       const crossRead = api.config().group?.crossRead || 'private'
@@ -105,7 +109,7 @@ export default {
           let elsewhere = false
           if (group) {
             const isOwner = level === 'full' || Boolean(hub.turnSendersAllOwner?.(sessionId))
-            const hit = await resolveGroup(onebot, cfg.allow?.groups || [], group, isOwner)
+            const hit = await resolveGroup(onebot, allowOf(cfg).groups || [], group, isOwner)
             if (hit.error) return { ok: false, message: hit.error }
             const scope = { mode: cfg.group?.crossRead || 'private', hub, onebot, chat, level, sessionId }
             if (hit.id !== String(chat.groupId || '') && !(await canReadGroup(scope, hit.id))) return { ok: false, message: '这个群看不了' }
@@ -120,7 +124,7 @@ export default {
             .filter((m) => (!anchor || String(m.message_id) !== String(Number(anchor))) && !isLegacyDirectRecord(m.message ?? m.raw_message))
             .slice(-n)
           if (!msgs.length) return { ok: true, message: '没翻到聊天记录' }
-          const self = String(api.config().botQQ)
+          const self = botOf(api.config())
           const lines = msgs.map((m) => {
             const p = parseMessageEvent({ ...m, message_type: m.message_type || (groupId ? 'group' : 'private') }, self)
             const who = String(m.user_id ?? m.sender?.user_id) === self ? '你' : (m.sender?.card || m.sender?.nickname || String(m.user_id ?? ''))
@@ -231,7 +235,8 @@ export default {
           const t = String(target || '').trim()
           if (t) {
             const [kind, id] = t.split(':')
-            const okList = kind === 'group' ? cfg.allow.groups : kind === 'private' ? [cfg.ownerQQ, ...cfg.allow.private] : []
+            const allow = allowOf(cfg)
+            const okList = kind === 'group' ? allow.groups : kind === 'private' ? [ownerOf(cfg), ...allow.private] : []
             if (!okList.includes(String(id))) return { ok: false, message: '不在白名单里，不能发' }
             chatId = `${kind}:${id}`
           }
@@ -272,7 +277,8 @@ export default {
           if (!hub.turnSendersAllOwner(sessionId)) return { ok: false, message: '只有管理员开口时才能往别的聊天发，这一轮不是。' }
           const cfg = api.config()
           const [kind, id] = String(target || '').split(':')
-          const okList = kind === 'group' ? cfg.allow.groups : kind === 'private' ? [cfg.ownerQQ, ...cfg.allow.private] : []
+          const allow = allowOf(cfg)
+            const okList = kind === 'group' ? allow.groups : kind === 'private' ? [ownerOf(cfg), ...allow.private] : []
           if (!okList.map(String).includes(String(id))) return { ok: false, message: '不在白名单里，不能发' }
           if (`${kind}:${id}` === chat.chatId) return { ok: false, message: '这就是当前聊天，直接回话就行，别用这个工具' }
           const r = await hub.deliver(`${kind}:${id}`, String(text || ''))
