@@ -26,14 +26,18 @@ export function planWhitelist(cfg, { action, kind, id }) {
   const n = cleanId(id)
   if (!n) return { ok: false, message: '号码不对：要 5~12 位数字的 QQ 号 / 群号' }
   const label = k === 'private' ? 'QQ' : '群'
+  const qqCfg = cfg.platforms?.qq || {}
+  const ownerQQ = String(qqCfg.ownerQQ || cfg.ownerQQ || '')
+  const botQQ = String(qqCfg.botQQ || cfg.botQQ || '')
+  const allow = qqCfg.allow || cfg.allow || {}
   const listName = k === 'private' ? '私聊白名单' : '群白名单'
-  if (k === 'private' && n === String(cfg.ownerQQ || '')) {
+  if (k === 'private' && n === ownerQQ) {
     return act === 'remove'
       ? { ok: false, message: '管理员不能被移出私聊白名单' }
       : { ok: true, message: '管理员本来就能私聊，不用加白名单' }
   }
-  if (k === 'private' && act === 'add' && n === String(cfg.botQQ || '')) return { ok: false, message: '这是我自己的号，不用加' }
-  const list = (k === 'private' ? cfg.allow?.private : cfg.allow?.groups) || []
+  if (k === 'private' && act === 'add' && n === botQQ) return { ok: false, message: '这是我自己的号，不用加' }
+  const list = (k === 'private' ? allow.private : allow.groups) || []
   const has = list.map(String).includes(n)
   if (act === 'add') {
     if (has) return { ok: true, message: `${label} ${n} 已经在${listName}里了` }
@@ -90,7 +94,7 @@ export default {
     const tellOwner = (facts, plain) => {
       const cfg = api.config()
       const voice = api.core.herVoice
-      const send = () => api.sendText(`private:${cfg.ownerQQ}`, plain).catch(() => {})
+      const send = () => api.sendText(`private:${cfg.platforms?.qq?.ownerQQ || cfg.ownerQQ}`, plain).catch(() => {})
       if (!voice) return send()
       Promise.resolve(voice.tell({ facts, fallback: plain })).then((r) => { if (!r) send() }).catch(() => send())
     }
@@ -107,8 +111,8 @@ export default {
       const cfg = api.config()
       if (cfg.ownerQQ && (cfg.profilePerms?.qqFriendRequest || 'owner') !== 'off') {
         const note = req.comment ? `，验证消息：「${req.comment}」` : ''
-        const plain = `${groupRequestText(req, cfg.botQQ)}${note}。可以让我列出待处理的加群申请并通过或拒绝。`
-        tellOwner(`${groupRequestText(req, cfg.botQQ)}${note}。这要他拿主意：他让你通过或拒绝，你就去办（能列出待处理的加群申请）。`, plain)
+        const plain = `${groupRequestText(req, cfg.platforms?.qq?.botQQ || cfg.botQQ)}${note}。可以让我列出待处理的加群申请并通过或拒绝。`
+        tellOwner(`${groupRequestText(req, cfg.platforms?.qq?.botQQ || cfg.botQQ)}${note}。这要他拿主意：他让你通过或拒绝，你就去办（能列出待处理的加群申请）。`, plain)
       }
     }
 
