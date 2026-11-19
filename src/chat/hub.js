@@ -77,6 +77,7 @@ const sessionKey = (id) => {
 }
 const chatInfo = (chatId) => parseChat(chatId) || { kind: '', id: '', platform: '' }
 const groupKey = (chatId) => { const c = parseChat(chatId); return c?.kind === 'group' ? normChat(chatId) : String(chatId || '') }
+const topicKey = (gid) => { const c = parseChat(gid); return c?.kind === 'group' ? normChat(gid) : `qq:group:${String(gid)}` }
 
 /**
  * hooks（扩展模块用，都可以不传）：
@@ -1388,8 +1389,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     log.info(`${chatId}：她选择不说话`)
     const info = chatInfo(chatId)
     if (info.kind === 'group') {
-      groupEngaged.delete(info.id)
-      groupEngagedRun.delete(info.id)
+      groupEngaged.delete(groupKey(chatId))
+      groupEngagedRun.delete(groupKey(chatId))
     }
   }
 
@@ -1532,11 +1533,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (!said) return
     const info = chatInfo(chatId)
     if (info.kind === 'group') {
-      const gid = info.id
-      const said = (groupSaid.get(gid) || []).filter((t) => Date.now() - t < 3600_000)
+      const gkey = groupKey(chatId)
+      const said = (groupSaid.get(gkey) || []).filter((t) => Date.now() - t < 3600_000)
       said.push(Date.now())
-      groupSaid.set(gid, said)
-      groupEngaged.set(gid, Date.now() + ENGAGE_MS) // 在群里说了话 = 加入了话题
+      groupSaid.set(gkey, said)
+      groupEngaged.set(gkey, Date.now() + ENGAGE_MS) // 在群里说了话 = 加入了话题
     }
     logChat(chatId, 'bot', said)
     // 不是这个聊天自己那一轮发的（管理员在私聊里让她去群里说、扩展模块代发）：记下来，下次这个聊天交给她时告诉她自己说过什么
@@ -2055,12 +2056,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 群里的每条消息都记进缓冲（给上下文和「群里在不在聊」用）
     let groupEntry = null
     if (msg.kind === 'group') {
-      const buf = groupBuf.get(msg.groupId) || []
+      const buf = groupBuf.get(groupKey(msg.chatId)) || []
       const entryText = msg.text || (!cfg.voice.asr && msg.records.length ? '[发来一条语音]' : '')
       groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: entryText, observedText: entryText, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers, voicePromise: null, voiceText: '' }
       buf.push(groupEntry)
       while (buf.length > 40) buf.shift()
-      groupBuf.set(msg.groupId, buf)
+      groupBuf.set(groupKey(msg.chatId), buf)
     }
 
     const allowed = checkAllowed(cfg, msg)
@@ -2203,7 +2204,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (msg.kind === 'group') {
       const pol0 = policyFor(cfg.group, cfg.group.overrides, msg.groupId)
       // 群里最近在聊的（窗口内最后几条）
-      const recentWin = (groupBuf.get(msg.groupId) || []).filter((x) => now - x.t < pol0.activeWindowSec * 1000).slice(-6)
+      const recentWin = (groupBuf.get(groupKey(msg.chatId)) || []).filter((x) => now - x.t < pol0.activeWindowSec * 1000).slice(-6)
       const recentTexts = recentWin.map((x) => x.text)
       let memScore = 0
       let pol
@@ -2235,14 +2236,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const quotedBot = await repliedToBot(msg.replyId, msg)
       if (disposed) return
       // 这一条之前最近一条是不是她说的：判断「人呢」是不是在追问她（#182）
-      const gbuf = groupBuf.get(msg.groupId) || []
+      const gbuf = groupBuf.get(groupKey(msg.chatId)) || []
       const priorMsg = gbuf.length >= 2 ? gbuf[gbuf.length - 2] : null
-      const lastBotAt = (groupSaid.get(msg.groupId) || []).at(-1) || 0
+      const lastBotAt = (groupSaid.get(groupKey(msg.chatId)) || []).at(-1) || 0
       const decision = decideGroupReply({
         policy: pol,
         relevance: interest ? interest.relevance : topicRelevance(recentTexts, pol.interests, memScore),
-        engagedUntil: groupEngaged.get(msg.groupId) || 0,
-        engagedRun: groupEngagedRun.get(msg.groupId) || 0,
+        engagedUntil: groupEngaged.get(groupKey(msg.chatId)) || 0,
+        engagedRun: groupEngagedRun.get(groupKey(msg.chatId)) || 0,
         mentioned: msg.mentioned,
         atOthers: cfg.group?.ignoreAtOthers ? msg.atOthers : false,
         atOthersAny: msg.atOthers,
@@ -2252,10 +2253,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         text: msg.wakeText,
         now,
         hour: new Date().getHours(),
-        recentTimes: (groupBuf.get(msg.groupId) || []).map((x) => x.t),
-        interjectTimes: groupInterjects.get(msg.groupId) || [],
-        botReplyTimes: groupSaid.get(msg.groupId) || [],
-        mustTimes: groupMusts.get(msg.groupId) || [],
+        recentTimes: (groupBuf.get(groupKey(msg.chatId)) || []).map((x) => x.t),
+        interjectTimes: groupInterjects.get(groupKey(msg.chatId)) || [],
+        botReplyTimes: groupSaid.get(groupKey(msg.chatId)) || [],
+        mustTimes: groupMusts.get(groupKey(msg.chatId)) || [],
       })
       if (decision.mode === 'must') {
         addressed = true
@@ -2307,7 +2308,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       text = await expandForwards(msg, text)
       if (disposed) return
       if (msg.kind === 'group') {
-        const last = (groupBuf.get(msg.groupId) || []).findLast?.((x) => x.uid === msg.userId)
+        const last = (groupBuf.get(groupKey(msg.chatId)) || []).findLast?.((x) => x.uid === msg.userId)
         if (last) last.text = text
       }
     }
@@ -2441,7 +2442,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 群聊这一段的提示词：之前的几句当背景，上次交给她之后群里新说的话全部列出来，让她看完整段再回。 */
   async function groupPrompt(chat, mode, pendingImages, refOffset = 0) {
     const name = await groupName(chat.groupId)
-    const buf = (groupBuf.get(chat.groupId) || []).slice()
+    const buf = (groupBuf.get(groupKey(chat.chatId)) || []).slice()
     // 时间戳可能同一毫秒：直接取上一轮之后的消息，避免紧接着到达的消息丢失。
     const fresh = buf.filter((x) => !x.fed).slice(-20)
     const older = buf.filter((x) => x.fed).slice(-8)
@@ -2474,7 +2475,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 按每个人最后一次发言的先后排列，供记忆挑选最近的说话人。
     const speakers = [...new Set(fresh.map((x) => String(x.uid || '')).filter(Boolean).reverse())].reverse()
     const hint = mode === 'interject' ? '（没人叫你。只有你对这个话题真有话说、能自然接上时才插一句：接着话题说，别突然开新话题；接不上就只回 [沉默]）'
-      : mode === 'engaged' ? engagedHint(groupEngagedRun.get(chat.groupId) || 0)
+      : mode === 'engaged' ? engagedHint(groupEngagedRun.get(groupKey(chat.chatId)) || 0)
       : '（有人在叫你，看完这一段再回；如果你确实想暂时安静，可以回 [沉默]）'
     const ownerCall = fresh.findLast((x) => x.direct && senderLabel(chat.chatId, x.uid) === '管理员本人')
     const selfQuote = ownerCall?.at && !ownerCall.text && !ownerCall.images?.length && !ownerCall.stickers?.length && ownerCall.quote?.ok && ownerCall.quote.uid === ownerCall.uid
@@ -2756,24 +2757,23 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (p.count > 1) log.info(`${chatId}：合并了 ${p.count} 条消息一起交给她`)
     let content
     if (p.chat.kind === 'group') {
-      const gid = p.chat.groupId
-      groupEngagedRun.set(gid, p.mode === 'engaged' ? (groupEngagedRun.get(gid) || 0) + 1 : 0)
+      const gkey = groupKey(p.chat.chatId)
+      groupEngagedRun.set(gkey, p.mode === 'engaged' ? (groupEngagedRun.get(gkey) || 0) + 1 : 0)
       if (p.mode === 'interject' || p.mode === 'engaged') {
-        const arr = (groupInterjects.get(gid) || []).filter((t) => Date.now() - t < 3600_000)
+        const arr = (groupInterjects.get(gkey) || []).filter((t) => Date.now() - t < 3600_000)
         arr.push(Date.now())
-        groupInterjects.set(gid, arr)
+        groupInterjects.set(gkey, arr)
       }
       // 必回也按小时记账：这段里只要有群友（非管理员）@/叫到她就记一次；管理员触发的不计入（管理员除外）
       if (p.mode === 'must' && p.nonOwnerCall) {
-        const arr = (groupMusts.get(gid) || []).filter((t) => Date.now() - t < 3600_000)
+        const arr = (groupMusts.get(gkey) || []).filter((t) => Date.now() - t < 3600_000)
         arr.push(Date.now())
-        groupMusts.set(gid, arr)
+        groupMusts.set(gkey, arr)
       }
       // 上次会话建不起来时留下的那段（已经标成交给她了）：这次接在前面一起给，编号接着往下排
       const refOffset = Math.max(0, ...Object.keys(p.retryRefs || {}).map(Number))
       const gp = await groupPrompt(p.chat, p.mode, p.images, refOffset)
       if (disposed) return
-      const gkey = groupKey(p.chat.chatId)
       if (p.retryRefs) groupRefs.set(gkey, { ...p.retryRefs, ...groupRefs.get(gkey) })
       if (gp.speakers.length) lastSpeaker.set(chatId, [...p.senders].pop() || gp.speakers.at(-1))
       const fresh = [{ type: 'text', text: gp.text + hint }, ...gp.images]
@@ -3770,8 +3770,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     turnHasOwner,
     turnSenders,
     resetChat,
-    joinTopic: (gid) => groupEngaged.set(String(gid), Date.now() + ENGAGE_MS),
-    leaveTopic: (gid) => groupEngaged.delete(String(gid)),
+    joinTopic: (gid) => groupEngaged.set(topicKey(gid), Date.now() + ENGAGE_MS),
+    leaveTopic: (gid) => groupEngaged.delete(topicKey(gid)),
     chatOfSession,
     isOwnedSession,
     canSeeImages: canSeeFor,
