@@ -1946,7 +1946,7 @@ body[data-ds-dark-theme] .ab-root{
       const owner = String(draft.platforms?.qq?.ownerQQ || draft.ownerQQ || '')
       const bot = String(draft.platforms?.qq?.botQQ || draft.botQQ || '')
       const [names, setNames] = useState({})
-      const savedAllow = st.config?.allow
+      const savedAllow = st.config?.platforms?.qq?.allow || st.config?.allow
       useEffect(() => {
         let active = true
         get('/access/chat-names').then((result) => {
@@ -1970,8 +1970,8 @@ body[data-ds-dark-theme] .ab-root{
       }
 
       return h(Card, { fold: 'qq-draw-allow', title: '生图白名单', desc: '生图启用后，管理员有权限画图。其他人只能在这里勾选的会话里请求画图。' },
-        row('private', '其他好友私聊', (draft.allow?.private || []).map(String).filter((id) => id !== owner && id !== bot), '好友'),
-        row('groups', 'QQ 群', (draft.allow?.groups || []).map(String), '群'))
+        row('private', '其他好友私聊', ((draft.platforms?.qq?.allow || draft.allow)?.private || []).map(String).filter((id) => id !== owner && id !== bot), '好友'),
+        row('groups', 'QQ 群', ((draft.platforms?.qq?.allow || draft.allow)?.groups || []).map(String), '群'))
     }
 
     function Access({ st, draft, setDraft, toast }) {
