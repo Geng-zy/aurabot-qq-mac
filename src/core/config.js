@@ -777,5 +777,5 @@ export function mergeFromPanel(current, incoming) {
   if (incoming?.chatModels?.privates) next.chatModels.privates = incoming.chatModels.privates
   if (incoming?.chatModels?.groups) next.chatModels.groups = incoming.chatModels.groups
   if (incoming?.allow) next.allow = { ...current.allow, ...incoming.allow }
-  return normalize(next)
+  return normalize(reconcilePlatformAliases(next, current))
 }
