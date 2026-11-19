@@ -128,6 +128,7 @@ export function createChannels() {
         state: typeof ch.state === 'function' ? ch.state() : '',
         ready: typeof ch.ready === 'function' ? Boolean(ch.ready()) : false,
         caps: { ...(ch.caps || {}) },
+        outbox: ch.outbox?.status ? ch.outbox.status() : null,
       }))
     },
     stopAll() { for (const ch of map.values()) { try { ch.stop() } catch {} } },

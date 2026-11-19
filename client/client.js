@@ -1658,6 +1658,7 @@ body[data-ds-dark-theme] .ab-root{
           h('div', { style: { marginTop: 12 } }, h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测')),
         ),
         h(Card, { title: '平台连接', desc: '当前注册的平台适配器。QQ 是第一个；以后 Telegram、飞书等会出现在这里。' },
+          h(Row, { label: '启用 QQ 平台', hint: '关掉后插件不会启动 QQ 连接，也不会自动重连' }, f.sw('platforms.qq.enabled')),
           (st.channels || []).length ? h('div', { className: 'ab-list' }, (st.channels || []).map((p) => h('div', { key: p.platform, className: 'ab-li' },
             h('div', { className: 'meta' }, p.label || p.platform,
               h('span', { className: 'ab-muted ab-small' }, ' · ' + (p.state || 'unknown') + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
