@@ -69,7 +69,7 @@ export const DEFAULTS = {
     wsToken: '',
   },
   // 多平台配置的起点。QQ 的旧字段仍保留在 snowluma，normalize 时两边会同步。
-  platforms: { qq: { label: 'QQ', enabled: true, httpUrl: '', wsUrl: '', httpToken: '', wsToken: '', drawAllow: { private: [], groups: [] } } },
+  platforms: { qq: { label: 'QQ', enabled: true, httpUrl: '', wsUrl: '', httpToken: '', wsToken: '', drawAllow: { private: [], groups: [] } }, telegram: { label: 'Telegram', enabled: false, token: '', ownerQQ: '', allow: { private: [], groups: [] } } },
   model: { provider: '', model: '', reasoningEffort: 'low', vision: 'auto' }, // 留空 = 跟随 DSH 默认；vision: auto/on/off
   // 按聊天选模型（管理员在面板「模型」页设）：私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认 > 上面的全局模型；没写的一级退到下一级
   chatModels: { privateDefault: { provider: '', model: '', reasoningEffort: '' }, groupDefault: { provider: '', model: '', reasoningEffort: '' }, privates: {}, groups: {} },
@@ -359,6 +359,9 @@ export function normalize(raw) {
   c.botQQ = qqAccount.botQQ
   c.ownerQQ = qqAccount.ownerQQ
   c.allow = qqAccount.allow
+  const tg = isObj(c.platforms.telegram) ? c.platforms.telegram : {}
+  const tgList = (v) => (Array.isArray(v) ? v : String(v ?? '').split(/[\s,，;；]+/)).map((x) => String(x).trim()).filter(Boolean)
+  c.platforms.telegram = { ...tg, label: 'Telegram', enabled: bool(tg.enabled, false), token: String(tg.token || '').trim(), ownerQQ: String(tg.ownerQQ || '').trim(), allow: { private: tgList(tg.allow?.private), groups: tgList(tg.allow?.groups) } }
   const drawablePrivate = new Set(qqList(c.drawAllow?.private))
   const drawableGroups = new Set(qqList(c.drawAllow?.groups))
   c.drawAllow = {
@@ -661,7 +664,7 @@ export function normalize(raw) {
 }
 
 // 面板里不回传原文的字段：路径（几层都行）
-const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['platforms', 'qq', 'httpToken'], ['platforms', 'qq', 'wsToken'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
+const SECRETS = [['snowluma', 'httpToken'], ['snowluma', 'wsToken'], ['platforms', 'qq', 'httpToken'], ['platforms', 'qq', 'wsToken'], ['platforms', 'telegram', 'token'], ['imageGen', 'apiKey'], ['mind', 'embedKey'], ['song', 'neteaseCookie'], ['bridge', 'token'], ['voice', 'asrApi', 'apiKey'], ['voice', 'breeze', 'key'], ['voice', 'breeze', 'password'], ['backup', 'remote', 'token'], ['backup', 'remote', 'webdav', 'password']]
 // 扩展模块设置里的密码类字段（模块加载时登记）：['ext', 模块id, 字段]
 const extraSecrets = new Map()
 export function registerSecretField(path) { extraSecrets.set(path.join('\u0000'), path) }

@@ -1633,8 +1633,9 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     /** 平台入口：目前只有 QQ，后续适配器会在这里出现。 */
-    function Platforms({ st, go }) {
+    function Platforms({ st, go, draft, setDraft }) {
       const list = st.channels || []
+      const f = useField(draft, setDraft)
       const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
       const items = list.length
         ? h('div', { className: 'ab-list' }, list.map((p) => h('div', { key: p.platform, className: 'ab-li' },
@@ -1644,7 +1645,14 @@ body[data-ds-dark-theme] .ab-root{
           h('div', { style: { marginTop: 6 } }, p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null))))
         : h(Empty, { text: '还没有平台适配器' })
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置。' }, items))
+        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置。' }, items),
+        h(Card, { title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: 'ab-badge' }, '可选平台') },
+          h(Row, { label: '启用 Telegram' }, f.sw('platforms.telegram.enabled')),
+          h(Row, { label: 'Bot Token', hint: '只保存在本机配置里' }, f.text('platforms.telegram.token', { type: 'password', placeholder: draft.platforms?.telegram?.tokenSet ? '已保存' : '123456:ABC...' })),
+          h(Row, { label: '管理员 Telegram ID', hint: '你的 Telegram 用户 ID，可先用 @userinfobot 查' }, f.text('platforms.telegram.ownerQQ')),
+          h(Row, { label: '私聊白名单', hint: '允许私聊的 Telegram 用户 ID，一行一个' }, f.list('platforms.telegram.allow.private', { placeholder: '每行一个用户 ID' })),
+          h(Row, { label: '群白名单', hint: '允许的 Telegram 群 ID，一行一个（群 ID 通常是负数）' }, f.list('platforms.telegram.allow.groups', { placeholder: '每行一个群 ID' })))
+      )
     }
 
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
@@ -5084,7 +5092,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'],

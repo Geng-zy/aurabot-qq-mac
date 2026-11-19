@@ -20,6 +20,7 @@ import { registerSecret } from './core/redact.js'
 import { LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createChannelManager } from './channels/manager.js'
 import { createQqChannel } from './channels/qq/index.js'
+import { createTelegramChannel } from './channels/telegram/index.js'
 import { isOwner } from './chat/access.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
@@ -138,6 +139,7 @@ export function apply(ctx) {
   let approvalRelay = null // DSH 要授权时在 QQ 私聊问管理员（approvalViaQQ 开着才生效）
   const channels = createChannelManager({ log: logger.child('platforms') })
   const qq = channels.add(createQqChannel({ getConfig, log: logger.child('onebot'), canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true }))
+  channels.add(createTelegramChannel({ getConfig, log: logger.child('telegram') }))
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
   // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
