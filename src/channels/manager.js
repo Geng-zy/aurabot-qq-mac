@@ -1,0 +1,46 @@
+// 平台运行时：注册表 + 生命周期 + 统一事件。宿主只面对这个对象，不再自己给每个平台接事件。
+import { createChannels } from './index.js'
+
+export function createChannelManager({ log } = {}) {
+  const registry = createChannels()
+  const handlers = new Set()
+  const offs = new Map()
+
+  function emit(event) {
+    for (const fn of [...handlers]) {
+      try { fn(event) } catch (error) { log?.warn?.('平台事件处理失败：', error.message) }
+    }
+  }
+
+  function add(channel) {
+    registry.add(channel)
+    if (typeof channel.on === 'function') {
+      const off = channel.on((event) => emit({ ...event, platform: channel.platform }))
+      offs.set(channel.platform, off)
+    }
+    return channel
+  }
+
+  return {
+    add,
+    get: registry.get,
+    list: registry.list,
+    platforms: registry.platforms,
+    of: registry.of,
+    can: registry.can,
+    status: registry.status,
+    startAll: registry.startAll,
+    stopAll: registry.stopAll,
+    /** 订阅所有平台事件；返回取消订阅。 */
+    on(fn) {
+      handlers.add(fn)
+      return () => handlers.delete(fn)
+    },
+    dispose() {
+      for (const off of offs.values()) { try { off() } catch {} }
+      offs.clear()
+      handlers.clear()
+      registry.stopAll()
+    },
+  }
+}

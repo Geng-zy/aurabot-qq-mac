@@ -2,6 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createChannels, validateChannel, REQUIRED_CHANNEL_METHODS } from '../src/channels/index.js'
+import { createChannelManager } from '../src/channels/manager.js'
 
 function fake(platform = 'demo', caps = { text: true }) {
   return {
@@ -41,4 +42,20 @@ test('平台注册表统一启动、停止和状态快照', () => {
   assert.equal(started, 1)
   assert.deepEqual(channels.status()[0].platform, 'demo2')
   assert.equal(channels.status()[0].ready, true)
+})
+
+test('ChannelManager 统一订阅和生命周期', () => {
+  const manager = createChannelManager()
+  const ch = fake('managed')
+  let listener
+  ch.on = (fn) => { listener = fn; return () => {} }
+  manager.add(ch)
+  const seen = []
+  const off = manager.on((e) => seen.push(e))
+  listener({ type: 'state', state: 'connected' })
+  assert.deepEqual(seen, [{ type: 'state', state: 'connected', platform: 'managed' }])
+  off()
+  listener({ type: 'state', state: 'stopped' })
+  assert.equal(seen.length, 1)
+  manager.dispose()
 })
