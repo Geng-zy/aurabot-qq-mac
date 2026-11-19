@@ -100,6 +100,14 @@ export function apply(ctx) {
       qq.resetAccount()
       if (qq.state() === 'connected') qq.restart()
     }
+    const beforeTg = before.platforms?.telegram || {}
+    const afterTg = cfg.platforms?.telegram || {}
+    const tgChanged = ['enabled', 'token', 'apiBase'].some((k) => beforeTg[k] !== afterTg[k])
+    if (tgChanged) {
+      const tg = channels.get('telegram')
+      if (!afterTg.enabled || !afterTg.token) tg?.stop()
+      else tg?.restart().catch((error) => log.warn('Telegram 重启失败：', error.message))
+    }
     secrets()
     if (bridge && before.bridge.dshTools !== cfg.bridge.dshTools) bridge.refresh()
     // 管理员在面板里改了「ta怎么称呼你」：以管理员改的为准（她自己改过的叫法被盖掉，记一个版本）

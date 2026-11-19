@@ -12,6 +12,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   let state = 'stopped'
   let me = null
   let offset = 0
+  let startedAt = 0
   let running = false
   let controller = null
   let polling = null
@@ -48,11 +49,18 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     const text = String(msg.text || msg.caption || '')
     const photo = Array.isArray(msg.photo) && msg.photo.length ? msg.photo.at(-1) : null
     const images = photo?.file_id ? [{ type: 'image', data: { file: photo.file_id } }] : []
-    const mention = /(^|\s)@[A-Za-z0-9_]{3,}/.test(text) || Array.isArray(msg.entities) && msg.entities.some((e) => e.type === 'mention')
+    const entities = [...(msg.entities || []), ...(msg.caption_entities || [])].filter((e) => e?.type === 'mention' && Number.isInteger(e.offset) && Number.isInteger(e.length))
+    const handles = entities.map((e) => text.slice(e.offset, e.offset + e.length).replace(/^@/, '').toLowerCase()).filter(Boolean)
+    const botName = String(me?.username || '').toLowerCase()
+    // 文本里的 @ 只有明确 @ 机器人时才算叫她；@ 别人不能被群聊策略当成叫她。
+    const textMention = botName ? new RegExp('(^|\\s)@' + botName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=\\s|$|[，。！？,.!?])', 'iu').test(text) : false
+    const replyToBot = Boolean(msg.reply_to_message?.from?.is_bot && String(msg.reply_to_message.from.id) === String(me?.id))
+    const mentioned = textMention || handles.includes(botName) || replyToBot
+    const atOthers = handles.some((h) => h !== botName) || Boolean(msg.reply_to_message?.from && !replyToBot)
     return {
       platform: PLATFORM, kind, chatId, userId: String(msg.from?.id || msg.chat.id),
       groupId: kind === 'group' ? String(msg.chat.id) : '', nickname: msg.from?.first_name || msg.from?.username || '',
-      text, mentioned: mention, messageId: String(msg.message_id), replyId: msg.reply_to_message?.message_id ? String(msg.reply_to_message.message_id) : '',
+      text, mentioned, atOthers, messageId: String(msg.message_id), replyId: msg.reply_to_message?.message_id ? String(msg.reply_to_message.message_id) : '',
       images, stickers: [], records: [], files: [], segments: [{ type: 'text', data: { text } }, ...images], raw: msg,
     }
   }
@@ -60,6 +68,8 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   async function dispatchUpdate(update) {
     const msg = update?.message || update?.edited_message
     if (!msg) return
+    // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
+    if (Number(msg.date) && Number(msg.date) < startedAt - 2) return
     const parsed = normalize(msg)
     if (parsed) emit({ type: 'message', msg: parsed })
   }
@@ -89,7 +99,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     async start() {
       if (running) return
       if (!getConfig()?.enabled || !cfg().enabled || !token()) { state = 'stopped'; return }
-      running = true; state = 'connecting'; controller = new AbortController()
+      running = true; state = 'connecting'; startedAt = Math.floor(Date.now() / 1000); controller = new AbortController()
       try {
         me = await call('getMe', {}, { signal: controller.signal })
         state = 'connected'
@@ -121,7 +131,10 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       const replyId = (segments || []).find((s) => s.type === 'reply')?.data?.id
       const params = { chat_id: target.id, ...(replyId ? { reply_parameters: { message_id: Number(replyId) } } : {}) }
       let result
-      if (image) result = await call('sendPhoto', { ...params, photo: image.data?.file || image.data?.url, caption: text || undefined })
+      if (image && text.length > 1024) {
+        result = await call('sendPhoto', { ...params, photo: image.data?.file || image.data?.url })
+        await call('sendMessage', { chat_id: target.id, text })
+      } else if (image) result = await call('sendPhoto', { ...params, photo: image.data?.file || image.data?.url, caption: text || undefined })
       else if (text) result = await call('sendMessage', { ...params, text })
       else return { queued: false }
       return { ...result, messageId: String(result?.message_id || '') }

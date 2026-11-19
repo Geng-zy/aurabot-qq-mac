@@ -116,7 +116,9 @@ export function createChannels() {
     },
     /** 启动所有已注册连接；单个平台失败不阻止其他平台。 */
     startAll() {
-      for (const ch of map.values()) { try { ch.start() } catch (error) { /* 由适配器自己的 status 报告 */ } }
+      for (const ch of map.values()) {
+        try { Promise.resolve(ch.start()).catch(() => { /* 由适配器自己的 status 报告 */ }) } catch (error) { /* 同步抛错同样不阻断其他平台 */ }
+      }
     },
     /** 订阅所有连接的事件。 */
     on(fn) {
