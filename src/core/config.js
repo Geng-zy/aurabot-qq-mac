@@ -693,8 +693,27 @@ export function ownerAuthorizationRevision(cfg) {
     && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(binding.revision) ? binding.revision : ''
 }
 
+/**
+ * 平台页和新面板会改 platforms.qq，旧面板/老模块会改顶层字段。
+ * 保存时只有“这次真的改了”的一边覆盖另一边，避免旧镜像把新编辑冲掉。
+ */
+export function reconcilePlatformAliases(next, previous = {}) {
+  const nq = next?.platforms?.qq
+  if (!nq || typeof nq !== 'object') return next
+  const pq = previous?.platforms?.qq || {}
+  const out = { ...next }
+  const changed = (a, b) => JSON.stringify(a) !== JSON.stringify(b)
+  for (const key of ['botQQ', 'ownerQQ']) {
+    const platformChanged = nq[key] !== undefined && nq[key] !== pq[key]
+    const topChanged = next[key] !== undefined && next[key] !== previous[key]
+    if (platformChanged && !topChanged) out[key] = nq[key]
+  }
+  if (nq.allow && changed(nq.allow, pq.allow) && !changed(next.allow, previous.allow)) out.allow = nq.allow
+  return out
+}
+
 export function saveConfig(cfg, previous = loadConfig()) {
-  const c = normalize(cfg)
+  const c = normalize(reconcilePlatformAliases(cfg, previous))
   // Only the previous authoritative configuration can carry an authorization forward.
   if (c.ownerQQ) {
     const revision = c.ownerQQ === previous.ownerQQ ? ownerAuthorizationRevision(previous) : ''
