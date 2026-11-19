@@ -48,6 +48,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     const cfg = getConfig() || {}
     return cfg.enabled !== false && cfg.platforms?.qq?.enabled !== false
   }
+  const botAccount = () => String(getConfig()?.platforms?.qq?.botQQ || getConfig()?.botQQ || '')
 
   let gwState = 'stopped'
   // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
@@ -84,7 +85,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
         gw.stop()
         return
       }
-      if (login.uin === String(getConfig().botQQ)) {
+      if (login.uin === botAccount()) {
         loginOk = true
         verifiedLogin = login
         wrongAccount = ''
@@ -241,7 +242,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     platform: PLATFORM,
     label: 'QQ',
     caps: QQ_CAPS,
-    selfId: () => String(getConfig().botQQ || ''),
+    selfId: () => botAccount(),
     ready,
     state: () => gwState,
     wrongAccount: () => wrongAccount,
