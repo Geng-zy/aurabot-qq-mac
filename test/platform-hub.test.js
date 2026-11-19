@@ -18,6 +18,7 @@ test('hub.sendText 能通过非 QQ 平台发送', async (t) => {
     start() {}, stop() {},
     on() { return () => {} },
     async send(chatId, message) { sent.push({ chatId, message }); return { messageId: 'demo-1' } },
+    async group(chatId) { return { name: chatId.endsWith('2') ? 'Demo 群' : '别的群' } },
     async status() { return { state: 'connected' } },
   }
   const channels = createChannels()
