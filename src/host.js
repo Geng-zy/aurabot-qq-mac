@@ -754,7 +754,8 @@ export function apply(ctx) {
     try {
       const info = await onebot.call('get_login_info', {}, { timeoutMs: 8000 })
       const uin = String(info?.user_id ?? '')
-      return { ok: uin === cfg.botQQ, message: uin === cfg.botQQ ? `连上了：${info.nickname}（${uin}）` : `连上的是 ${uin}，不是机器人号 ${cfg.botQQ}！`, info }
+      const botQQ = String(cfg.platforms?.qq?.botQQ || cfg.botQQ || '')
+      return { ok: uin === botQQ, message: uin === botQQ ? `连上了：${info.nickname}（${uin}）` : `连上的是 ${uin}，不是机器人号 ${botQQ}！`, info }
     } catch (error) {
       return { ok: false, message: error.message }
     }
@@ -764,8 +765,9 @@ export function apply(ctx) {
     if (!cfg.enabled) return { ok: false, message: '先打开总开关' }
     if (cfg.debug) return { ok: false, message: '现在是调试模式，先回到正式模式再测' }
     if (cfg.dryRun) return { ok: false, message: '现在是试运行，先关掉试运行再测' }
-    if (!cfg.ownerQQ) return { ok: false, message: '先填写管理员 QQ 号' }
-    const r = await hub.sendText(`private:${cfg.ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～', undefined, undefined, undefined, { allowQueue: false, system: true })
+    const ownerQQ = String(cfg.platforms?.qq?.ownerQQ || cfg.ownerQQ || '')
+    if (!ownerQQ) return { ok: false, message: '先填写管理员 QQ 号' }
+    const r = await hub.sendText(`qq:private:${ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～', undefined, undefined, undefined, { allowQueue: false, system: true })
     return r && !r.queued && !r.simulated ? { ok: true, message: '发给管理员了，去 QQ 看看' } : { ok: false, message: '未确认送达，请查看日志' }
   })
 
