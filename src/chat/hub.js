@@ -346,14 +346,20 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   async function onNotice(notice) {
     if (!notice) return
     const cfg = getConfig()
+    const platform = notice.platform || 'qq'
+    const platformCfg = cfg.platforms?.[platform] || {}
+    const allow = platformCfg.allow || cfg.allow || {}
+    const owner = String(platformCfg.ownerQQ || cfg.ownerQQ || '')
     const groupId = notice.groupId
-    if (groupId ? !cfg.allow.groups.map(String).includes(groupId) : !cfg.allow.private.map(String).includes(notice.userId) && notice.userId !== String(cfg.ownerQQ)) return
-    const channel = channels.get(notice.platform)
+    const inAllow = groupId ? (allow.groups || []).map(String).includes(groupId) : (allow.private || []).map(String).includes(notice.userId) || notice.userId === owner
+    if (!inAllow) return
+    const channel = channels.get(platform)
     if (!channel) return
     const names = new Map()
     for (const id of notice.people) {
       try {
-        const m = groupId ? await channel.member(`group:${groupId}`, id, { timeoutMs: 3000, retries: 0 }) : null
+        const groupChatId = groupId ? `${platform}:group:${groupId}` : ''
+        const m = groupId ? await channel.member(groupChatId, id, { timeoutMs: 3000, retries: 0 }) : null
         names.set(id, `${m?.card || m?.nickname || (channel.label || '平台') + ' 用户'}(${id})`)
       } catch (error) { names.set(id, `${channel.label || '平台'} 用户(${id})`) }
     }
