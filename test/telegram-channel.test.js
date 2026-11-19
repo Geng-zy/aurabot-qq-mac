@@ -20,7 +20,7 @@ test('Telegram 适配器能启动、发送文本和图片', async () => {
     if (method === 'getChat') return { ok: true, json: async () => ({ ok: true, result: { id: -1001, title: '测试群' } }) }
     return { ok: true, json: async () => ({ ok: true, result: {} }) }
   }
-  const channel = createTelegramChannel({ getConfig: () => ({ platforms: { telegram: { enabled: true, token: 'TOKEN' } } }), fetchImpl, log: { info() {}, warn() {}, debug() {} } })
+  const channel = createTelegramChannel({ getConfig: () => ({ enabled: true, platforms: { telegram: { enabled: true, token: 'TOKEN' } } }), fetchImpl, log: { info() {}, warn() {}, debug() {} } })
   await channel.start()
   assert.equal(channel.ready(), true)
   assert.equal(channel.selfId(), '999')

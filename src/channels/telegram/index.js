@@ -88,7 +88,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     on(fn) { listeners.add(fn); return () => listeners.delete(fn) },
     async start() {
       if (running) return
-      if (!cfg().enabled || !token()) { state = 'stopped'; return }
+      if (!getConfig()?.enabled || !cfg().enabled || !token()) { state = 'stopped'; return }
       running = true; state = 'connecting'; controller = new AbortController()
       try {
         me = await call('getMe', {}, { signal: controller.signal })
@@ -107,6 +107,11 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       controller = null; me = null; state = 'stopped'
     },
     async restart() { this.stop(); await this.start() },
+    watch() {
+      if (state === 'connecting') return
+      if (!getConfig()?.enabled || !cfg().enabled || !token()) { if (state !== 'stopped') this.stop(); return }
+      if (state === 'stopped') this.start().catch(() => {})
+    },
     async status() { return { state, login: me ? { uin: String(me.id), nickname: me.username || me.first_name || '' } : null, endpoint: { wsUrl: '', httpUrl: 'https://api.telegram.org' }, problem: state === 'connected' ? '' : (token() ? '' : 'Bot Token 未配置') } },
     async send(chatId, segments) {
       const target = parseChat(chatId)
