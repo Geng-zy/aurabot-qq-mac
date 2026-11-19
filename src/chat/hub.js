@@ -75,6 +75,7 @@ const sessionKey = (id) => {
   const s = String(id ?? '')
   return s.startsWith('session-') ? s.slice(8) : s
 }
+const chatInfo = (chatId) => parseChat(chatId) || { kind: '', id: '', platform: '' }
 
 /**
  * hooks（扩展模块用，都可以不传）：
@@ -304,12 +305,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
   }
 
-  async function membersOf(groupId) {
-    const hit = groupMembers.get(groupId)
+  async function membersOf(groupId, platform = 'qq') {
+    const key = `${platform}:${groupId}`
+    const hit = groupMembers.get(key)
     if (hit && Date.now() - hit.at < 10 * 60_000) return hit.list
     try {
-      const list = await channelOf(`group:${groupId}`).members(`group:${groupId}`)
-      groupMembers.set(groupId, { at: Date.now(), list })
+      const chatId = `${platform}:group:${groupId}`
+      const list = await channelOf(chatId).members(chatId)
+      groupMembers.set(key, { at: Date.now(), list })
       return list
     } catch (error) {
       log.debug('拉群成员失败，@ 按文字发：', error.message)
@@ -1084,7 +1087,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const channel = channelOf(chatId)
     let segs = opts.literalCode ? [{ type: 'text', data: { text } }] : channel?.textSegments ? channel.textSegments(text, Boolean(getConfig().stickers.faces && channel.caps?.faces)) : [{ type: 'text', data: { text: stripFaceTags(text) } }]
     // 群里的 @名字 / <at:QQ号> 换成真 @（对方会收到提醒）
-    if (!opts.literalCode && chatId.startsWith('group:') && hasMention(text)) segs = expandMentions(segs, await membersOf(chatId.slice(6)), missed)
+    const info = chatInfo(chatId)
+    if (!opts.literalCode && info.kind === 'group' && hasMention(text)) segs = expandMentions(segs, await membersOf(info.id, info.platform), missed)
     if (!segs.length || (segs.length === 1 && segs[0].type === 'text' && !segs[0].data.text.trim())) return null
     return sendSegments(chatId, [...quote(replyId), ...mention(userId, segs), ...segs], (replyId ? '[引用] ' : '') + text.slice(0, 60), opts)
   }
@@ -1152,8 +1156,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   async function pokeBack(chatId) {
     const cfg = getConfig()
     if (channelOf(chatId)?.caps?.poke === false) return
-    const group = chatId.startsWith('group:') ? chatId.slice(6) : ''
-    const target = group ? lastPoker.get(chatId) || lastSpeaker.get(chatId) : chatId.slice(8)
+    const info = chatInfo(chatId)
+    const group = info.kind === 'group' ? info.id : ''
+    const target = group ? lastPoker.get(chatId) || lastSpeaker.get(chatId) : info.id
     if (!target) return
     if (cfg.debug || !cfg.enabled || cfg.dryRun || captureStore.getStore()) return log.info(`试运行（没真戳）→ ${chatId}：戳了戳 ${target}`)
     try {
@@ -1378,10 +1383,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   function silenceTurn(chatId) {
     log.info(`${chatId}：她选择不说话`)
-    if (chatId.startsWith('group:')) {
-      const gid = chatId.slice(6)
-      groupEngaged.delete(gid)
-      groupEngagedRun.delete(gid)
+    const info = chatInfo(chatId)
+    if (info.kind === 'group') {
+      groupEngaged.delete(info.id)
+      groupEngagedRun.delete(info.id)
     }
   }
 
@@ -1434,7 +1439,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const all = texts.map((t) => t.value).join('，')
       if (all.length <= cfg.voice.autoMaxChars && Math.random() < cfg.voice.autoChance * mood().voice) items = [{ kind: 'voice', value: all }]
     }
-    const inGroup = chatId.startsWith('group:')
+    const inGroup = chatInfo(chatId).kind === 'group'
     // 群里别刷屏：一段最多 3 条
     if (inGroup && items.length > 3) items = items.slice(0, 3)
     // 按概率补一张表情（群里已经有两条以上就不补了）
@@ -1476,7 +1481,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     outputScope.getStore().checkedText = items.filter((item) => ['text', 'voice'].includes(item.kind)).map((item) => item.value)
     // 一段只有一个人明确 @ / 引用她时，第一条回复引用并 @ 那个人；多人同时叫她不猜。
     // 模型明确选了引用编号时尊重它，不再自动引用另一条。
-    const refs = inGroup ? groupRefs.get(chatId.slice(6)) || {} : {}
+    const refs = inGroup ? groupRefs.get(chatInfo(chatId).id) || {} : {}
     const explicit = items.some((item) => item.replyTo)
     const firstSendable = items.findIndex((item) => item.kind === 'text' || item.kind === 'voice' || item.kind === 'image' || (item.kind === 'sticker' && cfg.stickers.enabled && Boolean(item.value && typeof item.value === 'object' ? item.value : stickers.match(item.value))))
     const feedIndex = opts.feed ? items.findLastIndex(({ kind }) => kind === 'text' || kind === 'voice') : -1
@@ -1522,8 +1527,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   function recordReply(chatId, confirmed, { own = false, userText = '' } = {}) {
     const said = itemsToLine(confirmed)
     if (!said) return
-    if (chatId.startsWith('group:')) {
-      const gid = chatId.slice(6)
+    const info = chatInfo(chatId)
+    if (info.kind === 'group') {
+      const gid = info.id
       const said = (groupSaid.get(gid) || []).filter((t) => Date.now() - t < 3600_000)
       said.push(Date.now())
       groupSaid.set(gid, said)
@@ -1533,9 +1539,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 不是这个聊天自己那一轮发的（管理员在私聊里让她去群里说、扩展模块代发）：记下来，下次这个聊天交给她时告诉她自己说过什么
     if (!own) saidElsewhere.set(chatId, [...(saidElsewhere.get(chatId) || []), { at: Date.now(), text: said.slice(0, 300) }].slice(-5))
     lastChatAt = Date.now()
-    if (chatId.startsWith('private:')) lastPrivateAt.set(chatId.slice(8), Date.now())
+    if (info.kind === 'private') lastPrivateAt.set(info.id, Date.now())
     const speech = confirmed.filter((i) => i.kind === 'text' || i.kind === 'voice')
-    if (speech.length && chatId === `private:${getConfig().ownerQQ}`) lastBotToOwner = { at: Date.now(), text: speech.map((i) => i.value).join('\n') }
+    if (speech.length && info.kind === 'private' && info.platform === 'qq' && info.id === String(getConfig().ownerQQ)) lastBotToOwner = { at: Date.now(), text: speech.map((i) => i.value).join('\n') }
     try { onActivity?.({ kind: 'out', chatId, reply: said, userText }) }
     catch (error) { log.warn('回复活动通知失败：', error.message) }
   }
