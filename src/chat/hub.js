@@ -347,8 +347,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     for (const id of notice.people) {
       try {
         const m = groupId ? await channel.member(`group:${groupId}`, id, { timeoutMs: 3000, retries: 0 }) : null
-        names.set(id, `${m?.card || m?.nickname || 'QQ 用户'}(${id})`)
-      } catch (error) { names.set(id, `QQ 用户(${id})`) }
+        names.set(id, `${m?.card || m?.nickname || (channel.label || '平台') + ' 用户'}(${id})`)
+      } catch (error) { names.set(id, `${channel.label || '平台'} 用户(${id})`) }
     }
     if (disposed) return
     const note = channel.noticeText(notice, { name: (id) => names.get(String(id)) || String(id), ownMessage: (id) => sentIds.has(`${notice.platform}:${id}`) })
@@ -378,15 +378,20 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return c
   }
 
+  function platformLabel(chatId) {
+    const platform = parseChat(chatId)?.platform || channels.platforms?.()[0]
+    return channels.get(platform)?.label || (platform === 'qq' ? 'QQ' : platform || '平台')
+  }
   function titleFor(chat) {
     const owner = ownerLabel()
+    const label = platformLabel(chat.chatId)
     if (chat.kind === 'system') {
       // 扩展模块传进来的 title 可能自带「QQ · 」前缀，别再拼一次
       const t = String(chat.title || '后台')
-      return t.startsWith('QQ · ') ? t : `QQ · ${t}`
+      return t.startsWith(`${label} · `) ? t : `${label} · ${t}`
     }
-    if (chat.kind === 'group') return `QQ 群 · ${groupNames.get(chat.groupId) || chat.groupId}`
-    return chat.userId === getConfig().ownerQQ ? `QQ · ${owner}私聊` : `QQ 私聊 · ${chat.nickname || chat.userId}`
+    if (chat.kind === 'group') return `${label} 群 · ${groupNames.get(chat.groupId) || chat.groupId}`
+    return chat.userId === getConfig().ownerQQ ? `${label} · ${owner}私聊` : `${label} 私聊 · ${chat.nickname || chat.userId}`
   }
 
   // ---------- 新会话挂不上工作区：按 1、5、15、30、60 分钟退避（来自原项目 4d65ee7） ----------
