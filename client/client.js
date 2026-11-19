@@ -1668,7 +1668,7 @@ body[data-ds-dark-theme] .ab-root{
         h(Card, { title: '连接状态' },
           h('div', { className: 'ab-kv' },
             h('span', null, 'QQ 网关'), h('span', null, h('span', { className: 'ab-flex' }, h('i', { className: cx('ab-dot', conn ? 'ok' : st.onebot.state === 'connecting' ? 'warn' : 'err') }), { connected: '已连上', connecting: '连接中', disconnected: '断开了，正在重连', stopped: '没启动（总开关关着）', unconfigured: '还没配置' }[st.onebot.state] || st.onebot.state)),
-            h('span', null, '登录的号'), h('span', null, login ? login.nickname + '（' + login.uin + '）' + (login.uin !== draft.botQQ ? ' ⚠ 不是机器人号！' : '') : '—'),
+            h('span', null, '登录的号'), h('span', null, login ? login.nickname + '（' + login.uin + '）' + (login.uin !== (draft.platforms?.qq?.botQQ || draft.botQQ) ? ' ⚠ 不是机器人号！' : '') : '—'),
             h('span', null, 'HTTP'), h('span', null, st.onebot.endpoint.httpUrl || '—'),
             h('span', null, 'WebSocket'), h('span', null, st.onebot.endpoint.wsUrl || '—'),
           ),
@@ -1677,7 +1677,7 @@ body[data-ds-dark-theme] .ab-root{
           h('div', { style: { marginTop: 12 } }, h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测')),
         ),
         h(Card, { fold: conn ? 'qq-endpoint' : undefined, section: conn ? undefined : 'qq-endpoint', title: 'QQ 网关配置', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
-          desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
+          desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.platforms?.qq?.botQQ || draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
           h(Row, { label: '机器人 QQ 号' }, f.text('platforms.qq.botQQ')),
         ),
@@ -1943,8 +1943,8 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     function DrawChatPermissions({ st, draft, setDraft }) {
-      const owner = String(draft.ownerQQ || '')
-      const bot = String(draft.botQQ || '')
+      const owner = String(draft.platforms?.qq?.ownerQQ || draft.ownerQQ || '')
+      const bot = String(draft.platforms?.qq?.botQQ || draft.botQQ || '')
       const [names, setNames] = useState({})
       const savedAllow = st.config?.allow
       useEffect(() => {
@@ -1978,12 +1978,12 @@ body[data-ds-dark-theme] .ab-root{
       const f = useField(draft, setDraft)
       return h('div', { className: 'ab-grid' },
         h(Card, { section: 'qq-allowlist', className: 'ab-allowlist', title: '私聊与群白名单', desc: '只有名单里的人和群，ta才会理。一行一个号码。' },
-          h(Row, { label: '私聊白名单', hint: '管理员默认就在里面。' }, f.list('allow.private', { placeholder: '每行一个 QQ 号', numbers: true })),
-          h(Row, { label: '群白名单', hint: '把机器人拉进群后，把群号加到这里。' }, f.list('allow.groups', { placeholder: '每行一个群号', numbers: true })),
+          h(Row, { label: '私聊白名单', hint: '管理员默认就在里面。' }, f.list('platforms.qq.allow.private', { placeholder: '每行一个 QQ 号', numbers: true })),
+          h(Row, { label: '群白名单', hint: '把机器人拉进群后，把群号加到这里。' }, f.list('platforms.qq.allow.groups', { placeholder: '每行一个群号', numbers: true })),
         ),
         h(DrawChatPermissions, { st, draft, setDraft }),
         h(Card, { fold: 'qq-owner', title: '管理员与私聊权限', desc: '管理员的 QQ 号。群管、点歌、电脑上的操作只听管理员的。' },
-          h(Row, { label: '管理员 QQ 号' }, f.text('ownerQQ')),
+          h(Row, { label: '管理员 QQ 号' }, f.text('platforms.qq.ownerQQ')),
           h(Row, { label: 'ta怎么称呼你', hint: '一开始她这么叫你；之后她可以自己换个叫法（会通知你，「人格与自我」页能看、能退回）。你在这里改了，就以你改的为准。' }, f.text('ownerName', { placeholder: '管理员' })),
           h(Row, { label: '管理员私聊的权限', hint: '群聊永远没有电脑操作权限，这里管不到群。' },
             h('div', { style: { width: '100%' } },
@@ -5011,7 +5011,8 @@ body[data-ds-dark-theme] .ab-root{
       const login = st.onebot.login
       const [live, setLive] = useState('dry')
       const botQQ = draft.platforms?.qq?.botQQ || draft.botQQ
-      const qqOk = /^\d{5,11}$/.test(botQQ || '') && /^\d{5,11}$/.test(draft.ownerQQ || '') && botQQ !== draft.ownerQQ
+      const ownerQQ = draft.platforms?.qq?.ownerQQ || draft.ownerQQ
+      const qqOk = /^\d{5,11}$/.test(botQQ || '') && /^\d{5,11}$/.test(ownerQQ || '') && botQQ !== ownerQQ
       const verified = conn && login && String(login.uin) === String(st.config.botQQ) && !st.onebot.problem
       const canNext = [qqOk, Boolean(draft.platforms?.qq?.wsUrl || st.config.platforms?.qq?.wsUrl || draft.snowluma?.wsUrl || st.config.snowluma?.wsUrl), verified, true][step]
       const next = async () => {
@@ -5028,11 +5029,11 @@ body[data-ds-dark-theme] .ab-root{
         // 0. QQ 号
         h('div', null,
           h('p', { className: 'ab-desc' }, '大肥鱼需要一个自己的 QQ 号（机器人号），还要知道谁是ta的管理员。'),
-          h(Row, { label: '机器人 QQ 号', hint: '强烈建议用小号：非官方 QQ 工具有被限制的风险' }, f.text('botQQ', { placeholder: '例如 123456789' })),
-          h(Row, { label: '你的 QQ 号（管理员）', hint: '群管、操作电脑这些只听管理员的' }, f.text('ownerQQ', { placeholder: '你的大号' })),
+          h(Row, { label: '机器人 QQ 号', hint: '强烈建议用小号：非官方 QQ 工具有被限制的风险' }, f.text('platforms.qq.botQQ', { placeholder: '例如 123456789' })),
+          h(Row, { label: '你的 QQ 号（管理员）', hint: '群管、操作电脑这些只听管理员的' }, f.text('platforms.qq.ownerQQ', { placeholder: '你的大号' })),
           h(Row, { label: 'ta怎么称呼你' }, f.text('ownerName', { placeholder: '管理员' })),
-          h(Row, { label: '工作区文件夹', hint: 'ta在 QQ 会话里读写文件的地方，' + '想放在别处就填完整路径' + '，比如 ' + exPath('Aurabot/qq-chats') + '。填完整路径，留空用默认位置。以后想换，在「连接」页能搬。聊天记录和记忆在用户目录的 .dsh 里，不在这个文件夹' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
-          draft.botQQ && draft.ownerQQ && draft.botQQ === draft.ownerQQ ? h('div', { className: 'ab-note err' }, '机器人号和管理员号不能是同一个。') : null),
+          h(Row, { label: '工作区文件夹', hint: 'ta在 QQ 会话里读写文件的地方，' + '想放在别处就填完整路径' + '，比如 ' + exPath('Aurabot/qq-chats') + '。填完整路径，留空用默认位置。以后想换，在「连接」页能搬。聊天记录和记忆在用户目录的 .dsh 里，不在这个文件夹' }, f.text('platforms.qq.workspaceDir', { size: 'wide', placeholder: st.config.platforms?.qq?.workspaceDir || st.workspaceDir || '' })),
+          (draft.platforms?.qq?.botQQ || draft.botQQ) && (draft.platforms?.qq?.ownerQQ || draft.ownerQQ) && (draft.platforms?.qq?.botQQ || draft.botQQ) === (draft.platforms?.qq?.ownerQQ || draft.ownerQQ) ? h('div', { className: 'ab-note err' }, '机器人号和管理员号不能是同一个。') : null),
         // 1. 接 QQ 网关：你自己跑的 OneBot（macOS 上一般是 OrbStack 里的 SnowLuma）
         h('div', null,
           h('p', { className: 'ab-desc' }, 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里用它官方的 docker-compose.yml 跑起来，打开它的远程桌面登录机器人号，再把 OneBot 的正向 WebSocket 地址（一般是 ws://127.0.0.1:3001）和令牌填在下面。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不会启动或注入任何东西。'),
@@ -5083,7 +5084,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], access: ['ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'],
