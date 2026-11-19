@@ -349,6 +349,16 @@ export function normalize(raw) {
   c.chatModels = normalizeChatModels(c.chatModels)
   c.profilePerms = Object.fromEntries(PROFILE_PERM_KEYS.map((k) => [k, PROFILE_PERM_LEVELS.includes(c.profilePerms?.[k]) ? c.profilePerms[k] : profilePermDefault(k)]))
   c.allow = { private: qqList(c.allow.private), groups: qqList(c.allow.groups) }
+  // QQ 平台自己的账号/白名单；旧顶层字段继续作为兼容来源，并在 normalize 后同步。
+  const qqAccount = isObj(c.platforms?.qq) ? c.platforms.qq : {}
+  // 在平台专用设置页出现之前，顶层账号/白名单是权威来源，平台字段只做镜像。
+  qqAccount.botQQ = qq(c.botQQ)
+  qqAccount.ownerQQ = qq(c.ownerQQ)
+  qqAccount.allow = { private: qqList(c.allow.private), groups: qqList(c.allow.groups) }
+  c.platforms = { ...(isObj(c.platforms) ? c.platforms : {}), qq: qqAccount }
+  c.botQQ = qqAccount.botQQ
+  c.ownerQQ = qqAccount.ownerQQ
+  c.allow = qqAccount.allow
   const drawablePrivate = new Set(qqList(c.drawAllow?.private))
   const drawableGroups = new Set(qqList(c.drawAllow?.groups))
   c.drawAllow = {

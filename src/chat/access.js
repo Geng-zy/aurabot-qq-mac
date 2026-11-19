@@ -4,6 +4,17 @@ import { LEGACY_PLATFORM, normPerson, parseChat, parsePerson, refOfChat } from '
 /** 权限档位：full = DSH 完整工具；social = 只有 QQ 社交工具；chat = 纯聊天，没有工具。 */
 export const LEVELS = ['full', 'social', 'chat']
 
+function platformCfg(cfg, platform) {
+  return cfg?.platforms?.[platform] || {}
+}
+function platformOwner(cfg, platform) {
+  return normPerson(platformCfg(cfg, platform).ownerQQ || cfg?.ownerQQ, platform)
+}
+function platformAllow(cfg, platform, kind) {
+  const allow = platformCfg(cfg, platform).allow || cfg?.allow || {}
+  return (allow[kind] || []).map((id) => normPerson(id, platform))
+}
+
 /**
  * @param {object} cfg 插件配置
  * @param {{kind:'private'|'group', userId:string, groupId:string}} msg
@@ -11,20 +22,21 @@ export const LEVELS = ['full', 'social', 'chat']
  */
 export function checkAllowed(cfg, msg) {
   const chat = parseChat(msg.chatId)
+  const platform = chat?.platform || msg.platform || LEGACY_PLATFORM
   const destination = chat?.kind === msg.kind ? refOfChat(msg.chatId) : ''
   if (chat && !destination) return { allowed: false, reason: '会话类型不符' }
-  const owner = normPerson(cfg.ownerQQ)
+  const owner = platformOwner(cfg, platform)
   if (msg.kind === 'private') {
-    const who = destination || normPerson(msg.userId, msg.platform)
+    const who = destination || normPerson(msg.userId, platform)
     if (destination && msg.userId != null && normPerson(msg.userId, chat.platform) !== destination) return { allowed: false, reason: '私聊账号不符' }
     if (who && who === owner) return { allowed: true, reason: '管理员' }
-    const list = (cfg.allow?.private || []).map((id) => normPerson(id))
+    const list = platformAllow(cfg, platform, 'private')
     return who && list.includes(who)
       ? { allowed: true, reason: '私聊白名单' }
       : { allowed: false, reason: '不在私聊白名单' }
   }
-  const group = destination || normPerson(msg.groupId, msg.platform)
-  const groups = (cfg.allow?.groups || []).map((id) => normPerson(id))
+  const group = destination || normPerson(msg.groupId, platform)
+  const groups = platformAllow(cfg, platform, 'groups')
   return group && groups.includes(group)
     ? { allowed: true, reason: '群白名单' }
     : { allowed: false, reason: '不在群白名单' }
@@ -68,8 +80,9 @@ export function presetFor(level, cfg) {
 /** 只有管理员能做的事（群管、点歌、写文件……）。 */
 export function isOwner(cfg, userId, chatId) {
   const chat = parseChat(chatId)
-  const person = parsePerson(userId, chat?.platform)
-  return Boolean(person && (!chat || person.platform === chat.platform) && normPerson(userId, chat?.platform) === normPerson(cfg.ownerQQ))
+  const platform = chat?.platform || LEGACY_PLATFORM
+  const person = parsePerson(userId, platform)
+  return Boolean(person && (!chat || person.platform === chat.platform) && normPerson(userId, platform) === platformOwner(cfg, platform))
 }
 
 /** 管理员以外的用户仅能在单独开放生图的 QQ 会话里请求画图。 */
