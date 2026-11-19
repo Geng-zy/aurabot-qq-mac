@@ -410,7 +410,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       return t.startsWith(`${label} · `) ? t : `${label} · ${t}`
     }
     if (chat.kind === 'group') return `${label} 群 · ${groupNames.get(groupKey(chat.chatId)) || chat.groupId}`
-    return chat.userId === getConfig().ownerQQ ? `${label} · ${owner}私聊` : `${label} 私聊 · ${chat.nickname || chat.userId}`
+    const info = chatInfo(chat.chatId)
+    const ownerId = String(getConfig().platforms?.[info.platform]?.ownerQQ || getConfig().ownerQQ || '')
+    return info.id === ownerId ? `${label} · ${owner}私聊` : `${label} 私聊 · ${chat.nickname || chat.userId}`
   }
 
   // ---------- 新会话挂不上工作区：按 1、5、15、30、60 分钟退避（来自原项目 4d65ee7） ----------
