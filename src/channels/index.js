@@ -83,6 +83,9 @@ export function validateChannel(channel) {
   if (channel.caps !== undefined && (!channel.caps || typeof channel.caps !== 'object' || Array.isArray(channel.caps))) {
     throw new Error('连接的 caps 必须是对象')
   }
+  for (const k of OPTIONAL_CHANNEL_METHODS) {
+    if (channel[k] !== undefined && channel[k] !== null && typeof channel[k] !== 'function') throw new Error(`连接的 ${k} 必须是函数`)
+  }
   return channel
 }
 

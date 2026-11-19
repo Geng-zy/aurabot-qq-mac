@@ -30,6 +30,7 @@ test('缺少 send/on 或平台 id 不合法时立即报错', () => {
   assert.throws(() => channels.add(missing), /send/)
   assert.throws(() => validateChannel({ ...fake(), platform: 'Demo!' }), /平台 id/)
   assert.throws(() => validateChannel({ ...fake(), caps: [] }), /caps/)
+  assert.throws(() => validateChannel({ ...fake(), group: 'nope' }), /group 必须/)
 })
 
 test('平台注册表统一启动、停止和状态快照', () => {
