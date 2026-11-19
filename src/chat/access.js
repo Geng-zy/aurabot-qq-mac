@@ -90,7 +90,8 @@ export function drawChatAllowed(cfg, chatId) {
   const chat = parseChat(chatId)
   if (chat?.platform !== LEGACY_PLATFORM) return false
   const list = chat.kind === 'private' ? 'private' : 'groups'
-  return cfg.allow?.[list]?.includes(chat.id) === true && cfg.drawAllow?.[list]?.includes(chat.id) === true
+  const platform = platformCfg(cfg, chat.platform)
+  return (platform.allow || cfg.allow)?.[list]?.includes(chat.id) === true && (platform.drawAllow || cfg.drawAllow)?.[list]?.includes(chat.id) === true
 }
 
 /**

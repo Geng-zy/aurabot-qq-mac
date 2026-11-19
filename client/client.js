@@ -1956,14 +1956,14 @@ body[data-ds-dark-theme] .ab-root{
       }, [savedAllow?.private?.join(','), savedAllow?.groups?.join(',')])
 
       const row = (kind, label, ids, fallback) => {
-        const selected = draft.drawAllow?.[kind] || []
+        const selected = draft.platforms?.qq?.drawAllow?.[kind] ?? draft.drawAllow?.[kind] ?? []
         return h(Row, { label }, ids.length
           ? ids.map((id) => h('button', {
             className: cx('ab-chip', selected.includes(id) && 'on'), key: id, type: 'button',
             'aria-pressed': selected.includes(id),
             onClick: () => setDraft((prev) => {
-              const current = prev.drawAllow?.[kind] || []
-              return setPath(prev, 'drawAllow.' + kind, current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
+              const current = prev.platforms?.qq?.drawAllow?.[kind] ?? prev.drawAllow?.[kind] ?? []
+              return setPath(prev, 'platforms.qq.drawAllow.' + kind, current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
             }),
           }, names[kind]?.[id] || fallback, h('span', { className: 'n' }, id)))
           : h('span', { className: 'ab-muted ab-small' }, '暂无可选会话。'))

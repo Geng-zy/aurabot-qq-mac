@@ -69,7 +69,7 @@ export const DEFAULTS = {
     wsToken: '',
   },
   // 多平台配置的起点。QQ 的旧字段仍保留在 snowluma，normalize 时两边会同步。
-  platforms: { qq: { label: 'QQ', enabled: true, httpUrl: '', wsUrl: '', httpToken: '', wsToken: '' } },
+  platforms: { qq: { label: 'QQ', enabled: true, httpUrl: '', wsUrl: '', httpToken: '', wsToken: '', drawAllow: { private: [], groups: [] } } },
   model: { provider: '', model: '', reasoningEffort: 'low', vision: 'auto' }, // 留空 = 跟随 DSH 默认；vision: auto/on/off
   // 按聊天选模型（管理员在面板「模型」页设）：私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认 > 上面的全局模型；没写的一级退到下一级
   chatModels: { privateDefault: { provider: '', model: '', reasoningEffort: '' }, groupDefault: { provider: '', model: '', reasoningEffort: '' }, privates: {}, groups: {} },
@@ -365,6 +365,8 @@ export function normalize(raw) {
     private: c.allow.private.filter((id) => id !== c.ownerQQ && id !== c.botQQ && drawablePrivate.has(id)),
     groups: c.allow.groups.filter((id) => drawableGroups.has(id)),
   }
+  qqAccount.drawAllow = { private: [...c.drawAllow.private], groups: [...c.drawAllow.groups] }
+  c.platforms.qq.drawAllow = qqAccount.drawAllow
   // 旧授权规则不自动给会话开放普通生图。
   delete c.adultChat
   // 发文件：开关、大小上限、额外允许的目录（只认绝对路径；空行忽略）

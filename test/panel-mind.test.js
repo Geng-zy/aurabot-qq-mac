@@ -131,7 +131,8 @@ test('白名单与权限页可单独选择哪些 QQ 会话有生图权限', () =
   chips()[0].props.onClick()
   assert.deepEqual(chips().map((button) => button.props['aria-pressed']), [false, true, false])
   assert.equal(JSON.stringify(draft.allow), JSON.stringify(allowed))
-  assert.equal(JSON.stringify(draft.drawAllow), JSON.stringify({ private: [], groups: ['33'] }))
+  assert.deepEqual([...draft.platforms.qq.drawAllow.private], [])
+  assert.deepEqual([...draft.platforms.qq.drawAllow.groups], ['33'])
 })
 
 test('心智设置：按分类显示，搜索可跨分类，默认值和依据可展开', () => {
