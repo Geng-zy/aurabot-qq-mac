@@ -1327,7 +1327,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 她回复里写的本机图片：管理员私聊之外只认工作区、允许目录和插件数据目录，防止被人诱导发出电脑上的图。 */
   function localImageBlocked(chatId, src) {
     const cfg = getConfig()
-    if (chatId === `private:${cfg.ownerQQ}`) return false
+    const info = chatInfo(chatId)
+    const owner = String(cfg.platforms?.[info.platform]?.ownerQQ || cfg.ownerQQ || '')
+    if (info.kind === 'private' && info.id === owner) return false
     const s = String(src ?? '').trim()
     if (!isAbsolute(s) && !/^file:/i.test(s)) return false
     try {
