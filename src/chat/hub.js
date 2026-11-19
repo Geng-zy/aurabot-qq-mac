@@ -409,7 +409,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const t = String(chat.title || '后台')
       return t.startsWith(`${label} · `) ? t : `${label} · ${t}`
     }
-    if (chat.kind === 'group') return `${label} 群 · ${groupNames.get(chat.groupId) || chat.groupId}`
+    if (chat.kind === 'group') return `${label} 群 · ${groupNames.get(groupKey(chat.chatId)) || chat.groupId}`
     return chat.userId === getConfig().ownerQQ ? `${label} · ${owner}私聊` : `${label} 私聊 · ${chat.nickname || chat.userId}`
   }
 
@@ -1802,14 +1802,16 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 收 QQ ----------
-  async function groupName(gid) {
-    if (groupNames.has(gid)) return groupNames.get(gid)
+  async function groupName(gid, platform = 'qq') {
+    const chatId = parseChat(gid)?.kind === 'group' ? normChat(gid) : `${platform}:group:${gid}`
+    const key = groupKey(chatId)
+    if (groupNames.has(key)) return groupNames.get(key)
     try {
       // 查群名是锦上添花：失败就退回群号，别在网关抖动时白等重试
-      const info = await channelOf(`group:${gid}`)?.group?.(`group:${gid}`)
-      if (info?.name) groupNames.set(gid, info.name)
+      const info = await channelOf(chatId)?.group?.(chatId)
+      if (info?.name) groupNames.set(key, info.name)
     } catch (error) {}
-    return groupNames.get(gid) || gid
+    return groupNames.get(key) || gid
   }
 
   // ---------- 引用消息 ----------
