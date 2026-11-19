@@ -6,4 +6,5 @@ import qzoneSocial from './qzone-social/index.js'
 export const QQ_FEATURES = [qqTools, qqApi, qzoneSocial].map((def) => ({
   ...def,
   sourcePath: `channels/qq/features/${def.id}/index.js`,
+  platforms: ['qq'],
 }))

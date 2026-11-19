@@ -5,7 +5,7 @@ import { dirname, join, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { registerSecretField } from './config.js'
 
-export function createModuleLoader({ state, builtinDefs, builtins, getConfig, setConfig, version, API_VERSION, SRC, makeApi, exportsOf, emit, cleanup, installDocs, status, publicHandle, log, modCfg, isEnabled, isUserOn, scanUser, checkDef, stampOf, filesOf, SNAP, loadLib, lib, refreshBridge }) {
+export function createModuleLoader({ state, builtinDefs, builtins, getConfig, setConfig, version, API_VERSION, SRC, makeApi, exportsOf, emit, cleanup, installDocs, status, publicHandle, log, modCfg, isEnabled, isUserOn, scanUser, checkDef, stampOf, filesOf, SNAP, loadLib, lib, platformAllowed = () => true, refreshBridge }) {
   const { live, errors, routes, listeners, revisions, userSeen } = state
   let watching = null
   let disposed = false
@@ -14,6 +14,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
   // ---------- 启动 / 停止 ----------
   async function start(def, source, extra = {}) {
     if (disposed) return null
+    if (!platformAllowed(def)) return null
     const id = def.id
     const rec = { id, def, source, exports: null, offs: [], tools: [], contexts: [], rules: [], commands: [], dshTools: [], errors: [], startedAt: Date.now(), ...extra }
     // 设置里的密码字段不回传给面板
@@ -50,6 +51,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
   /** 同步启动（内置模块的 setup 都是同步的，插件一加载就要能用）。 */
   function startSync(def) {
     if (disposed) return
+    if (!platformAllowed(def)) return
     const id = def.id
     const rec = { id, def, source: 'builtin', exports: null, offs: [], tools: [], contexts: [], rules: [], commands: [], dshTools: [], errors: [], startedAt: Date.now() }
     live.set(id, rec)

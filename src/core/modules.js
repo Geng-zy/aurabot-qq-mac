@@ -156,10 +156,17 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     DOC, TYPES, userDir, libKeys, scanUser, routesAtRoot, modCfg,
   })
   const { capabilitiesOf, status, installDocs, create, fork, promptFor } = registry
+  const platformAllowed = (def) => {
+    const wanted = Array.isArray(def?.platforms) ? def.platforms.filter(Boolean) : []
+    if (!wanted.length) return true
+    // 没有 channel 注册表时保持旧行为（测试/工具型调用），有注册表才做平台门禁。
+    if (!core?.channels?.get) return true
+    return wanted.some((p) => Boolean(core.channels.get(p)))
+  }
   const loader = createModuleLoader({
     state, builtinDefs, builtins, getConfig, setConfig, version, API_VERSION, SRC,
     makeApi, exportsOf, emit, cleanup, installDocs, status, publicHandle, log, modCfg,
-    isEnabled, isUserOn, scanUser, checkDef, stampOf, filesOf, SNAP, loadLib, lib,
+    isEnabled, isUserOn, scanUser, checkDef, stampOf, filesOf, SNAP, loadLib, lib, platformAllowed,
     refreshBridge: () => core.bridge?.refresh(),
   })
   isLoaderDisposed = loader.isDisposed
