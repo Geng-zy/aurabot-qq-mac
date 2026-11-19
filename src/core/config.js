@@ -711,6 +711,7 @@ export function reconcilePlatformAliases(next, previous = {}) {
     if (platformChanged && !topChanged) out[key] = nq[key]
   }
   if (nq.allow && changed(nq.allow, pq.allow) && !changed(next.allow, previous.allow)) out.allow = nq.allow
+  if (nq.drawAllow && changed(nq.drawAllow, pq.drawAllow) && !changed(next.drawAllow, previous.drawAllow)) out.drawAllow = nq.drawAllow
   return out
 }
 

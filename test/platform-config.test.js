@@ -21,11 +21,13 @@ test('新 platforms.qq 配置会回填旧 snowluma 字段', () => {
 
 test('平台页编辑优先，旧面板顶层编辑也不会被旧镜像覆盖', async () => {
   const { reconcilePlatformAliases } = await import('../src/core/config.js')
-  const prev = { ownerQQ: '1', botQQ: '2', allow: { private: ['3'], groups: [] }, platforms: { qq: { ownerQQ: '1', botQQ: '2', allow: { private: ['3'], groups: [] } } } }
+  const prev = { ownerQQ: '1', botQQ: '2', allow: { private: ['3'], groups: [] }, drawAllow: { private: ['3'], groups: [] }, platforms: { qq: { ownerQQ: '1', botQQ: '2', allow: { private: ['3'], groups: [] }, drawAllow: { private: ['3'], groups: [] } } } }
   const viaPlatform = reconcilePlatformAliases({ ...prev, platforms: { qq: { ...prev.platforms.qq, ownerQQ: '4', allow: { private: ['5'], groups: [] } } } }, prev)
   assert.equal(viaPlatform.ownerQQ, '4')
   assert.deepEqual(viaPlatform.allow, { private: ['5'], groups: [] })
   const viaTop = reconcilePlatformAliases({ ...prev, ownerQQ: '6', allow: { private: ['7'], groups: [] } }, prev)
   assert.equal(viaTop.ownerQQ, '6')
   assert.deepEqual(viaTop.allow, { private: ['7'], groups: [] })
+  const viaDraw = reconcilePlatformAliases({ ...prev, platforms: { qq: { ...prev.platforms.qq, drawAllow: { private: ['8'], groups: [] } } } }, prev)
+  assert.deepEqual(viaDraw.drawAllow, { private: ['8'], groups: [] })
 })
