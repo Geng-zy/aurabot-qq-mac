@@ -1679,10 +1679,10 @@ body[data-ds-dark-theme] .ab-root{
         h(Card, { fold: conn ? 'qq-endpoint' : undefined, section: conn ? undefined : 'qq-endpoint', title: 'QQ 网关配置', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
           desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
-          h(Row, { label: '机器人 QQ 号' }, f.text('botQQ')),
+          h(Row, { label: '机器人 QQ 号' }, f.text('platforms.qq.botQQ')),
         ),
         h(Card, { fold: 'qq-workspace', title: '工作区与会话维护', desc: '每个 QQ 私聊 / 群都是 DSH 里「Aurabot · QQ」工作区下的一个会话，ta在会话里读写文件也在这个文件夹。改了以后新开的会话放到新位置；已有的会话还在原来的地方，想全部换成新会话，可在下方点「重新开始所有 QQ 会话」。' },
-          h(Row, { label: '工作区文件夹', hint: '填完整路径（比如 ' + exPath('Aurabot/qq-chats') + '）；留空 = 默认位置' }, f.text('workspaceDir', { size: 'wide', placeholder: st.workspaceDir || '' })),
+          h(Row, { label: '工作区文件夹', hint: '填完整路径（比如 ' + exPath('Aurabot/qq-chats') + '）；留空 = 使用全局/默认位置' }, f.text('platforms.qq.workspaceDir', { size: 'wide', placeholder: st.config.platforms?.qq?.workspaceDir || st.workspaceDir || '' })),
           h('div', { className: 'ab-muted ab-small' }, '现在用的：' + (st.workspaceDir || '—') + (st.workspaceReal && st.workspaceReal !== st.workspaceDir ? '（文件实际在 ' + st.workspaceReal + '）' : '')),
           h(Row, { label: '把现有文件搬过去', hint: '填一个空文件夹的完整路径。已有会话照常接着聊，原路径留一个联接指过去；聊天记录和记忆在用户目录的 .dsh 里，不跟着搬。她正在跑命令时搬不了' },
             h('div', { className: 'ab-flex' },
@@ -5010,7 +5010,8 @@ body[data-ds-dark-theme] .ab-root{
       const conn = st.onebot.state === 'connected'
       const login = st.onebot.login
       const [live, setLive] = useState('dry')
-      const qqOk = /^\d{5,11}$/.test(draft.botQQ || '') && /^\d{5,11}$/.test(draft.ownerQQ || '') && draft.botQQ !== draft.ownerQQ
+      const botQQ = draft.platforms?.qq?.botQQ || draft.botQQ
+      const qqOk = /^\d{5,11}$/.test(botQQ || '') && /^\d{5,11}$/.test(draft.ownerQQ || '') && botQQ !== draft.ownerQQ
       const verified = conn && login && String(login.uin) === String(st.config.botQQ) && !st.onebot.problem
       const canNext = [qqOk, Boolean(draft.platforms?.qq?.wsUrl || st.config.platforms?.qq?.wsUrl || draft.snowluma?.wsUrl || st.config.snowluma?.wsUrl), verified, true][step]
       const next = async () => {
