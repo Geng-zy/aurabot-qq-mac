@@ -30,3 +30,15 @@ test('缺少 send/on 或平台 id 不合法时立即报错', () => {
   assert.throws(() => validateChannel({ ...fake(), platform: 'Demo!' }), /平台 id/)
   assert.throws(() => validateChannel({ ...fake(), caps: [] }), /caps/)
 })
+
+test('平台注册表统一启动、停止和状态快照', () => {
+  const channels = createChannels()
+  let started = 0
+  const ch = fake('demo2')
+  ch.start = () => { started++ }
+  channels.add(ch)
+  channels.startAll()
+  assert.equal(started, 1)
+  assert.deepEqual(channels.status()[0].platform, 'demo2')
+  assert.equal(channels.status()[0].ready, true)
+})

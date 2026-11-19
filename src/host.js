@@ -615,11 +615,7 @@ export function apply(ctx) {
       home: homedir(),
       config: publicConfig(cfg),
       onebot: await qq.status(),
-      channels: channels.list().map((ch) => ({
-        platform: ch.platform, label: ch.label || ch.platform,
-        state: typeof ch.state === 'function' ? ch.state() : '', ready: typeof ch.ready === 'function' ? ch.ready() : false,
-        caps: { ...(ch.caps || {}) },
-      })),
+      channels: channels.status(),
       outbox: outbox.status(),
       stats: hub.stats(),
       offpeak: (() => { const now = new Date(); const holidays = cfg.cost?.offPeakHolidays || []; const next = nextChange(now, { holidays }); return { peak: isPeak(now, { holidays }), next: next?.at || 0 } })(),

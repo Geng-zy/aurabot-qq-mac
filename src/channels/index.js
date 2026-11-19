@@ -111,10 +111,24 @@ export function createChannels() {
       const ch = this.of(ref)
       return Boolean(ch && ch.caps && ch.caps[cap])
     },
+    /** 启动所有已注册连接；单个平台失败不阻止其他平台。 */
+    startAll() {
+      for (const ch of map.values()) { try { ch.start() } catch (error) { /* 由适配器自己的 status 报告 */ } }
+    },
     /** 订阅所有连接的事件。 */
     on(fn) {
       const offs = [...map.values()].map((ch) => ch.on((e) => fn({ ...e, platform: ch.platform })))
       return () => offs.forEach((off) => { try { off() } catch {} })
+    },
+    /** 面板和健康检查用的平台状态；不触发异步网络调用。 */
+    status() {
+      return [...map.values()].map((ch) => ({
+        platform: ch.platform,
+        label: ch.label || ch.platform,
+        state: typeof ch.state === 'function' ? ch.state() : '',
+        ready: typeof ch.ready === 'function' ? Boolean(ch.ready()) : false,
+        caps: { ...(ch.caps || {}) },
+      }))
     },
     stopAll() { for (const ch of map.values()) { try { ch.stop() } catch {} } },
   }
