@@ -13,6 +13,12 @@ test('人格卡与自我合并成一个入口，旧 character 页自动落到 se
   assert.match(source, /id === 'character'\) id = 'selfmind'/)
 })
 
+test('平台入口独立存在，QQ 仍在 QQ 会话下', () => {
+  assert.match(source, /id: 'platforms', label: '平台'/)
+  assert.match(source, /function Platforms/)
+  assert.match(source, /go\('connect'\)/)
+})
+
 test('设置按模型、预算、本地模型和会话分开', () => {
   assert.match(params, /id: 'models', label: '模型与思考'/)
   assert.match(params, /id: 'budget', label: '后台与预算'/)

@@ -1122,6 +1122,9 @@ body[data-ds-dark-theme] .ab-root{
         { id: 'selfmind', label: '人格与自我', search: '人格卡 人设 头像 名字 小名 性格 特质 本来的样子 习惯 版本 退回 自我故事 价值观 爱好 影子模式' },
         { id: 'mindsettings', label: '设置', search: '参数 记性 遗忘 改写 情绪 后台预算 时区 年龄 生日 本地小模型 一键安装' },
       ] },
+      { id: 'platforms', label: '平台', icon: 'puzzle', pages: [
+        { id: 'platforms', label: '平台连接', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
+      ] },
       { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
         { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
         { id: 'access', label: '白名单与权限', search: '管理员 群管 改资料 QQ 命令 好友申请 生图白名单' },
@@ -1152,6 +1155,7 @@ body[data-ds-dark-theme] .ab-root{
     ]
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))
     const FIND_SECTIONS = {
+      platforms: [['platforms-status', '平台状态', 'QQ Telegram 飞书 适配器 能力 连接']],
       overview: [['overview-logs', '最近日志', '近期报错 运行状态']],
       connect: [['qq-workspace', '工作区与会话维护', '归档 重开 重置 搬家 目录 所有会话'], ['qq-endpoint', 'QQ 网关配置', 'WebSocket HTTP 令牌 OneBot 机器人号']],
       access: [
@@ -1628,6 +1632,21 @@ body[data-ds-dark-theme] .ab-root{
         h(Row, { label: 'HTTP 令牌' }, f.text('platforms.qq.httpToken', { type: 'password', placeholder: draft.platforms?.qq?.httpTokenSet ? '已保存' : '没有就留空' })))
     }
 
+    /** 平台入口：目前只有 QQ，后续适配器会在这里出现。 */
+    function Platforms({ st, go }) {
+      const list = st.channels || []
+      const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
+      const items = list.length
+        ? h('div', { className: 'ab-list' }, list.map((p) => h('div', { key: p.platform, className: 'ab-li' },
+          h('div', { className: 'meta' }, p.label || p.platform,
+            h('span', { className: 'ab-muted ab-small' }, ' · ' + label(p.state) + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
+          h('div', { className: 'body ab-small' }, '能力：' + (Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => k).join('、') || '未声明')),
+          h('div', { style: { marginTop: 6 } }, p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null))))
+        : h(Empty, { text: '还没有平台适配器' })
+      return h('div', { className: 'ab-grid' },
+        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置。' }, items))
+    }
+
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
       const f = useField(draft, setDraft)
       const [moveTo, setMoveTo] = useState('')
@@ -1657,12 +1676,6 @@ body[data-ds-dark-theme] .ab-root{
           testBtns, diagView,
           h('div', { style: { marginTop: 12 } }, h(Btn, { small: true, onClick: async () => { const r = await post('/test-send'); toast(r.message) } }, '发一条 QQ 自测')),
         ),
-        h(Card, { title: '平台连接', desc: '当前注册的平台适配器。QQ 是第一个；以后 Telegram、飞书等会出现在这里。' },
-          h(Row, { label: '启用 QQ 平台', hint: '关掉后插件不会启动 QQ 连接，也不会自动重连' }, f.sw('platforms.qq.enabled')),
-          (st.channels || []).length ? h('div', { className: 'ab-list' }, (st.channels || []).map((p) => h('div', { key: p.platform, className: 'ab-li' },
-            h('div', { className: 'meta' }, p.label || p.platform,
-              h('span', { className: 'ab-muted ab-small' }, ' · ' + (p.state || 'unknown') + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
-            h('div', { className: 'body ab-small' }, Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => k).join('、') || '没有声明能力')))) : h(Empty, { text: '还没有平台适配器' })),
         h(Card, { fold: conn ? 'qq-endpoint' : undefined, section: conn ? undefined : 'qq-endpoint', title: 'QQ 网关配置', right: openWizard ? h(Btn, { small: true, kind: 'ghost', onClick: openWizard }, '重新走一遍设置向导') : null,
           desc: 'SnowLuma 没有 macOS 版：在 OrbStack（或 Docker Desktop）里跑它的官方镜像，用远程桌面登录机器人号 ' + (draft.botQQ || '') + '，再把它的 OneBot 正向 WebSocket 地址和令牌填在这里，保存后插件就会去连。NapCat、LLOneBot、Lagrange 等任何 OneBot v11 实现也可以。插件只连接，不启动、不注入任何东西。' },
           h(OneBotFields, { draft, f }),
@@ -5061,7 +5074,7 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 面板主体 ----------------
     const TAB_CONTENT = {
-      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings,
+      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms,
       connect: Connect, group: Group, model: Model, asr: Asr, access: Access, diary: Diary,
       voice: Voice, stickers: Stickers, imagegen: ImageGen, song: Song, video: LocalApi,
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,
