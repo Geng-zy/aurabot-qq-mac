@@ -739,6 +739,10 @@ export function apply(ctx) {
     log.info('首次使用向导完成')
     return { ...(await overview()), message: '设置完成，大肥鱼可以上线啦' }
   })
+  // 通用平台入口；QQ 的旧 onebot 路由保留。
+  route('/platforms', async () => ({ ok: true, list: channels.status() }))
+  route('/platforms/qq/diagnose', async () => qq.diagnose())
+  route('/platforms/qq/reconnect', async () => qq.reconnect())
   // 一键诊断：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 一项项看
   route('/onebot/diagnose', async () => qq.diagnose())
   route('/onebot/reconnect', async () => qq.reconnect())
