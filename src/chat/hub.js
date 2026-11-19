@@ -27,7 +27,7 @@ import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../core/img
 import { redact } from '../core/redact.js'
 import { askModel, defaultModel, pickReasoningEffort, canSeeImages, modelVision, modelContextWindow } from '../core/llm.js'
 import { resolveChatModel } from './chat-model.js'
-import { stripFaceTags, splitSpeakable } from '../channels/qq/faces.js'
+import { stripFaceTags, splitSpeakable } from './tags.js'
 import { expandMentions, hasMention } from './mentions.js'
 import { cleanContent, cleanText } from '../core/text.js'
 import { createRecentMedia } from './recent-media.js'

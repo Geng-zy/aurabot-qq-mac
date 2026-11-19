@@ -2,6 +2,8 @@
 // 目录从网关现取（SnowLuma 的 fetch_sys_faces，缓存一天）；接的是别的 OneBot、取不到时用下面这份常用的兜底。
 
 import { FACE_TABLE } from './face-table.js'
+import { FACE_TAG, faceTagName, stripFaceTags, splitSpeakable, speakableText } from '../../chat/tags.js'
+export { stripFaceTags, splitSpeakable, speakableText }
 
 /**
  * 系统表情（名字 → 编号），取不到网关目录时用。
@@ -18,9 +20,6 @@ export const COMMON_FACES = (() => {
 /** 给她看的几个例子（提示词里用，别太长）。 */
 export const FACE_EXAMPLES = ['微笑', '呲牙', '偷笑', '捂脸', '斜眼笑', '笑哭', '吃瓜', '白眼', '委屈', '裂开', '摸鱼', '抱拳', '赞', 'OK']
 
-// 模型也会把系统表情写成方括号里的文字标记。
-const FACE_TAG = /<face:\s*([^>]{1,12}?)\s*>(?:\s*<\/face>)?|[\[［【]表情[ \t]*[:：][ \t]*([^\]］】\r\n]{1,12}?)[ \t]*[\]］】]/g
-const faceTagName = (match) => (match[1] ?? match[2]).trim()
 
 /**
  * 网关目录（{ packs: [{ pack_name, emojis: [{ q_sid, q_des, emoji_name_alias, is_super }] }] }）→ 名字 / 编号对照。
@@ -78,45 +77,7 @@ export function textToSegments(text, idOf) {
   return merged.filter((seg) => seg.type !== 'text' || seg.data.text.trim())
 }
 
-/** 去掉系统表情标签（系统表情关着时用）。 */
-export const stripFaceTags = (text) => String(text ?? '').replace(FACE_TAG, '').replace(/[ \t]{2,}/g, ' ').trim()
 
-/** 语音文本收尾：去掉 <voice> 标签、连续空格、首尾空白。 */
-const tidySpeech = (s) => String(s).replace(/<\/?voice>/g, '').replace(/[ \t]{2,}/g, ' ').trim()
-
-/**
- * 语音条要念的文字：去掉 QQ 小黄脸标签、表情包/戳一戳等格式标签、以及 emoji 图形符号，
- * 不然 TTS 会把「呲牙」这类表情名字甚至 emoji 直接念出来（用户反馈：发语音时表情被读出来）。
- * 去掉后没字可念时返回空串，由调用方决定改发文字。
- */
-export function speakableText (text) {
-  return splitSpeakable(text).spoken
-}
-
-/**
- * 把一条语音拆成「要念的」和「只剩表情/符号的」两半：表情不念出来，但单独补一条文字发出去
- * （用户反馈：发语音时表情直接消失，希望表情和语音分开发）。
- * extras 里用 <face:名字> 表示系统表情，交给 sendText 换成真的 QQ 表情；表情包 / 戳一戳只从语音里去掉。
- * 例：'<face:呲牙>晚安😁' → { spoken: '晚安', extras: '<face:呲牙>😁' }
- */
-export function splitSpeakable (text) {
-  const raw = String(text ?? '')
-  // emoji 的那一段：图形符号之外还要算上区域指示符（🇨🇳 这类国旗不在 Extended_Pictographic 里，单列会漏掉、被 TTS 念出来）、
-  // 键帽（1️⃣ 要连前面的数字一起拆走）、连接符 / 变体选择符、肤色修饰符（👋🏽）、标签字符（🏴󠁧󠁢󠁳󠁣󠁴󠁿 的尾巴）。
-  const others = /<sticker:[^>]*>(?:\s*<\/sticker>)?|<poke\s*\/?>|[#*0-9]\uFE0F?\u20E3|[\p{Extended_Pictographic}\p{Regional_Indicator}\u200D\uFE0F\u20E3\u{1F3FB}-\u{1F3FF}\u{E0020}-\u{E007F}]/u
-  const re = new RegExp(`${FACE_TAG.source}|${others.source}`, 'gu')
-  let spoken = ''
-  let extras = ''
-  let last = 0
-  for (const m of raw.matchAll(re)) {
-    spoken += raw.slice(last, m.index)
-    if (m[1] !== undefined || m[2] !== undefined) extras += `<face:${faceTagName(m)}>`
-    else if (!m[0].startsWith('<')) extras += m[0] // emoji / 国旗 / 键帽
-    last = m.index + m[0].length
-  }
-  spoken += raw.slice(last)
-  return { spoken: tidySpeech(spoken), extras: tidySpeech(extras) }
-}
 
 /** 系统表情对照：先用常用的，第一次用到时再去网关拉完整目录（一天刷新一次）。 */
 export function createFaces({ onebot, log } = {}) {
