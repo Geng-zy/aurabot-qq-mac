@@ -6,7 +6,8 @@ import { createOneBotClient, isDefiniteFailure } from './client.js'
 import { createOutbox } from './outbox.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './inbound.js'
-import { createFaces, textToSegments, stripFaceTags } from './faces.js'
+import { buildFaceIndex, createFaces, textToSegments, stripFaceTags } from './faces.js'
+import { FACE_TABLE } from './face-table.js'
 import { readForward } from './forward.js'
 import { noticeText } from './notices.js'
 import { createQqInbox } from './inbox.js'
@@ -320,6 +321,16 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
     // ---------- 收 ----------
     faces,
+    /** 给面板用的 QQ 系统表情目录：内置整表打底，网关能取到就合并。 */
+    async faceCatalog() {
+      let byId = new Map(FACE_TABLE.map((f) => [String(f.id), f.name]))
+      try {
+        const r = await gw.call('fetch_sys_faces', {}, { timeoutMs: 8000 })
+        const built = buildFaceIndex(r?.packs ? r : r?.data)
+        if (built.byId.size) byId = new Map([...byId, ...built.byId])
+      } catch (error) { log.debug('取 QQ 系统表情目录失败，只用内置的：', error.message) }
+      return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => Number(a.id) - Number(b.id))
+    },
     /** OneBot 消息事件 → 通用形状。 */
     parse: (event) => parseMessageEvent(event, String(event?.self_id || channel.selfId()), { faceName: faces.nameOf }),
     /** 她写的文字 → 消息段：<face:名字> 换成 QQ 系统表情（withFaces 关着就去掉标签）。 */

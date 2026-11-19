@@ -29,8 +29,6 @@ import { defaultModel, askModel, modelReasoning, modelVision, clearReasoningCach
 import { mimeOf } from './core/image-info.js'
 import { createMediaAccess } from './core/media.js'
 import { listModels as listProviderModels } from './core/models-list.js'
-import { buildFaceIndex } from './channels/qq/faces.js'
-import { FACE_TABLE } from './channels/qq/face-table.js'
 import { dataDir, ensureDir } from './core/store.js'
 import { createTasks } from './core/tasks.js'
 import { initUsage, usageReport } from './core/usage.js'
@@ -1483,18 +1481,8 @@ export function apply(ctx) {
     { char: '🙏', name: '拜托', id: '128591' },
   ]
   route('/panel/faces', async () => {
-    // 先用内置整表（329 条）打底：网关取不到目录时，面板也不会只剩 65 个常用表情
-    let byId = new Map(FACE_TABLE.map((f) => [String(f.id), f.name]))
-    try {
-      const r = await onebot.call('fetch_sys_faces', {}, { timeoutMs: 8000 })
-      const built = buildFaceIndex(r?.packs ? r : r?.data)
-      if (built.byId.size) byId = new Map([...byId, ...built.byId])
-    } catch (error) {
-      logger.child('faces').debug('取系统表情目录失败，只用内置的：', error.message)
-    }
-    const faces = [...byId.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => Number(a.id) - Number(b.id))
+    const qqChannel = channels.get('qq')
+    const faces = qqChannel?.faceCatalog ? await qqChannel.faceCatalog() : []
     return { ok: true, faces, emojis: REACT_EMOJIS }
   })
 

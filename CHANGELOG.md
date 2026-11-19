@@ -7,6 +7,7 @@
 - 精简默认人格卡：人格只保留身份、生活、情绪、关系和语感；群管、工具、语音表情、隐私等操作规则继续由 `rulesText()` 负责，减少重复约束。
 - 人格卡保存最多 12000 字，避免单张卡无限膨胀；默认人格仍远低于上限。
 - 删除运行时、面板、配置、备份和待分享里残留的旧外部平台内容；逛热榜/B 站只保留在测试夹具里作为模块接入例子。
+- QQ 系统表情目录收进 QQ 适配器：`/panel/faces` 通过 `channel.faceCatalog()` 读取，宿主不再直接 import QQ 表情表。
 - 会话标题和通知称呼按平台适配器 label 生成，不再硬编码 QQ；系统会话默认取当前第一个平台。
 - 增加通用 `/platforms` 状态接口和 `/platforms/qq/*` 路由别名，旧 `/onebot/*` 保留。
 - 模块事件增加 `platform/state` / `platform/raw`，QQ 的旧 `onebot/state` / `onebot` 事件继续兼容；QQ 专属内置模块也标记 platforms: qq。
