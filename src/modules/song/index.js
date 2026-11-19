@@ -38,7 +38,7 @@ export default {
         const cfg = api.config()
         // 唱过的歌记成她的经历：私聊记到对方头上
         const target = parseChat(chatId)
-        const who = target?.kind === 'private' ? (refOfChat(chatId) === normPerson(cfg.ownerQQ) ? cfg.ownerName || '管理员' : '对方') : '群里'
+        const who = target?.kind === 'private' ? (refOfChat(chatId) === normPerson(cfg.platforms?.qq?.ownerQQ || cfg.ownerQQ) ? cfg.ownerName || '管理员' : '对方') : '群里'
         api.mind?.experience?.({ text: `给${who}唱了《${title}》`, chatId, tags: ['唱歌'], importance: 0.5, effort: 0.05, emotion: { name: '满足', intensity: 0.4 } })
         api.emit('song/sung', { title, chatId })
       },
@@ -130,7 +130,7 @@ export default {
     // 面板里试唱：发到管理员私聊
     api.route('/song/request', async (req) => {
       const b = await http.body(req)
-      return requestTask({ song: b.song, songId: b.songId, pitch: b.pitch, voice: b.voice, chatId: b.chatId || `private:${api.config().ownerQQ}` }, [String(api.config().ownerQQ)])
+      return requestTask({ song: b.song, songId: b.songId, pitch: b.pitch, voice: b.voice, chatId: b.chatId || `private:${api.config().platforms?.qq?.ownerQQ || api.config().ownerQQ}` }, [String(api.config().ownerQQ)])
     })
     return { ...song, requestTask }
   },

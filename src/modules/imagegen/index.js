@@ -170,7 +170,7 @@ export default {
         const allowed = () => {
           const active = api.config()
           const verifiedOwner = ownerPrivate && ownerAuthorizationRevision(active) === ownerRevision && isOwner(active, chat.userId, chat.chatId)
-          return active.botQQ === cfg.botQQ && (verifiedOwner || drawChatAllowed(active, chat.chatId))
+          return String(active.platforms?.qq?.botQQ || active.botQQ) === String(cfg.platforms?.qq?.botQQ || cfg.botQQ) && (verifiedOwner || drawChatAllowed(active, chat.chatId))
         }
         if (!allowed()) return { ok: false, message: '这个会话未开放生图，请在生图白名单勾选。' }
         if (image && cfg.imageGen.img2img === false) return { ok: false, message: '参考图功能已关闭' }

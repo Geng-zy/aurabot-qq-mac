@@ -171,7 +171,7 @@ export default {
             const target = outboundChatId(name, picked, chat.chatId)
             const clean = typeof hub.cleanOutbound === 'function'
               ? (text) => hub.cleanOutbound(target, text)
-              : (text) => cleanOutboundText(text, { ownerPrivate: target === `private:${api.config().ownerQQ}` })
+              : (text) => cleanOutboundText(text, { ownerPrivate: target === `private:${api.config().platforms?.qq?.ownerQQ || api.config().ownerQQ}` })
             const cleaned = cleanOutboundParams(name, picked, clean)
             if (!cleaned.ok) return { ok: false, message: cleaned.message }
             if (TEXT_PARAM_FIELDS[name] && hub.checkOutgoingPrivacy) {
