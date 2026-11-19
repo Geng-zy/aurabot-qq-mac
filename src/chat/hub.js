@@ -1133,6 +1133,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 戳回去：私聊戳对方，群里戳最近戳她的人（没人戳过就戳这一段最后说话的人）。 */
   async function pokeBack(chatId) {
     const cfg = getConfig()
+    if (channelOf(chatId)?.caps?.poke === false) return
     const group = chatId.startsWith('group:') ? chatId.slice(6) : ''
     const target = group ? lastPoker.get(chatId) || lastSpeaker.get(chatId) : chatId.slice(8)
     if (!target) return
