@@ -51,9 +51,16 @@ const MAX_IMAGE_BYTES = 1024 * 1024 * 1024 // 图片大小不设实际限制，�
 const MODEL_IMAGE_BYTES = 8 * 1024 * 1024 // 超过这个大小先缩小再给模型
 const MAX_MESSAGE_IMAGES = 8 // 一条消息最多给她看几张，合并转发里的图算在内
 export const WORKSPACE_DIR = process.env.AURABOT_WORKSPACE || join(homedir(), 'Aurabot', 'qq-chats')
-/** 现在用的工作区目录：面板里填了就用填的，否则默认。 */
-export const workspaceDirOf = (cfg) => String(cfg?.workspaceDir || '').trim() || WORKSPACE_DIR
+/** 现在用的工作区目录：平台单独填了就用平台的，否则用全局 QQ 旧配置，再否则默认。 */
+export const workspaceDirOf = (cfg, platform = 'qq') => {
+  const perPlatform = String(cfg?.platforms?.[platform]?.workspaceDir || '').trim()
+  const global = String(cfg?.workspaceDir || '').trim()
+  if (perPlatform) return perPlatform
+  if (global) return global
+  return platform === 'qq' ? WORKSPACE_DIR : join(homedir(), 'Aurabot', `${platform}-chats`)
+}
 export const WORKSPACE_TITLE = 'Aurabot · QQ'
+export const workspaceTitleOf = (platform = 'qq') => platform === 'qq' ? WORKSPACE_TITLE : `Aurabot · ${platform}`
 const SOURCE_KIND = 'aurabot'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -358,16 +365,17 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 工作区与会话 ----------
-  async function ensureWorkspace() {
+  async function ensureWorkspace(platform = 'qq') {
     const reg = dsh.workspaceRegistry || dsh.get('workspaceRegistry')
     if (!reg) throw new Error('宿主没有 workspaceRegistry')
-    const dir = workspaceDirOf(getConfig())
+    const dir = workspaceDirOf(getConfig(), platform)
     mkdirSync(dir, { recursive: true })
     const norm = (p) => String(p || '').replace(/[\\/]+$/, '').toLowerCase()
     let ws = reg.list().find((w) => norm(w.path) === norm(dir))
     if (!ws) {
-      ws = await reg.create(dir, WORKSPACE_TITLE)
-      log.info('建好了工作区「' + WORKSPACE_TITLE + '」：' + dir)
+      const title = workspaceTitleOf(platform)
+      ws = await reg.create(dir, title)
+      log.info('建好了工作区「' + title + '」：' + dir)
     }
     return ws
   }
@@ -395,10 +403,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 新会话挂不上工作区：按 1、5、15、30、60 分钟退避（来自原项目 4d65ee7） ----------
+  const workspacePlatform = (chatId) => parseChat(chatId)?.platform || 'qq'
+  const workspacePathOf = (chatId) => workspaceDirOf(getConfig(), workspacePlatform(chatId))
+  const isCurrentWorkspacePath = (path) => channels.platforms().some((p) => workspaceDirOf(getConfig(), p) === path)
   function sessionFailure(chatId) {
     const failure = sessionFailures.get(chatId)
     // 管理员换了工作区后立即允许尝试，不把旧工作区的故障带过去。
-    if (failure && failure.workspacePath !== workspaceDirOf(getConfig())) {
+    if (failure && failure.workspacePath !== workspacePathOf(chatId)) {
       sessionFailures.delete(chatId)
       return null
     }
@@ -445,13 +456,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   function recoveredAttachStillCurrent(ws, sid, workspacePath) {
-    if (workspaceDirOf(getConfig()) !== workspacePath) return false
+    if (!isCurrentWorkspacePath(workspacePath)) return false
     const current = recoveryWorkspace(ws, sid)
     return Boolean(current && workspaceHasSession(current, sid))
   }
 
   async function recoverSessionAttach(error, ws, workspacePath, assertCurrent) {
-    if (error?.code !== 'session/workspace-attach-failed' || workspaceDirOf(getConfig()) !== workspacePath) return ''
+    if (error?.code !== 'session/workspace-attach-failed' || !isCurrentWorkspacePath(workspacePath)) return ''
     const sid = freshSessionId(error, ws)
     if (!sid) return ''
     const current = recoveryWorkspace(ws, sid)
@@ -514,8 +525,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   async function createSessionNow(chat, level, assertCurrent) {
-    const workspacePath = workspaceDirOf(getConfig())
-    const ws = await ensureWorkspace()
+    const platform = parseChat(chat.chatId)?.platform || 'qq'
+    const workspacePath = workspaceDirOf(getConfig(), platform)
+    const ws = await ensureWorkspace(platform)
     assertActive()
     const preset = presetFor(level, getConfig())
     const c = controller()
