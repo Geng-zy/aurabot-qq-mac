@@ -4,6 +4,7 @@ import { defineTool, str, int } from '../../tools/tools.js'
 
 export default {
   id: 'group-admin',
+  platforms: ['qq'],
   name: '群管',
   version: '1.0.0',
   api: 1,

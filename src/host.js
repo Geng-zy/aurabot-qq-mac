@@ -143,10 +143,18 @@ export function apply(ctx) {
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
   // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
   channels.on((e) => {
-    if (e.type === 'state') { if (e.platform === 'qq') mods?.emit('onebot/state', e.state); return }
+    // 通用平台事件；QQ 的旧 onebot 事件继续发，已有模块不用改。
+    if (e.type === 'state') {
+      mods?.emit('platform/state', { platform: e.platform, state: e.state })
+      if (e.platform === 'qq') mods?.emit('onebot/state', e.state)
+      return
+    }
+    if (e.type === 'raw') {
+      mods?.emit('platform/raw', { platform: e.platform, event: e.event })
+      if (e.platform === 'qq') mods?.emit('onebot', e.event)
+      return
+    }
     if (!hub) return
-    // 模块能看到所有原始事件（加群、撤回、好友申请……），只看不拦
-    if (e.type === 'raw') { if (e.platform === 'qq') mods?.emit('onebot', e.event); return }
     if (e.type === 'message') {
       const msg = e.msg
       // 危险命令确认：管理员的「确认 / 取消」回复先在这里截住，不交给聊天中枢

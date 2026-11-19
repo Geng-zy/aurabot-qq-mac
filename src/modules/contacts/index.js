@@ -45,6 +45,7 @@ export function planWhitelist(cfg, { action, kind, id }) {
 
 export default {
   id: 'contacts',
+  platforms: ['qq'],
   name: '好友申请与白名单',
   version: '1.0.0',
   description: '处理好友申请、加群申请和邀请，改私聊 / 群白名单；权限在「权限」页',

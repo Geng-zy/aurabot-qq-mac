@@ -42,6 +42,7 @@ async function smallerForAvatar (buf, cfg) {
 
 export default {
   id: 'profile',
+  platforms: ['qq'],
   name: '改资料',
   version: '1.2.0',
   description: '管理员私聊时查看自己的 QQ 资料与头像图片（qq_get_profile）、发送当前头像（qq_send_avatar）；按权限修改 QQ 资料',

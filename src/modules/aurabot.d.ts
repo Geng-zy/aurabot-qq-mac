@@ -177,6 +177,8 @@ export interface Events {
   /** 所有原始 OneBot 事件（只看，不管白名单） */
   onebot: (event: any) => void
   'onebot/state': (state: string) => void
+  'platform/raw': (payload: { platform: string, event: any }) => void
+  'platform/state': (payload: { platform: string, state: string }) => void
   config: (cfg: any, before: any) => void
   'module/start': (id: string) => void
   'module/stop': (id: string) => void

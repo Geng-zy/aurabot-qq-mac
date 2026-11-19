@@ -14,6 +14,7 @@ import { segmentsOf } from '../../channels/qq/inbound.js'
 
 export default {
   id: 'voice',
+  platforms: ['qq'],
   name: '语音',
   version: '1.0.0',
   description: '发语音条：把她的话念出来（关掉后想发语音时改发文字）',

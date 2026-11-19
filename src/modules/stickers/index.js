@@ -10,6 +10,7 @@ import { ownerOrFree } from '../../chat/access.js'
 
 export default {
   id: 'stickers',
+  platforms: ['qq'],
   name: '表情包',
   version: '1.0.0',
   description: '偷表情、回复时按情绪配表情、她自己改名删图；关掉后不发也不收表情',

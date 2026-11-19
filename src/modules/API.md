@@ -232,7 +232,9 @@ api.on('reply/items', (items) => [...items, { kind: 'text', value: '—— 大�
 | `chat/log` | `{ t, chatId, who, text, uid?, via?, originId? }` | 1.2.3 起，每条流水成功落盘后的只读快照，包括经 `deliver` 记账的回复 / 模块发送及已确认身份的外部输入。文字沿用原流水的脱敏和 500 字上限；`originId` 只在通知中存在。调试模式不写流水，也不产生通知。监听失败不影响消息与落盘，不是发送前的拦截器 |
 | `activity` | `{ kind: 'in' \| 'out', chatId, userId, nickname, text, reply, direct, owner }` | 收到的消息 / 她发出去的话（只看不拦） |
 | `onebot` | 原始 OneBot 事件 | **所有**事件：消息、加群、退群、撤回、好友申请、戳一戳……（只看不拦；不管白名单） |
-| `onebot/state` | `'connected'` 等 | QQ 网关连上 / 断开 |
+| `onebot/state` | `'connected'` 等 | QQ 网关连上 / 断开（旧事件） |
+| `platform/state` | `{ platform, state }` | 任意平台连接状态变化 |
+| `platform/raw` | `{ platform, event }` | 任意平台的原始事件 |
 | `config` | `新配置, 旧配置` | 配置改了 |
 | `module/start` / `module/stop` | 模块 id | 有模块启动 / 停下 |
 | `song/sung` | `{ title, chatId }` | 翻唱模块唱完一首 |

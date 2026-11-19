@@ -11,6 +11,7 @@ import { createDiaryArchive } from './archive.js'
 
 export default {
   id: 'diary',
+  platforms: ['qq'],
   name: '空间日记',
   version: '1.0.0',
   description: '每天自己写几条 QQ 空间说说；管理员私聊里能让她发说说（qq_send_qzone）',
