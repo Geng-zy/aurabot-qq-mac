@@ -1074,6 +1074,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   async function sendVoice(chatId, text, replyId, userId, opts = {}) {
     text = cleanOutboundText(text, cleaningFor(chatId))
     if (!text.trim()) return false
+    if (channelOf(chatId)?.caps?.voice === false) return Boolean(await sendText(chatId, text, replyId, undefined, userId, opts))
     const revision = audienceRevision(chatId)
     const scope = outputScope.getStore()
     if (!(scope?.chatId === chatId && scope.checkedText?.includes(text)) && await mind?.checkOutgoingPrivacy?.(chatId, text)) return false
@@ -1148,6 +1149,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 把一个音频文件当语音条发出去（翻唱用）。 */
   async function sendVoiceFile(chatId, file, note, opts) {
     if (disposed) return null
+    if (channelOf(chatId)?.caps?.voice === false) throw new Error('这个平台不支持语音')
     const b64 = readFileSync(file).toString('base64')
     const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64 } }], note || '[语音]', opts)
     if (!r && getConfig().enabled && !getConfig().dryRun) throw new Error('网关没接受这条语音')
@@ -1268,6 +1270,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   async function sendSticker(chatId, query, replyId, userId, opts = {}) {
     const result = (status) => opts.detailed ? status : status === 'delivered' || status === 'simulated'
+    if (channelOf(chatId)?.caps?.stickers === false) return result('disabled')
     // 面板里把表情包关了：回复里的 <sticker:…>、工具、扩展模块要发的一律不发（#31）
     if (!getConfig().stickers.enabled) {
       log.debug(`表情包关着，「${typeof query === 'object' ? query?.name || '' : query}」不发`)
