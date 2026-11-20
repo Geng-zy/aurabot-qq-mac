@@ -7,11 +7,11 @@ import { defineTool, int, str } from '../../tools/tools.js'
 import { fetchImage, segmentBytes } from '../../core/net.js'
 import { resolvePainting } from '../../features/paintings.js'
 import { ownerOrFree } from '../../chat/access.js'
+import { parseChat } from '../../channels/ids.js'
 import { createQqStickerBridge, createQqStickerHooks } from '../../channels/qq/features/stickers-qq.js'
 
 export default {
   id: 'stickers',
-  platforms: ['qq'],
   name: '表情包',
   version: '1.0.0',
   description: '偷表情、回复时按情绪配表情、她自己改名删图；关掉后不发也不收表情',
@@ -22,6 +22,7 @@ export default {
     const qqStickerHooks = createQqStickerHooks({ onebot, log: api.log })
     const store = createStickerStore({ dsh: api.dsh, getConfig: api.config, log: api.log, qq: qqStickerHooks, downloadSegment: (seg) => segmentBytes(seg, onebot, { maxBytes: 1024 * 1024 * 1024 }) })
     const qqStickers = createQqStickerBridge({ onebot, store, getConfig: api.config, log: api.log })
+    const isQqChat = (chat) => parseChat(chat.chatId)?.platform === 'qq'
 
     api.tool(({ chat, level, sessionId }) => {
       if (chat.kind === 'system') return []
@@ -86,7 +87,7 @@ export default {
       ]
       // 「她挑」模式：聊天里刚收到的表情，喜欢就凭编号收下；也能收自己刚画的图
       // （「只听管理员的」下，别人在场时不能自己收，得等管理员发话）
-      tools.push(defineTool({
+      if (isQqChat(chat)) tools.push(defineTool({
         name: 'qq_collect_sticker',
         description: '悄悄把聊天里刚出现的表情收进自己的表情库（喜欢才收，不喜欢就别调）。index 从 1 开始；name 是你给它起的名字。收表情是你自己的小习惯，通常不用跟对方说你收没收到。管理员让你收哪张，你收哪张（「只听管理员的」模式下：管理员私聊里可以自己挑着收；群里这一轮只有管理员说话时也能自己收，有别人在场就要等管理员发话）。传 painting（画作编号，如 #1）时，收的是你自己刚画的那张图，不是聊天里的表情。',
         properties: {
@@ -141,7 +142,7 @@ export default {
       }))
       // 管理员让她存表情：存这个聊天里刚发来的那张（她看得见图，但拿不到图片地址，所以由插件去找）；
       // 传 painting（画作编号）时存的是她自己刚画的那张
-      tools.push(defineTool({
+      if (isQqChat(chat)) tools.push(defineTool({
         name: 'qq_save_sticker',
         description: '把这个聊天里刚发来的那张表情包 / 图片收进你的表情库（同时收藏到 QQ）。管理员说「存一下这个表情」「导入这个表情」「收藏这张」时用。传 painting（画作编号，如 #1）时，存的是你自己刚画的那张图。name 是不超过 12 个字的备注，可以不填（会自动看图起名）。',
         properties: {
@@ -173,7 +174,7 @@ export default {
           return { ok: true, message: `存好了${r.item.name ? '「' + r.item.name + '」' : ''}` }
         },
       }))
-      tools.push(defineTool({
+      if (isQqChat(chat)) tools.push(defineTool({
         name: 'qq_import_qq_stickers',
         description: '把你 QQ「我喜欢的」收藏里已有的表情全部导进表情库（已经有的跳过），之后就能用 <sticker:名字> 发它们。管理员让你「导入收藏的表情」「同步一下 QQ 表情」时用。',
         execute: async () => {
@@ -224,7 +225,7 @@ export default {
     })
     api.route('/sticker/caption-status', async () => ({ ok: true, ...store.captionStatus() }))
     api.route('/sticker/caption-stop', async () => ({ ok: true, ...store.captionCancel() }))
-    api.route('/sticker/import-qq', async () => qqStickers.importFromQQ())
+    api.route('/sticker/import-qq', async () => api.core.channels?.get('qq') ? qqStickers.importFromQQ() : { ok: false, message: '没有启用 QQ 平台' })
     api.rule(() => '- 管理员让你存某个表情（「存一下」「导入这个表情」）时用 qq_save_sticker；让你把 QQ 收藏里的表情导进来时用 qq_import_qq_stickers。别人让你存，不用理。')
     api.route('/sticker/upload', async (req) => {
       const b = await http.body(req)
