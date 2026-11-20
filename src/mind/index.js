@@ -517,11 +517,19 @@ export function createMind(opts) {
     const linkQ = store.prep('SELECT a, b, kind, weight FROM links WHERE a = ? OR b = ?')
     for (const r of eps) linkRows.push(...linkQ.all(r.id, r.id))
     const prev = store.get(forgottenKey(pid), null)
+    // deleteEpisode 会级联删掉由这些经历派生的「知道的事」；恢复时也要把派生条目放回去。
+    const derived = []
+    for (const e of eps) {
+      for (const row of store.prep("SELECT * FROM episodes WHERE instr(json, ?) > 0").all(JSON.stringify(e.id))) {
+        if (eps.some((x) => x.id === row.id) || derived.some((x) => x.id === row.id)) continue
+        derived.push(row)
+      }
+    }
     const bundle = {
       links: [...(prev?.links || []), ...linkRows],
       id: pid, at: now(), name: p?.name || prev?.name || '', keepPerson: Boolean(keepPerson),
       person: p || prev?.person || null,
-      episodes: [...(prev?.episodes || []), ...eps], perception: [...(prev?.perception || []), ...per],
+      episodes: [...(prev?.episodes || []), ...eps], perception: [...(prev?.perception || []), ...per], derived: [...(prev?.derived || []), ...derived],
     }
     store.set(forgottenKey(pid), bundle)
     for (const r of eps) memory.deleteEpisode(r.id)
@@ -571,6 +579,7 @@ export function createMind(opts) {
         writeDeletion(r.id, 'episode', false)
       }
       for (const r of b.perception) putRow('perception', r)
+      for (const r of b.derived || []) putRow('episodes', r)
       // 联想连线：两头的事都还在才连
       const has = store.prep('SELECT 1 FROM episodes WHERE id = ?')
       for (const l of b.links || []) if (has.get(l.a) && has.get(l.b)) putRow('links', l)
