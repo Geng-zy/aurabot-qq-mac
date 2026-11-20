@@ -10,7 +10,7 @@
 // ⚠ 安全默认：总开关关、试运行开。不手动打开，一句都不会真的发到 QQ。
 
 import { readFileSync, existsSync, writeFileSync, unlinkSync, statSync, mkdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
@@ -88,26 +88,35 @@ export function apply(ctx) {
   let pushDueAt = null
   const getConfig = () => cfg
   setSsrpMode(() => (getConfig().security && getConfig().security.ssrfMode === 'loose' ? 'loose' : 'strict'))
-  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.imageGen.apiKey); for (const item of cfg.imageGen.fallbacks || []) registerSecret(item.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey); registerSecret(cfg.backup?.remote?.token); registerSecret(cfg.backup?.remote?.webdav?.password); registerSecret(cfg.voice?.asrApi?.apiKey); registerSecret(cfg.voice?.breeze?.key); registerSecret(cfg.voice?.breeze?.password) } // 云备份令牌 / WebDAV 密码、语音的 Key 也按密钥脱敏
+  const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.platforms?.qq?.httpToken); registerSecret(cfg.platforms?.qq?.wsToken); registerSecret(cfg.platforms?.telegram?.token); registerSecret(cfg.imageGen.apiKey); for (const item of cfg.imageGen.fallbacks || []) registerSecret(item.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey); registerSecret(cfg.backup?.remote?.token); registerSecret(cfg.backup?.remote?.webdav?.password); registerSecret(cfg.voice?.asrApi?.apiKey); registerSecret(cfg.voice?.breeze?.key); registerSecret(cfg.voice?.breeze?.password) } // 云备份令牌 / WebDAV 密码、语音的 Key 也按密钥脱敏
   const setConfig = (next) => {
     const before = cfg
     cfg = saveConfig(next, before)
+    secrets()
     if (before.enabled !== cfg.enabled || before.dryRun !== cfg.dryRun || before.debug !== cfg.debug
       || before.botQQ !== cfg.botQQ || ownerAuthorizationRevision(before) !== ownerAuthorizationRevision(cfg)) qq.resetInbox()
     // 改机器人号后旧连接的核对结果立刻失效，必须重新核对才能处理消息或完成向导。
+    const beforeQq = before.platforms?.qq || {}
+    const afterQq = cfg.platforms?.qq || {}
     if (before.botQQ !== cfg.botQQ) {
       qq.resetAccount()
       if (qq.state() === 'connected') qq.restart()
+    } else if (['enabled', 'wsUrl', 'httpUrl', 'wsToken', 'httpToken'].some((k) => beforeQq[k] !== afterQq[k])) {
+      // 改地址、令牌或启停也要换连接；只改白名单/权限时不动现有连接。
+      if (afterQq.enabled === false) qq.stop()
+      else if (qq.state() !== 'stopped') qq.restart()
     }
+    if (before.enabled !== cfg.enabled && cfg.enabled) qq.start()
     const beforeTg = before.platforms?.telegram || {}
     const afterTg = cfg.platforms?.telegram || {}
     const tgChanged = ['enabled', 'token', 'apiBase'].some((k) => beforeTg[k] !== afterTg[k])
+    const tg = channels.get('telegram')
+    if (before.enabled && !cfg.enabled) tg?.stop()
+    else if (!before.enabled && cfg.enabled && afterTg.enabled && afterTg.token) tg?.start().catch((error) => log.warn('Telegram 启动失败：', error.message))
     if (tgChanged) {
-      const tg = channels.get('telegram')
       if (!afterTg.enabled || !afterTg.token) tg?.stop()
       else tg?.restart().catch((error) => log.warn('Telegram 重启失败：', error.message))
     }
-    secrets()
     if (bridge && before.bridge.dshTools !== cfg.bridge.dshTools) bridge.refresh()
     // 管理员在面板里改了「ta怎么称呼你」：以管理员改的为准（她自己改过的叫法被盖掉，记一个版本）
     if (mind && String(before.ownerName || '') !== String(cfg.ownerName || '') && String(cfg.ownerName || '').trim()) {
@@ -404,7 +413,9 @@ export function apply(ctx) {
       // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；外部模块客户端不带 Origin，
       // 不受影响；桌面面板的 fetch 是同源，也不受影响。
       if (csrfBlocked(req, res)) return undefined
-      if (mods.routeAccess(path) === 'panel' && (panelBlocked(req, res, true) || adminHostBlocked(req, res))) return undefined
+      // 模块客户端路由也必须防 DNS rebinding；不能只靠 access:'panel'。
+      if (adminHostBlocked(req, res)) return undefined
+      if (mods.routeAccess(path) === 'panel' && panelBlocked(req, res, true)) return undefined
       return mods.handle(path, req, res)
     }),
   }), 'aurabot: 模块接口')
@@ -622,12 +633,15 @@ export function apply(ctx) {
     if (pushTimer) { clearTimeout(pushTimer); pushTimer = null } // 云备份的每日定时也要收尾，别留悬空回调
     dangerGuard?.dispose()
     approvalRelay?.dispose()
+    // 先停平台：关闭期间不再产生新的入站/出站；再收中枢、心智和模块。
+    for (const ch of channels.list()) {
+      try { ch.dispose ? ch.dispose() : ch.stop() } catch (error) { log.warn(`关闭平台 ${ch.platform} 失败：`, error.message) }
+    }
     tasks.dispose()
     hub.dispose()
     try { mind?.close() } catch (error) {}
     bridge.dispose()
     mods.dispose()
-    for (const ch of channels.list()) { try { ch.dispose ? ch.dispose() : ch.stop() } catch (error) {} }
   }, 'aurabot: 收尾')
 
   // ---------- 面板接口 ----------
@@ -676,12 +690,9 @@ export function apply(ctx) {
     const body = await readBody(req)
     const before = cfg
     setConfig(mergeFromPanel(cfg, body))
-    const changedConn = ['httpUrl', 'wsUrl', 'httpToken', 'wsToken'].some((k) => before.snowluma[k] !== cfg.snowluma[k])
     // 换了模型：思考强度和「能不能看图」的探测结果都得重来，不然要等 10 分钟缓存过期
     const changedModel = before.model.provider !== cfg.model.provider || before.model.model !== cfg.model.model
     if (changedModel) { clearReasoningCache(); clearVisionCache() }
-    if (changedConn || before.botQQ !== cfg.botQQ) qq.resetAccount()
-    if (changedConn && qq.state() !== 'stopped') qq.restart()
     if (!before.enabled && cfg.enabled) setTimeout(safe(watchdog, '看门狗'), 100)
     if (before.enabled && !cfg.enabled) qq.stop()
     log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun && !cfg.debug ? '开' : '关'}｜调试 ${cfg.debug ? '开' : '关'}`)
@@ -1420,7 +1431,13 @@ export function apply(ctx) {
   route('/modules/prompt', async (req) => ({ ok: true, prompt: mods.promptFor(String(query(req).id || '')) }))
   route('/modules/open', async (req) => {
     const id = String(query(req).id || '')
-    return openFolder(id ? join(mods.dir(), id) : mods.dir())
+    const base = mods.dir()
+    if (!id) return openFolder(base)
+    if (!/^[a-z][a-z0-9-]{1,39}$/.test(id)) return { ok: false, message: '模块 id 不合法' }
+    const dir = join(base, id)
+    const rel = relative(base, dir)
+    if (rel.startsWith('..') || rel.includes('/')) return { ok: false, message: '模块路径不合法' }
+    return openFolder(dir)
   })
   // 模拟测试：不用上 QQ 就能试模块。发出去的消息只截下来给面板看，不真发
   // （模块直接调 api.onebot(...) 的操作不在此列，是真的会执行的）

@@ -161,7 +161,8 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
     if (!wanted.length) return true
     // 没有 channel 注册表时保持旧行为（测试/工具型调用），有注册表才做平台门禁。
     if (!core?.channels?.get) return true
-    return wanted.some((p) => Boolean(core.channels.get(p)))
+    const cfg = getConfig()
+    return wanted.some((p) => Boolean(core.channels.get(p)) && cfg?.platforms?.[p]?.enabled !== false)
   }
   const loader = createModuleLoader({
     state, builtinDefs, builtins, getConfig, setConfig, version, API_VERSION, SRC,

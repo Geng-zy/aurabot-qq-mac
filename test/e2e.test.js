@@ -504,6 +504,18 @@ test('群管内置模块路由：挂在根路径 /groups/roles，/ext 不再保�
   assert.equal(old.json().moduleOff, true, '内置模块不再走 /ext')
 })
 
+test('群管：管理员改机器人自己的群名片时直接执行，不交给模型反问', async () => {
+  const before = mock.sent('set_group_card').length
+  const turns = fake.turns.length
+  mock.push(grp('555', OWNER, [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 把群名片改成 demo' } }], 'xiaoming'))
+  await until(() => mock.sent('set_group_card').length > before)
+  const call = mock.sent('set_group_card').at(-1)
+  assert.equal(call.params.group_id, 555)
+  assert.equal(call.params.user_id, Number(BOT))
+  assert.equal(call.params.card, 'demo')
+  assert.equal(fake.turns.length, turns, '确定性处理不应再开模型回合')
+})
+
 test('群管：群友要求禁言被拒绝，管理员要求才执行', async () => {
   mock.push(grp('555', '777', [{ type: 'at', data: { qq: BOT } }, { type: 'text', data: { text: ' 把999禁言' } }]))
   await until(() => fake.turns.at(-1)?.userText.includes('把999禁言') && fake.turns.at(-1).toolCalls.length)

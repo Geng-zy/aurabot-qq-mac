@@ -94,7 +94,7 @@ export default {
         required: ['source'],
         execute: async ({ source, name, tags }) => {
           const buf = await fetchImage(String(source), { maxBytes: 5 * 1024 * 1024 })
-          const r = await store.addFromBuffer(buf, { name: name || '', tags: Array.isArray(tags) ? tags.slice(0, 3) : [], from: 'tool' })
+          const r = await store.addFromBuffer(buf, { name: name || '', tags: Array.isArray(tags) ? tags.slice(0, 3) : [], from: 'tool', toQQ: isQqChat(chat) })
           return r.ok ? { ok: true, message: r.existed ? '库里已经有这张了' : `收好了「${r.item.name || '未命名'}」` } : { ok: false, message: r.reason }
         },
       }))
@@ -111,32 +111,32 @@ export default {
     api.route('/sticker/rename', async (req) => {
       const b = await http.body(req)
       return store.rename(b.md5, b.name, Array.isArray(b.tags) ? b.tags : undefined)
-    })
+    }, { access: 'panel' })
     api.route('/sticker/delete', async (req) => {
       const b = await http.body(req)
       return store.remove(b.md5, { fromQQ: b.fromQQ !== false })
-    })
+    }, { access: 'panel' })
     // 多选批量删除：面板上一次删几十张，不用一张张点、一张张确认
     api.route('/sticker/delete-batch', async (req) => {
       const b = await http.body(req)
       const list = Array.isArray(b.md5s) ? b.md5s : b.md5 ? [b.md5] : []
       return store.removeMany(list, { fromQQ: b.fromQQ !== false })
-    })
+    }, { access: 'panel' })
     // 批量补名字 / 标签：POST 立刻返回，后台一张张看图起名，进度用下面的 status 查
     api.route('/sticker/caption-all', async (req) => {
       const b = await http.body(req)
       return store.captionLibrary({ all: b.all === true, limit: Number(b.limit) || 0 })
-    })
+    }, { access: 'panel' })
     api.route('/sticker/caption-status', async () => ({ ok: true, ...store.captionStatus() }))
-    api.route('/sticker/caption-stop', async () => ({ ok: true, ...store.captionCancel() }))
+    api.route('/sticker/caption-stop', async () => ({ ok: true, ...store.captionCancel() }), { access: 'panel' })
     qqFeature.mountRoutes()
     api.rule(qqFeature.rule)
     api.route('/sticker/upload', async (req) => {
       const b = await http.body(req)
       const buf = Buffer.from(String(b.data || '').replace(/^data:[^,]+,/, ''), 'base64')
       if (!buf.length || buf.length > 5 * 1024 * 1024) return { ok: false, message: '图片太大或是空的' }
-      return store.addFromBuffer(buf, { name: b.name || '', tags: b.tags || [], from: 'panel' })
-    })
+      return store.addFromBuffer(buf, { name: b.name || '', tags: b.tags || [], from: 'panel', toQQ: Boolean(api.core.channels?.get('qq')) })
+    }, { access: 'panel' })
 
     // 导出的就是 store：模块停下 / 重载时宿主会调 store.dispose()，
     // 后台批量起名跟着停（不然旧实例会接着调模型、写库，和新实例互相覆盖）。

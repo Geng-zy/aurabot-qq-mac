@@ -59,7 +59,7 @@ export function rewriteImports(code, fromKey, keep = new Set()) {
  *   但 getPrototypeOf 掐成 null —— Object.getPrototypeOf(api.core).hub 也绕不回去。
  */
 export function scopeCoreForModule(core, id) {
-  if (!core || !core.hub || typeof core.hub.subagentFor !== 'function') return core || {}
+  if (!core || !core.hub || typeof core.hub !== 'object') return {}
   const scopedHub = {}
   for (const name of Object.getOwnPropertyNames(core.hub)) {
     if (name === 'runSubagentTurn' || name === 'subagentFor') continue
@@ -74,13 +74,18 @@ export function scopeCoreForModule(core, id) {
       Object.defineProperty(scopedHub, name, { enumerable: true, configurable: true, get: () => core.hub[name], set: (v) => { core.hub[name] = v } })
     }
   }
-  Object.defineProperty(scopedHub, 'runSubagentTurn', {
-    enumerable: true, configurable: true,
-    value: (name, title, prompt, opts = {}) => core.hub.subagentFor(id)(name, title, prompt, opts),
-  })
+  if (typeof core.hub.subagentFor === 'function') {
+    Object.defineProperty(scopedHub, 'runSubagentTurn', {
+      enumerable: true, configurable: true,
+      value: (name, title, prompt, opts = {}) => core.hub.subagentFor(id)(name, title, prompt, opts),
+    })
+  }
   return new Proxy(core, {
     get(target, key, recv) {
       if (key === 'hub') return scopedHub
+      // 模块不能拿回内核控制面或伪造自己的身份；配置只给只读快照。
+      if (key === 'modules' || key === 'mindFor' || key === 'setConfig') return undefined
+      if (key === 'getConfig') return () => structuredClone(target.getConfig())
       return Reflect.get(target, key, recv)
     },
     getPrototypeOf() { return null }, // 摸原型拿回原始 hub 的路也堵死（三审 #177）
@@ -107,6 +112,9 @@ const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v)
 export function deepMerge(base, over) {
   if (!isObj(over)) return over === undefined ? base : over
   const out = { ...(isObj(base) ? base : {}) }
-  for (const [k, v] of Object.entries(over)) out[k] = isObj(v) && isObj(out[k]) ? deepMerge(out[k], v) : v
+  for (const [k, v] of Object.entries(over)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue
+    out[k] = isObj(v) && isObj(out[k]) ? deepMerge(out[k], v) : v
+  }
   return out
 }

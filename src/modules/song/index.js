@@ -106,7 +106,7 @@ export default {
     }) : []))
 
     api.route('/song/status', async () => ({ ok: true, ...song.status() }))
-    api.route('/song/install', async () => song.install())
+    api.route('/song/install', async () => song.install(), { access: 'panel' })
     api.route('/song/root/check', async (req) => ({ ok: true, ...checkRoot(http.query(req).path || '') }))
     api.route('/song/search', async (req) => {
       try { return { ok: true, list: await song.search(http.query(req).q || '') } } catch (error) { return { ok: false, message: error.message, list: [] } }
@@ -114,9 +114,10 @@ export default {
     api.route('/song/account', async () => song.account())
     // 导入音色：面板把文件原样传上来（.zip / .pth / .index），文件名放在 ?name= 里
     api.route('/song/import', async (req) => {
+      if (req?.method !== 'POST') return { ok: false, message: '要用 POST 上传' }
       const name = http.query(req).name || ''
       try {
-        const buf = await http.raw(req, 1024 * 1024 * 1024)
+        const buf = await http.raw(req, 64 * 1024 * 1024)
         if (!buf.length) return { ok: false, message: '文件是空的' }
         const r = song.importModels(name, buf)
         if (r.ok) api.log.info('导入音色：' + r.message)
@@ -124,14 +125,14 @@ export default {
       } catch (error) {
         return { ok: false, message: '导入失败：' + error.message }
       }
-    })
-    api.route('/song/voice/delete', async (req) => song.deleteVoice(String((await http.body(req)).id || '')))
-    api.route('/song/voice/profile', async (req) => { const b = await http.body(req); return song.buildProfile(String(b.id || ''), String(b.folder || '')) })
+    }, { access: 'panel' })
+    api.route('/song/voice/delete', async (req) => song.deleteVoice(String((await http.body(req)).id || '')), { access: 'panel' })
+    api.route('/song/voice/profile', async (req) => { const b = await http.body(req); return song.buildProfile(String(b.id || ''), String(b.folder || '')) }, { access: 'panel' })
     // 面板里试唱：发到管理员私聊
     api.route('/song/request', async (req) => {
       const b = await http.body(req)
       return requestTask({ song: b.song, songId: b.songId, pitch: b.pitch, voice: b.voice, chatId: b.chatId || `private:${api.config().platforms?.qq?.ownerQQ || api.config().ownerQQ}` }, [String(api.config().ownerQQ)])
-    })
+    }, { access: 'panel' })
     return { ...song, requestTask }
   },
 }

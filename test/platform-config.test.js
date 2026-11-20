@@ -33,3 +33,21 @@ test('平台页编辑优先，旧面板顶层编辑也不会被旧镜像覆盖',
   const merged = mergeFromPanel(normalize({ ...prev, allow: { private: [], groups: [] } }), { platforms: { qq: { botQQ: '9' } } })
   assert.equal(merged.botQQ, '9')
 })
+
+test('非 QQ 平台不继承 QQ 管理员号和白名单', async () => {
+  const { checkAllowed, isOwner } = await import('../src/chat/access.js')
+  const c = normalize({ ownerQQ: '10001', allow: { private: ['10002'], groups: ['12345'] }, platforms: { telegram: { enabled: true, token: 'T' } } })
+  assert.equal(checkAllowed(c, { kind: 'private', chatId: 'telegram:private:10001', userId: '10001' }).allowed, false)
+  assert.equal(isOwner(c, '10001', 'telegram:private:10001'), false)
+  assert.equal(checkAllowed(c, { kind: 'private', chatId: 'telegram:private:10002', userId: '10002' }).allowed, false)
+  assert.equal(checkAllowed(c, { kind: 'group', chatId: 'telegram:group:-12345', groupId: '-12345' }).allowed, false)
+  assert.equal(checkAllowed(c, { kind: 'private', chatId: 'qq:private:10001', userId: '10001' }).allowed, true)
+})
+
+test('未运行模块的 password 设置也不回传明文', () => {
+  const c = normalize({ ext: { weather: { apiKey: 'SUPERSECRET', city: '北京' } } })
+  const pub = publicConfig(c)
+  assert.equal(pub.ext.weather.apiKey, '')
+  assert.equal(pub.ext.weather.apiKeySet, true)
+  assert.equal(pub.ext.weather.city, '北京')
+})

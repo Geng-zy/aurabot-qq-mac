@@ -8,10 +8,13 @@ function platformCfg(cfg, platform) {
   return cfg?.platforms?.[platform] || {}
 }
 function platformOwner(cfg, platform) {
-  return normPerson(platformCfg(cfg, platform).ownerQQ || cfg?.ownerQQ, platform)
+  const own = platformCfg(cfg, platform).ownerQQ
+  // 顶层 ownerQQ/allow 只属于旧 QQ；其他平台必须显式配置，不能被 QQ 号/白名单兜底。
+  return normPerson(own || (platform === LEGACY_PLATFORM ? cfg?.ownerQQ : ''), platform)
 }
 function platformAllow(cfg, platform, kind) {
-  const allow = platformCfg(cfg, platform).allow || cfg?.allow || {}
+  const own = platformCfg(cfg, platform).allow
+  const allow = own || (platform === LEGACY_PLATFORM ? cfg?.allow : {}) || {}
   return (allow[kind] || []).map((id) => normPerson(id, platform))
 }
 
@@ -54,8 +57,9 @@ export function groupOwnerTools(cfg, chat) {
   if (!chat || chat.kind !== 'group') return 'off'
   const mode = cfg?.group?.ownerTools
   if (mode !== 'owner') return 'off'
-  const list = (cfg?.group?.ownerToolsGroups || []).map((id) => normPerson(id)).filter(Boolean)
-  if (list.length && !list.includes(refOfChat(chat.chatId) || normPerson(chat.groupId, chat.platform))) return 'off'
+  const platform = parseChat(chat.chatId)?.platform || LEGACY_PLATFORM
+  const list = (cfg?.group?.ownerToolsGroups || []).map((id) => normPerson(id, platform)).filter(Boolean)
+  if (list.length && !list.includes(refOfChat(chat.chatId) || normPerson(chat.groupId, platform))) return 'off'
   return mode
 }
 
@@ -91,7 +95,10 @@ export function drawChatAllowed(cfg, chatId) {
   if (chat?.platform !== LEGACY_PLATFORM) return false
   const list = chat.kind === 'private' ? 'private' : 'groups'
   const platform = platformCfg(cfg, chat.platform)
-  return (platform.allow || cfg.allow)?.[list]?.includes(chat.id) === true && (platform.drawAllow || cfg.drawAllow)?.[list]?.includes(chat.id) === true
+  const id = normPerson(chat.id, chat.platform)
+  const allow = (platformAllow(cfg, chat.platform, list) || [])
+  const draw = (platform.drawAllow?.[list] || []).map((x) => normPerson(x, chat.platform))
+  return allow.includes(id) && draw.includes(id)
 }
 
 /**

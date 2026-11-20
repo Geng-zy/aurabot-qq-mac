@@ -104,7 +104,8 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const { faces, textSegments } = createFaceCodec({ call: (a, p, o) => gw.call(a, p, o), log })
 
   const quoteApi = createQuoteApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, parse: (e) => channel.parse(e), fetchHistory, log, isLegacyDirectRecord })
-  const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
+  const outboundReady = () => !auth.wrongAccount && (gwState !== 'connected' || auth.loginOk)
+  const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure, isReady: outboundReady })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
   const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
   const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => auth.verifiedLogin, getWrongAccount: () => auth.wrongAccount, setWrongAccount: (v) => { auth.wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
@@ -121,7 +122,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     state: () => gwState,
     wrongAccount: () => auth.wrongAccount,
     /** 机器人号改了、连接设置改了：旧的核对结果作废。 */
-    resetAccount() { auth.wrongAccount = '' },
+    resetAccount() { auth.wrongAccount = ''; auth.loginOk = false; auth.verifiedLogin = null; auth.verifying = false; auth.pendingEvents = [] },
     ...lifecycle,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn) },
     /** 平台自己的接口（OneBot 动作）。 */

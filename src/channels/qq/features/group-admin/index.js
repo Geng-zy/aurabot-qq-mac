@@ -14,7 +14,7 @@ export default {
 
     // 「把群名片改成 X」不点名对象时直接改机器人自己的，别让模型先反问 QQ 号。
     api.on('message', async (msg) => {
-      if (msg.kind !== 'group' || !msg.groupId || !api.isOwner(msg)) return false
+      if (msg.kind !== 'group' || !msg.groupId || !api.isOwner(msg.userId)) return false
       const m = String(msg.text || '').trim().match(/^(?:@\S+\s*)?(?:改|把|将)?\s*(?:你的|你自己的)?\s*群名片\s*(?:改成|改为|设为|为)\s*(\S+)\s*$/i)
       if (!m) return false
       const role = await groupRoles.get(msg.groupId)

@@ -1096,7 +1096,19 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const info = chatInfo(chatId)
     if (!opts.literalCode && info.kind === 'group' && hasMention(text)) segs = expandMentions(segs, await membersOf(info.id, info.platform), missed)
     if (!segs.length || (segs.length === 1 && segs[0].type === 'text' && !segs[0].data.text.trim())) return null
-    return sendSegments(chatId, [...quote(replyId), ...mention(userId, segs), ...segs], (replyId ? '[引用] ' : '') + text.slice(0, 60), opts)
+    const message = [...quote(replyId), ...mention(userId, segs), ...segs]
+    const note = (replyId ? '[引用] ' : '') + text.slice(0, 60)
+    // 引用/at 是“附加段”：网关拒绝过期引用或失效 @ 时整条会丢。明确失败时剥掉锚点重发正文。
+    if (!replyId && !userId) return sendSegments(chatId, message, note, opts)
+    try {
+      return await sendSegments(chatId, message, note, { ...opts, throwOnError: true })
+    } catch (error) {
+      if (!definiteFailure(chatId, error)) return null
+      const fallback = segs.filter((seg) => seg.type !== 'reply' && seg.type !== 'at')
+      if (!fallback.length) return null
+      log.warn(`引用/@ 被网关拒绝，剥掉锚点重发正文（${chatId}）：`, error.message)
+      return sendSegments(chatId, fallback, note, opts)
+    }
   }
 
   /** OneBot 的 record 段需要时长；base64 音频没有元数据时补一个。失败就不填，让网关自己判断。 */
@@ -2078,17 +2090,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     bump('received')
     const now = Date.now()
 
-    // 群里的每条消息都记进缓冲（给上下文和「群里在不在聊」用）
-    let groupEntry = null
-    if (msg.kind === 'group') {
-      const buf = groupBuf.get(groupKey(msg.chatId)) || []
-      const entryText = msg.text || (!cfg.voice.asr && msg.records.length ? '[发来一条语音]' : '')
-      groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: entryText, observedText: entryText, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers, voicePromise: null, voiceText: '' }
-      buf.push(groupEntry)
-      while (buf.length > 40) buf.shift()
-      groupBuf.set(groupKey(msg.chatId), buf)
-    }
-
     const allowed = checkAllowed(cfg, msg)
     if (msg.kind === 'private' && (allowed.allowed || msg.subType === 'friend')) {
       const ref = normChat(msg.chatId)
@@ -2119,6 +2120,17 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       log.debug(`忽略 ${msg.chatId}（${allowed.reason}）`)
       return
     }
+    // 群里的每条消息都记进缓冲（给上下文和「群里在不在聊」用）
+    let groupEntry = null
+    if (msg.kind === 'group') {
+      const buf = groupBuf.get(groupKey(msg.chatId)) || []
+      const entryText = msg.text || (!cfg.voice.asr && msg.records.length ? '[发来一条语音]' : '')
+      groupEntry = { t: now, uid: msg.userId, nick: msg.nickname, text: entryText, observedText: entryText, at: msg.mentioned, mid: msg.messageId, direct: false, replyId: msg.replyId, images: msg.images, stickers: msg.stickers, voicePromise: null, voiceText: '' }
+      buf.push(groupEntry)
+      while (buf.length > 40) buf.shift()
+      groupBuf.set(groupKey(msg.chatId), buf)
+    }
+
     // 语音先异步转写（私聊、群聊都一样），不挡后面的判断；转出来的字补进群聊缓冲。
     // 以前群里只有「这一条要回」时才转，没 @ 的语音永远是空的，后面 @ 她也看不到（移植自原项目 2baf896，#197）
     let voicePromise = null
@@ -2573,6 +2585,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // 群聊再加一层：她正在回上一段时，新消息先攒着，等她说完再一起交给她（不会一条消息一轮、挨个回）
   const pending = new Map() // chatId → { chat, texts, images, senders, wantVoice, timer, firstAt, mode, count }
   const busy = new Map() // chatId → 这一轮开始的时间（她正在想 / 正在发）
+  const flushing = new Set() // chatId：flush 正在准备提示词/等网络，避免第二个定时器并发
   const BUSY_MAX_MS = 4 * 60_000 // 卡住保护：超过这么久就当她已经回完了
   const RANK = { engaged: 1, interject: 2, must: 3 }
   const running = new Map() // chatId → 这一轮的编号（模型 / 工具还没结束，turn/end 之前）；私聊此时新消息直接 steer 进去
@@ -2754,6 +2767,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (disposed) return
     const p = pending.get(chatId)
     if (!p) return
+    if (flushing.has(chatId)) { p.waiting = true; return }
+    flushing.add(chatId)
+    try {
     clearTimeout(p.timer)
     // 「她挑」的提示统一在这里补：私聊、群聊、插话三条路都要带上
     const hint = p.stickerPick ? '\n\n' + stickerStash.hint(p.stickerPick) : ''
@@ -2765,6 +2781,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const query = p.observations.map((x) => x.text).join('\n')
       const [first, ...rest] = [...p.senders]
       try {
+        flushing.delete(chatId) // 已经进入这一轮，后续消息应走 steer，而不是被互斥挡在外面
         await pushToSession(p.chat, content, first, { wantVoice: p.wantVoice, extraSenders: rest, queryText: query, observations: p.observations, mustReply: p.mustReply, steer: true })
       } catch (error) {
         bump('errors')
@@ -2819,6 +2836,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       content = [{ type: 'text', text: p.texts.join('\n') + hint }, ...p.images]
     }
     busy.set(chatId, Date.now())
+    flushing.delete(chatId) // 后续消息由 isBusy/steer 处理，不再占用准备阶段的互斥
     try {
       const [first, ...rest] = [...p.senders]
       const query = p.query ?? (p.observations.length ? p.observations.map((x) => x.text).join('\n') : p.texts.map((t) => t.replace(/^【私聊】[^：]*：/, '')).join('\n'))
@@ -2836,6 +2854,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       bump('errors')
       log.error(`转进 DSH 失败（${chatId}）：`, error.message)
     }
+    } finally { flushing.delete(chatId) }
   }
 
   /** 会话冷却时把这段留下：群聊的已经标成交给她了，要连内容带编号一起留；期间又来的消息并进来。 */

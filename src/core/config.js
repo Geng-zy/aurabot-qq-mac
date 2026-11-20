@@ -1,7 +1,7 @@
 // 插件配置：默认值 + 归一化 + 读写。配置文件 ~/.dsh/plugins-data/aurabot/config.json
 
 import { randomUUID } from 'node:crypto'
-import { dataDir, readJson, writeJson } from './store.js'
+import { dataDir, readJson, readJsonStrict, writeJson } from './store.js'
 import { DEFAULT_GROUP_POLICY } from '../chat/group-policy.js'
 import { LEVELS, PROFILE_PERM_KEYS, PROFILE_PERM_LEVELS, profilePermDefault } from '../chat/access.js'
 import { normalizeChatModels } from '../chat/chat-model.js'
@@ -262,6 +262,7 @@ function deepMerge(base, over) {
   if (!isObj(over)) return structuredClone(base)
   const out = structuredClone(base)
   for (const [k, v] of Object.entries(over)) {
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue
     if (isObj(v) && isObj(out[k])) out[k] = deepMerge(out[k], v)
     else if (v !== undefined) out[k] = v
   }
@@ -356,6 +357,12 @@ export function normalize(raw) {
   qqAccount.ownerQQ = qq(c.ownerQQ)
   qqAccount.allow = { private: qqList(c.allow.private), groups: qqList(c.allow.groups) }
   c.platforms = { ...(isObj(c.platforms) ? c.platforms : {}), qq: qqAccount }
+  // 平台工作区目录只接受绝对路径；否则会被 workspaceDirOf 优先捡起来当根目录。
+  for (const p of Object.values(c.platforms)) {
+    if (!isObj(p)) continue
+    const w = String(p.workspaceDir || '').trim()
+    p.workspaceDir = w.startsWith('/') ? w : ''
+  }
   c.botQQ = qqAccount.botQQ
   c.ownerQQ = qqAccount.ownerQQ
   c.allow = qqAccount.allow
@@ -684,7 +691,7 @@ const FILE = () => dataDir('config.json')
 export const OPT_IN_ON_UPDATE = ['qzoneSocial']
 
 export function loadConfig() {
-  const raw = readJson(FILE(), {})
+  const raw = readJsonStrict(FILE(), {})
   // 老配置（向导上线前就填好了两个号）直接算向导已完成
   if (raw && raw.setupDone === undefined && raw.botQQ && raw.ownerQQ) raw.setupDone = true
   // 更新插件后新增的、会公开发东西的功能：老用户先关着，等他们自己在面板里打开（新安装照常默认开）
@@ -746,6 +753,20 @@ export function publicConfig(cfg) {
     p[`${k}Set`] = Boolean(p[k])
     p[k] = ''
   }
+  // 模块未启动/被关掉时，模块自己的 password 字段不会被 registerSecretField 登记；
+  // 先按名字兜底脱敏，避免 /state 把明文密钥交出去。
+  const secretName = /(?:password|passwd|pwd|token|apikey|api_key|secret|cookie|authorization)$/i
+  const scrub = (value) => {
+    if (!value || typeof value !== 'object') return
+    for (const [k, v] of Object.entries(value)) {
+      if (v && typeof v === 'object') scrub(v)
+      else if (secretName.test(k) && typeof v === 'string' && v) {
+        value[k + 'Set'] = true
+        value[k] = ''
+      }
+    }
+  }
+  if (c.ext && typeof c.ext === 'object') scrub(c.ext)
   return c
 }
 

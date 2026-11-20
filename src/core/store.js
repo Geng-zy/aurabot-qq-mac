@@ -29,6 +29,21 @@ export function readJson(file, fallback) {
   }
 }
 
+/** 严格读取：文件不存在才用 fallback；JSON 损坏时把原文件留底并抛出，不能静默当空配置。 */
+export function readJsonStrict(file, fallback) {
+  let text
+  try { text = readFileSync(file, 'utf8') } catch (error) {
+    if (error?.code === 'ENOENT') return typeof fallback === 'function' ? fallback() : fallback
+    throw error
+  }
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
+  try { return JSON.parse(text) } catch (error) {
+    const backup = `${file}.broken-${Date.now()}`
+    try { renameSync(file, backup) } catch {}
+    throw new Error(`配置文件 JSON 损坏，已备份为 ${backup}：${error.message}`)
+  }
+}
+
 export function writeJson(file, value) {
   ensureDir(dirname(file))
   const tmp = `${file}.tmp-${process.pid}`

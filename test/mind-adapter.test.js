@@ -348,7 +348,7 @@ test('模块接口可查询预算，不开放内置评论调度，添加的经�
 })
 
 test('带渠道的会话按来源记忆，公开发布只读取明确提供的摘要', async (t) => {
-  const cfg = { ownerQQ: '1', debug: false, allow: { private: ['mock:2'] } }
+  const cfg = { ownerQQ: '1', debug: false, allow: { private: ['mock:2'] }, platforms: { mock: { allow: { private: ['mock:2'] } } } }
   const delivered = []
   const a = createMindAdapter({ memoryDb: true, getConfig: () => cfg, now: () => T0, deliverReminder: async (r) => { delivered.push(r); return true } })
   t.after(() => a.close())

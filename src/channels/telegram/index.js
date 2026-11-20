@@ -16,11 +16,15 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   let running = false
   let controller = null
   let polling = null
+  let generation = 0
+  let lastError = ''
+  let manualStop = false
   const cfg = () => getConfig()?.platforms?.telegram || {}
   const token = () => String(cfg().token || '').trim()
   const base = () => `${String(cfg().apiBase || 'https://api.telegram.org').replace(/\/+$/, '')}/bot${token()}`
   const ready = () => state === 'connected' && Boolean(me)
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn?.('Telegram 事件处理失败：', error.message) } } }
+  const setState = (next) => { if (state === next) return; state = next; emit({ type: 'state', state: next }) }
 
   async function call(method, params = {}, { signal, timeoutMs = 30000 } = {}) {
     if (!token()) throw new Error('Telegram Bot Token 未配置')
@@ -77,13 +81,14 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     return {
       platform: PLATFORM, kind, chatId, userId: String(msg.from?.id || msg.chat.id),
       groupId: kind === 'group' ? String(msg.chat.id) : '', nickname: msg.from?.first_name || msg.from?.username || '',
-      text, mentioned, atOthers, messageId: String(msg.message_id), replyId: msg.reply_to_message?.message_id ? String(msg.reply_to_message.message_id) : '',
+      text, mentioned, atOthers, messageId: String(msg.message_id), selfId: String(me?.id || ''), replyId: msg.reply_to_message?.message_id ? String(msg.reply_to_message.message_id) : '',
       images, stickers: [], records: [], files: [], segments: [{ type: 'text', data: { text } }, ...images], raw: msg,
     }
   }
 
   async function dispatchUpdate(update) {
-    const msg = update?.message || update?.edited_message
+    // 编辑事件只更新平台上下文，不触发新一轮回复；否则对方改一个字她就回一遍。
+    const msg = update?.message
     if (!msg) return
     // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
     if (Number(msg.date) && Number(msg.date) < startedAt - 2) return
@@ -91,21 +96,23 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     if (parsed) emit({ type: 'message', msg: parsed })
   }
 
-  async function pollLoop() {
-    while (running && !controller?.signal.aborted) {
+  async function pollLoop(ctl, gen) {
+    const current = () => running && generation === gen && !ctl.signal.aborted
+    while (current()) {
       try {
-        const updates = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'edited_message'] }, { signal: controller.signal, timeoutMs: 35000 })
+        const updates = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'edited_message'] }, { signal: ctl.signal, timeoutMs: 35000 })
         for (const update of updates || []) {
+          if (!current()) break
           offset = Math.max(offset, Number(update.update_id) + 1)
           await dispatchUpdate(update)
         }
       } catch (error) {
-        if (controller?.signal.aborted) break
+        if (!current()) break
         log.warn?.('Telegram 轮询失败：', error.message)
         await sleep(3000)
       }
     }
-    if (state !== 'stopped') state = 'stopped'
+    if (generation === gen) setState('stopped')
   }
 
   const channel = {
@@ -115,31 +122,41 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     on(fn) { listeners.add(fn); return () => listeners.delete(fn) },
     async start() {
       if (running) return
-      if (!getConfig()?.enabled || !cfg().enabled || !token()) { state = 'stopped'; return }
-      running = true; state = 'connecting'; startedAt = Math.floor(Date.now() / 1000); controller = new AbortController()
+      if (!getConfig()?.enabled || !cfg().enabled || !token()) { setState('stopped'); return }
+      const gen = ++generation
+      const ctl = new AbortController()
+      controller = ctl
+      manualStop = false
+      running = true; lastError = ''; setState('connecting'); startedAt = Math.floor(Date.now() / 1000)
       try {
-        me = await call('getMe', {}, { signal: controller.signal })
-        state = 'connected'
+        const meInfo = await call('getMe', {}, { signal: ctl.signal })
+        if (generation !== gen || !running) { ctl.abort(); return }
+        me = meInfo; lastError = ''
+        setState('connected')
         log.info?.(`Telegram 已连接：@${me.username || me.id}`)
-        polling = pollLoop()
+        polling = pollLoop(ctl, gen)
       } catch (error) {
-        running = false; state = 'stopped'
-        log.warn?.('Telegram 启动失败：', error.message)
+        if (generation !== gen || !running) return
+        running = false; lastError = String(error?.message || error); setState('stopped'); controller = null; me = null
+        log.warn?.('Telegram 启动失败：', lastError)
         throw error
       }
     },
     stop() {
+      manualStop = true
       running = false
+      generation += 1
       try { controller?.abort() } catch {}
-      controller = null; me = null; state = 'stopped'
+      controller = null; me = null; setState('stopped')
     },
     async restart() { this.stop(); await this.start() },
     watch() {
+      if (manualStop) return
       if (state === 'connecting') return
       if (!getConfig()?.enabled || !cfg().enabled || !token()) { if (state !== 'stopped') this.stop(); return }
       if (state === 'stopped') this.start().catch(() => {})
     },
-    async status() { return { state, login: me ? { uin: String(me.id), nickname: me.username || me.first_name || '' } : null, endpoint: { wsUrl: '', httpUrl: 'https://api.telegram.org' }, problem: state === 'connected' ? '' : (token() ? '' : 'Bot Token 未配置') } },
+    async status() { return { state, login: me ? { uin: String(me.id), nickname: me.username || me.first_name || '' } : null, endpoint: { wsUrl: '', httpUrl: 'https://api.telegram.org' }, problem: state === 'connected' ? '' : (token() ? lastError : 'Bot Token 未配置') } },
     async send(chatId, segments) {
       const target = parseChat(chatId)
       if (!target || target.platform !== PLATFORM) throw new Error('不是 Telegram 的聊天：' + chatId)

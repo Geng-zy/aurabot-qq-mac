@@ -93,10 +93,10 @@ export default {
       }
     })
 
-    api.route('/diary/run', async (req) => qzone.writeDiary({ visibility: (await http.body(req)).visibility }))
-    api.route('/diary/preview', panelAction(async (req) => media.view(await qzone.writeDiary({ visibility: (await http.body(req)).visibility, preview: true }))))
+    api.route('/diary/run', async (req) => qzone.writeDiary({ visibility: (await http.body(req)).visibility }), { access: 'panel' })
+    api.route('/diary/preview', panelAction(async (req) => media.view(await qzone.writeDiary({ visibility: (await http.body(req)).visibility, preview: true }))), { access: 'panel' })
     api.route('/diary/archive', async () => archive.state())
-    api.route('/diary/archive/collect', panelAction(async () => archive.collect()))
+    api.route('/diary/archive/collect', panelAction(async () => archive.collect()), { access: 'panel' })
     api.route('/diary/image', async (req, res) => {
       try {
         const bytes = media.image(http.query(req).id)
@@ -110,7 +110,7 @@ export default {
     api.route('/qzone/delete', async (req) => {
       await qzone.remove((await http.body(req)).tid)
       return { ok: true, message: '删掉了' }
-    })
+    }, { access: 'panel' })
     return qzone
   },
 }

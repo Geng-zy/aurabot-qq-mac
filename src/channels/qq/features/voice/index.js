@@ -69,7 +69,7 @@ export default {
       const buf = readFileSync(file)
       return { ok: true, engine, mime: file.endsWith('.wav') ? 'audio/wav' : 'audio/mpeg', data: buf.toString('base64') }
     })
-    api.route('/voice/install', async () => installEdge(api.log, { root: api.config().song?.root || '' }))
+    api.route('/voice/install', async () => installEdge(api.log, { root: api.config().song?.root || '' }), { access: 'panel' })
     // 自检云端识别：先用 macOS 自带语音念一句，再交给配好的识别服务
     api.route('/voice/asr-provider-test', async (req) => {
       const b = await http.body(req)
@@ -111,7 +111,7 @@ export default {
       if (!p || typeof s0.prepare !== 'function') return { ok: false, message: 'DSH 语音输入没有可用的识别提供方。' }
       await s0.prepare(p.id)
       return { ok: true, message: '开始下载识别模型（约 200MB，下好后常驻本机）' }
-    })
+    }, { access: 'panel' })
     // 自检「听语音」（真 QQ）：拿和某人私聊里最近一条语音，走一遍 get_record → 16k → DSH 识别
     api.route('/voice/asr-last', async (req) => {
       const b = await http.body(req)
@@ -171,7 +171,7 @@ export default {
     const r = await breezeClaim(b, { log: api.log })
     const bal = await breezeBalance(b)
     return { ok: true, message: r.message, reward: r.reward, tier: r.tier, balance: bal.balance }
-  })
+  }, { access: 'panel' })
   // 每小时醒一次：只有「选了 Breeze + 云端 + 开了自动领取 + 填了账号」才真的去领，一天最多一次
   api.every(3600_000, () => autoClaimOnce(api.config(), { log: api.log }), '领 Breeze 额度')
 

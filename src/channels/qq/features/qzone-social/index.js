@@ -32,7 +32,7 @@ export default {
         return api.mind?.checkSpaceReplies?.(({ checkpoint }) => social.run({ scope: 'replies', checkpoint }))
       }
     }, '检查空间新评论')
-    api.route('/qzone/social/run', async () => social.run({ force: true }))
+    api.route('/qzone/social/run', async () => social.run({ force: true }), { access: 'panel' })
     api.route('/qzone/social/state', async () => ({ ok: true, ...social.state() }))
     return social
   },

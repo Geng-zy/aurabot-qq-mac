@@ -86,10 +86,10 @@ export default {
     api.route('/image/appearance/upload', async (req) => {
       if (req?.method !== 'POST') return { ok: false, message: '要用 POST 上传' }
       try { return await looks.add(await api.core.http.raw(req, 20 * 1024 * 1024)) } catch (error) { return { ok: false, message: error.message } }
-    })
-    api.route('/image/appearance/delete', async (req) => looks.remove(String((await api.core.http.body(req)).file || '')))
-    api.route('/image/appearance/primary', async (req) => looks.setPrimary(String((await api.core.http.body(req)).file || '')))
-    api.route('/image/appearance/description', async (req) => looks.setDescription(String((await api.core.http.body(req)).text || ''), 'owner'))
+    }, { access: 'panel' })
+    api.route('/image/appearance/delete', async (req) => looks.remove(String((await api.core.http.body(req)).file || '')), { access: 'panel' })
+    api.route('/image/appearance/primary', async (req) => looks.setPrimary(String((await api.core.http.body(req)).file || '')), { access: 'panel' })
+    api.route('/image/appearance/description', async (req) => looks.setDescription(String((await api.core.http.body(req)).text || ''), 'owner'), { access: 'panel' })
     // 看图写一段外貌描述（要看得懂图的模型：表情起名单独挑了模型就用它，不然用聊天模型）
     api.route('/image/appearance/describe', async () => {
       const imgs = looks.buffers(4)
@@ -105,7 +105,7 @@ export default {
       } catch (error) {
         return { ok: false, message: '没写成：' + error.message }
       }
-    })
+    }, { access: 'panel' })
 
     // 她的画作：面板底下的图库（直接读存图目录，可以单张删、开文件夹）
     api.route('/image/gallery', async (req) => {
@@ -122,8 +122,8 @@ export default {
     api.route('/image/gallery/delete', async (req) => {
       const b = await api.core.http.body(req).catch(() => ({}))
       return removePainting(String((b && b.file) || ''))
-    })
-    api.route('/image/open-folder', async () => openPaintFolder())
+    }, { access: 'panel' })
+    api.route('/image/open-folder', async () => openPaintFolder(), { access: 'panel' })
 
     api.mind?.offer?.({
       id: 'own-painting', label: '画一张自己的画', needs: { beauty: 0.75, fun: 0.3 },

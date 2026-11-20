@@ -34,7 +34,7 @@ export function createChannelManager({ log } = {}) {
         try { Promise.resolve(ch.start()).catch((error) => log?.warn?.(`平台 ${ch.platform} 启动失败：`, error.message)) } catch (error) { log?.warn?.(`平台 ${ch.platform} 启动失败：`, error.message) }
       }
     },
-    stopAll: registry.stopAll,
+    stopAll() { for (const ch of registry.list()) { try { ch.stop() } catch (error) { log?.warn?.(`平台 ${ch.platform} 停止失败：`, error.message) } } },
     /** 订阅所有平台事件；返回取消订阅。 */
     on(fn) {
       handlers.add(fn)
@@ -44,7 +44,7 @@ export function createChannelManager({ log } = {}) {
       for (const off of offs.values()) { try { off() } catch {} }
       offs.clear()
       handlers.clear()
-      registry.stopAll()
+      for (const ch of registry.list()) { try { ch.dispose ? ch.dispose() : ch.stop() } catch (error) { log?.warn?.(`平台 ${ch.platform} 关闭失败：`, error.message) } }
     },
   }
 }

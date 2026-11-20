@@ -156,7 +156,7 @@ export function createQqStickerFeature({ api, store, bridge }) {
   }
 
   function mountRoutes() {
-    api.route('/sticker/import-qq', async () => api.core.channels?.get('qq') ? bridge.importFromQQ() : { ok: false, message: '没有启用 QQ 平台' })
+    api.route('/sticker/import-qq', async () => api.core.channels?.get('qq') ? bridge.importFromQQ() : { ok: false, message: '没有启用 QQ 平台' }, { access: 'panel' })
   }
 
   const rule = (kind) => kind === 'social' ? '- 管理员让你存某个表情（「存一下」「导入这个表情」）时用 qq_save_sticker；让你把 QQ 收藏里的表情导进来时用 qq_import_qq_stickers。别人让你存，不用理。' : ''
