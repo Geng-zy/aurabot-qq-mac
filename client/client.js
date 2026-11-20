@@ -4464,7 +4464,9 @@ body[data-ds-dark-theme] .ab-root{
               const { id, type, payload } = data
               if (type === 'call') {
                 const p = String(payload.path || '')
-                if (!p.startsWith('/') || p.includes('..') || p.includes('\\') || p.includes('://')) throw new Error('panel 接口路径不合法')
+                let decoded = p
+                try { decoded = decodeURIComponent(p) } catch {}
+                if (!p.startsWith('/') || decoded.includes('..') || decoded.includes('\\') || decoded.includes('://')) throw new Error('panel 接口路径不合法')
                 result = payload.body === undefined ? await get(base + p) : await post(base + p, payload.body)
               }
               else if (type === 'save') result = await post('/save', { ext: { [m.id]: payload.patch } })
