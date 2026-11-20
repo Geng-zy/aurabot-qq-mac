@@ -8,12 +8,12 @@ import { createPeopleApi } from './features/people.js'
 import { createHistoryApi } from './features/history.js'
 import { createOutboundApi } from './features/outbound.js'
 import { createActionsApi } from './features/actions.js'
-import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { createFaces, textToSegments, stripFaceTags } from './faces.js'
 import { createFaceCatalog } from './features/face-catalog.js'
 import { readForward } from './forward.js'
 import { createEventApi } from './features/events.js'
+import { createConnectionApi } from './features/connection.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -224,6 +224,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
   const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
+  const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => verifiedLogin, getWrongAccount: () => wrongAccount, setWrongAccount: (v) => { wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
 
   const channel = {
@@ -253,27 +254,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     call: (action, params, opts) => gw.call(action, params, opts),
     endpoint,
     connectionProblem,
-    async login(timeoutMs = 5000) {
-      const info = await gw.call('get_login_info', {}, { timeoutMs })
-      return { uin: String(info?.user_id ?? ''), nickname: info?.nickname || '' }
-    },
-    async status() {
-      const ep = endpoint()
-      return { state: gwState, login: ready() ? verifiedLogin : null, endpoint: { httpUrl: ep.httpUrl, wsUrl: ep.wsUrl }, problem: ready() ? '' : connectionProblem() }
-    },
-    /** 一键诊断：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 一项项看 */
-    diagnose: () => diagnoseOneBot({ cfg: getConfig(), state: gwState, wrongAccount, call: (a, p, o) => gw.call(a, p, o) }),
-    /** 面板「重新连接」：等几秒看结果，别只回一句「正在重连」。 */
-    async reconnect() {
-      if (disposed) return { ok: false, message: 'QQ 连接已关闭' }
-      if (!enabled()) return { ok: false, message: 'QQ 平台已停用' }
-      wrongAccount = ''
-      gw.restart()
-      for (let i = 0; i < 24 && !disposed && !ready() && !wrongAccount; i++) await new Promise((r) => setTimeout(r, 500))
-      if (disposed) return { ok: false, message: 'QQ 连接已关闭' }
-      if (ready()) return { ok: true, message: '连上了' }
-      return { ok: false, message: '没连上：' + connectionProblem() }
-    },
+    ...connection,
     ...outbound,
     /** 网关明确说没发出去（可以换一种方式再发）；超时、结果不确定的不算。 */
     isDefiniteFailure,

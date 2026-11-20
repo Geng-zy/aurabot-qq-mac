@@ -20,6 +20,7 @@
 - 通用消息标签抽到 `chat/tags.js`：核心不再从 QQ faces 模块 import 语音/表情标签处理，QQ faces 只保留 QQ 表情编号映射并兼容重导出。
 - `poke` 也按平台能力门禁：不支持戳一戳的平台不会调用 poke。
 - 发送能力降级：平台声明不支持 voice 时语音改文字，不支持 stickers 时跳过表情；未声明能力的旧适配器保持原行为。
+- QQ 连接状态/登录/诊断/重连拆到 `features/connection.js`，index 只组合。
 - QQ 平台契约拆到 `contract.js`（PLATFORM/QQ_CAPS/qqTarget/qqChat），index 只 re-export。
 - QQ 系统表情目录收进 QQ 适配器：`/panel/faces` 通过 `channel.faceCatalog()` 读取，宿主不再直接 import QQ 表情表。
 - 会话标题和通知称呼按平台适配器 label 生成，不再硬编码 QQ；系统会话默认取当前第一个平台。
