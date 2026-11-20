@@ -36,7 +36,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const listeners = new Set()
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn('处理 QQ 事件出错：', error.message) } } }
 
-  const { endpoint, enabled, botAccount } = createConfigApi({ getConfig })
+  const { endpoint, enabled, botAccount, connectionProblem: baseConnectionProblem } = createConfigApi({ getConfig })
 
   let gwState = 'stopped'
   // 连上后先核对登录的是不是机器人号；核对期间事件暂存，通过后补处理。
@@ -97,16 +97,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const flushTimer = flushEveryMs > 0 ? setInterval(() => { flushOutbox().catch(() => {}) }, flushEveryMs) : null
   flushTimer?.unref?.()
 
-  /** 连不上 QQ 网关时，按顺序找卡在哪一步，给一句人话。 */
-  function connectionProblem() {
-    const cfg = getConfig()
-    if (!cfg.enabled) return '总开关关着（右上角），打开后才会连'
-    if (!botAccount()) return '还没填机器人 QQ 号'
-    const ep = endpoint()
-    if (!ep.wsUrl) return '还没填 OneBot 的 WebSocket 地址：在「连接」页填你的 OneBot v11 正向 WebSocket 地址（收消息要靠它；HTTP 可以不填）'
-    if (auth.wrongAccount) return `连上的是 ${auth.wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
-    return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认 OneBot 服务（比如 OrbStack 里的 SnowLuma）开着、地址和 token 填对了`
-  }
+  const connectionProblem = () => baseConnectionProblem(() => auth.wrongAccount)
 
   const ready = () => gwState === 'connected' && auth.loginOk
 
