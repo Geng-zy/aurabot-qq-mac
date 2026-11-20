@@ -5,6 +5,7 @@
 import { createOneBotClient, isDefiniteFailure } from './transport.js'
 import { createOutbox } from './outbox.js'
 import { createPeopleApi } from './features/people.js'
+import { createHistoryApi } from './features/history.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { buildFaceIndex, createFaces, textToSegments, stripFaceTags } from './faces.js'
@@ -120,6 +121,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     onEvent: (ev) => onEvent(ev),
   })
   const people = createPeopleApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
+  const fetchHistory = createHistoryApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, isLegacyDirectRecord })
 
   function onState(s, d) {
     const revision = ++connectionRevision
@@ -214,16 +216,6 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       && (/^https?:\/\//i.test(x) || x.startsWith('base64://') || x.startsWith('file://') || /^[a-zA-Z]:[\\/]/.test(x)))
   }
   const quoteNeedsHistory = (parsed) => [...(parsed.images || []), ...(parsed.stickers || [])].some((seg) => !quoteSegUsable(seg))
-  async function fetchHistory(chatId, count, { timeoutMs = 8000, retries, anchor } = {}) {
-    const tgt = qqTarget(chatId)
-    if (!tgt) return []
-    const base = tgt.kind === 'group' ? { group_id: Number(tgt.id) } : { user_id: Number(tgt.id) }
-    const params = anchor ? { ...base, message_id: anchor, count, reverse_order: false } : { ...base, count }
-    const rows = await gw.call(tgt.kind === 'group' ? 'get_group_msg_history' : 'get_friend_msg_history', params, { timeoutMs, ...(retries !== undefined ? { retries } : {}) })
-    return (Array.isArray(rows) ? rows : rows?.messages || [])
-      .filter((row) => !isLegacyDirectRecord(row?.message ?? row?.raw_message))
-  }
-
   async function quoteFromHistory(chatId, id) {
     // 先用引用 id 当锚点（能取到更早的消息），拿不到再退回「最近 30 条」
     const anchor = /^-?\d+$/.test(id) ? Number(id) : 0
