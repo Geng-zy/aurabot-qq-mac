@@ -4,6 +4,7 @@
 
 import { createOneBotClient, isDefiniteFailure } from './transport.js'
 import { createOutbox } from './outbox.js'
+import { createPeopleApi } from './features/people.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { buildFaceIndex, createFaces, textToSegments, stripFaceTags } from './faces.js'
@@ -118,6 +119,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     onState: (s, d) => onState(s, d),
     onEvent: (ev) => onEvent(ev),
   })
+  const people = createPeopleApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
 
   function onState(s, d) {
     const revision = ++connectionRevision
@@ -381,27 +383,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     noticeText: (notice, { name, ownMessage } = {}) => noticeText(notice.raw, { botQQ: channel.selfId(), name, ownMessage, faceName: faces.nameOf }),
 
     // ---------- 人和群 ----------
-    /** 群成员：{ user_id, nickname, card, role, title, join_time … }（OneBot 的样子）。 */
-    async member(chatId, userId, { timeoutMs = 5000, retries, fresh = false } = {}) {
-      const tgt = qqTarget(chatId)
-      if (!tgt || tgt.kind !== 'group') return null
-      return gw.call('get_group_member_info', { group_id: Number(tgt.id), user_id: Number(userId), ...(fresh ? { no_cache: true } : {}) }, { timeoutMs, ...(retries !== undefined ? { retries } : {}) })
-    },
-    async members(chatId, { timeoutMs = 15000, fresh = false } = {}) {
-      const tgt = qqTarget(chatId)
-      if (!tgt || tgt.kind !== 'group') return []
-      const r = await gw.call('get_group_member_list', { group_id: Number(tgt.id), ...(fresh ? { no_cache: true } : {}) }, { timeoutMs })
-      return Array.isArray(r) ? r : r?.data || []
-    },
-    user: (userId, { timeoutMs = 5000 } = {}) => gw.call('get_stranger_info', { user_id: Number(userId) }, { timeoutMs }),
-    /** 群资料：{ name }。 */
-    async group(chatId) {
-      const tgt = qqTarget(chatId)
-      if (!tgt || tgt.kind !== 'group') return null
-      // 查群名是锦上添花：失败就退回群号，别在网关抖动时白等重试
-      const info = await gw.call('get_group_info', { group_id: Number(tgt.id) }, { retries: 0 })
-      return info ? { ...info, name: info.group_name || '' } : null
-    },
+    ...people,
 
     // ---------- 动作 ----------
     async react(chatId, messageId, emojiId) {
