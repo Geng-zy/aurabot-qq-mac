@@ -25,16 +25,29 @@ export const SLOTS = {
 /** 生图脚本的各种返回值统一成 Buffer。 */
 export async function toImageBuffer(r, { signal, allowUrl = true } = {}) {
   signal?.throwIfAborted()
-  if (Buffer.isBuffer(r)) return r
-  if (r?.buffer && Buffer.isBuffer(r.buffer)) return r.buffer
-  if (r?.base64) return Buffer.from(String(r.base64).replace(/^data:[^,]+,/, ''), 'base64')
-  if (r?.file) return readFileSync(r.file)
+  const max = 20 * 1024 * 1024
+  const check = (buf) => { if (buf.length > max) throw new Error('图片太大了（最多 20MB）'); return buf }
+  const readFileCapped = (file) => {
+    const st = statSync(file, { throwIfNoEntry: false })
+    if (!st?.isFile()) throw new Error('图片文件不存在')
+    if (st.size > max) throw new Error('图片太大了（最多 20MB）')
+    return check(readFileSync(file))
+  }
+  if (Buffer.isBuffer(r)) return check(r)
+  if (r?.buffer && Buffer.isBuffer(r.buffer)) return check(r.buffer)
+  if (r?.base64) {
+    const raw = String(r.base64).replace(/^data:[^,]+,/, '')
+    if (raw.length > Math.ceil(max * 4 / 3) + 8) throw new Error('图片太大了（最多 20MB）')
+    return check(Buffer.from(raw, 'base64'))
+  }
+  if (r?.file) return readFileCapped(r.file)
   if (allowUrl && r?.url) {
     const res = await fetch(r.url, { signal: withTimeoutSignal(60000, signal) })
     if (!res.ok) throw new Error(`下载图片失败（HTTP ${res.status}）`)
-    return Buffer.from(await res.arrayBuffer())
+    const buf = Buffer.from(await res.arrayBuffer())
+    return check(buf)
   }
-  if (typeof r === 'string' && existsSync(r)) return readFileSync(r)
+  if (typeof r === 'string' && existsSync(r)) return readFileCapped(r)
   throw new Error('生图脚本没返回图片（要返回 Buffer，或 {buffer|file|base64|url}）')
 }
 
