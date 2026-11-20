@@ -124,12 +124,18 @@ export function createModuleApi({ state, isDisposed, logger, getConfig, setConfi
       onDispose: (fn) => track(fn),
       // ---- 常用操作的捷径（都是 core 里的东西包了一层）----
       send: writable('send', (chatId, text) => core.hub.deliver(String(chatId), String(text ?? ''))),
-      sendText: writable('sendText', (chatId, text) => core.hub.sendText(String(chatId), String(text ?? ''))),
+      sendText: writable('sendText', (chatId, text) => core.hub.sendBackground
+        ? core.hub.sendBackground(String(chatId), [{ type: 'text', data: { text: String(text ?? '') } }], `[${id}]`)
+        : core.hub.sendText(String(chatId), String(text ?? ''))),
       // 回某一条消息：群里以「引用回复」发出，私聊直接发
-      reply: writable('reply', (msg, text) => core.hub.sendText(String(msg.chatId), String(text ?? ''), msg.kind === 'group' ? msg.messageId : undefined)),
+      reply: writable('reply', (msg, text) => core.hub.sendBackground
+        ? core.hub.sendBackground(String(msg.chatId), [{ type: 'text', data: { text: String(text ?? '') } }, ...(msg.kind === 'group' && msg.messageId ? [{ type: 'reply', data: { id: String(msg.messageId) } }] : [])], `[${id}]`)
+        : core.hub.sendText(String(msg.chatId), String(text ?? ''), msg.kind === 'group' ? msg.messageId : undefined)),
       isOwner: (userId) => String(userId) === String(getConfig().ownerQQ),
       sendImage: writable('sendImage', (chatId, src) => core.hub.sendImage(String(chatId), src)),
-      sendSegments: writable('sendSegments', (chatId, segs, note) => core.hub.sendSegments(String(chatId), segs, note || `[${id}]`)),
+      sendSegments: writable('sendSegments', (chatId, segs, note) => core.hub.sendBackground
+        ? core.hub.sendBackground(String(chatId), segs, note || `[${id}]`)
+        : core.hub.sendSegments(String(chatId), segs, note || `[${id}]`)),
       // 发任意文件（文档 / 压缩包 / 音频 / 视频……）：本机绝对路径，或网关能取到的网址 / base64://
       sendFile: writable('sendFile', (chatId, file, name) => core.hub.sendFile(String(chatId), file, name)),
       // 把一个音频文件当语音条发出去（不走念文字）
