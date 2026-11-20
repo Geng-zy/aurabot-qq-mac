@@ -2,7 +2,7 @@
 // 把 OneBot 事件拆成通用形状，以及壳要的那些动作（发消息、群成员、聊天记录、戳一戳、贴表情……）。
 // 壳只通过这里碰 QQ；只有 QQ 才有的功能（空间、改资料、SnowLuma 接口表）由声明了需要 QQ 的模块用 call()。
 
-import { createOneBotClient, isDefiniteFailure } from './client.js'
+import { createOneBotClient, isDefiniteFailure } from './transport.js'
 import { createOutbox } from './outbox.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
