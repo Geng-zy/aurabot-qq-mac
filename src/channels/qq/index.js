@@ -9,7 +9,7 @@ import { createHistoryApi } from './features/history.js'
 import { createOutboundApi } from './features/outbound.js'
 import { createActionsApi } from './features/actions.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
-import { createFaces, textToSegments, stripFaceTags } from './faces.js'
+import { createFaceCodec } from './features/face-codec.js'
 import { createFaceCatalog } from './features/face-catalog.js'
 import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
@@ -110,7 +110,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   const ready = () => gwState === 'connected' && auth.loginOk
 
-  const faces = createFaces({ onebot: { call: (a, p, o) => gw.call(a, p, o) }, log }) // QQ 系统表情：<face:名字> ↔ 编号
+  const { faces, textSegments } = createFaceCodec({ call: (a, p, o) => gw.call(a, p, o), log })
 
   const quoteApi = createQuoteApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, parse: (e) => channel.parse(e), fetchHistory, log, isLegacyDirectRecord })
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
@@ -159,7 +159,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     convert: (event) => channel.parse(event),
     meta: () => ({ id: 'qq', label: 'QQ', caps: QQ_CAPS }),
     /** 她写的文字 → 消息段：<face:名字> 换成 QQ 系统表情（withFaces 关着就去掉标签）。 */
-    textSegments: (text, withFaces = true) => (withFaces ? textToSegments(text, faces.idOf) : [{ type: 'text', data: { text: stripFaceTags(text) } }]),
+    textSegments,
     // ---------- 入站事件 ----------
     ...events,
 

@@ -22,6 +22,7 @@
 - 发送能力降级：平台声明不支持 voice 时语音改文字，不支持 stickers 时跳过表情；未声明能力的旧适配器保持原行为。
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
+- QQ 系统表情编解码拆到 `features/face-codec.js`，index 只组合。
 - `hub.sendSticker` 支持平台降级：没有原生 sticker 但支持图片时按图片发送；Telegram 图片发送支持 base64 multipart。
 - `modules/stickers` 不再只对 QQ 启用：通用工具跨平台，QQ 收藏/保存/收集/导入按 chat 平台条件注册。
 - 通用表情库彻底移除 `onebot` 参数：媒体下载和 QQ custom face 都改为必须注入；测试改用注入下载。
