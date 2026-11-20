@@ -1327,10 +1327,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       log.debug(`没找到「${query}」这张表情，跳过`)
       return result('missing')
     }
-    // 没有原生表情能力的平台：QQ 商城表情退回本地预览图，按普通图片发；否则无法解码 mface。
-    const seg = !native && item.market
-      ? (stickers.segmentFor({ ...item, market: null }) || stickers.segmentFor(item))
-      : stickers.segmentFor(item)
+    // 商城表情（mface）是 QQ 的格式，别的平台没有对应能力：跳过，不把 QQ 表情硬塞过去。
+    // 本地图片/GIF 没有 market 元数据，仍可按普通图片降级发送。
+    if (!native && item.market) return result('disabled')
+    const seg = stickers.segmentFor(item)
     if (!seg) return result('missing')
     let delivered = false
     const r = await sendSegments(chatId, [...quote(replyId), ...mention(userId), seg], `[表情] ${item.name || item.md5.slice(0, 8)}`, {
