@@ -45,3 +45,18 @@ test('平台适配器可以动态注册', async () => {
   assert.ok(listPlatformAdapters().some((x) => x.id === 'demo-registry'))
   assert.throws(() => registerPlatformAdapter({ id: 'demo-registry', create: () => ({}) }), /已经注册/)
 })
+
+test('QQ adapter 的 sendBySession 接受 session 对象', async () => {
+  const { createQqAdapter } = await import('../src/channels/qq/adapter.js')
+  const sent = []
+  const adapter = createQqAdapter({ createTransport: () => ({
+    platform: 'qq', caps: {}, start() {}, stop() {}, restart() {}, ready: () => true, state: () => 'connected',
+    status: async () => ({}), on: () => () => {}, convert: (x) => x,
+    async send(chatId, segments) { sent.push({ chatId, segments }); return { messageId: '1' } },
+  }) })
+  await adapter.sendBySession({ kind: 'group', groupId: '9' }, [{ type: 'text', data: { text: 'hi' } }])
+  await adapter.sendBySession({ kind: 'private', userId: '2' }, [{ type: 'text', data: { text: 'hi' } }])
+  assert.equal(sent[0].chatId, 'qq:group:9')
+  assert.equal(sent[1].chatId, 'qq:private:2')
+  assert.equal(adapter.meta().id, 'qq')
+})

@@ -7,6 +7,13 @@ import { convertMessageEvent } from './convert.js'
 
 export function createQqAdapter(ctx = {}) {
   const transport = ctx.createTransport ? ctx.createTransport(ctx) : createQqChannel(ctx)
+  const sessionChatId = (session) => {
+    if (typeof session === 'string') return session
+    if (session?.chatId) return String(session.chatId)
+    if (session?.kind === 'group' && session.groupId) return `qq:group:${session.groupId}`
+    if (session?.kind === 'private' && session.userId) return `qq:private:${session.userId}`
+    return ''
+  }
 
   return {
     platform: 'qq',
@@ -24,7 +31,7 @@ export function createQqAdapter(ctx = {}) {
     on: (fn) => transport.on(fn),
     convert: (raw) => convertMessageEvent(raw, transport.selfId(), { faceName: transport.faces?.nameOf }),
     send: (chatId, segments, opts) => transport.send(chatId, segments, opts),
-    sendBySession: (session, segments, opts) => transport.send(session, segments, opts),
+    sendBySession: (session, segments, opts) => transport.send(sessionChatId(session), segments, opts),
     // 事件由 ChannelManager 统一转发；保留别名，方便以后接 AstrBot 式 queue。
     commitEvent: (fn) => transport.on(fn),
     transport,
