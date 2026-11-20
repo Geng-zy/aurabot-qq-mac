@@ -25,11 +25,11 @@ export default {
       if (!(chat.kind === 'group' || level === 'full')) return []
       return defineTool({
         name: 'qq_group_admin',
-        description: '群管理：禁言 / 解禁 / 踢人 / 改群名片 / 改头衔 / 发群公告。只有管理员要求时才能用；别人要求会被系统拒绝。',
+        description: '群管理：禁言 / 解禁 / 踢人 / 改群名片 / 改头衔 / 发群公告。改自己的群名片/头衔时 user_id 可省略。只有管理员要求时才能用；别人要求会被系统拒绝。',
         properties: {
           action: { type: 'string', enum: ['ban', 'unban', 'kick', 'card', 'title', 'notice'], description: 'ban 禁言，unban 解禁，kick 踢出，card 改群名片，title 改专属头衔，notice 发公告' },
           group_id: str('群号；在群里用时可省略，默认当前群'),
-          user_id: str('对象 QQ 号（notice 不需要）'),
+          user_id: str('对象 QQ 号；改机器人自己的群名片/头衔时可以不填（notice 不需要）'),
           minutes: int('禁言分钟数，默认 10'),
           text: str('头衔内容或公告内容'),
         },
@@ -44,7 +44,9 @@ export default {
           const gid = Number(group_id || (chat.kind === 'group' ? chat.groupId : 0))
           if (!gid) return { ok: false, message: '不知道是哪个群' }
           if (!allowGroups.includes(String(gid))) return { ok: false, message: '这个群不在白名单里' }
-          const uid = Number(user_id || 0)
+          const selfId = typeof hub.selfId === 'function' ? hub.selfId() : hub.selfId
+          const ownQQ = Number(selfId || api.core.onebot?.selfId?.() || 0)
+          const uid = Number(user_id || 0) || ((action === 'card' || action === 'title') ? ownQQ : 0)
           if (action !== 'notice' && !uid) return { ok: false, message: '要说清楚对谁（QQ 号）' }
           if (uid && String(uid) === ownerQQ && action !== 'unban' && action !== 'title') return { ok: false, message: '不能对管理员做这个' }
           const role = await groupRoles.get(gid, { fresh: true })

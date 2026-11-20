@@ -23,6 +23,7 @@
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - 增加非 QQ 聊天收表情不写 QQ 收藏的回归测试。
+- 群管 `card` / `title` 未填 user_id 时默认操作机器人自己，解决“改自己的群名片也要 QQ 号”。
 - 群管增加 `card` 动作（set_group_card），管理员可让机器人修改群名片。
 - 语音模块从 `src/modules/voice` 迁到 `channels/qq/features/voice`，注册 QQ_FEATURES；旧路径删除。
 - 空间日记从 `src/modules/diary` 整体迁到 `channels/qq/features/diary`，注册 QQ_FEATURES；旧路径删除。
