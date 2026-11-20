@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { homedir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ownerAuthorizationRevision } from '../core/config.js'
@@ -1097,6 +1098,18 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return sendSegments(chatId, [...quote(replyId), ...mention(userId, segs), ...segs], (replyId ? '[引用] ' : '') + text.slice(0, 60), opts)
   }
 
+  /** OneBot 的 record 段需要时长；base64 音频没有元数据时补一个。失败就不填，让网关自己判断。 */
+  function audioDurationSec(file) {
+    const ffmpeg = findFfmpeg(getConfig().local?.ffmpegPath || '')
+    if (!ffmpeg || !file) return 0
+    try {
+      const r = spawnSync(ffmpeg, ['-hide_banner', '-i', file], { encoding: 'utf8', timeout: 5000 })
+      const m = String(r.stderr || '').match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)
+      if (!m) return 0
+      return Math.max(1, Math.round(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])))
+    } catch (error) { return 0 }
+  }
+
   async function sendVoice(chatId, text, replyId, userId, opts = {}) {
     text = cleanOutboundText(text, cleaningFor(chatId))
     if (!text.trim()) return false
@@ -1108,7 +1121,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const isCurrent = () => audienceRevision(chatId) === revision && (originalIsCurrent?.() ?? true)
     if (!isCurrent()) return false
     opts = { ...opts, isCurrent }
-    let b64, engine, extras, transcript
+    let b64, engine, extras, transcript, voiceDuration = 0
     try {
       // 表情标签 / emoji 不念出来：TTS 只念能说的字（用户反馈：发语音时「呲牙」被读出来）
       const split = splitSpeakable(text)
@@ -1118,6 +1131,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const voice = await tts.speak(split.spoken)
       engine = voice.engine
       b64 = readFileSync(voice.file).toString('base64')
+      voiceDuration = audioDurationSec(voice.file)
     } catch (error) {
       log.warn('语音没合成出来，改发文字：', error.message)
       await sendText(chatId, text, replyId, undefined, userId, opts)
@@ -1126,7 +1140,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // QQ 客户端不支持「引用 / @ + 语音」同一条消息：语音条一律单独成条（issue #103）。
     if (replyId || userId) log.debug(`语音条不能带引用/@（QQ 限制），单独发：${chatId}`)
     try {
-      const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64 } }], `[语音·${engine}] ${transcript.slice(0, 120)}`, { ...opts, transcript, throwOnError: true, timeoutMs: FILE_TIMEOUT_MS })
+      const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64, ...(voiceDuration ? { duration: voiceDuration } : {}) } }], `[语音·${engine}] ${transcript.slice(0, 120)}`, { ...opts, transcript, throwOnError: true, timeoutMs: FILE_TIMEOUT_MS })
       if (r || getConfig().dryRun || !getConfig().enabled) {
         // 表情不念出来，但要补上：语音条发完再单独发一条文字里的表情（用户反馈：希望表情和语音分开发）
         if (extras && getConfig().voice.emojiSeparate !== false) {
@@ -1179,7 +1193,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (disposed) return null
     if (channelOf(chatId)?.caps?.voice === false) throw new Error('这个平台不支持语音')
     const b64 = readFileSync(file).toString('base64')
-    const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64 } }], note || '[语音]', opts)
+    const duration = audioDurationSec(file)
+    const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64, ...(duration ? { duration } : {}) } }], note || '[语音]', opts)
     if (!r && getConfig().enabled && !getConfig().dryRun) throw new Error('网关没接受这条语音')
     return r
   }
