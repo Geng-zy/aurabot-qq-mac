@@ -1446,7 +1446,9 @@ body[data-ds-dark-theme] .ab-root{
       useEffect(() => { loadUsage(); get('/models').then((r) => setModels(r.list || [])) }, [])
       const cfg = st.config
       const s = st.stats || {}
-      const conn = st.onebot.state === 'connected' && !st.onebot.problem
+      const platforms = st.channels || []
+      const online = platforms.filter((p) => p.ready || p.state === 'connected')
+      const conn = online.length > 0 || (st.onebot.state === 'connected' && !st.onebot.problem)
       const quick = (p, body) => async () => { const r = await post(p, body); toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err') }
       const model = models.find((m) => m.provider === cfg.model.provider && m.model === cfg.model.model)
       const vision = cfg.model.vision === 'off' ? '仅文字提示' : cfg.model.vision === 'on' ? '按视觉模式发送' : model?.vision === true ? '默认模型支持看图' : model?.vision === false ? '默认模型仅接收提示' : '随会话模型'
@@ -1557,10 +1559,10 @@ body[data-ds-dark-theme] .ab-root{
             h('div', { className: 'ab-cover-meta' }, h('i', { className: cx('ab-dot', connection.cls), 'aria-hidden': true }), connection.text, h('span', { 'aria-hidden': true }, '·'), cfg.enabled ? runMode(cfg) : '已停用'),
             h('h1', null, displayName),
             h('p', null, '聊天模型', h('strong', null, chatModel)),
-            h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'connect') }, conn ? '查看她现在' : '检查 QQ 连接', navIcon('next'))),
+            h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'platforms') }, conn ? '查看她现在' : '检查平台连接', navIcon('next'))),
           h('button', { type: 'button', className: 'ab-cover-portrait', 'aria-label': '查看人格卡和头像', onClick: () => go('selfmind') },
             h('img', { src: avatarSrc(st), alt: '' }))),
-        cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || 'QQ 网关未就绪。请检查 OneBot 连接。') : null,
+        cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || '没有平台就绪。请在「平台」页检查连接。') : null,
         st.outbox?.count ? h('div', { className: 'ab-note warn' }, `${st.outbox.count} 条消息待补发，QQ 网关恢复后会继续发送。`) : null,
         cfg.enabled && cfg.debug ? h(Card, { title: '调试对话', desc: '对话仅在面板和 DSH 中可见，不会发到 QQ 或写入长期记忆。',
           right: h(Btn, { small: true, onClick: quick('/debug/session') }, '打开 DSH 调试会话') }, h(DebugChat, { toast })) : null,
@@ -1575,8 +1577,12 @@ body[data-ds-dark-theme] .ab-root{
         usagePanel,
         h('div', { className: 'ab-overview-pair' },
           h('section', { className: 'ab-card ab-reception' },
-            h('div', { className: 'ab-section-heading' }, h('h2', null, 'QQ 接收能力'), h('span', null, sessionCount + ' 个会话')),
-            h('ul', { className: 'ab-data-list' }, capabilities.map(([label, state, target, icon]) =>
+            h('div', { className: 'ab-section-heading' }, h('h2', null, '平台接收能力'), h('span', null, platforms.length ? `${platforms.length} 个平台 · ${online.length} 在线` : sessionCount + ' 个会话')),
+            h('ul', { className: 'ab-data-list' }, (platforms.length ? platforms.map((p) => ({
+              label: p.label || p.platform,
+              state: (p.ready ? '已就绪' : p.state === 'connecting' ? '连接中' : '未连接') + ' · ' + Object.entries(p.caps || {}).filter(([, v]) => v).length + ' 项能力',
+              target: 'platforms', icon: 'puzzle',
+            })) : capabilities.map(([label, state, target, icon]) => ({ label, state, target, icon }))).map(({ label, state, target, icon }) =>
               h('li', { key: label }, target ? h('button', { type: 'button', onClick: () => go(target) }, navIcon(icon), h('b', null, label), h('small', null, state), navIcon('next'))
                 : h('div', null, navIcon(icon), h('b', null, label), h('small', null, state)))))),
           h('section', { className: 'ab-card ab-overview-paths' },
@@ -1597,7 +1603,7 @@ body[data-ds-dark-theme] .ab-root{
       const entry = (title, ...content) => h('div', { key: title }, h('dt', null, title), h('dd', null, ...content))
       return h('div', { className: 'ab-grid' },
         h(Card, { className: 'ab-about-project', title: 'AuraBot for macOS', desc: 'v' + st.version + ' · 面板 API v' + (st.apiVersion || '?') },
-          h('p', null, '由 Geng-zy 维护的 DeepSeek Harness 插件。心智核心管理大肥鱼的记忆、情绪和关系。Apple 芯片 Mac 上可通过 OneBot v11 接入 QQ，也可部署本地念头模型和生图模型。'),
+          h('p', null, '由 Geng-zy 维护的 DeepSeek Harness 插件。心智核心管理大肥鱼的记忆、情绪和关系。平台层支持 QQ（OneBot v11）与 Telegram，也可部署本地念头模型和生图模型。'),
           h('div', { className: 'ab-note' }, '插件更新请在 DSH 的插件管理器里进行；这里不再自己检查或安装新版本。'),
           h('div', { className: 'ab-about-links' },
             link('项目仓库', PROJECT_REPO, true),
@@ -1659,7 +1665,7 @@ body[data-ds-dark-theme] .ab-root{
             p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => go('telegram') }, '配置 Telegram') : null))))
         : h(Empty, { text: '还没有平台适配器' })
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 在「QQ 会话 → 连接」配置，Telegram 在「平台 → Telegram」配置。' }, items),
+        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 在「平台 → QQ」配置，Telegram 在「平台 → Telegram」配置。' }, items),
       )
     }
 
@@ -5275,9 +5281,12 @@ body[data-ds-dark-theme] .ab-root{
           err ? h(Card, { title: '暂时无法读取 AuraBot', desc: err, right: h(Btn, { onClick: reload }, '重试') }) : h(Empty, { text: '正在读取 AuraBot…' })))
       }
       const cfg = st.config
-      const conn = st.onebot.state === 'connected' && !st.onebot.problem
-      const connection = conn ? { cls: 'ok', text: 'QQ 已连接' }
-        : { cls: cfg.enabled && st.onebot.state === 'connecting' ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? 'QQ 未就绪' : 'QQ 未连接' }
+      const platformList = st.channels || []
+      const onlinePlatforms = platformList.filter((p) => p.ready || p.state === 'connected')
+      const conn = onlinePlatforms.length ? true : st.onebot.state === 'connected' && !st.onebot.problem
+      const connection = onlinePlatforms.length
+        ? { cls: 'ok', text: onlinePlatforms.map((p) => p.label || p.platform).join(' / ') + ' 已连接' }
+        : { cls: cfg.enabled && (st.onebot.state === 'connecting' || platformList.some((p) => p.state === 'connecting')) ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? '平台未就绪' : '平台未连接' }
       const persona = st.personas.find((p) => p.id === cfg.persona.current)
       const displayName = st.onebot.login?.nickname || persona?.name || '大肥鱼'
       const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true) }

@@ -82,7 +82,7 @@ test('概览以运行状态为标题，显示保存的聊天和生图配置', ()
   const overview = () => textOf(render(panel.Overview, { st, toast() {}, go() {}, connection: { cls: 'ok', text: 'QQ 已连接' } }))
   assert.match(overview(), /QQ 已连接.*正式模式.*聊天模型chat-test.*生图配置Codex · image-test/)
   assert.match(overview(), /语音转写成文字/)
-  assert.match(overview(), /QQ 接收能力2 个会话/)
+  assert.match(overview(), /平台接收能力2 个会话/)
   assert.match(overview(), /合并转发展开文字和图片视频显示消息提示/)
   assert.doesNotMatch(overview(), /平平常常|57 \/ 100/)
   st.config.imageGen.enabled = false
