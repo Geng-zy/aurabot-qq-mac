@@ -19,7 +19,7 @@ export default {
   setup(api) {
     const { hub, onebot, http } = api.core
     const qqStickerHooks = createQqStickerHooks({ onebot, log: api.log })
-    const store = createStickerStore({ dsh: api.dsh, getConfig: api.config, log: api.log, qq: qqStickerHooks, downloadSegment: (seg) => segmentBytes(seg, onebot, { maxBytes: 1024 * 1024 * 1024 }), shouldSyncQQ: (chatId) => parseChat(chatId)?.platform === 'qq' })
+    const store = createStickerStore({ dsh: api.dsh, getConfig: api.config, log: api.log, qq: qqStickerHooks, downloadSegment: (seg) => segmentBytes(seg, onebot, { maxBytes: 1024 * 1024 * 1024 }), shouldSyncQQ: (chatId) => parseChat(chatId)?.platform === 'qq', readMarket: qqStickerHooks.readMarket, nativeSegment: qqStickerHooks.nativeSegment })
     const qqStickers = createQqStickerBridge({ onebot, store, getConfig: api.config, log: api.log })
     const qqFeature = createQqStickerFeature({ api, store, bridge: qqStickers })
     const isQqChat = (chat) => parseChat(chat.chatId)?.platform === 'qq'

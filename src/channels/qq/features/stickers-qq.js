@@ -17,6 +17,16 @@ export function createQqStickerHooks({ onebot, log }) {
     async deleteCustomFace(emojiId) {
       return onebot.call('delete_custom_face', { emoji_id: emojiId })
     },
+    readMarket(seg) {
+      const d = seg?.data || {}
+      const emojiId = String(d.emoji_id ?? d.emojiId ?? '').trim()
+      if (!emojiId) return null
+      return { emojiId, packageId: Number(d.emoji_package_id ?? d.emojiPackageId ?? 0) || 0, key: String(d.key ?? '') }
+    },
+    nativeSegment(item) {
+      if (!item.market?.emojiId) return null
+      return { type: 'image', data: { emoji_id: item.market.emojiId, emoji_package_id: item.market.packageId, key: item.market.key, summary: `[${item.name || '表情'}]` } }
+    },
   }
 }
 

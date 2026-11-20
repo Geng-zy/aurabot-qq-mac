@@ -43,7 +43,18 @@ const testDownload = async (seg) => {
 
 test('#31 商城表情：收进来记住 emoji_id / 包 id / key，发出去按商城表情原样发；普通表情照旧按图片发', async () => {
   const cfg = normalize({ dryRun: true, stickers: { caption: false } })
-  const store = createStickerStore({ dsh: {}, getConfig: () => cfg, log, downloadSegment: testDownload })
+  const store = createStickerStore({
+    dsh: {},
+    getConfig: () => cfg,
+    log,
+    downloadSegment: testDownload,
+    readMarket: (seg) => {
+      const d = seg?.data || {}
+      const emojiId = String(d.emoji_id || '').trim()
+      return emojiId ? { emojiId, packageId: Number(d.emoji_package_id) || 0, key: String(d.key || '') } : null
+    },
+    nativeSegment: (item) => ({ type: 'image', data: { emoji_id: item.market.emojiId, emoji_package_id: item.market.packageId, key: item.market.key, summary: `[${item.name || '表情'}]` } }),
+  })
   const market = { type: 'image', data: { url: 'base64://' + gif(1).toString('base64'), summary: '[开心]', sub_type: 0, emoji_id: 'abcdef0123456789abcdef0123456789', emoji_package_id: 23456, key: 'k3y' } }
   const r = await store.collect(market, 'group:1')
   assert.equal(r.ok, true, r.reason)

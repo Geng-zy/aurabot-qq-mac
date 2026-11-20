@@ -79,7 +79,7 @@ export function pickEvict(items) {
   return pool.slice().sort((a, b) => (a.uses || 0) - (b.uses || 0) || (a.lastUsed || a.at || 0) - (b.lastUsed || b.at || 0))[0]
 }
 
-export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSegment = null, shouldSyncQQ = () => true }) {
+export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSegment = null, shouldSyncQQ = () => true, readMarket = null, nativeSegment = null }) {
   const recent = [] // 每小时限额
   // QQ 专有动作由 channels/qq/features/stickers-qq.js 注入；没有注入时保留旧 onebot 兼容。
   const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : Promise.reject(new Error('没有注入 QQ 表情写入'))
@@ -157,9 +157,9 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     const file = `collected-${md5}.${ext(mime)}`
     writeFileSync(join(dir(), file), buf)
     const item = { md5, file, name: '', tags: [], from, at: now, width, height, bytes: buf.length, emojiId: '', summary: String(d.summary || '').replace(/[[\]]/g, '') }
-    // 商城表情（QQ 表情商店里的）：存下来的只是一张预览图，原样发回去才会按商城表情播放动画（#31）
-    const marketId = String(d.emoji_id ?? d.emojiId ?? '').trim()
-    if (marketId) item.market = { emojiId: marketId, packageId: Number(d.emoji_package_id ?? d.emojiPackageId ?? 0) || 0, key: String(d.key ?? '') }
+    // 平台原生表情元数据由平台 hook 解析（例如 QQ 的 mface）；通用库不认具体平台字段。
+    const market = typeof readMarket === 'function' ? readMarket(seg) : null
+    if (market) item.market = market
     recent.push(now)
     // 收藏到 QQ
     if (shouldSyncQQ(from) && !getConfig().dryRun) {
@@ -291,7 +291,7 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
 
   /** 发表情用的消息段：商城表情按商城表情原样发（带 emoji_id，网关会认回成 mface）；其余本地图片按表情（sub_type=1）发。 */
   function segmentFor(item) {
-    if (item.market?.emojiId) return { type: 'image', data: { emoji_id: item.market.emojiId, emoji_package_id: item.market.packageId, key: item.market.key, summary: `[${item.name || '表情'}]` } }
+    if (item.market?.emojiId && typeof nativeSegment === 'function') return nativeSegment(item)
     const p = stickerPath(item)
     if (!existsSync(p)) return null
     return { type: 'image', data: { file: 'base64://' + readFileSync(p).toString('base64'), sub_type: 1, summary: `[${item.name || '表情'}]` } }
