@@ -4,13 +4,13 @@
 
 import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { defineTool, str } from '../../tools/tools.js'
-import { isOwner, profileToolVisible, profilePermits, freeWill } from '../../chat/access.js'
-import { createQqProfile } from '../../features/qq-profile.js'
-import { resolvePainting } from '../../features/paintings.js'
-import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../../core/img.js'
-import { segmentBytes } from '../../core/net.js'
-import { dataDir } from '../../core/store.js'
+import { defineTool, str } from '../../../../tools/tools.js'
+import { isOwner, profileToolVisible, profilePermits, freeWill } from '../../../../chat/access.js'
+import { createQqProfile } from '../../../../features/qq-profile.js'
+import { resolvePainting } from '../../../../features/paintings.js'
+import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../../../../core/img.js'
+import { segmentBytes } from '../../../../core/net.js'
+import { dataDir } from '../../../../core/store.js'
 
 const NICK_MAX = 36
 const SIGN_MAX = 80

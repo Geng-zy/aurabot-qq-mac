@@ -5,7 +5,6 @@ import voice from './voice/index.js'
 import imagegen from './imagegen/index.js'
 import diary from './diary/index.js'
 import song from './song/index.js'
-import profile from './profile/index.js'
 import video from './video/index.js'
 
-export const BUILTINS = [stickers, voice, imagegen, diary, song, profile, video]
+export const BUILTINS = [stickers, voice, imagegen, diary, song, video]

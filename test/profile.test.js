@@ -1,7 +1,7 @@
 // QQ 资料读取：仅管理员私聊、只查自身、真实字段语义及按需视觉。
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import profileModule from '../src/modules/profile/index.js'
+import profileModule from '../src/channels/qq/features/profile/index.js'
 import { createQqProfile } from '../src/features/qq-profile.js'
 import { normalize } from '../src/core/config.js'
 import { startMockOneBot } from './helpers/mock-onebot.js'

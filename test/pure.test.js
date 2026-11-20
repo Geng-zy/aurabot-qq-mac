@@ -6,7 +6,7 @@ import { decideGroupReply, engagedHint, policyFor, inQuietHours, DEFAULT_GROUP_P
 import { parseMessageEvent, isStickerSegment } from '../src/channels/qq/convert.js'
 import { stickerSizeOk, imageSize } from '../src/core/image-info.js'
 import { checkAllowed, levelFor, presetFor, isOwner, profileToolVisible, profilePermits } from '../src/chat/access.js'
-import { avatarSource } from '../src/modules/profile/index.js'
+import { avatarSource } from '../src/channels/qq/features/profile/index.js'
 import { redact, registerSecret } from '../src/core/redact.js'
 
 test('闲聊去掉空套话，摸摸时不把饥饿状态带进回复', () => {
