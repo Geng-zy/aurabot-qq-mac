@@ -20,6 +20,9 @@ export default {
       return groupRoles.canManage(role) ? `你在这个群是${groupRoles.label(role)}，管理员要求时可以用群管工具。` : '你在这个群只是普通成员，没有管理权限：禁言、踢人这些做不了，管理员要求时直接说明。'
     })
 
+    // 她说“把群名片改成 demo”但没点名对象时，默认就是改她自己的，别反过来问管理员要机器人 QQ。
+    api.rule((kind) => kind === 'social' ? '群管改群名片时，如果管理员没点名要给谁改，默认改机器人自己的群名片；不要反问管理员要机器人的 QQ 号。' : '')
+
     // 工具层校验：这一轮说话的人里要有管理员
     api.tool(({ chat, level, sessionId }) => {
       if (!(chat.kind === 'group' || level === 'full')) return []
@@ -31,7 +34,7 @@ export default {
           group_id: str('群号；在群里用时可省略，默认当前群'),
           user_id: str('对象 QQ 号；改机器人自己的群名片/头衔时可以不填（notice 不需要）'),
           minutes: int('禁言分钟数，默认 10'),
-          text: str('头衔内容或公告内容'),
+          text: str('群名片/头衔内容或公告内容'),
         },
         required: ['action'],
         execute: async ({ action, group_id, user_id, minutes, text }) => {
