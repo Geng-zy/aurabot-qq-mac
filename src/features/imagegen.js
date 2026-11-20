@@ -255,7 +255,10 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     }
     const item = (j.data || j.images || [])[0] || {}
     let buf
-    if (item.b64_json) buf = Buffer.from(item.b64_json, 'base64')
+    if (item.b64_json) {
+      if (String(item.b64_json).length > 28 * 1024 * 1024) throw serviceError(502, '生图服务返回的图片太大', false)
+      buf = Buffer.from(item.b64_json, 'base64')
+    }
     // 有的服务返回 CDN 链接，下载可能要几十秒（实测 22 秒），默认 20 秒会误判成失败
     else if (item.url) buf = await fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
     else throw serviceError(502, '生图服务没有返回图片', false)

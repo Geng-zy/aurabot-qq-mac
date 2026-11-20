@@ -319,6 +319,8 @@ function normalizeNotice(v, legacyNotify) {
 
 export function normalize(raw) {
   const c = deepMerge(DEFAULTS, raw)
+  // 手改/旧备份可能把整段写成字符串；先把对象段恢复成默认对象，否则后面一赋值就崩在启动阶段。
+  for (const [k, v] of Object.entries(DEFAULTS)) if (isObj(v) && !isObj(c[k])) c[k] = structuredClone(v)
   c.enabled = bool(c.enabled, false)
   c.dryRun = bool(c.dryRun, true)
   c.debug = bool(c.debug, false)

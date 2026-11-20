@@ -3,7 +3,7 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { imageSize, mimeOf, stickerSizeOk } from '../core/image-info.js'
 import { fetchImage } from '../core/net.js'
@@ -24,7 +24,9 @@ function saveLibrary(lib) {
 }
 
 export function stickerPath(item) {
-  return join(dir(), item.file)
+  const file = String(item?.file || '')
+  if (!file || basename(file) !== file || !/\.(?:png|jpe?g|gif|webp)$/i.test(file)) return ''
+  return join(dir(), file)
 }
 
 /** 模糊匹配：备注 / 标签里包含关键词得分高；完全找不到返回 null。 */
@@ -82,6 +84,13 @@ export function pickEvict(items) {
 export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSegment = null, shouldSyncQQ = () => true, readMarket = null, nativeSegment = null }) {
   const recent = [] // 每小时限额
   // QQ 专有动作由 channels/qq/features/stickers-qq.js 注入；没有注入时保留旧 onebot 兼容。
+  // 异步收藏/导入会跨 await 读改写同一个 index.json，串行化避免丢更新。
+  let libraryQueue = Promise.resolve()
+  const withLibraryLock = (fn) => {
+    const run = libraryQueue.then(fn, fn)
+    libraryQueue = run.catch(() => {})
+    return run
+  }
   const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : Promise.reject(new Error('没有注入 QQ 表情写入'))
   const modifyCustomFace = (emojiId, desc) => qq?.modifyCustomFace ? qq.modifyCustomFace(emojiId, desc) : Promise.reject(new Error('没有注入 QQ 表情修改'))
   const deleteCustomFace = (emojiId) => qq?.deleteCustomFace ? qq.deleteCustomFace(emojiId) : Promise.reject(new Error('没有注入 QQ 表情删除'))
@@ -132,7 +141,8 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
   }
 
   /** 收一张表情。seg 必须已经过 isStickerSegment 严格判定。 */
-  async function collect(seg, from) {
+  function collect(seg, from) { return withLibraryLock(() => collectInner(seg, from)) }
+  async function collectInner(seg, from) {
     const cfg = getConfig().stickers
     if (getConfig().debug) return { ok: false, reason: '调试模式，不收表情' } // 调试不往表情库里添东西
     if (!cfg.enabled || !cfg.collect) return { ok: false, reason: '偷表情关着' }
@@ -193,7 +203,8 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
   }
 
   /** 手动添加（工具 / 面板上传）。 */
-  async function addFromBuffer(buf, { name = '', tags = [], from = 'manual', toQQ = true } = {}) {
+  function addFromBuffer(buf, opts = {}) { return withLibraryLock(() => addFromBufferInner(buf, opts)) }
+  async function addFromBufferInner(buf, { name = '', tags = [], from = 'manual', toQQ = true } = {}) {
     const md5 = createHash('md5').update(buf).digest('hex')
     const lib = loadLibrary()
     const exist = lib.items.find((i) => i.md5 === md5)

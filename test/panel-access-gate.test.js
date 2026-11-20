@@ -78,11 +78,9 @@ test('面板闸：覆盖所有管理面，不只是 /panel/*（P1-1 回归）', 
   }
 })
 
-test('面板闸：/ext 与 /asset 不受限制（客户端跨机直连的正当通道）', async () => {
-  // /ext/<模块>/* 走模块路由，自带各自的 token 校验，不该被面板闸拦
+test('面板闸：/ext 也属于管理面，外部来源必须拒绝', async () => {
   const ext = await fake.call('/ext/example/status', null, {}, '203.0.113.7')
-  assert.notEqual(ext.status, 403, '/ext 不该被面板闸 403（它是令牌鉴权的通道）')
-  assert.ok(!/只允许本机/.test(String(ext.raw() || '')), '/ext 的拒绝理由不能是面板闸')
+  assert.equal(ext.status, 403, '/ext 模块路由不能被匿名跨机访问')
 })
 
 test('面板闸：可信反代的最后一跳才算真实来源（P1-1 回归）', async () => {

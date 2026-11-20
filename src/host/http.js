@@ -19,9 +19,17 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
       res.end?.(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body))
     } catch (error) {}
   }
-  const readBody = async (req) => {
+  const readBody = async (req, max = 2 * 1024 * 1024) => {
     let s = ''
-    try { for await (const c of req) s += c } catch (error) { throw new Error('请求内容没有接收完整') }
+    let n = 0
+    try {
+      for await (const c of req) {
+        const part = Buffer.isBuffer(c) ? c : Buffer.from(c)
+        n += part.length
+        if (n > max) throw new Error(`请求内容太大了（最多 ${Math.round(max / 1024 / 1024)}MB）`)
+        s += part.toString('utf8')
+      }
+    } catch (error) { throw new Error(error.message || '请求内容没有接收完整') }
     if (!s.trim()) return {}
     let body
     try { body = JSON.parse(s) } catch (error) { throw new Error('请求内容不是有效的 JSON') }

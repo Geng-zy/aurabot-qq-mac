@@ -1,6 +1,7 @@
 // 翻唱：点歌 → 下载（网易云）→ 分离人声和伴奏 → RVC 换成她的声音 → 混音 → 截成语音条发回去。
 // 推理引擎用 Applio（MIT，固定版本），人声分离用 audio-separator，分别装在安装目录里的两套 Python 环境里（见 MAC_STACK），不碰系统环境。
 
+import { fetchImage } from '../core/net.js'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync, statfsSync, writeFileSync, readFileSync, rmSync, copyFileSync, renameSync, openSync, readSync, closeSync, chmodSync } from 'node:fs'
 import { join, basename, dirname, isAbsolute, delimiter } from 'node:path'
@@ -798,10 +799,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     job.title = pick.artists ? `${pick.name} - ${pick.artists}` : pick.name
     job.songKey = String(pick.id)
     const timeout = AbortSignal.timeout(120_000)
-    const r = await fetch(pick.url, { signal: job.signal ? AbortSignal.any([job.signal, timeout]) : timeout })
-    if (!r.ok) throw new Error(`下载失败（HTTP ${r.status}）`)
-    const buf = Buffer.from(await r.arrayBuffer())
-    if (buf.length > 60 * 1024 * 1024) throw new Error('歌太大了')
+    const buf = await fetchImage(pick.url, { maxBytes: 60 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal: job.signal ? AbortSignal.any([job.signal, timeout]) : timeout })
     const file = join(dir, 'song.mp3')
     writeFileSync(file, buf)
     return file

@@ -15,7 +15,7 @@ export function dataDir(...parts) {
 }
 
 export function ensureDir(p) {
-  mkdirSync(p, { recursive: true })
+  mkdirSync(p, { recursive: true, mode: 0o700 })
   return p
 }
 
@@ -47,7 +47,7 @@ export function readJsonStrict(file, fallback) {
 export function writeJson(file, value) {
   ensureDir(dirname(file))
   const tmp = `${file}.tmp-${process.pid}`
-  writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8')
+  writeFileSync(tmp, JSON.stringify(value, null, 2), { encoding: 'utf8', mode: 0o600 })
   renameSync(tmp, file)
 }
 

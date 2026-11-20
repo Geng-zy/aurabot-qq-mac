@@ -160,6 +160,7 @@ export function apply(ctx) {
     canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true,
   })) channels.add(channel)
   const qq = channels.get('qq')
+  const inboundChains = new Map() // chatId → 入站串行链：先到的图片/语音处理完，后到的文字再入队
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
   // 连接核对通过后的事件都在这里处理（核对期间攒下的也会补到这里）
@@ -187,7 +188,12 @@ export function apply(ctx) {
         if (dangerGuard.handleReply(msg.chatId, msg.userId, text)) return
         if (approvalRelay?.handleReply(msg.chatId, msg.userId, text)) return
       }
-      hub.onMessage(msg).catch((error) => log.error('处理消息出错：', error.message))
+      const key = msg.chatId
+      const previous = inboundChains.get(key) || Promise.resolve()
+      const run = previous.then(() => hub.onMessage(msg)).catch((error) => log.error('处理消息出错：', error.message))
+      const tail = run.finally(() => { if (inboundChains.get(key) === tail) inboundChains.delete(key) })
+      tail.catch(() => {})
+      inboundChains.set(key, tail)
     } else if (e.type === 'poke') {
       hub.onPoke(e.poke).catch((error) => log.error('处理戳一戳出错：', error.message))
     } else if (e.type === 'notice') {
@@ -413,9 +419,10 @@ export function apply(ctx) {
       // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；外部模块客户端不带 Origin，
       // 不受影响；桌面面板的 fetch 是同源，也不受影响。
       if (csrfBlocked(req, res)) return undefined
-      // 模块客户端路由也必须防 DNS rebinding；不能只靠 access:'panel'。
+      // 模块路由默认全部属于管理面：先过 Host/回环闸。外部客户端以后要访问，
+      // 必须显式增加带独立 token 的 client 路由，不能靠 access:null 裸跑。
       if (adminHostBlocked(req, res)) return undefined
-      if (mods.routeAccess(path) === 'panel' && panelBlocked(req, res, true)) return undefined
+      if (panelBlocked(req, res, true)) return undefined
       return mods.handle(path, req, res)
     }),
   }), 'aurabot: 模块接口')

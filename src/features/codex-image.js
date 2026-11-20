@@ -69,7 +69,10 @@ export function createCodexImage({ auth, fetchImpl, log }) {
       throw responseError(r.status, j)
     }
     const item = j?.data?.[0]
-    if (typeof item?.b64_json === 'string' && item.b64_json) return Buffer.from(item.b64_json, 'base64')
+    if (typeof item?.b64_json === 'string' && item.b64_json) {
+      if (item.b64_json.length > 28 * 1024 * 1024) throw responseError(502, { message: '图片太大' })
+      return Buffer.from(item.b64_json, 'base64')
+    }
     if (typeof item?.url === 'string' && item.url) {
       const buf = await fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
       check()

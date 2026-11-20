@@ -32,8 +32,15 @@ export function createBody(deps) {
     return { at, energy: 0.85, S: 0.35, asleep: false, sleepAt: 0, wokeAt: 0, wokenBy: '', hunger: 0.2, lastMeal: null, lastSleep: null, ownerAt: 0, tz: deps.tz(), shift: 0 }
   }
   function load() {
+    const at = now()
     const s = store.get('body', null)
-    return s && typeof s === 'object' && Number.isFinite(s.at) ? s : fresh(now())
+    // 旧版本/备份里可能把 at 写成秒，或缺少后续字段；先做边界钳制，避免一次补算几分钟。
+    if (!s || typeof s !== 'object' || !Number.isFinite(s.at) || s.at > at + 3600000 || s.at < at - 400 * 24 * 3600000) return fresh(at)
+    const d = fresh(at)
+    for (const k of ['energy', 'S', 'hunger', 'shift']) if (!Number.isFinite(s[k])) s[k] = d[k]
+    for (const k of ['asleep', 'sleepAt', 'wokeAt', 'ownerAt']) if (typeof s[k] !== 'boolean' && !Number.isFinite(s[k])) s[k] = k === 'asleep' ? false : 0
+    if (typeof s.tz !== 'string' || !s.tz) s.tz = d.tz
+    return s
   }
   function save(s) {
     store.set('body', s)
@@ -81,6 +88,8 @@ export function createBody(deps) {
     const decay = Number(B('sleepDecayHours')) || 4.2
     const recover = Number(B('energyRecoverPerHour')) || 0
     const hungerHours = Number(B('hungerHours')) || 5
+    // 离线超过 7 天只补最近 7 天：既保留时差/睡眠趋势，也避免旧时间戳把主线程逐 10 分钟算到卡死。
+    if (at - s.at > 7 * 24 * 3600000) s.at = at - 7 * 24 * 3600000
     const catchUp = sleep && at - s.at >= CATCHUP_GAP
     let t = s.at
     while (t < at) {

@@ -728,7 +728,7 @@ export function pruneLocalBackups(keep = KEEP_BACKUPS) {
   const dir = backupsDir()
   let names = []
   try { names = readdirSync(dir).filter((n) => /^aurabot-(?:backup|config)-\d{8}-\d{4}\.zip$/.test(n)) } catch { return 0 }
-  const files = names.map((name) => ({ name })).sort((a, b) => b.name.localeCompare(a.name))
+  const files = names.map((name) => ({ name, at: statSync(join(dir, name)).mtimeMs })).sort((a, b) => b.at - a.at)
   let removed = 0
   for (const { name } of files.slice(Math.max(0, Math.max(1, Number(keep) || KEEP_BACKUPS)))) {
     try { rmSync(join(dir, name), { force: true }); removed++ } catch {}

@@ -147,7 +147,7 @@ export default {
 | `api.command({ name, aliases, desc, run(arg, msg) })` | 管理员在 QQ 里发 `/name 参数` 时调用，`run` 返回的文字直接回到**发命令的那个聊天**（群里发就回群里）。名字可以是中文（`name: '天气'`），中文命令后面可以不加空格（`/天气北京`）；`arg` 是命令名后面剩下的全部文字，已经去掉首尾空格。**只认管理员**：别人发 `/xxx` 当普通消息处理。和内置命令同名时你的优先 |
 | `api.every(毫秒, fn, 名字?)` | 定时任务（名字用在出错日志里）。查新消息、整理缓存这类后台活可以用；**她自己会去做的事（逛、刷、写）别用它定时替她做**，交给 `api.mind.offer` 由她决定 |
 | `api.later(毫秒, fn)` | 过一会儿做一次 |
-| `api.route('/路径', async (req, res) => 返回值, options?)` | 加一个网页接口：地址是 `/aurabot/api/ext/<id>/路径`；返回对象就当 JSON 回；要自己回（比如图片）就用 `api.core.http.send(res, 200, buf, 'image/png')`。1.2.3 起管理接口可传 `{ access: 'panel' }`，复用宿主回环/可信代理、Host 与 CSRF 闸；不传时保持现有行为，由模块验证客户端凭据 |
+| `api.route('/路径', async (req, res) => 返回值, options?)` | 加一个网页接口：地址是 `/aurabot/api/ext/<id>/路径`；返回对象就当 JSON 回；要自己回（比如图片）就用 `api.core.http.send(res, 200, buf, 'image/png')`。所有模块接口默认都是管理面，统一经过宿主回环/可信代理、Host 与 CSRF 闸；外部程序请走 bridge 的 `/open/*` Bearer 接口，不要假设模块路由可匿名跨机访问 |
 | `api.onDispose(fn)` | 模块停下时要做的收尾 |
 
 QQ 管理员命令的参数或回执涉及隐私时，可用 `api.command({ name: 'private-query', sensitive: true, run })`。宿主的命令日志只记命令名，回执发送失败时结束本次发送。
@@ -180,7 +180,7 @@ QQ 管理员命令的参数或回执涉及隐私时，可用 `api.command({ name
 | `listModels()` / `defaultModel()` | DSH 里的模型 |
 | `http` | 写接口用的小工具：`body(req)` 读 JSON、`raw(req, 最大字节)` 读原始内容、`query(req)` 读网址参数、`send(res, 状态码, 内容, 类型)` |
 | `personas` | 人格：`list()` `read(id)` `current()` |
-| `modules` | 模块内核本身（`status()` `reload(id)` ……） |
+| ~~`modules`~~ | 不向模块暴露内核控制面；需要统计请用 `api.settings()` / 宿主接口 |
 | `getConfig()` / `setConfig(cfg)` | 同 `api.config` / 整份替换配置 |
 | `logger` | 插件的日志器（`logger.child('名字')` 拿一个分类） |
 | `root` | 插件自己的安装目录 |
@@ -302,6 +302,8 @@ settings: [
 ```
 
 存下来的类型：`number` 是数字、`switch` 是 `true / false`，其余是字符串。改了设置**不用重载模块**，`api.settings()` 每次读的都是最新的（别在 setup 里读一次存着）。
+
+**安全边界：`panel.js` 不是沙箱。** 它和插件面板同源执行，能直接 `fetch` 管理接口、读写配置和调用模块 API。只安装你信任的模块；不要从不可信来源复制 panel.js。需要强隔离时，应改为 sandbox iframe + postMessage，而不是 `new Function`。
 
 **自己画面板**：模块文件夹里放 `panel.js`，定义里写 `panel: 'panel.js'`（写 `true` 也是找 `panel.js`；不写就没有自定义面板）。它是一段函数体，面板会这样执行：
 

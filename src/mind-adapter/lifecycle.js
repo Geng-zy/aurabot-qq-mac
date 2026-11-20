@@ -24,7 +24,7 @@ export function createLifecycle({ opts, log, mind, local, localEmbedding, migrat
     dailySnapshot()
     timer = setInterval(dailySnapshot, 3600000)
     timer.unref?.()
-    encodeTimer = setInterval(() => { encodeTick() }, 60000)
+    encodeTimer = setInterval(() => { Promise.resolve(encodeTick()).catch((error) => log.warn('记忆编码出错：', error.message)) }, 60000)
     encodeTimer.unref?.()
     sleepTimer = setInterval(() => { bodyTick().catch((error) => log.warn('身体推进出错：', error.message)) }, 60000)
     sleepTimer.unref?.()

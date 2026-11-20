@@ -48,7 +48,7 @@ import { createPurgeScope } from '../integration/purge-scope.js'
 
 // QQ 会话的工作区目录，第一次收到消息时自动创建。面板「连接」页能改（config.workspaceDir，#32）；
 // 没填就用环境变量 AURABOT_WORKSPACE，再没有就是 ~/Aurabot/qq-chats
-const MAX_IMAGE_BYTES = 1024 * 1024 * 1024 // 图片大小不设实际限制，只防把内存撑爆
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024 // 单张聊天图片上限，防网关/恶意大图把内存打爆
 const MODEL_IMAGE_BYTES = 8 * 1024 * 1024 // 超过这个大小先缩小再给模型
 const MAX_MESSAGE_IMAGES = 8 // 一条消息最多给她看几张，合并转发里的图算在内
 export const WORKSPACE_DIR = process.env.AURABOT_WORKSPACE || join(homedir(), 'Aurabot', 'qq-chats')
@@ -2063,7 +2063,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const out = []
     for (const seg of [...msg.stickers, ...msg.images].slice(0, MAX_MESSAGE_IMAGES)) {
       try {
-        const raw = await segmentBytes(seg, channelOf(msg.chatId), { maxBytes: MAX_IMAGE_BYTES })
+        const raw = await segmentBytes(seg, channelOf(msg.chatId), { maxBytes: MAX_IMAGE_BYTES, allowLocal: false })
         const frames = gifFrames(raw)
         const buf = await fitForModel(raw)
         const mime = mimeOf(buf)

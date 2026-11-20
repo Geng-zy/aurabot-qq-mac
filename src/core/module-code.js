@@ -80,14 +80,22 @@ export function scopeCoreForModule(core, id) {
       value: (name, title, prompt, opts = {}) => core.hub.subagentFor(id)(name, title, prompt, opts),
     })
   }
+  const hidden = new Set(['modules', 'mindFor', 'setConfig'])
   return new Proxy(core, {
     get(target, key, recv) {
       if (key === 'hub') return scopedHub
       // 模块不能拿回内核控制面或伪造自己的身份；配置只给只读快照。
-      if (key === 'modules' || key === 'mindFor' || key === 'setConfig') return undefined
+      if (hidden.has(key)) return undefined
       if (key === 'getConfig') return () => structuredClone(target.getConfig())
       return Reflect.get(target, key, recv)
     },
+    getOwnPropertyDescriptor(target, key) {
+      if (key === 'hub') return { value: scopedHub, enumerable: true, configurable: true, writable: false }
+      if (hidden.has(key)) return undefined
+      return Reflect.getOwnPropertyDescriptor(target, key)
+    },
+    ownKeys(target) { return Reflect.ownKeys(target).filter((key) => !hidden.has(key)) },
+    has(target, key) { return key === 'hub' || (!hidden.has(key) && Reflect.has(target, key)) },
     getPrototypeOf() { return null }, // 摸原型拿回原始 hub 的路也堵死（三审 #177）
   })
 }
