@@ -1,86 +1,147 @@
 <div align="center">
 
+<img src="assets/mac-banner.svg" alt="AuraBot for macOS" width="100%">
+
 # AuraBot for macOS
 
-**Bring Dafeiyu to QQ with memories, moods, and relationships that carry across conversations.**
+**Bring Aura into QQ and Telegram, with persistent memory, mood, and relationships across conversations.**
 
-DeepSeek Harness plugin · Apple silicon Macs · OneBot v11
+A DeepSeek Harness plugin for Apple-silicon Macs · multi-platform adapters · OneBot v11
 
-[Latest release](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) · [Quick start](#quick-start) · [User guide (Chinese)](docs/USER-MANUAL.md) · [简体中文](README.md)
+[![Release](https://img.shields.io/github/v/release/Geng-zy/aurabot-qq-mac?style=flat-square&label=release)](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest)
+[![Tests](https://img.shields.io/badge/tests-1554%20passing-brightgreen?style=flat-square)](#development)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.13-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
+[![License](https://img.shields.io/badge/license-MIT-2e7763?style=flat-square)](LICENSE)
+[![Platforms](https://img.shields.io/badge/platforms-QQ%20%7C%20Telegram-588b78?style=flat-square)](#platforms)
+
+[Download](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) · [Install](#install) · [Platforms](#platforms) · [Manual](docs/USER-MANUAL.md) · [中文](README.md)
 
 </div>
 
-<img src="docs/screenshots/aurabot-overview.png" alt="AuraBot overview with QQ connection status, run mode, activity and usage counters, and shortcuts" width="100%">
+<img src="docs/screenshots/aurabot-overview.png" alt="AuraBot overview" width="100%">
 
-Screenshots show AuraBot v1.5.6 using demo data. The panel is in Chinese.
+> Screenshot from an earlier release with demo data; the installed version is authoritative.
 
-## What it does
+## What it is
 
-| Feature | How to use it |
+AuraBot is a macOS plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). It combines chat platforms, persona and memory, model routing, voice, and creative tools in one workspace.
+
+The platform layer is intentionally adapter-based:
+
+```text
+DSH host
+   ↓
+AuraBot Host
+   ↓
+ChannelManager
+   ├── QQ Adapter        OneBot v11 / forward WebSocket
+   ├── Telegram Adapter  long polling Bot API
+   └── future adapters
+   ↓
+Shared: chat hub / mind / memory / modules / voice / media
+```
+
+A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
+
+## Platforms
+
+| Platform | Current capabilities | Where to configure |
+| --- | --- | --- |
+| **QQ** | private/group chat, replies, forward expansion, voice, files, reactions, group admin, friend/group requests, profile, Qzone | `QQ 会话` |
+| **Telegram** | long polling, text, replies, images (base64 images use multipart upload) | `平台 → Telegram` |
+| **Future** | add another `PlatformAdapter` / `ChannelManager` entry | platform-specific page |
+
+Important boundaries:
+
+- Image stickers can be sent across platforms.
+- QQ market `mface` is QQ-only; other platforms skip it.
+- Collecting stickers outside QQ never writes to QQ favorites.
+- Unsupported platform capabilities degrade or skip instead of forcing a platform-specific format.
+
+## Features
+
+| Area | What you can do |
 | --- | --- |
-| **QQ private and group chats** | Choose which chats can reach AuraBot. Set group reply rules, spontaneous participation, and how closely spaced messages are merged. Use quoted messages, forwarded conversations, voice transcription, and per-chat model settings. |
-| **Memory, emotions, and relationships** | Turn chats into experiences and recall them by date, keywords, or meaning. Inspect memory sources and relationship changes, and set where private memories may be used. |
-| **Thoughts and actions** | Read the internal journal, wants, and action status. AuraBot uses recent interactions, energy, and motivation when deciding whether to reach out or carry out an enabled activity. |
-| **Voice, creative tools, and Qzone** | Send voice messages and stickers, sing covers, generate images, and write Qzone diaries. Enable and configure these tools as needed. |
-| **Extensions and maintenance** | Manage modules, logs, usage, and backups inside DSH. Optional modules include a desktop pet, Douyin, and HeyBox. |
+| **Chat** | Allowlist conversations, control group replies and interjections, merge bursts, quotes, and forwarded messages. |
+| **Mind** | Recall experiences by date, keyword, or semantics; inspect sources, relationships, and private-memory visibility. |
+| **Agency** | Review inner notes, wants, and actions; decide whether to reach out based on mood and energy. |
+| **Voice & creation** | Send voice, use stickers, cover songs, generate images/video, and plug in local or hosted services. |
+| **Qzone** | Draft posts, preview images, publish with an audience setting, archive media, and handle social interactions. |
+| **Maintenance** | Manage modules, logs, usage, and backups from DSH. |
 
-## Quick start
+## Install
 
-**You need an Apple silicon Mac, the desktop version of [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness), a OneBot v11 gateway, and a separate QQ account for the bot.** AuraBot v1.5.10 supports DSH `0.2.2-rc.3`. You can run [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework) in OrbStack or Docker Desktop, or connect an existing compatible gateway.
+**Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH `0.2.2-rc.3` or newer. QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
-1. Open DSH once to initialize it and configure a chat model. Download the `dsh-aurabot-qq-<version>.tgz` asset from the [latest release](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
-2. Quit DSH completely. Install the archive in Terminal, replacing the example path with the location and version you downloaded.
+1. Initialize DSH and configure a chat model.
+2. Download `dsh-aurabot-qq-<version>.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
    "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.10.tgz" --offline
    ```
 
-3. Reopen DSH and select **Aurabot** in the sidebar. The setup wizard asks for your QQ ID, the bot's QQ ID, and the OneBot forward WebSocket URL and token.
-4. Start in **试运行** (dry run). Send the bot a message and check the proposed reply under **系统 → 日志** (System → Logs). Verify the connection and allowlist before switching to **正式模式** (live mode).
+4. Reopen DSH and open **Aurabot**.
+5. QQ: configure the OneBot WebSocket URL/token, bot account, and owner in `QQ 会话 → 连接`.
+6. Telegram: configure the Bot Token, owner ID, and allowlists in `平台 → Telegram`.
+7. Start with dry-run, verify the reply in logs, then switch to live mode.
 
-To update, download the new archive, repeat the install command with its path, and restart DSH. Plugin files and personal data are stored separately.
+Updating uses the same command with the new `.tgz`, followed by a DSH restart. Plugin code and personal data are stored separately.
 
-[Setup and troubleshooting in Chinese](docs/USER-MANUAL.md) · [Changelog](CHANGELOG.md)
+[Setup and troubleshooting](docs/USER-MANUAL.md) · [Changelog](CHANGELOG.md)
 
-## Find your way around the panel
+## UI map
 
-Press **⌥ K** to search for a feature or setting. Click the current group again to collapse its subpages. Long sections such as the internal journal, wants, and memory list start collapsed. Transitions follow the system's Reduce Motion preference.
+Use **⌥ K** to search settings. Clicking the active group again collapses its subpages. Long lists such as inner notes, wants, and memories are collapsed by default. Motion respects the system Reduce Motion setting.
 
-| Where to look | What you'll find |
+| Task | Where |
 | --- | --- |
-| **心智** · Mind | Current state, memory and privacy, relationships, thoughts and actions |
-| **人格与设置** · Persona and settings | Persona card, personality changes, and mind parameters including the background budget |
-| **QQ 会话** · QQ | Gateway connection, allowlists and permissions, reply rules, models, and Qzone |
-| **表达与创作** · Creative tools | Voice, stickers, image generation, covers, and video via local scripts |
-| **系统** · System | Logs, backups, and local integrations |
+| Recent events or privacy | Mind → Memory |
+| Relationships or inner notes | Mind → Relationships / Thoughts & actions |
+| Persona, traits, background budget | Self & settings |
+| QQ connection, allowlists, Qzone | QQ conversations |
+| Telegram | Platforms → Telegram |
+| Voice, image generation, covers | Expression & creation |
+| Logs, backups, custom scripts | System |
 
-<details>
-<summary>See the relationship panel and settings search</summary>
+## Development
 
-<p><strong>Relationships</strong> · Browse impressions, nicknames, closeness, and trust, or switch to the relationship graph.</p>
-<img src="docs/screenshots/aurabot-relationships.png" alt="Relationship panel in dark mode with demo person cards, relationship metrics, filtering and a graph control" width="100%">
+Requires Node.js ≥ 22.13.0.
 
-<p><strong>Settings search</strong> · Searching for vectors opens the semantic search and reranking section in Memory.</p>
-<img src="docs/screenshots/aurabot-search.png" alt="Memory panel in light mode with its vector search section expanded and the searchable settings menu open" width="100%">
+```bash
+npm test
+npm run check
+```
 
-</details>
+Current regression:
 
-## Optional local models
+```text
+390 files syntax-checked
+1554 tests passing
+```
 
-- **Memory search** defaults to SiliconFlow's `BAAI/bge-m3` with `BAAI/bge-reranker-v2-m3` reranking enabled. After you configure a key, queries and relevant memory text are sent to the service. You can select the bundled offline Chinese embedding model or use keyword search.
-- **Local thoughts** can use Qwen3.5-9B through MLX. Install it under **人格与设置 → 心智设置 → 本地小模型**.
-- **Local image generation** can install MFLUX and Qwen Image 2.1 on Apple silicon with macOS 26 or later. Compatible online endpoints and custom local scripts are also available. Voice and cover components can be installed separately from the panel.
+Offline mind replay:
 
-## Data, development, and credits
+```bash
+npm run mind:replay
+npm run mind:privacy
+```
 
-| Location | Contents |
+## Data and security
+
+| Path | Content |
 | --- | --- |
-| `~/.dsh/plugins-data/aurabot/` | Plugin settings, persona, memory, logs, and module data |
-| `~/Aurabot/` | Default QQ workspace and local environments for thoughts, voice, and covers |
+| `~/.dsh/plugins-data/aurabot/` | settings, persona, memory, logs, module data |
+| `~/Aurabot/` | default QQ workspace and local voice/mind environments |
 
-Development and tests require Node.js ≥ 22.13.0. Run `npm test` from the repository root.
+- Platform tokens, API keys, and WebDAV passwords are never echoed back to the panel.
+- Tools degrade according to platform `caps`; platform-specific formats are not forced onto other platforms.
+- Host tools in groups are off by default and limited to turns where the owner speaks.
+- Review a module's source before installing; modules share the plugin process, and capability declarations are not a sandbox.
 
-[User guide](docs/USER-MANUAL.md) · [Features and implementation](docs/FEATURES-AND-IMPLEMENTATION.md) · [Maintainer handoff](docs/HANDOFF.md) · [Module tutorial](docs/MODULE-TUTORIAL.md) · [Module API](src/modules/API.md) · [macOS module index](https://github.com/Geng-zy/aurabot-qq-mac-mods)
+## Credits
 
-This macOS fork is maintained by Geng-zy and branched from [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq) v1.2.0. QQ chat, voice, stickers, song covers, Qzone, and the module system come from upstream and its contributors. See the [MIT license](LICENSE) and [third-party notices](THIRD-PARTY-NOTICES.md).
+Maintained by [Geng-zy](https://github.com/Geng-zy). Forked from [aureth-labs/dsh-aurabot-qq](https://github.com/aureth-labs/dsh-aurabot-qq) v1.2.0. QQ chat, voice, stickers, covers, Qzone, and the module system come from the upstream project and its contributors.
+
+[MIT](LICENSE) · [Third-party notices](THIRD-PARTY-NOTICES.md)
