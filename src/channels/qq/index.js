@@ -16,6 +16,7 @@ import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
 import { createDispatcher } from './features/dispatch.js'
 import { createOutboxFlush } from './features/outbox-flush.js'
+import { createQuoteApi } from './features/quote.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -165,28 +166,8 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   const faces = createFaces({ onebot: { call: (a, p, o) => gw.call(a, p, o) }, log }) // QQ 系统表情：<face:名字> ↔ 编号
 
-  /** 表情包/图片段里有没有能直接下载的地址（有些 get_msg 只回了空 url + 裸文件名）。 */
-  const quoteSegUsable = (seg) => {
-    const d = (seg && seg.data) || {}
-    return [d.url, d.file].some((x) => typeof x === 'string'
-      && (/^https?:\/\//i.test(x) || x.startsWith('base64://') || x.startsWith('file://') || /^[a-zA-Z]:[\\/]/.test(x)))
-  }
-  const quoteNeedsHistory = (parsed) => [...(parsed.images || []), ...(parsed.stickers || [])].some((seg) => !quoteSegUsable(seg))
-  async function quoteFromHistory(chatId, id) {
-    // 先用引用 id 当锚点（能取到更早的消息），拿不到再退回「最近 30 条」
-    const anchor = /^-?\d+$/.test(id) ? Number(id) : 0
-    const attempts = anchor ? [{ anchor, count: 5 }, { count: 30 }] : [{ count: 30 }]
-    for (const a of attempts) {
-      try {
-        const list = await fetchHistory(chatId, a.count, { anchor: a.anchor, retries: 0 })
-        const hit = list.find((m) => String(m?.message_id ?? '') === id || String(m?.real_id ?? '') === id)
-        if (hit) return hit
-      } catch (error) {
-        log.debug(`引用消息历史也拉不到（${id}）：`, error.message)
-      }
-    }
-    return null
-  }
+  const quoteApi = createQuoteApi({ fetchHistory, log })
+  const { quoteNeedsHistory, quoteFromHistory } = quoteApi
 
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
