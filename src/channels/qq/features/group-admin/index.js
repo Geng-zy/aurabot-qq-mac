@@ -25,9 +25,9 @@ export default {
       if (!(chat.kind === 'group' || level === 'full')) return []
       return defineTool({
         name: 'qq_group_admin',
-        description: '群管理：禁言 / 解禁 / 踢人 / 改头衔 / 发群公告。只有管理员要求时才能用；别人要求会被系统拒绝。',
+        description: '群管理：禁言 / 解禁 / 踢人 / 改群名片 / 改头衔 / 发群公告。只有管理员要求时才能用；别人要求会被系统拒绝。',
         properties: {
-          action: { type: 'string', enum: ['ban', 'unban', 'kick', 'title', 'notice'], description: 'ban 禁言，unban 解禁，kick 踢出，title 改专属头衔，notice 发公告' },
+          action: { type: 'string', enum: ['ban', 'unban', 'kick', 'card', 'title', 'notice'], description: 'ban 禁言，unban 解禁，kick 踢出，card 改群名片，title 改专属头衔，notice 发公告' },
           group_id: str('群号；在群里用时可省略，默认当前群'),
           user_id: str('对象 QQ 号（notice 不需要）'),
           minutes: int('禁言分钟数，默认 10'),
@@ -55,6 +55,7 @@ export default {
             case 'ban': await onebot.call('set_group_ban', { group_id: gid, user_id: uid, duration: Math.max(1, Number(minutes) || 10) * 60 }); break
             case 'unban': await onebot.call('set_group_ban', { group_id: gid, user_id: uid, duration: 0 }); break
             case 'kick': await onebot.call('set_group_kick', { group_id: gid, user_id: uid, reject_add_request: false }); break
+            case 'card': await onebot.call('set_group_card', { group_id: gid, user_id: uid, card: String(text || '') }); break
             case 'title': await onebot.call('set_group_special_title', { group_id: gid, user_id: uid, special_title: String(text || '') }); break
             case 'notice': await onebot.call('_send_group_notice', { group_id: gid, content: String(text || '') }); break
             default: return { ok: false, message: '不认识的操作' }
