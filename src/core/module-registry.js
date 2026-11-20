@@ -25,6 +25,7 @@ export function createModuleRegistry({ state, builtinDefs, getConfig, setConfig,
   }
 
   function toolNames(rec) {
+    if (Array.isArray(rec.toolNamesCache)) return rec.toolNamesCache
     const names = []
     for (const b of rec.tools) {
       try {
@@ -32,6 +33,7 @@ export function createModuleRegistry({ state, builtinDefs, getConfig, setConfig,
         for (const t of [].concat(r || [])) if (t?.name) names.push(t.name)
       } catch (error) {}
     }
+    rec.toolNamesCache = names
     return names
   }
 
