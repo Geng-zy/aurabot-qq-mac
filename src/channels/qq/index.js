@@ -32,7 +32,8 @@ export { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
  * @param {object} [o.client]   测试用：直接给一个 { call, start, stop, restart, state } 当网关
  * @param {object} [o.outbox]   测试用
  */
-export function createQqChannel({ getConfig, log, client = null, outbox = null, flushEveryMs = 10_000, canReplayDelivery }) {
+export function createQqChannel({ getConfig, log, client = null, outbox = null, flushEveryMs = 10_000, canReplayDelivery, outboxBarrier = null }) {
+  let outboxBeforeSend = outboxBarrier
   const listeners = new Set()
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn('处理 QQ 事件出错：', error.message) } } }
 
@@ -156,6 +157,8 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     ...forward,
     outbox: box,
     flushOutbox,
+    /** 宿主注入：补发前等当前聊天的多气泡发送结束。 */
+    setOutboxBarrier: (fn) => { outboxBeforeSend = fn },
     isDefiniteFailure,
   }
   outboxFlusher = createOutboxFlush({
@@ -166,6 +169,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     isDisposed: () => disposed,
     getRevision: () => connectionRevision,
     canReplayDelivery,
+    beforeSend: (chatId) => outboxBeforeSend?.(chatId),
     onSent: (item, result) => emit({
       type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
       messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system', replyJournal: item.replyJournal, replyFeed: item.replyFeed,

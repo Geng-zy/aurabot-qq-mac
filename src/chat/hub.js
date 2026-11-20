@@ -1438,6 +1438,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return outputScope.run({ chatId, sources, delivered: [], queued: 0, simulated: 0, journal: opts.own ? 'own' : 'external', blocked: false, allowPromptEcho: false }, () => deliverTurn(chatId, text, opts))
   }
 
+  async function whenTurnIdle(chatId) {
+    const gate = turnSendLocks.get(chatId)
+    if (gate) await gate.catch(() => {})
+  }
+
   /** 后台通知/系统提示：不抢多气泡的发送中间，等整轮结束再发。 */
   async function sendBackground(chatId, message, note, opts = {}) {
     const gate = turnSendLocks.get(chatId)

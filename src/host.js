@@ -447,6 +447,7 @@ export function apply(ctx) {
     mindFor: (moduleId, source) => (mind ? mind.moduleApi(moduleId, source) : null),
   }
   mods = createModules({ ctx, core, getConfig, setConfig, logger, version: VERSION, builtins: [...BUILTINS, ...QQ_FEATURES] })
+  try { qq?.setOutboxBarrier?.((chatId) => hub?.whenTurnIdle?.(chatId)) } catch (error) { log.debug('注入补发闸失败：', error.message) }
   bridge = createBridge({ ctx, getConfig, setConfig, hub, mods, log: logger.child('bridge'), version: VERSION, apiVersion: API_VERSION, overview: () => overview() })
   core.bridge = bridge
   core.modules = mods

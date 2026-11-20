@@ -109,12 +109,12 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
    * 连接后按顺序补发。call(action, params, { retries: 0 }) 由调用方提供。
    * 仅 transport 失败保留；uncertain / 业务错误丢弃，避免重复发或永远堵住队列。
    */
-  function flush (call, { onSent, canSend, isReady = () => true } = {}) {
-    if (!flushing) flushing = Promise.resolve().then(() => drain(call, onSent, canSend, isReady)).finally(() => { flushing = null })
+  function flush (call, { onSent, canSend, isReady = () => true, beforeSend = null } = {}) {
+    if (!flushing) flushing = Promise.resolve().then(() => drain(call, onSent, canSend, isReady, beforeSend)).finally(() => { flushing = null })
     return flushing
   }
 
-  async function drain (call, onSent, canSend, isReady) {
+  async function drain (call, onSent, canSend, isReady, beforeSend = null) {
     load()
     let sent = 0
     let dropped = 0
@@ -129,6 +129,7 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
         continue
       }
       if (Number(item.nextAt) > at) break
+      if (beforeSend) await beforeSend(item.chatId)
       if (canSend && !canSend(item)) {
         if (!remove(item.id)) break
         dropped++
