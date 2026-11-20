@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { normalize, publicConfig, mergeFromPanel } from '../src/core/config.js'
 import { asrConfigured, asrSettings, transcribeAudio, ASR_PRESETS } from '../src/voice/asr.js'
 import { buildWav } from '../src/voice/wav.js'
-import voiceModule from '../src/modules/voice/index.js'
+import voiceModule from '../src/channels/qq/features/voice/index.js'
 
 const log = { info() {}, warn() {}, debug() {} }
 const wav = () => buildWav(new Int16Array(24000), 24000)

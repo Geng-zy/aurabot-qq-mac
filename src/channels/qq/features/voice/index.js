@@ -3,14 +3,14 @@
 // 导出 speak(text) → { file, engine }：聊天中枢发语音时找它。替换这个模块就能换成任何你想要的念法。
 
 import { readFileSync } from 'node:fs'
-import { textToSpeech, edgeInstalled, installEdge, voiceConverters } from '../../voice/tts.js'
-import { breezeBalance, breezeClaim, breezeSession, autoClaimOnce, breezeVoices } from '../../voice/breeze.js'
-import { createSongVoice } from '../../voice/rvc.js'
-import { toMono16k } from '../../voice/wav.js'
-import { localAudioFile } from '../../local/local.js'
-import { asrConfigured, transcribeAudio } from '../../voice/asr.js'
-import { mergeFromPanel, normalize } from '../../core/config.js'
-import { segmentsOf } from '../../channels/qq/convert.js'
+import { textToSpeech, edgeInstalled, installEdge, voiceConverters } from '../../../../voice/tts.js'
+import { breezeBalance, breezeClaim, breezeSession, autoClaimOnce, breezeVoices } from '../../../../voice/breeze.js'
+import { createSongVoice } from '../../../../voice/rvc.js'
+import { toMono16k } from '../../../../voice/wav.js'
+import { localAudioFile } from '../../../../local/local.js'
+import { asrConfigured, transcribeAudio } from '../../../../voice/asr.js'
+import { mergeFromPanel, normalize } from '../../../../core/config.js'
+import { segmentsOf } from '../../convert.js'
 
 export default {
   id: 'voice',

@@ -23,6 +23,7 @@
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - 增加非 QQ 聊天收表情不写 QQ 收藏的回归测试。
+- 语音模块从 `src/modules/voice` 迁到 `channels/qq/features/voice`，注册 QQ_FEATURES；旧路径删除。
 - 空间日记从 `src/modules/diary` 整体迁到 `channels/qq/features/diary`，注册 QQ_FEATURES；旧路径删除。
 - 改资料模块从 `src/modules/profile` 迁到 `channels/qq/features/profile`，注册 QQ_FEATURES；旧路径删除。
 - 好友/加群申请模块从 `src/modules/contacts` 迁到 `channels/qq/features/contacts`，注册 QQ_FEATURES；旧路径删除。
