@@ -303,7 +303,7 @@ settings: [
 
 存下来的类型：`number` 是数字、`switch` 是 `true / false`，其余是字符串。改了设置**不用重载模块**，`api.settings()` 每次读的都是最新的（别在 setup 里读一次存着）。
 
-**边界：`panel.js` 和插件面板同源执行。** 它能直接使用父页面能力；只安装你信任的模块，不要把管理员凭据写进 panel.js。
+**安全边界：`panel.js` 在 sandbox iframe 里执行。** 面板只通过 `postMessage` 白名单调用 `call/save/toast/reload`，无法直接访问父页面 DOM、`localStorage` 或管理接口。它仍能调用本模块自己的 `api.route` 和保存本模块设置；只安装你信任的模块，不要把管理员凭据写进 panel.js。
 
 **自己画面板**：模块文件夹里放 `panel.js`，定义里写 `panel: 'panel.js'`（写 `true` 也是找 `panel.js`；不写就没有自定义面板）。它是一段函数体，面板会这样执行：
 
