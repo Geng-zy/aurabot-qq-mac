@@ -135,6 +135,7 @@ test('模块库模块只记名字，会话带上并放回工作区目录，已�
   put('modules/heybox/.aurabot-source.json', '{}')
   put('modules/heybox/index.mjs', 'x')
   put('modules/mine/index.mjs', 'mine')
+  put('config.json', JSON.stringify({ ownerQQ: '10000001', workspaceDir: ws }))
 
   const b = await api.createBackup({ version: 'x', workspaceDir: ws, now: new Date(Date.now() + 120000) })
   assert.deepEqual(b.market, ['heybox'])

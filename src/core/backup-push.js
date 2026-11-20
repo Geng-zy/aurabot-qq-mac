@@ -63,7 +63,7 @@ function gitEnv(token) {
 /** 保留 N 份的淘汰计划：输入归档根下的文件夹名（一份备份一个文件夹），倒序留前 N 个。纯函数方便测试。 */
 export function prunePlan(dirs, keep) {
   const valid = dirs.filter((d) => /^aurabot-backup-\d{8}-\d{4}$/.test(d)).sort().reverse()
-  const n = Math.min(10, Math.max(1, keep))
+  const n = Math.min(365, Math.max(1, Number(keep) || 10))
   return { keep: valid.slice(0, n), drop: valid.slice(n) }
 }
 
