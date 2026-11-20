@@ -237,6 +237,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const saidElsewhere = new Map() // chatId → [{ at, text }]  别处安排她在这里发的话，下次这个聊天交给她时补进去
   const outputSources = new Map() // 只保存本聊天实际渲染/注入的这一轮原文
   const outputScope = new AsyncLocalStorage() // 投递期间固定快照，下一轮渲染不能改掉它
+  const turnSendLocks = new Map() // chatId → 多气泡发送 job；后台通知/补发等它结束
   function sourcesFor(chatId) {
     if (!outputSources.has(chatId)) outputSources.set(chatId, { chatId, system: new Map(), context: '', memory: [], userText: '' })
     return outputSources.get(chatId)
@@ -1437,6 +1438,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return outputScope.run({ chatId, sources, delivered: [], queued: 0, simulated: 0, journal: opts.own ? 'own' : 'external', blocked: false, allowPromptEcho: false }, () => deliverTurn(chatId, text, opts))
   }
 
+  /** 后台通知/系统提示：不抢多气泡的发送中间，等整轮结束再发。 */
+  async function sendBackground(chatId, message, note, opts = {}) {
+    const gate = turnSendLocks.get(chatId)
+    if (gate) await gate.catch(() => {})
+    return sendSegments(chatId, message, note, { ...opts, system: true })
+  }
+
   async function deliverTurn(chatId, text, opts = {}) {
     const scope = outputScope.getStore()
     const revision = audienceRevision(chatId)
@@ -1527,6 +1535,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const missedAt = [] // 写了 @ 却没对上群里人的名字
     const failures = []
     let unconfirmed = items.length
+    let releaseTurnSend
+    const turnSendGate = new Promise((resolve) => { releaseTurnSend = resolve })
+    turnSendLocks.set(chatId, turnSendGate)
+    try {
     await failStore.run(failures, async () => {
       for (let i = 0; i < items.length; i++) {
         if (!current()) return
@@ -1555,6 +1567,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         if (i < items.length - 1 && !opts.simulate) await pause(bubbleDelay(items[i + 1].kind === 'text' ? items[i + 1].value : '') * mood().delay)
       }
     })
+    } finally {
+      releaseTurnSend()
+      if (turnSendLocks.get(chatId) === turnSendGate) turnSendLocks.delete(chatId)
+    }
     if (disposed) return
     const delivered = scope.delivered.length > 0
     if ((scope.blocked || opts.confirmDelivery) && !delivered) return silenceTurn(chatId)

@@ -160,6 +160,9 @@ export function apply(ctx) {
     canReplayDelivery: (item) => hub?.canReplayDelivery(item) === true,
   })) channels.add(channel)
   const qq = channels.get('qq')
+  const backgroundText = (chatId, text, note = '通知', opts = {}) => hub?.sendBackground
+    ? hub.sendBackground(chatId, [{ type: 'text', data: { text } }], note, opts)
+    : hub?.sendText(chatId, text, undefined, undefined, undefined, opts)
   const inboundChains = new Map() // chatId → 入站串行链：先到的图片/语音处理完，后到的文字再入队
   // 兼容：模块和几处老代码还在用 onebot.call / onebot.state
   const onebot = { call: (a, p, o) => qq.call(a, p, o), get state() { return qq.state() }, start: () => qq.start(), stop: () => qq.stop(), restart: () => qq.restart() }
@@ -273,14 +276,14 @@ export function apply(ctx) {
         return hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '', { internal: true, confirmDelivery: true })
       },
       deliverReminder: async ({ chatId, text, isCurrent }) => {
-        const result = await hub?.sendText(chatId, text, undefined, undefined, undefined, { isCurrent, allowQueue: false, throwOnError: true })
+        const result = await backgroundText(chatId, text, '提醒', { isCurrent, allowQueue: false, throwOnError: true })
         return Boolean(result && !result.queued)
       },
       // 她改了自己之后通知你（系统通知，不是她说的话）
       notifyOwner: async (text) => {
         const chatId = mind?.ownerChat()
         if (!hub || !chatId) return
-        await hub.sendSegments(chatId, [{ type: 'text', data: { text } }], '心智通知', { force: true, quiet: true, system: true }).catch(() => {})
+        await backgroundText(chatId, text, '心智通知', { force: true, quiet: true, system: true }).catch(() => {})
       },
       // 她改了人格卡、名字：面板里正在用的那份人格卡文件跟着改，两边一致
       onSelfChange: ({ what, after }) => {
@@ -452,7 +455,7 @@ export function apply(ctx) {
   dangerGuard = createDangerGuard({
     getConfig,
     log: logger.child('危险命令'),
-    deliver: (chatId, text) => hub.sendText(chatId, text),
+    deliver: (chatId, text) => backgroundText(chatId, text, '通知'),
     chatOfSession: (sessionId) => { try { return hub.chatOfSession?.(sessionId) || '' } catch (error) { return '' } },
     // tools/pre-execute 是进程级的，同一个 DSH 里管理员自己开的会话也会走到这里；那些会话不归这个守卫管
     // 判断不出来（hub.isOwnedSession 缺失 / 抛错）时 safeOwnedSession 返回 true，走原 deny 逻辑；
@@ -481,10 +484,10 @@ export function apply(ctx) {
       return mind?.selfPrompt({ publicOnly: !owner }) || (owner ? currentPersonaText(getConfig().persona.current) : '你是大肥鱼。')
     },
     context: (chatId) => { try { return mind?.contextFor?.({ chat: chatOfId(chatId) }) || '' } catch (error) { return '' } },
-    send: (chatId, text) => hub.sendText(chatId, text),
+    send: (chatId, text) => backgroundText(chatId, text, '后台消息'),
     log,
   })
-  approvalRelay = createApprovalRelay({ getConfig, deliver: (chatId, text) => hub.sendText(chatId, text), speak: (o) => herVoice.tell({ ...o, via: 'direct' }), chatOfSession: (id) => hub.chatOfSession(id), log })
+  approvalRelay = createApprovalRelay({ getConfig, deliver: (chatId, text) => backgroundText(chatId, text, '审批通知'), speak: (o) => herVoice.tell({ ...o, via: 'direct' }), chatOfSession: (id) => hub.chatOfSession(id), log })
   ctx.effect(() => {
     let off = null
     try { off = ctx.on('approval/request', (request, next) => approvalRelay.onRequest(request, next)) } catch (error) { log.debug('挂审批应答失败：', error.message) }
@@ -798,7 +801,7 @@ export function apply(ctx) {
     if (cfg.dryRun) return { ok: false, message: '现在是试运行，先关掉试运行再测' }
     const ownerQQ = String(cfg.platforms?.qq?.ownerQQ || cfg.ownerQQ || '')
     if (!ownerQQ) return { ok: false, message: '先填写管理员 QQ 号' }
-    const r = await hub.sendText(`qq:private:${ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～', undefined, undefined, undefined, { allowQueue: false, system: true })
+    const r = await backgroundText(`qq:private:${ownerQQ}`, '【Aurabot 自测】大肥鱼到此一游～', '自测', { allowQueue: false, system: true })
     return r && !r.queued && !r.simulated ? { ok: true, message: '发给管理员了，去 QQ 看看' } : { ok: false, message: '未确认送达，请查看日志' }
   })
 

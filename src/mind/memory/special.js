@@ -36,7 +36,7 @@ export function createSpecial({ store, now, deps, DAY, visibleIn, localParts, na
   function dueNow({ eligible = () => true } = {}) {
     const at = now()
     return store.prep("SELECT * FROM episodes WHERE kind = 'intention' AND status = 'live' AND json_extract(json, '$.done') IS NULL AND json_extract(json, '$.nudged') IS NULL AND json_extract(json, '$.reminderUncertain') IS NULL AND json_extract(json, '$.reminderSending') IS NULL AND json_extract(json, '$.due') BETWEEN ? AND ? ORDER BY json_extract(json, '$.due'), id")
-      .all(at - 30 * 60000, at).map((r) => ({ ...r, data: JSON.parse(r.json) })).filter(eligible).slice(0, 5)
+      .all(at - 24 * 60 * 60000, at).map((r) => ({ ...r, data: JSON.parse(r.json) })).filter(eligible).slice(0, 5)
   }
 
   function setReminderDelivery(id, status) {

@@ -40,7 +40,7 @@ export function createReminders({ mind, mem, opts, log, now, isClosed, debug, ow
     try { return await deliverDuePromises() } finally { checkingPromises = false }
   }
   async function deliverDuePromises() {
-    for (const [id, draft] of reminderDrafts) if (now() - draft.due > 30 * 60000 || !mem.row(id)) reminderDrafts.delete(id)
+    for (const [id, draft] of reminderDrafts) if (now() - draft.due > 24 * 60 * 60000 || !mem.row(id)) reminderDrafts.delete(id)
     let n = 0
     const eligible = (e) => {
       const target = reminderTarget(e)
@@ -52,7 +52,7 @@ export function createReminders({ mind, mem, opts, log, now, isClosed, debug, ow
         if (!canRemind(target)) return false
         const cur = mem.row(e.id)
         return Boolean(cur && cur.status === 'live' && !cur.data.done && !cur.data.nudged && !cur.data.reminderUncertain
-          && cur.gist === e.gist && cur.data.due === e.data.due && now() >= cur.data.due && now() - cur.data.due <= 30 * 60000
+          && cur.gist === e.gist && cur.data.due === e.data.due && now() >= cur.data.due && now() - cur.data.due <= 24 * 60 * 60000
           && mem.visibleIn(cur, windowOf(target.chatId))
           && reminderTarget(cur)?.chatId === target.chatId)
       }

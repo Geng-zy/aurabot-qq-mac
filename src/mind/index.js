@@ -745,7 +745,10 @@ export function createMind(opts) {
 
   /** 她是谁（放进系统提示词开头）：当前版本的人格卡、她自己写的价值观等、自我故事摘要、不知不觉的变化和小习惯。 */
   function selfPrompt({ publicOnly = false } = {}) {
-    return [self.prompt({ publicPersona: publicOnly ? publicPersona() : null, isVisible: (id) => memory.visibleIn(memory.row(id), '') }), personality.selfText({ shareableOnly: true, isVisible: (id) => memory.visibleIn(memory.row(id), '') })].filter((x) => String(x || '').trim()).join('\n\n')
+    // 对外人格只允许固定词表的公开画像；性格漂移来自含私聊的观察，不能拼进群/对外提示词。
+    const parts = [self.prompt({ publicPersona: publicOnly ? publicPersona() : null, isVisible: (id) => memory.visibleIn(memory.row(id), '') })]
+    if (!publicOnly) parts.push(personality.selfText({ shareableOnly: true, isVisible: (id) => memory.visibleIn(memory.row(id), '') }))
+    return parts.filter((x) => String(x || '').trim()).join('\n\n')
   }
 
   // ---------- 动机和内心活动 ----------

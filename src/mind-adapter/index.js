@@ -91,10 +91,23 @@ export function createMindAdapter(opts) {
   const isOwnerChat = (chatId) => parseChat(chatId)?.kind === 'private' && refOfChat(chatId) === ownerOf()
   // 调试模式（面板开关）：她照常想、照常回，但不往心智里写任何东西——试人格不污染她
   const debug = () => opts.getConfig()?.debug === true
+  // 心智模型调用必须有超时：编码/人格推断挂住时不能把该窗口的整条队列永久占死。
+  const rawAsk = opts.ask
+  const askWithTimeout = rawAsk ? (request) => new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value) }
+    const timer = setTimeout(() => {
+      const error = new Error('心智模型调用超时')
+      error.code = 'MIND_ASK_TIMEOUT'
+      finish(reject, error)
+    }, 120_000)
+    timer.unref?.()
+    try { Promise.resolve(rawAsk(request)).then((v) => finish(resolve, v), (e) => finish(reject, e)) } catch (error) { finish(reject, error) }
+  }) : undefined
   const mind = createMind({
     dir: opts.dir, ownerId: ownerOf(), publicName: '大肥鱼', now, log, memoryDb: opts.memoryDb, random: opts.random,
     ownerName: () => String(opts.getConfig()?.ownerName || ''),
-    model: opts.ask ? (request) => opts.ask({ ...request, reasoningEffort: request.reasoningEffort || effortFor(request.scene) }) : undefined,
+    model: askWithTimeout ? (request) => askWithTimeout({ ...request, reasoningEffort: request.reasoningEffort || effortFor(request.scene) }) : undefined,
   })
   const trashDir = opts.trashDir || join(homedir(), '.Trash')
   const mem = mind.memory
