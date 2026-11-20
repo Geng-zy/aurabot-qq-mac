@@ -22,6 +22,7 @@
 - 发送能力降级：平台声明不支持 voice 时语音改文字，不支持 stickers 时跳过表情；未声明能力的旧适配器保持原行为。
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
+- QQ 的 start/stop/restart/watch/resetInbox 也收进 `features/lifecycle.js`，index 只组合。
 - QQ 连接提示文案移入 `features/config.js`，index 只传入 wrongAccount getter。
 - QQ 系统表情编解码拆到 `features/face-codec.js`，index 只组合。
 - `hub.sendSticker` 支持平台降级：没有原生 sticker 但支持图片时按图片发送；Telegram 图片发送支持 base64 multipart。

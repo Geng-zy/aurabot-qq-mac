@@ -110,7 +110,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => auth.verifiedLogin, getWrongAccount: () => auth.wrongAccount, setWrongAccount: (v) => { auth.wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
   const forward = createForwardApi({ call: (a, p, o) => gw.call(a, p, o), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id), log })
-  const lifecycle = createLifecycle({ gw, inbox, listeners, getFlushTimer: () => flushTimer, setDisposed: (v) => { disposed = v } })
+  const lifecycle = createLifecycle({ gw, inbox, listeners, getFlushTimer: () => flushTimer, setDisposed: (v) => { disposed = v }, isDisposed: () => disposed, enabled, getWrongAccount: () => auth.wrongAccount })
 
   const channel = {
     platform: PLATFORM,
@@ -122,18 +122,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     wrongAccount: () => auth.wrongAccount,
     /** 机器人号改了、连接设置改了：旧的核对结果作废。 */
     resetAccount() { auth.wrongAccount = '' },
-    resetInbox() { inbox.suspend() },
-    start() { if (!disposed && enabled()) gw.start() },
-    stop() { gw.stop() },
-    restart() { if (!disposed && enabled()) gw.restart() },
-    /** 看门狗：总开关开着、上次没连错号，就保持连着。 */
-    watch() {
-      if (disposed) return
-      if (!enabled()) { if (gw.state !== 'stopped') gw.stop(); return }
-      // 上次连上的不是机器人号：等管理员点「重新连接」或改设置再连
-      if (auth.wrongAccount) return
-      if (gw.state === 'stopped') gw.start()
-    },
+    ...lifecycle,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn) },
     /** 平台自己的接口（OneBot 动作）。 */
     call: (action, params, opts) => gw.call(action, params, opts),
@@ -167,7 +156,6 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     outbox: box,
     flushOutbox,
     isDefiniteFailure,
-    ...lifecycle,
   }
   outboxFlusher = createOutboxFlush({
     box,
