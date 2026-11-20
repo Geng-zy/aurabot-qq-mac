@@ -1,5 +1,5 @@
 // 心智适配器启动/关闭：迁移旧数据、同步人格、快照、定时器、资源回收。
-export function createLifecycle({ opts, log, mind, local, localEmbedding, migrateLegacy, replayDeletionsAfterRestore, outreach, resolveOwnerAbsence, syncPersona, importLegacySocial, inferTraits, dailySnapshot, encodeTick, bodyTick, innerTick, inner, isClosed, setClosed }) {
+export function createLifecycle({ opts, log, mind, local, localEmbedding, migrateLegacy, replayDeletionsAfterRestore, outreach, resolveOwnerAbsence, syncPersona, importLegacySocial, inferTraits, dailySnapshot, encodeTick, bodyTick, innerTick, inner, drain, isClosed, setClosed }) {
   let timer = null
   let encodeTimer = null
   let sleepTimer = null
@@ -36,11 +36,15 @@ export function createLifecycle({ opts, log, mind, local, localEmbedding, migrat
     innerTimer.unref?.()
   }
 
-  function close() {
+  let closing = false
+  async function close() {
+    if (closing) return
+    closing = true
     setClosed()
     inner.abort()
     for (const t of [timer, encodeTimer, sleepTimer, innerTimer]) if (t) clearInterval(t)
     timer = encodeTimer = sleepTimer = innerTimer = null
+    try { await Promise.race([Promise.resolve(drain?.()).catch(() => {}), new Promise((r) => setTimeout(r, 5000))]) } catch {}
     try { local.stop() } catch {}
     localEmbedding.close?.()
     mind.close()

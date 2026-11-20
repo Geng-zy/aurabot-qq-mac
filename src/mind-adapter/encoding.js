@@ -22,5 +22,7 @@ export function createEncoding({ mem, log, opts, windowOf, isClosed, debug }) {
     return encodingP
   }
 
-  return { encodeTick, encodeChat }
+  function drain() { return encodingP || Promise.resolve() }
+
+  return { encodeTick, encodeChat, drain }
 }

@@ -5,7 +5,14 @@ export function createSelf({ mind, mem, opts, log, ownerOf, outreach, now }) {
     if (!r.ok || !r.change) return { ok: r.ok, message: r.message }
     const c = r.change
     if (['persona', 'name', 'nickname'].includes(c.what)) {
-      try { opts.onSelfChange?.({ what: c.what, after: c.after, by }) } catch (error) { log.warn('人格卡文件没跟着改：', error.message) }
+      try {
+        opts.onSelfChange?.({ what: c.what, after: c.after, by })
+      } catch (error) {
+        // 人格卡文件是面板下一次保存的来源；文件没写成时把库里的改动回滚，避免两边长期分叉。
+        try { mind.self.change({ what: c.what, content: c.before, why: '人格卡文件保存失败，回滚' }, { by: 'system' }) } catch {}
+        log.warn('人格卡文件没跟着改，已回滚：', error.message)
+        return { ok: false, message: '人格卡文件保存失败，这次修改没有生效' }
+      }
     }
     if (by === 'self') {
       mind.emotion.feel([{ name: '平静', intensity: 0.3, why: '想通了，改了' + c.label, importance: 0.5 }], { source: 'self-change' })

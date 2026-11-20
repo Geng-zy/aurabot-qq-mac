@@ -294,7 +294,7 @@ export function createMindAdapter(opts) {
   const lifecycle = createLifecycle({
     opts, log, mind, local, localEmbedding, migrateLegacy, replayDeletionsAfterRestore,
     outreach, resolveOwnerAbsence, syncPersona, importLegacySocial, inferTraits, dailySnapshot,
-    encodeTick, bodyTick, innerTick, inner, isClosed: () => closed, setClosed: () => { closed = true },
+    encodeTick, bodyTick, innerTick, inner, drain: encoding.drain, isClosed: () => closed, setClosed: () => { closed = true },
   })
   const { start, close } = lifecycle
 
