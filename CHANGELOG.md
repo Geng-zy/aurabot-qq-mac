@@ -20,6 +20,7 @@
 - 通用消息标签抽到 `chat/tags.js`：核心不再从 QQ faces 模块 import 语音/表情标签处理，QQ faces 只保留 QQ 表情编号映射并兼容重导出。
 - `poke` 也按平台能力门禁：不支持戳一戳的平台不会调用 poke。
 - 发送能力降级：平台声明不支持 voice 时语音改文字，不支持 stickers 时跳过表情；未声明能力的旧适配器保持原行为。
+- 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - QQ 引用消息的历史补取拆到 `features/quote.js`，index 只组合。
 - 补发队列拆到 `features/outbox-flush.js`，改为延迟创建，避免 ready()/channel 初始化前 TDZ；补单测。
 - QQ 登录后的事件分发拆到 `features/dispatch.js`（raw/message/poke/notice/群文件），index 只组合。

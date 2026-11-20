@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createFakeDsh } from './helpers/fake-dsh.js'
 import { normalize, ownerAuthorizationRevision, saveConfig } from '../src/core/config.js'
-import { OneBotError } from '../src/channels/qq/client.js'
+import { OneBotError } from '../src/channels/qq/transport.js'
 import { qqIn } from './helpers/qq-in.js'
 
 const root = mkdtempSync(join(tmpdir(), 'aurabot-lifecycle-'))
