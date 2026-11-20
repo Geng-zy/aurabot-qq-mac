@@ -12,6 +12,26 @@ export default {
   setup(api) {
     const { hub, onebot, groupRoles } = api.core
 
+    // 「把群名片改成 X」不点名对象时直接改机器人自己的，别让模型先反问 QQ 号。
+    api.on('message', async (msg) => {
+      if (msg.kind !== 'group' || !msg.groupId || !api.isOwner(msg)) return false
+      const m = String(msg.text || '').trim().match(/^(?:@\S+\s*)?(?:改|把|将)?\s*(?:你的|你自己的)?\s*群名片\s*(?:改成|改为|设为|为)\s*(\S+)\s*$/i)
+      if (!m) return false
+      const role = await groupRoles.get(msg.groupId)
+      if (role && !groupRoles.canManage(role)) return false
+      const selfId = typeof hub.selfId === 'function' ? hub.selfId() : hub.selfId
+      if (!selfId) return false
+      if (api.config().dryRun) { await api.reply(msg, '试运行：本来要改群名片。'); return true }
+      try {
+        await onebot.call('set_group_card', { group_id: Number(msg.groupId), user_id: Number(selfId), card: m[1].slice(0, 30) })
+        await api.reply(msg, `改好了，现在叫${m[1].slice(0, 30)}。`)
+        return true
+      } catch (error) {
+        api.log?.warn?.('直接改群名片失败：', error.message)
+        return false
+      }
+    })
+
     // 她在这个群的身份：没管理权限就别答应禁言踢人
     api.context(({ chat }) => {
       if (chat.kind !== 'group') return ''
