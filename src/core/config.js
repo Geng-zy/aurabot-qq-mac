@@ -175,7 +175,7 @@ export const DEFAULTS = {
     audienceQQs: '', // selected / excluded 时可见（或不可见）的好友 QQ 号，换行或逗号分隔
   },
   // 本地接口：数据目录 local/ 里的脚本接管这几项（文件要在、开关要开）
-  local: { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20, ffmpegPath: '' },
+  local: { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20, ffmpegPath: '', hashes: {} },
   qzoneSocial: {
     enabled: true,
     replyOwn: true, // 回复自己说说下别人的新评论
@@ -504,6 +504,7 @@ export function normalize(raw) {
   for (const k of ['tts', 'image', 'song', 'asr', 'video']) c.local[k] = bool(c.local[k], false)
   c.local.videoTimeoutMin = num(c.local.videoTimeoutMin, 20, 1, BIG)
   c.local.ffmpegPath = String(raw?.local?.ffmpegPath ?? '').trim()
+  c.local.hashes = Object.fromEntries(Object.entries(isObj(c.local.hashes) ? c.local.hashes : {}).filter(([k, v]) => ['tts', 'image', 'song', 'asr', 'video'].includes(k) && typeof v === 'string' && /^[a-f0-9]{64}$/.test(v)))
   // 心智核心接手以后不用的旧设置：主动搭话、心情、旧记忆模块（向量密钥先搬到 mind.embedKey）
   const oldVectorKey = String(raw?.memory?.vector?.apiKey || '').trim()
   delete c.speakUp

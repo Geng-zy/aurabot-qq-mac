@@ -2,7 +2,8 @@
 // 插件升级不会动这个文件夹；脚本改完保存就生效（按修改时间重新加载），不用重启。
 // 面板里每项单独开关；文件不存在、开关关着或者出错，调用方退回内置方式。
 
-import { existsSync, mkdirSync, copyFileSync, statSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync, statSync, readFileSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dataDir } from '../core/store.js'
@@ -58,14 +59,35 @@ export function createLocal({ getConfig, log }) {
   const pathOf = (slot) => join(dir(), SLOTS[slot].file)
   const last = {} // slot → { ok, at, message }
 
-  /** 这一项现在由本地脚本接管吗。 */
+  function hashOf(slot) {
+    try { return createHash('sha256').update(readFileSync(pathOf(slot))).digest('hex') } catch (error) { return '' }
+  }
+  function sidecar() { return join(dir(), '.trusted.json') }
+  function storedHashes() {
+    try { const v = JSON.parse(readFileSync(sidecar(), 'utf8')); return v && typeof v === 'object' ? v : {} } catch { return {} }
+  }
+  function approved(slot) {
+    const hash = hashOf(slot)
+    if (!hash) return false
+    const configured = getConfig().local?.hashes?.[slot]
+    if (typeof configured === 'string') return configured === hash
+    // 首次使用（TOFU）：记住当前脚本；之后改了脚本必须重新确认，不能静默执行。
+    const stored = storedHashes()
+    if (!stored[slot]) {
+      try { writeFileSync(sidecar(), JSON.stringify({ ...stored, [slot]: hash }), { encoding: 'utf8', mode: 0o600 }) } catch {}
+      return true
+    }
+    return stored[slot] === hash
+  }
+  /** 这一项现在由本地脚本接管吗：开关、文件、脚本哈希都要对得上。 */
   function active(slot) {
-    return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot))
+    return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot)) && approved(slot)
   }
 
   async function call(slot, args, { signal, outDir: output = outDir(), sensitive = false, onLateFinish, readResult } = {}) {
     const spec = SLOTS[slot]
     const file = pathOf(slot)
+    if (!approved(slot)) throw new Error('本地脚本还没确认：先在面板「本地接口」里点「确认这个脚本」')
     const t = Date.now()
     // 生视频比别的慢得多，超时可以在面板单独调
     const timeoutMs = slot === 'video' ? (Number(getConfig().local?.videoTimeoutMin) || 20) * 60_000 : spec.timeoutMs
@@ -132,9 +154,12 @@ export function createLocal({ getConfig, log }) {
     return Object.entries(SLOTS).map(([slot, s]) => ({
       slot, title: s.title, file: s.file, path: pathOf(slot),
       exists: existsSync(pathOf(slot)), enabled: Boolean(getConfig().local?.[slot]), active: active(slot),
+      hash: hashOf(slot), approved: approved(slot),
       last: last[slot] || null, prompt: promptFor(slot),
     }))
   }
 
-  return { active, call, template, status, dir, pathOf }
+  function trust(slot) { if (!SLOTS[slot]) return { ok: false, message: '没有这一项' }; const hash = hashOf(slot); return hash ? { ok: true, slot, hash } : { ok: false, message: '脚本不存在' } }
+
+  return { active, call, template, status, dir, pathOf, trust }
 }

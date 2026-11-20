@@ -1384,6 +1384,14 @@ export function apply(ctx) {
     if (!local.pathOf || !['tts', 'image', 'song', 'asr', 'video'].includes(slot)) return { ok: false, message: '没有这一项' }
     return local.template(slot)
   })
+  route('/local/trust', async (req) => {
+    const slot = String((await readBody(req)).slot || '')
+    const r = local.trust?.(slot)
+    if (!r?.ok) return r || { ok: false, message: '没有这一项' }
+    const cur = getConfig()
+    setConfig({ ...cur, local: { ...cur.local, hashes: { ...(cur.local?.hashes || {}), [slot]: r.hash } } })
+    return { ok: true, message: '脚本已确认；以后改了脚本要重新确认', hash: r.hash }
+  })
   route('/local/open', async () => openFolder(local.dir()))
   route('/local/test', async (req) => {
     const slot = String((await readBody(req)).slot || '')

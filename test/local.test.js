@@ -10,6 +10,7 @@ let cfg
 let normalize
 const logs = []
 const log = { info: (...a) => logs.push(a.join(' ')), warn: (...a) => logs.push(a.join(' ')), debug() {} }
+const approve = (local, slot) => { cfg.local.hashes[slot] = local.status().find((x) => x.slot === slot).hash }
 
 before(async () => {
   process.env.AURABOT_DATA_DIR = mkdtempSync(join(tmpdir(), 'aurabot-local-'))
@@ -19,7 +20,7 @@ before(async () => {
 })
 
 test('默认都关着；生成模板（带说明，不覆盖已有的）', () => {
-  assert.deepEqual(cfg.local, { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20, ffmpegPath: '' })
+  assert.deepEqual(cfg.local, { tts: false, image: false, song: false, asr: false, video: false, videoTimeoutMin: 20, ffmpegPath: '', hashes: {} })
   const local = L.createLocal({ getConfig: () => cfg, log })
   assert.equal(local.active('tts'), false)
   const r = local.template('tts')
@@ -40,17 +41,20 @@ test('开关打开就接管；脚本改完不用重启；出错有记录', async
   const local = L.createLocal({ getConfig: () => cfg, log })
   cfg.local.tts = true
   writeFileSync(local.pathOf('tts'), 'export default async ({ text, outDir }) => ({ file: outDir + "/a-" + text + ".wav" })')
+  approve(local, 'tts')
   assert.equal(local.active('tts'), true)
   assert.match(L.fileOf(await local.call('tts', { text: '一' })), /a-一\.wav$/)
   // 改脚本（修改时间变了）立刻用新的
   await new Promise((r) => setTimeout(r, 30))
   writeFileSync(local.pathOf('tts'), 'export default async () => { throw new Error("服务没开") }')
+  approve(local, 'tts')
   await assert.rejects(local.call('tts', { text: '二' }), /服务没开/)
   const st = local.status().find((x) => x.slot === 'tts')
   assert.equal(st.last.ok, false)
   assert.match(st.last.message, /服务没开/)
   await new Promise((r) => setTimeout(r, 30))
   writeFileSync(local.pathOf('tts'), 'export const nothing = 1')
+  approve(local, 'tts')
   await assert.rejects(local.call('tts', { text: '三' }), /export default/)
   cfg.local.tts = false
 })
@@ -61,6 +65,7 @@ test('根 logger 只有 child、没有 warn 时，真实错误照常抛出，日
   const local = L.createLocal({ getConfig: () => cfg, log: root })
   cfg.local.tts = true
   writeFileSync(local.pathOf('tts'), 'export default async () => { throw new Error("服务没开") }')
+  approve(local, 'tts')
   await assert.rejects(local.call('tts', { text: 'x' }), /服务没开/, '不能把真实错误盖成 logger 的 TypeError')
   assert.match(warns.join('\n'), /语音合成.*服务没开/)
   cfg.local.tts = false
@@ -78,6 +83,7 @@ test('生图：脚本返回 Buffer / base64 / 文件都认；接管后不需要�
   local.template('image')
   const pngHeader = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGNgAAAAAgABSK+kcQAAAABJRU5ErkJggg==', 'base64')
   writeFileSync(local.pathOf('image'), `export default async ({ prompt, size }) => ({ base64: Buffer.concat([Buffer.from('${pngHeader.toString('base64')}', 'base64'), Buffer.from(prompt + '|' + size)]).toString('base64') })`)
+  approve(local, 'image')
   const { createImageGen } = await import('../src/features/imagegen.js')
   const gen = createImageGen({ getConfig: () => cfg, log, local })
   assert.equal(gen.enabled(), false)
@@ -87,6 +93,7 @@ test('生图：脚本返回 Buffer / base64 / 文件都认；接管后不需要�
   assert.equal((await gen.generate('小鱼')).subarray(pngHeader.length).toString(), '水彩，小鱼|' + cfg.imageGen.size)
   await new Promise((resolve) => setTimeout(resolve, 30))
   writeFileSync(local.pathOf('image'), "export default async () => ({ base64: Buffer.from('服务返回的是文字').toString('base64') })")
+  approve(local, 'image')
   await assert.rejects(gen.generate('小鱼'), /没返回有效图片/)
   assert.equal(local.status().find((x) => x.slot === 'image').last.ok, false)
   cfg.local.image = false
