@@ -1129,12 +1129,7 @@ body[data-ds-dark-theme] .ab-root{
       ] },
       { id: 'platforms', label: '平台', icon: 'puzzle', pages: [
         { id: 'platforms', label: '平台总览', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
-        { id: 'connect', label: 'QQ · 连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
-        { id: 'access', label: 'QQ · 权限', search: '管理员 群管 改资料 QQ 命令 好友申请 生图白名单' },
-        { id: 'group', label: 'QQ · 回复', search: '群聊 私聊 插话 连发 合并 转发' },
-        { id: 'model', label: 'QQ · 模型', search: 'AI 大模型 视觉 看图 图片 思考强度' },
-        { id: 'asr', label: 'QQ · 语音', modules: ['voice'], search: '听语音 转文字 ASR' },
-        { id: 'diary', label: 'QQ · 空间', modules: ['diary', 'qzone-social'], search: '空间日记 说说 空间互动' },
+        { id: 'qq', label: 'QQ', search: 'QQ 连接 权限 回复 模型 语音 空间' },
         { id: 'telegram', label: 'Telegram', search: 'Telegram Bot Token 平台 配置 长轮询' },
       ] },
       { id: 'media', label: '表达与创作', icon: 'sparkles', pages: [
@@ -1158,6 +1153,16 @@ body[data-ds-dark-theme] .ab-root{
       ] },
     ]
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))
+    // 旧书签/模块 tab 仍可落到原页面；导航里不再重复显示。
+    const LEGACY_PLATFORM_TABS = [
+      { id: 'connect', label: 'QQ · 连接', group: 'platforms', hidden: true },
+      { id: 'access', label: 'QQ · 权限', group: 'platforms', hidden: true },
+      { id: 'group', label: 'QQ · 回复', group: 'platforms', hidden: true },
+      { id: 'model', label: 'QQ · 模型', group: 'platforms', hidden: true },
+      { id: 'asr', label: 'QQ · 语音', group: 'platforms', hidden: true, modules: ['voice'] },
+      { id: 'diary', label: 'QQ · 空间', group: 'platforms', hidden: true, modules: ['diary', 'qzone-social'] },
+    ]
+    TABS.push(...LEGACY_PLATFORM_TABS)
     const FIND_SECTIONS = {
       platforms: [['platforms-status', '平台状态', 'QQ Telegram 飞书 适配器 能力 连接']],
       telegram: [['telegram-config', 'Telegram 连接', 'Bot Token API 地址 管理员 白名单']],
@@ -1650,12 +1655,34 @@ body[data-ds-dark-theme] .ab-root{
             h('span', { className: 'ab-muted ab-small' }, ' · ' + label(p.state) + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
           h('div', { className: 'ab-platform-caps' }, Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => h('span', { key: k, className: 'ab-platform-chip' }, capLabel[k] || k))),
           h('div', { className: 'ab-platform-actions' },
-            p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null,
+            p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('qq') }, '配置 QQ') : null,
             p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => go('telegram') }, '配置 Telegram') : null))))
         : h(Empty, { text: '还没有平台适配器' })
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 在「QQ 会话 → 连接」配置，Telegram 在「平台 → Telegram」配置。' }, items),
       )
+    }
+
+    function QqPlatform({ st, draft, setDraft, toast, reload, go, openWizard }) {
+      const [active, setActive] = useState('connect')
+      const sections = [
+        ['connect', '连接'], ['access', '权限'], ['group', '回复'],
+        ['model', '模型'],
+        ...((st.modules || []).some((m) => m.id === 'voice' && m.running) ? [['asr', '语音']] : []),
+        ...((st.modules || []).some((m) => (m.id === 'diary' || m.id === 'qzone-social') && m.running) ? [['diary', '空间']] : []),
+      ]
+      const common = { st, draft, setDraft, toast, reload, go, openWizard }
+      const body = active === 'connect' ? h(Connect, common)
+        : active === 'access' ? h(Access, common)
+        : active === 'group' ? h(Group, common)
+        : active === 'model' ? h(Model, common)
+        : active === 'asr' ? h(Asr, common)
+        : h(Diary, common)
+      return h('div', { className: 'ab-grid' },
+        h(Card, { title: 'QQ 设置', desc: '连接、权限、回复、模型、语音和空间都归在 QQ 平台下；以后其他平台按同样结构扩展。' },
+          h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 6 } },
+            sections.map(([id, label]) => h(Btn, { key: id, small: true, kind: active === id ? 'primary' : 'ghost', onClick: () => setActive(id) }, label)))),
+        body)
     }
 
     function Telegram({ st, draft, setDraft }) {
@@ -5104,7 +5131,7 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 面板主体 ----------------
     const TAB_CONTENT = {
-      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms, telegram: Telegram,
+      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms, qq: QqPlatform, telegram: Telegram,
       connect: Connect, group: Group, model: Model, asr: Asr, access: Access, diary: Diary,
       voice: Voice, stickers: Stickers, imagegen: ImageGen, song: Song, video: LocalApi,
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,
@@ -5112,7 +5139,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], telegram: ['platforms.telegram'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], telegram: ['platforms.telegram'], qq: ['platforms.qq'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'],
@@ -5268,7 +5295,7 @@ body[data-ds-dark-theme] .ab-root{
       const embeddedModules = Object.groupBy(customUi.filter(embedded), tabOf)
       const extTabs = customUi.filter((m) => !embedded(m))
         .map((m) => ({ id: 'ext:' + m.id, label: m.name, ext: m.id, group: 'extensions', search: moduleSearchText(m) }))
-      const groups = NAV_GROUPS.map((g) => ({ ...g, pages: [...tabs, ...extTabs].filter((t) => t.group === g.id) }))
+      const groups = NAV_GROUPS.map((g) => ({ ...g, pages: [...tabs, ...extTabs].filter((t) => t.group === g.id && !t.hidden) }))
       const current = [...tabs, ...extTabs].find((t) => t.id === tab) || tabs[0]
       const group = groups.find((g) => g.id === current.group)
       const body = current.ext ? ExtPage : TAB_CONTENT[current.id]

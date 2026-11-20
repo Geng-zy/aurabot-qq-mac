@@ -24,6 +24,7 @@
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - 增加非 QQ 聊天收表情不写 QQ 收藏的回归测试。
 - 通用表情库不再解析 QQ 的 emoji_id/mface：market 与原生 segment 由 QQ hooks 注入。
+- 平台导航再收一层：「平台 → QQ」进入 QQ 设置页面，连接/权限/回复/模型/语音/空间作为内部子页；Telegram 同为平台子页。
 - QQ 页面从独立「QQ 会话」顶级分组收进「平台」分组：平台总览、QQ · 连接/权限/回复/模型/语音/空间、Telegram。
 - UI 平台页改为状态总览；Telegram 增加独立配置页，与 QQ 的连接配置入口保持一致。
 - QQ 平台功能在模块状态里标记 platformFeature；模块管理 UI 不再把它们列成通用内置模块。

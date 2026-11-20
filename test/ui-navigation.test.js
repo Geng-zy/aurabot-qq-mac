@@ -16,7 +16,8 @@ test('人格卡与自我合并成一个入口，旧 character 页自动落到 se
 test('平台入口统一，QQ 页面收进平台分组', () => {
   assert.match(source, /id: 'platforms', label: '平台'/)
   assert.match(source, /function Platforms/)
-  assert.match(source, /id: 'connect', label: 'QQ · 连接'/)
+  assert.match(source, /id: 'qq', label: 'QQ'/)
+  assert.match(source, /function QqPlatform/)
   assert.doesNotMatch(source, /id: 'qq', label: 'QQ 会话'/)
 })
 
