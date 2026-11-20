@@ -7,6 +7,7 @@ import { createOutbox } from './outbox.js'
 import { createPeopleApi } from './features/people.js'
 import { createHistoryApi } from './features/history.js'
 import { createOutboundApi } from './features/outbound.js'
+import { createActionsApi } from './features/actions.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { buildFaceIndex, createFaces, textToSegments, stripFaceTags } from './faces.js'
@@ -14,7 +15,6 @@ import { FACE_TABLE } from './face-table.js'
 import { readForward } from './forward.js'
 import { noticeText } from './notices.js'
 import { createQqInbox } from './inbox.js'
-import { fetchImage } from '../../core/net.js'
 import { chatIdOf, parseChat } from '../ids.js'
 
 export const PLATFORM = 'qq'
@@ -234,6 +234,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   }
 
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
+  const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
 
   const channel = {
     platform: PLATFORM,
@@ -351,19 +352,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     ...people,
 
     // ---------- 动作 ----------
-    async react(chatId, messageId, emojiId) {
-      await gw.call('set_msg_emoji_like', { message_id: String(messageId), emoji_id: String(emojiId), set: true }, { timeoutMs: 10000 })
-    },
-    async poke(chatId, userId) {
-      const tgt = qqTarget(chatId)
-      await gw.call('send_poke', { user_id: Number(userId), ...(tgt?.kind === 'group' ? { group_id: Number(tgt.id) } : {}) }, { timeoutMs: 10000 })
-    },
-    /** 「对方正在输入」：QQ 只有私聊有。 */
-    async typing(chatId) {
-      const tgt = qqTarget(chatId)
-      if (!tgt || tgt.kind !== 'private') return
-      await gw.call('set_input_status', { user_id: Number(tgt.id), event_type: 1 }, { timeoutMs: 5000 })
-    },
+    ...actions,
     history: fetchHistory,
     /**
      * 被引用的那条消息：{ time, userId, nickname, msg }（msg 是通用形状）。
@@ -405,16 +394,6 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
         }
       }
       return { time, userId, nickname, msg: parsed }
-    },
-    /** 语音条 → wav（原始字节，没转采样率）。QQ 语音是 silk，让网关转。 */
-    async voiceWav(rec) {
-      const info = await gw.call('get_record', { file: rec.data?.file, out_format: 'wav' }, { timeoutMs: 30000 })
-      return info?.base64 ? Buffer.from(info.base64, 'base64') : await fetchImage(info?.file || info?.url, { maxBytes: 30 * 1024 * 1024 })
-    },
-    /** QQ 自己的语音转文字。 */
-    async voiceText(msg) {
-      const r = await gw.call('fetch_ptt_text', { message_id: Number(msg.messageId) || msg.messageId }, { timeoutMs: 20000 })
-      return String(r?.text || '').trim()
     },
     /** 展开一条合并转发：{ lines, images, stickers }。 */
     forward: (id) => readForward({ call: (a, p, o) => gw.call(a, p, o) }, id, { selfId: channel.selfId(), faceName: faces.nameOf, log }),
