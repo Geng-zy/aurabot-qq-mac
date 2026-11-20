@@ -334,6 +334,9 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     },
     /** OneBot 消息事件 → 通用形状。 */
     parse: (event) => parseMessageEvent(event, String(event?.self_id || channel.selfId()), { faceName: faces.nameOf }),
+    /** AstrBot 风格的适配器方法别名：转换一条原始事件。 */
+    convert: (event) => channel.parse(event),
+    meta: () => ({ id: 'qq', label: 'QQ', caps: QQ_CAPS }),
     /** 她写的文字 → 消息段：<face:名字> 换成 QQ 系统表情（withFaces 关着就去掉标签）。 */
     textSegments: (text, withFaces = true) => (withFaces ? textToSegments(text, faces.idOf) : [{ type: 'text', data: { text: stripFaceTags(text) } }]),
     /** 群文件是单独的通知，不是消息：转成一条文件消息。 */

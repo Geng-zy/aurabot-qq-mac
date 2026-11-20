@@ -64,7 +64,7 @@ export const CAPS = {
 export const REQUIRED_CHANNEL_METHODS = Object.freeze(['platform', 'start', 'stop', 'send', 'on', 'ready'])
 export const OPTIONAL_CHANNEL_METHODS = Object.freeze([
   'restart', 'status', 'selfId', 'state', 'member', 'members', 'user', 'group', 'history', 'getMessage',
-  'react', 'poke', 'typing', 'recall', 'call', 'isDefiniteFailure', 'textSegments',
+  'react', 'poke', 'typing', 'recall', 'call', 'isDefiniteFailure', 'textSegments', 'meta', 'convert',
 ])
 
 /**

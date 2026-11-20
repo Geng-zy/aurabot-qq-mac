@@ -146,6 +146,8 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       return { name: r?.title || target.id }
     },
     textSegments: (text) => [{ type: 'text', data: { text } }],
+    meta: () => ({ id: PLATFORM, label: 'Telegram', caps: TELEGRAM_CAPS }),
+    convert: (raw) => normalize(raw),
   }
   return channel
 }
