@@ -1128,16 +1128,14 @@ body[data-ds-dark-theme] .ab-root{
         { id: 'mindsettings', label: '设置', search: '参数 记性 遗忘 改写 情绪 后台预算 时区 年龄 生日 本地小模型 一键安装' },
       ] },
       { id: 'platforms', label: '平台', icon: 'puzzle', pages: [
-        { id: 'platforms', label: '平台连接', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
+        { id: 'platforms', label: '平台总览', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
+        { id: 'connect', label: 'QQ · 连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
+        { id: 'access', label: 'QQ · 权限', search: '管理员 群管 改资料 QQ 命令 好友申请 生图白名单' },
+        { id: 'group', label: 'QQ · 回复', search: '群聊 私聊 插话 连发 合并 转发' },
+        { id: 'model', label: 'QQ · 模型', search: 'AI 大模型 视觉 看图 图片 思考强度' },
+        { id: 'asr', label: 'QQ · 语音', modules: ['voice'], search: '听语音 转文字 ASR' },
+        { id: 'diary', label: 'QQ · 空间', modules: ['diary', 'qzone-social'], search: '空间日记 说说 空间互动' },
         { id: 'telegram', label: 'Telegram', search: 'Telegram Bot Token 平台 配置 长轮询' },
-      ] },
-      { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
-        { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
-        { id: 'access', label: '白名单与权限', search: '管理员 群管 改资料 QQ 命令 好友申请 生图白名单' },
-        { id: 'group', label: '回复规则', search: '群聊 私聊 插话 连发 合并 转发' },
-        { id: 'model', label: '聊天模型', search: 'AI 大模型 视觉 看图 图片 思考强度' },
-        { id: 'asr', label: '语音识别', modules: ['voice'], search: '听语音 转文字 ASR' },
-        { id: 'diary', label: 'QQ 空间', modules: ['diary', 'qzone-social'], search: '空间日记 说说 空间互动' },
       ] },
       { id: 'media', label: '表达与创作', icon: 'sparkles', pages: [
         { id: 'voice', label: '语音合成', modules: ['voice'], search: 'TTS 说话 音色 Edge Breeze' },
