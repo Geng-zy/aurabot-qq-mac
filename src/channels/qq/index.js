@@ -101,7 +101,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   function connectionProblem() {
     const cfg = getConfig()
     if (!cfg.enabled) return '总开关关着（右上角），打开后才会连'
-    if (!cfg.botQQ) return '还没填机器人 QQ 号'
+    if (!botAccount()) return '还没填机器人 QQ 号'
     const ep = endpoint()
     if (!ep.wsUrl) return '还没填 OneBot 的 WebSocket 地址：在「连接」页填你的 OneBot v11 正向 WebSocket 地址（收消息要靠它；HTTP 可以不填）'
     if (auth.wrongAccount) return `连上的是 ${auth.wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
@@ -113,8 +113,6 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const faces = createFaces({ onebot: { call: (a, p, o) => gw.call(a, p, o) }, log }) // QQ 系统表情：<face:名字> ↔ 编号
 
   const quoteApi = createQuoteApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, parse: (e) => channel.parse(e), fetchHistory, log, isLegacyDirectRecord })
-  const { quoteNeedsHistory, quoteFromHistory } = quoteApi
-
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
   const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
@@ -152,9 +150,6 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     connectionProblem,
     ...connection,
     ...outbound,
-    /** 网关明确说没发出去（可以换一种方式再发）；超时、结果不确定的不算。 */
-    isDefiniteFailure,
-
     // ---------- 收 ----------
     faces,
     faceCatalog,

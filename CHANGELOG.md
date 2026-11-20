@@ -22,6 +22,7 @@
 - 发送能力降级：平台声明不支持 voice 时语音改文字，不支持 stickers 时跳过表情；未声明能力的旧适配器保持原行为。
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
+- 清理 QQ index：去掉重复 isDefiniteFailure 和未使用的 quote helper 解构；连接提示改用 platform botAccount。
 - QQ 登录核对拆到 `features/login.js`：核对期间暂存事件、机器人号校验、错号/无登录停止、恢复补处理。
 - QQ 生命周期 dispose 拆到 `features/lifecycle.js`，index 只组合。
 - QQ 配置读取拆到 `features/config.js`（endpoint/enabled/botAccount），index 只组合。
