@@ -166,7 +166,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   const faces = createFaces({ onebot: { call: (a, p, o) => gw.call(a, p, o) }, log }) // QQ 系统表情：<face:名字> ↔ 编号
 
-  const quoteApi = createQuoteApi({ fetchHistory, log })
+  const quoteApi = createQuoteApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, parse: (e) => channel.parse(e), fetchHistory, log, isLegacyDirectRecord })
   const { quoteNeedsHistory, quoteFromHistory } = quoteApi
 
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
@@ -227,47 +227,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     // ---------- 动作 ----------
     ...actions,
     history: fetchHistory,
-    /**
-     * 被引用的那条消息：{ time, userId, nickname, msg }（msg 是通用形状）。
-     * get_msg 对「她发出的表情包/图片」可能只回空 url + 裸文件名（下载不了），这时退回消息历史，里面带可用 url。
-     */
-    async quote(chatId, id) {
-      const tgt = qqTarget(chatId)
-      if (!tgt) throw new Error('引用没有对应的聊天')
-      const number = Number(id)
-      let m = await gw.call('get_msg', { message_id: Number.isSafeInteger(number) ? number : id }, { timeoutMs: 5000, retries: 0 })
-      if (isLegacyDirectRecord(m?.message ?? m?.raw_message)) throw new Error('这条历史记录不对聊天模型开放')
-      const group = m?.group_id && String(m.group_id) !== '0' ? String(m.group_id) : ''
-      const author = String(m?.sender?.user_id ?? m?.user_id ?? '')
-      const peer = String(m?.target_id ?? m?.peer_id ?? '')
-      if ((m?.message_type && m.message_type !== tgt.kind) || (group && (tgt.kind !== 'group' || group !== tgt.id))) {
-        throw new Error('引用来自其他聊天')
-      }
-      const inChat = tgt.kind === 'group' ? group === tgt.id
-        : m?.message_type === 'private' && (author === tgt.id || peer === tgt.id)
-      if (!inChat) {
-        m = await quoteFromHistory(chatId, String(id))
-        if (!m) throw new Error('无法确认引用属于这个聊天')
-      }
-      // 被引用那条消息的发生时间（QQ 给的是秒）
-      let time = Number(m?.time) || 0
-      const sender = m?.sender || {}
-      const userId = String(sender.user_id ?? m?.user_id ?? '')
-      const nickname = String(sender.card || sender.nickname || userId || '某人')
-      const kind = tgt?.kind === 'group' ? 'group' : 'private'
-      const groupId = kind === 'group' ? tgt.id : undefined
-      let parsed = channel.parse({ message_type: kind, group_id: groupId, user_id: userId, sender, message: m?.message ?? m?.raw_message ?? '' })
-      if (tgt && quoteNeedsHistory(parsed)) {
-        const hit = await quoteFromHistory(chatId, String(id))
-        if (hit) {
-          time ||= Number(hit?.time) || 0
-          const again = channel.parse({ message_type: kind, group_id: groupId, user_id: userId, sender: hit.sender || sender, message: hit.message ?? '' })
-          if (!quoteNeedsHistory(again)) parsed = again
-          else { parsed.images = [...(parsed.images || []), ...(again.images || [])]; parsed.stickers = [...(parsed.stickers || []), ...(again.stickers || [])] }
-        }
-      }
-      return { time, userId, nickname, msg: parsed }
-    },
+    quote: quoteApi.quote,
     /** 展开一条合并转发：{ lines, images, stickers }。 */
     forward: (id) => readForward({ call: (a, p, o) => gw.call(a, p, o) }, id, { selfId: channel.selfId(), faceName: faces.nameOf, log }),
     outbox: box,
