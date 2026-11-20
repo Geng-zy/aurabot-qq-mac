@@ -2058,7 +2058,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return out
   }
 
-  /** 收到一条消息。msg 是连接拆好的通用形状（src/channels/qq/inbound.js 的 parseMessageEvent）。 */
+  /** 收到一条消息。msg 是连接拆好的通用形状（src/channels/qq/convert.js 的 parseMessageEvent）。 */
   async function onMessage(msg) {
     if (disposed || !msg) return
     selfId = String(msg.selfId || selfId || getConfig().botQQ)

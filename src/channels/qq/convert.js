@@ -1,6 +1,6 @@
 // QQ / OneBot v11 事件 → 统一消息。纯函数。
 // 结构对齐 AstrBot 的 aiocqhttp convert_message：只做转换，不触发业务。
-// inbound.js 现在只是兼容 re-export。
+// inbound.js 已删除，convert.js 是唯一转换入口。
 
 
 /** 消息段数组（兼容字符串 CQ 码：只取纯文字）。 */

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { isStickerSegment, parseMessageEvent } from '../src/channels/qq/inbound.js'
+import { isStickerSegment, parseMessageEvent } from '../src/channels/qq/convert.js'
 import { gifFrames } from '../src/core/image-info.js'
 import { readQqFile } from '../src/features/qq-file.js'
 

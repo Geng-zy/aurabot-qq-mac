@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { textToSegments, stripFaceTags, buildFaceIndex, createFaces, COMMON_FACES, splitSpeakable, speakableText } from '../src/channels/qq/faces.js'
-import { parseMessageEvent } from '../src/channels/qq/inbound.js'
+import { parseMessageEvent } from '../src/channels/qq/convert.js'
 import { rulesText } from '../src/persona/personas.js'
 import { normalize } from '../src/core/config.js'
 
