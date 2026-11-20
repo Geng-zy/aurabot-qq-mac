@@ -19,6 +19,7 @@ import { createQuoteApi } from './features/quote.js'
 import { createForwardApi } from './features/forward.js'
 import { createConfigApi } from './features/config.js'
 import { createLifecycle } from './features/lifecycle.js'
+import { createLoginGate } from './features/login.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -38,66 +39,14 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const { endpoint, enabled, botAccount } = createConfigApi({ getConfig })
 
   let gwState = 'stopped'
-  // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
-  let loginOk = false
-  let verifiedLogin = null
-  let wrongAccount = ''
-  // 核对期间收到的事件先攒着：核对通过就补处理，核对失败就丢掉。
-  // 直接丢弃的话，刚连上那几百毫秒里管理员发的消息就没了（登录核对要等一次 get_login_info 往返）。
-  let verifying = false
-  let pendingEvents = []
+  // 连上后先核对登录的是不是机器人号；核对期间事件暂存，通过后补处理。
+  const auth = { loginOk: false, verifiedLogin: null, wrongAccount: '', verifying: false, pendingEvents: [] }
   let connectionRevision = 0
   let disposed = false
   const inbox = createQqInbox({ getConfig, log })
 
   // outbox: false = 不要补发队列（测试、只读场合）
   const box = outbox === false ? null : (outbox || createOutbox({ log: log.child ? log.child('outbox') : log }))
-
-  async function checkLogin(revision, connectedAt) {
-    verifying = true
-    pendingEvents = []
-    try {
-      let login = null
-      try {
-        // 核对事件来自哪一个连接，必须以当前 WebSocket 上的响应为准。
-        const info = await gw.call('get_login_info', {}, { timeoutMs: 10000, wsOnly: true })
-        login = { uin: String(info?.user_id ?? ''), nickname: info?.nickname || '' }
-      } catch (error) {
-        if (revision !== connectionRevision) return
-        log.warn('核对登录的 QQ 号失败：', error.message)
-      }
-      if (revision !== connectionRevision) return
-      if (!login?.uin) {
-        // 核对不了就别用，断开后由看门狗重试
-        gw.stop()
-        return
-      }
-      if (login.uin === botAccount()) {
-        loginOk = true
-        verifiedLogin = login
-        wrongAccount = ''
-        const recovery = inbox.prepare(connectedAt)
-        // 把核对期间攒下的补上（按到达顺序）
-        const queued = pendingEvents
-        pendingEvents = []
-        for (const ev of queued) {
-          if (revision !== connectionRevision) break
-          dispatch(ev)
-        }
-        void inbox.recover(recovery, {
-          call: (action, params, options) => gw.call(action, params, options),
-          isCurrent: () => !disposed && revision === connectionRevision && ready(),
-          onMessage: (ev) => emit({ type: 'message', msg: { ...channel.parse(ev), recovered: true } }),
-        })
-      } else {
-        wrongAccount = login.uin
-        pendingEvents = []
-        gw.stop()
-      }
-    } finally {
-      if (revision === connectionRevision) verifying = false
-    }
-  }
 
   const gw = client || createOneBotClient({
     endpoint,
@@ -108,30 +57,34 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const people = createPeopleApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
   const fetchHistory = createHistoryApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, isLegacyDirectRecord })
 
+  const loginGate = createLoginGate({
+    call: (a, p, o) => gw.call(a, p, o),
+    getBotAccount: botAccount,
+    inbox,
+    dispatch: (ev) => dispatch(ev),
+    emit,
+    getChannel: () => channel,
+    isDisposed: () => disposed,
+    getRevision: () => connectionRevision,
+    isReady: () => ready(),
+    state: auth,
+    log,
+  })
+
   function onState(s, d) {
     const revision = ++connectionRevision
     gwState = s
-    if (s !== 'connected') {
-      if (loginOk) inbox.disconnect()
-      loginOk = false
-      verifiedLogin = null
-      verifying = false
-      pendingEvents = []
-    } else checkLogin(revision, Date.now()).then(() => { if (revision === connectionRevision && loginOk) flushOutbox() }).catch((error) => log.warn('核对登录号出错：', error.message))
+    if (s !== 'connected') loginGate.onDisconnected()
+    else loginGate.checkLogin(revision, Date.now()).then((result) => {
+      if (revision === connectionRevision && result?.ok) flushOutbox()
+      else if (result?.reason === 'no-login' || result?.reason === 'wrong-account') gw.stop()
+    }).catch((error) => log.warn('核对登录号出错：', error.message))
     log.info(`QQ 网关：${s}${d ? '（' + d + '）' : ''}`)
     emit({ type: 'state', state: s })
   }
 
   function onEvent(ev) {
-    // 还没核对是机器人号：核对期间先攒着，核对通过后补处理
-    if (!loginOk) {
-      if (verifying) {
-        pendingEvents.push(ev)
-        if (pendingEvents.length > 200) pendingEvents.shift()
-      }
-      return
-    }
-    dispatch(ev)
+    loginGate.onEvent(ev)
   }
 
   const dispatch = createDispatcher({ emit, inbox, getChannel: () => channel, isDisposed: () => disposed, log })
@@ -151,11 +104,11 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     if (!cfg.botQQ) return '还没填机器人 QQ 号'
     const ep = endpoint()
     if (!ep.wsUrl) return '还没填 OneBot 的 WebSocket 地址：在「连接」页填你的 OneBot v11 正向 WebSocket 地址（收消息要靠它；HTTP 可以不填）'
-    if (wrongAccount) return `连上的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
+    if (auth.wrongAccount) return `连上的是 ${auth.wrongAccount}，不是机器人号 ${cfg.botQQ}，已经断开：让你的 OneBot 服务登录机器人号，再点「重新连接」`
     return `连 ${ep.wsUrl || ep.httpUrl} 没连上：确认 OneBot 服务（比如 OrbStack 里的 SnowLuma）开着、地址和 token 填对了`
   }
 
-  const ready = () => gwState === 'connected' && loginOk
+  const ready = () => gwState === 'connected' && auth.loginOk
 
   const faces = createFaces({ onebot: { call: (a, p, o) => gw.call(a, p, o) }, log }) // QQ 系统表情：<face:名字> ↔ 编号
 
@@ -165,7 +118,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
   const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
-  const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => verifiedLogin, getWrongAccount: () => wrongAccount, setWrongAccount: (v) => { wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
+  const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => auth.verifiedLogin, getWrongAccount: () => auth.wrongAccount, setWrongAccount: (v) => { auth.wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
   const forward = createForwardApi({ call: (a, p, o) => gw.call(a, p, o), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id), log })
   const lifecycle = createLifecycle({ gw, inbox, listeners, getFlushTimer: () => flushTimer, setDisposed: (v) => { disposed = v } })
@@ -177,9 +130,9 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     selfId: () => botAccount(),
     ready,
     state: () => gwState,
-    wrongAccount: () => wrongAccount,
+    wrongAccount: () => auth.wrongAccount,
     /** 机器人号改了、连接设置改了：旧的核对结果作废。 */
-    resetAccount() { wrongAccount = '' },
+    resetAccount() { auth.wrongAccount = '' },
     resetInbox() { inbox.suspend() },
     start() { if (!disposed && enabled()) gw.start() },
     stop() { gw.stop() },
@@ -189,7 +142,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       if (disposed) return
       if (!enabled()) { if (gw.state !== 'stopped') gw.stop(); return }
       // 上次连上的不是机器人号：等管理员点「重新连接」或改设置再连
-      if (wrongAccount) return
+      if (auth.wrongAccount) return
       if (gw.state === 'stopped') gw.start()
     },
     on(fn) { listeners.add(fn); return () => listeners.delete(fn) },
