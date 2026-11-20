@@ -17,6 +17,7 @@ import { createDispatcher } from './features/dispatch.js'
 import { createOutboxFlush } from './features/outbox-flush.js'
 import { createQuoteApi } from './features/quote.js'
 import { createForwardApi } from './features/forward.js'
+import { createConfigApi } from './features/config.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -33,16 +34,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const listeners = new Set()
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn('处理 QQ 事件出错：', error.message) } } }
 
-  const endpoint = () => {
-    const cfg = getConfig() || {}
-    const s = cfg.platforms?.qq || cfg.snowluma || {}
-    return { httpUrl: s.httpUrl || '', wsUrl: s.wsUrl || '', httpToken: s.httpToken || '', wsToken: s.wsToken || '' }
-  }
-  const enabled = () => {
-    const cfg = getConfig() || {}
-    return cfg.enabled !== false && cfg.platforms?.qq?.enabled !== false
-  }
-  const botAccount = () => String(getConfig()?.platforms?.qq?.botQQ || getConfig()?.botQQ || '')
+  const { endpoint, enabled, botAccount } = createConfigApi({ getConfig })
 
   let gwState = 'stopped'
   // 连上后先核对登录的是不是机器人号，核对通过前不处理任何消息；不是就断开，不再自动重连
