@@ -1129,6 +1129,7 @@ body[data-ds-dark-theme] .ab-root{
       ] },
       { id: 'platforms', label: '平台', icon: 'puzzle', pages: [
         { id: 'platforms', label: '平台连接', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
+        { id: 'telegram', label: 'Telegram', search: 'Telegram Bot Token 平台 配置 长轮询' },
       ] },
       { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
         { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
@@ -1161,6 +1162,7 @@ body[data-ds-dark-theme] .ab-root{
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))
     const FIND_SECTIONS = {
       platforms: [['platforms-status', '平台状态', 'QQ Telegram 飞书 适配器 能力 连接']],
+      telegram: [['telegram-config', 'Telegram 连接', 'Bot Token API 地址 管理员 白名单']],
       overview: [['overview-logs', '最近日志', '近期报错 运行状态']],
       connect: [['qq-workspace', '工作区与会话维护', '归档 重开 重置 搬家 目录 所有会话'], ['qq-endpoint', 'QQ 网关配置', 'WebSocket HTTP 令牌 OneBot 机器人号']],
       access: [
@@ -1640,11 +1642,8 @@ body[data-ds-dark-theme] .ab-root{
     /** 平台入口：QQ / Telegram 共用状态卡；后续适配器会在这里出现。 */
     function Platforms({ st, go, draft, setDraft }) {
       const list = st.channels || []
-      const f = useField(draft, setDraft)
       const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
       const capLabel = { faces: '小黄脸', stickers: '表情包', voice: '语音', files: '文件', recall: '撤回', poke: '戳一戳', react: '贴表情', typing: '输入状态', history: '历史消息', forward: '合并转发', card: '名片', friendRequests: '好友申请', groupRequests: '入群申请', profile: '改资料', groupAdmin: '群管', text: '文字', reply: '回复', images: '图片' }
-      const scrollTo = (id) => document.getElementById('ab-section-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      const tg = list.find((p) => p.platform === 'telegram')
       const items = list.length
         ? h('div', { className: 'ab-list' }, list.map((p) => h('div', { key: p.platform, className: 'ab-li ab-platform-row' },
           h('div', { className: 'meta' },
@@ -1654,18 +1653,26 @@ body[data-ds-dark-theme] .ab-root{
           h('div', { className: 'ab-platform-caps' }, Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => h('span', { key: k, className: 'ab-platform-chip' }, capLabel[k] || k))),
           h('div', { className: 'ab-platform-actions' },
             p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null,
-            p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => scrollTo('telegram') }, '配置 Telegram') : null))))
+            p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => go('telegram') }, '配置 Telegram') : null))))
         : h(Empty, { text: '还没有平台适配器' })
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置；Telegram 直接在下方填写。' }, items),
-        h(Card, { section: 'telegram', title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },
+        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 在「QQ 会话 → 连接」配置，Telegram 在「平台 → Telegram」配置。' }, items),
+      )
+    }
+
+    function Telegram({ st, draft, setDraft }) {
+      const f = useField(draft, setDraft)
+      const tg = (st.channels || []).find((p) => p.platform === 'telegram')
+      const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
+      return h('div', { className: 'ab-grid' },
+        h(Card, { title: 'Telegram 连接', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },
           h(Row, { label: '启用 Telegram' }, f.sw('platforms.telegram.enabled')),
           h(Row, { label: 'Bot API 地址', hint: '默认 https://api.telegram.org；服务器访问不了 Telegram 时填可用反代' }, f.text('platforms.telegram.apiBase', { placeholder: 'https://api.telegram.org' })),
           h(Row, { label: 'Bot Token', hint: '只保存在本机配置里' }, f.text('platforms.telegram.token', { type: 'password', placeholder: draft.platforms?.telegram?.tokenSet ? '已保存' : '123456:ABC...' })),
           h(Row, { label: '管理员 Telegram ID', hint: '你的 Telegram 用户 ID，可先用 @userinfobot 查' }, f.text('platforms.telegram.ownerQQ')),
           h(Row, { label: '私聊白名单', hint: '允许私聊的 Telegram 用户 ID，一行一个' }, f.list('platforms.telegram.allow.private', { placeholder: '每行一个用户 ID' })),
-          h(Row, { label: '群白名单', hint: '允许的 Telegram 群 ID，一行一个（群 ID 通常是负数）' }, f.list('platforms.telegram.allow.groups', { placeholder: '每行一个群 ID' })))
-      )
+          h(Row, { label: '群白名单', hint: '允许的 Telegram 群 ID，一行一个（群 ID 通常是负数）' }, f.list('platforms.telegram.allow.groups', { placeholder: '每行一个群 ID' })),
+          h('div', { className: 'ab-muted ab-small', style: { marginTop: 10 } }, '能力：文字、回复、图片。语音、文件、原生表情暂未开放。')))
     }
 
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
@@ -5099,7 +5106,7 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 面板主体 ----------------
     const TAB_CONTENT = {
-      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms,
+      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms, telegram: Telegram,
       connect: Connect, group: Group, model: Model, asr: Asr, access: Access, diary: Diary,
       voice: Voice, stickers: Stickers, imagegen: ImageGen, song: Song, video: LocalApi,
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,
@@ -5107,7 +5114,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], telegram: ['platforms.telegram'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'],
