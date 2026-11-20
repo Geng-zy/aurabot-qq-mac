@@ -626,16 +626,16 @@ test('对接层：不想搭理的人、名字跟着她变', () => {
   assert.deepEqual(env.a.wakeWords(['别名']), ['小鱼', '鱼鱼', '别名'])
 })
 
-test('其他私聊记忆可跨会话回忆，管理员私聊仍只在原会话使用', async () => {
+test('第三方私聊秘密不会跨会话回忆，管理员私聊仍只在原会话使用', async () => {
   const env = adapter()
   const m = env.a.mind
   const id1 = m.memory.insert({ at: T0, window: 'qq:private:2', gist: '甲说他喜欢乙，别告诉别人', kind: 'fact', importance: 0.8, extra: { secret: true } })
   const id2 = m.memory.insert({ at: T0, window: 'qq:private:1', gist: '管理员说他最近在减肥', kind: 'fact', importance: 0.8 })
   await m.memory.embedEpisodes([id1, id2])
   const wm = await m.memory.workingMemory({ cue: '甲说他喜欢乙 管理员说他最近在减肥', window: 'qq:group:9' })
-  assert.match(wm.text, /喜欢乙/)
+  assert.doesNotMatch(wm.text, /喜欢乙/)
   assert.doesNotMatch(wm.text, /减肥/)
-  assert.match(m.memory.recallMore(id1, { audienceWindow: 'qq:private:3' }).text, /喜欢乙/)
+  assert.equal(m.memory.recallMore(id1, { audienceWindow: 'qq:private:3' }), null)
   assert.equal(m.memory.recallMore(id2, { audienceWindow: 'qq:private:3' }), null)
   assert.match((await m.memory.workingMemory({ cue: '减肥', window: 'qq:private:1' })).text, /减肥/)
 })

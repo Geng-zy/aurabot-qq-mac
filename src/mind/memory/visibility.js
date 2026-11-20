@@ -14,7 +14,7 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
   function shareSourceAllowed(e) {
     return e && ownerPrivate(e.window) && !e.data.secret && !e.data.privateOnly && !e.data.needsRecompute
   }
-  const hasSecretScope = (e) => e.data.secret && !['group', 'private'].includes(place(e.window).kind)
+  const hasSecretScope = (e) => e.data.secret === true
   const audienceRevision = () => store.get('memory.audienceRevision', 'persona-audience-v1')
   const touchAudience = () => store.set('memory.audienceRevision', randomUUID())
   /** 内心整理可以读取全部经历。对话和模块只拿得到当前会话有权看到的内容。 */

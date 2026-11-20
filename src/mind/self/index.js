@@ -52,6 +52,8 @@ export function createSelf(deps) {
     const old = String(before || '')
     const card = String(deps.personaCard() || '')
     if (!old || old === after) return card
+    // 单字名字（「鱼」「猫」）做全卡替换会改坏「吃鱼/摸鱼」等内容；只同步结构化字段，不猜子串。
+    if ([...old].length < 2) return card
     return card.split(old).join(String(after || ''))
   }
 

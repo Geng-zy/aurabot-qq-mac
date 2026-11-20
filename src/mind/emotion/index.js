@@ -33,7 +33,9 @@ export function createEmotion(deps) {
 
   function load() {
     const s = store.get('emotion', null)
-    return s && Array.isArray(s.active) ? s : { active: [], mood: null, history: [] }
+    const d = { active: [], mood: null, history: [] }
+    if (!s || typeof s !== 'object') return d
+    return { ...d, ...s, active: Array.isArray(s.active) ? s.active : [], history: Array.isArray(s.history) ? s.history : [], mood: s.mood && typeof s.mood === 'object' ? s.mood : null }
   }
   function save(s) {
     store.set('emotion', s)
@@ -226,7 +228,7 @@ export function createEmotion(deps) {
    * 只描述行为倾向和对象，不输出情绪名、强度、原因，避免她把状态汇报出来。
    * @param {{ people?: string[], body?: any, window?: string, name?: (id: string) => string }} o
    */
-  function prompt({ people = [], body, window, name = (x) => x } = {}) {
+  function prompt({ people = [], body, window, publicOnly = false, name = (x) => x } = {}) {
     const { mood, active } = state(body)
     const here = new Set(people)
     const cues = [moodCue(mood)]
@@ -236,15 +238,16 @@ export function createEmotion(deps) {
       if (e.target && e.target !== 'self') {
         cue += here.has(e.target)
           ? '，这股感觉和眼前这个人有关'
-          : `，这股感觉是冲着${name(e.target)}的，不是眼前的人`
+          : publicOnly
+            ? '，这股感觉和眼前的人无关'
+            : '，这股感觉是冲着别人的，不是眼前的人'
       }
       if (e.hidden) cue += '，你不太想表现出来'
       if (!cues.includes(cue)) cues.push(cue)
     }
     const angryElsewhere = shown.filter((e) => e.def?.anger && e.target && !here.has(e.target))
     if (angryElsewhere.length) {
-      const names = [...new Set(angryElsewhere.map((e) => name(e.target)))].join('、')
-      // 目标提示已经在上面说过；这里只提醒可能迁怒的行为。
+      // 目标只在情绪来源会话里命名；其他会话不泄露第三方姓名。
       const top = angryElsewhere[0].intensity
       const worn = (body?.energy ?? 1) < 0.3 || (body?.sleepiness ?? 0) > 0.7
       const close = Math.max(0, ...people.map((p) => (deps.isOwner(p) ? 0.8 : Number(deps.closeness?.(p)) || 0)))

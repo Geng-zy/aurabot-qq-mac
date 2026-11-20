@@ -34,7 +34,8 @@ export function createSharing({ store, now, deps, place, ownerPrivate, shareSour
   function privacyCandidates(text, ownerWindow, audience) {
     const rows = [...keywordHits(text)].filter(([, score]) => score >= 0.45).sort((a, b) => b[1] - a[1])
       .map(([id]) => row(id)).filter(Boolean)
-    const hits = rows.filter((e) => (e.window === ownerWindow || deps.isPrivateHistoryWindow(e.window) || e.data.kind === 'shared-note') && !visibleIn(e, audience))
+    // 所有当前收件人看不到的经历都要参与比对，不能只挑管理员私聊/分享；第三方私聊秘密同样要拦。
+    const hits = rows.filter((e) => !visibleIn(e, audience))
     const allowed = rows.filter((e) => ['shared-note', 'public-note'].includes(e.data.kind) && visibleIn(e, audience))
     return {
       private: hits.slice(0, 6).map((e) => [e.gist, e.detail].filter(Boolean).join('\n').slice(0, 450)),

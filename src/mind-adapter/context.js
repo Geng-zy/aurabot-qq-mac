@@ -60,7 +60,7 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
       const includeHunger = args.chat?.kind === 'system' || args.userText === undefined || isFoodTopic(args.userText)
       if (args.publicOnly) {
         const { body, mood } = mind.feeling()
-        return [...parts, mind.body.prompt(body, { includeHunger }), mind.emotion.prompt({ body, people: [] })].filter(Boolean).join('\n')
+        return [...parts, mind.body.prompt(body, { includeHunger }), mind.emotion.prompt({ body, people: [], publicOnly: true })].filter(Boolean).join('\n')
       }
       if (id.isBirthdayToday) parts.push(`今天是你的生日${id.age !== null ? `，你 ${id.age} 岁了` : ''}。`)
       const chatId = windowOf(args.chat?.chatId)

@@ -47,7 +47,12 @@ export function createPersonality(deps) {
 
   function load() {
     const s = store.get('personality', null)
-    if (s && s.cur) return s
+    if (s && s.cur) {
+      // kv 没有 SQL 迁移：旧结构缺字段时补默认值，避免人格页/每轮工具构建直接 TypeError。
+      const mid = Object.fromEntries(TRAIT_IDS.map((id) => [id, 0.5]))
+      const d = { base: { ...mid }, cur: { ...mid }, shadow: null, confirmed: false, inferred: null, lastStep: {}, consumed: {}, run: {}, peak: {}, alerts: [], obs: [], habitObs: [], habits: [], pending: [] }
+      return { ...d, ...s, base: { ...d.base, ...(s.base || {}) }, cur: { ...d.cur, ...(s.cur || {}) }, lastStep: s.lastStep || {}, consumed: s.consumed || {}, run: s.run || {}, peak: s.peak || {}, alerts: Array.isArray(s.alerts) ? s.alerts : [], obs: Array.isArray(s.obs) ? s.obs : [], habitObs: Array.isArray(s.habitObs) ? s.habitObs : [], habits: Array.isArray(s.habits) ? s.habits : [], pending: Array.isArray(s.pending) ? s.pending : [] }
+    }
     const mid = Object.fromEntries(TRAIT_IDS.map((id) => [id, 0.5]))
     return { base: { ...mid }, cur: { ...mid }, shadow: null, confirmed: false, inferred: null, lastStep: {}, consumed: {}, run: {}, peak: {}, alerts: [], obs: [], habitObs: [], habits: [], pending: [] }
   }
