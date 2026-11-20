@@ -18,6 +18,7 @@ import { createOutboxFlush } from './features/outbox-flush.js'
 import { createQuoteApi } from './features/quote.js'
 import { createForwardApi } from './features/forward.js'
 import { createConfigApi } from './features/config.js'
+import { createLifecycle } from './features/lifecycle.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -167,6 +168,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => verifiedLogin, getWrongAccount: () => wrongAccount, setWrongAccount: (v) => { wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
   const forward = createForwardApi({ call: (a, p, o) => gw.call(a, p, o), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id), log })
+  const lifecycle = createLifecycle({ gw, inbox, listeners, getFlushTimer: () => flushTimer, setDisposed: (v) => { disposed = v } })
 
   const channel = {
     platform: PLATFORM,
@@ -226,13 +228,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     outbox: box,
     flushOutbox,
     isDefiniteFailure,
-    dispose() {
-      disposed = true
-      inbox.flush()
-      if (flushTimer) clearInterval(flushTimer)
-      listeners.clear()
-      gw.stop()
-    },
+    ...lifecycle,
   }
   outboxFlusher = createOutboxFlush({
     box,
