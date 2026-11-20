@@ -734,7 +734,7 @@ export function createMind(opts) {
       ['relations', () => relations.nightly()],
       ['story', () => self.updateStory({
         ask: (scene, system, text, maxTokens) => memory.ask(scene, system, text, maxTokens),
-        isVisible: (id) => memory.visibleIn(memory.row(id), ''),
+        isVisible: (id) => memory.visibleForRecall(memory.row(id)),
         episodes: ({ rebuild = false } = {}) => store.prep("SELECT id, at, gist, json FROM episodes WHERE status IN ('live', 'archived') AND at >= ? ORDER BY at DESC LIMIT 200").all(rebuild ? 0 : now() - 7 * 86400000)
           .map((r) => ({ id: r.id, at: r.at, gist: r.gist, ...JSON.parse(r.json) }))
           .filter((e) => (e.importance || 0) >= 0.7 || (e.emotion?.intensity || 0) >= 0.7)
@@ -746,8 +746,8 @@ export function createMind(opts) {
   /** 她是谁（放进系统提示词开头）：当前版本的人格卡、她自己写的价值观等、自我故事摘要、不知不觉的变化和小习惯。 */
   function selfPrompt({ publicOnly = false } = {}) {
     // 对外人格只允许固定词表的公开画像；性格漂移来自含私聊的观察，不能拼进群/对外提示词。
-    const parts = [self.prompt({ publicPersona: publicOnly ? publicPersona() : null, isVisible: (id) => memory.visibleIn(memory.row(id), '') })]
-    if (!publicOnly) parts.push(personality.selfText({ shareableOnly: true, isVisible: (id) => memory.visibleIn(memory.row(id), '') }))
+    const parts = [self.prompt({ publicPersona: publicOnly ? publicPersona() : null, isVisible: (id) => memory.visibleForRecall(memory.row(id)) })]
+    if (!publicOnly) parts.push(personality.selfText({ shareableOnly: true, isVisible: (id) => memory.visibleForRecall(memory.row(id)) }))
     return parts.filter((x) => String(x || '').trim()).join('\n\n')
   }
 

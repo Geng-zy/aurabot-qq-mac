@@ -35,7 +35,8 @@ test('对话的联想跳过受保护的来源，内部联想保留', async () =>
   const { m } = setup()
   const w = await m.memory.workingMemory({ cue: '海边看了日出', window: 'qq:group:5', people: [] })
   assert.match(w.text, /看了日出/)
-  assert.doesNotMatch(w.text, /其实很累|想去海边/)
+  // 同一份记忆：内部联想可以看到受保护来源；出站隐私另行拦截。
+  assert.match(w.text, /其实很累|想去海边/)
 })
 
 test('回顾和提炼结果继承来源范围，其他人的私聊可以跨会话', async (t) => {
@@ -56,7 +57,7 @@ test('回顾和提炼结果继承来源范围，其他人的私聊可以跨会�
   assert.match(group.message, /群里在聊山路/)
   assert.match(group.message, /回顾：山路上的观景台/)
   assert.match(group.message, /提炼：山路上的观景台/)
-  assert.doesNotMatch(group.message, /山路的约定/)
+  assert.match(group.message, /山路的约定/)
   const same = await recall({ chatId: 'private:1', kind: 'private', userId: '1' })
   assert.match(same.message, /回顾：山路的约定/)
 })

@@ -1,5 +1,5 @@
 // 面板查询：列表、来源统计、关联、展开一条回忆。
-export function createPanel({ store, now, place, rOf, levelOf, levels, shareSourceAllowed, visibleIn, render, visibleOriginalLines, row }) {
+export function createPanel({ store, now, place, rOf, levelOf, levels, shareSourceAllowed, visibleIn, visibleForRecall, render, visibleOriginalLines, row }) {
   // ---------- 给面板看 ----------
   /** 面板：按状态、种类、关键字列出（关键字在大意、细节和原始记录里找）。 */
   function list({ status = 'live', limit = 100, offset = 0, kind, q = '' } = {}) {

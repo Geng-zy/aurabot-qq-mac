@@ -1,5 +1,5 @@
 // 惦记别人的事和到期的约定。
-export function createFollowups({ store, now, S, DAY, save, row, keywordHits, visibleIn, deps }) {
+export function createFollowups({ store, now, S, DAY, save, row, keywordHits, visibleIn, visibleForRecall, deps }) {
   function pendingRows({ open = false, sourceWindow } = {}) {
     return store.prep(`SELECT * FROM episodes WHERE kind = 'pending' AND status = 'live'${open ? " AND json_extract(json, '$.followup.done') IS NULL" : ''} AND (? IS NULL OR window = ?) ORDER BY at DESC LIMIT 200`).all(sourceWindow ?? null, sourceWindow ?? null)
       .map((r) => ({ ...r, data: JSON.parse(r.json) }))

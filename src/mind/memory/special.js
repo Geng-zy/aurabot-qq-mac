@@ -1,5 +1,5 @@
 // 生日/纪念日/认识周年，以及到点约定的投递状态。
-export function createSpecial({ store, now, deps, DAY, visibleIn, localParts, nameOf, row, save }) {
+export function createSpecial({ store, now, deps, DAY, visibleIn, visibleForRecall, localParts, nameOf, row, save }) {
   function specialDays({ within = 0, audienceWindow } = {}) {
     const tz = deps.tz()
     const at = now()

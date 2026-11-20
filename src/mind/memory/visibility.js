@@ -51,6 +51,13 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
     path.delete(e.id)
     return visible
   }
+  /** 她自己想起事情时，用的是同一份记忆：不按窗口裁剪。隐私在出站时再拦。 */
+  function visibleForRecall(e) {
+    if (!e || e.data.needsRecompute || e.data.shareRevoked) return false
+    if ((e.data.kind === 'dream' && !Array.isArray(e.data.from)) || (!e.window && e.data.kind === 'belief' && e.data.speaker === 'self')) return false
+    return true
+  }
+
   function sourceVisible(source, window) {
     const line = store.prep('SELECT window FROM perception WHERE id = ?').get(source)
     if (!line || (deps.isPrivateHistoryWindow(line.window) && line.window !== window)) return false
@@ -112,5 +119,5 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
   }
 
 
-  return { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText }
+  return { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText }
 }

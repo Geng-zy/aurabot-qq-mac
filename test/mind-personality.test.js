@@ -626,18 +626,20 @@ test('对接层：不想搭理的人、名字跟着她变', () => {
   assert.deepEqual(env.a.wakeWords(['别名']), ['小鱼', '鱼鱼', '别名'])
 })
 
-test('第三方私聊秘密不会跨会话回忆，管理员私聊仍只在原会话使用', async () => {
+test('同一份记忆跨会话可想起，但隐私候选会拦住别的会话说出去', async () => {
   const env = adapter()
   const m = env.a.mind
   const id1 = m.memory.insert({ at: T0, window: 'qq:private:2', gist: '甲说他喜欢乙，别告诉别人', kind: 'fact', importance: 0.8, extra: { secret: true } })
   const id2 = m.memory.insert({ at: T0, window: 'qq:private:1', gist: '管理员说他最近在减肥', kind: 'fact', importance: 0.8 })
   await m.memory.embedEpisodes([id1, id2])
-  const wm = await m.memory.workingMemory({ cue: '甲说他喜欢乙 管理员说他最近在减肥', window: 'qq:group:9' })
-  assert.doesNotMatch(wm.text, /喜欢乙/)
-  assert.doesNotMatch(wm.text, /减肥/)
+  const wmSecret = await m.memory.workingMemory({ cue: '甲说他喜欢乙', window: 'qq:group:9' })
+  const wmAdmin = await m.memory.workingMemory({ cue: '管理员说他最近在减肥', window: 'qq:group:9' })
+  assert.match(wmSecret.text, /喜欢乙/, '她本人有同一份记忆')
+  assert.match(wmAdmin.text, /减肥/, '管理员私聊也记得')
   assert.equal(m.memory.recallMore(id1, { audienceWindow: 'qq:private:3' }), null)
   assert.equal(m.memory.recallMore(id2, { audienceWindow: 'qq:private:3' }), null)
-  assert.match((await m.memory.workingMemory({ cue: '减肥', window: 'qq:private:1' })).text, /减肥/)
+  const candidates = m.memory.privacyCandidates('甲说他喜欢乙 管理员减肥', '', 'qq:group:9')
+  assert.ok(candidates.private.some((x) => /喜欢乙|减肥/.test(x)), '别的会话说出去前会命中隐私候选')
 })
 
 test('调试模式：照常想起和回话，但不往心智里写——不记消息、不加强记忆、不记感受、工具不真写', async () => {

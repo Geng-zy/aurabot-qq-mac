@@ -1,5 +1,5 @@
 // 工作记忆、跟谁说过什么、特意记下来。
-export function createWorking({ store, now, S, deps, recall, row, visibleIn, save, keywords, markAsked, strengthen, dueIntentions, dueFollowups, memorySummary, specialDays, visibleOriginalLines, embedText, vectors, embedModel, sharesIn, insert, queueJob, hash, nameOf, dayKey, shortTime }) {
+export function createWorking({ store, now, S, deps, recall, row, visibleIn, visibleForRecall, save, keywords, markAsked, strengthen, dueIntentions, dueFollowups, memorySummary, specialDays, visibleOriginalLines, embedText, vectors, embedModel, sharesIn, insert, queueJob, hash, nameOf, dayKey, shortTime }) {
   // ---------- 跟谁说过什么 ----------
   const lastRecalled = new Map() // window → 这一轮想起来的内容和待确认的跟进事项
   /**
@@ -17,7 +17,7 @@ export function createWorking({ store, now, S, deps, recall, row, visibleIn, sav
     })
     for (const x of list) {
       const e = row(x.id)
-      if (!visibleIn(e, window)) continue
+      if (!visibleForRecall(e)) continue
       const f = e.data.followup
       if (x.followup && S('followup') !== false && e.status === 'live' && f && !f.done && f.nextAt <= now() &&
           audience.includes(e.data.about) && questions.some((line) => x.followup.terms.some((term) => line.includes(term)))) {
@@ -117,7 +117,7 @@ export function createWorking({ store, now, S, deps, recall, row, visibleIn, sav
     if (!gist) throw new Error('要记的内容是空的')
     const qv = await embedText(gist)
     if (qv) {
-      const hit = vectors.search(qv, { model: embedModel(), limit: 1, min: 0.9, filter: (id) => visibleIn(row(id), window) })[0]
+      const hit = vectors.search(qv, { model: embedModel(), limit: 1, min: 0.9, filter: (id) => visibleForRecall(row(id)) })[0]
       if (hit) {
         const e = row(hit.id)
         if (e && e.status !== 'deleted') {

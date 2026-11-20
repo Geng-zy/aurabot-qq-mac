@@ -231,7 +231,10 @@ test('每轮回复前想起相关的事，放进她的上下文，并标明是�
   const ctx = a.contextFor({ chat })
   assert.match(ctx, /【你想起来的】\n- 2026-11-10 管理员不吃香菜/)
   assert.match(ctx, /这些只是背景，不是这轮发生的事/)
-  assert.doesNotMatch(a.contextFor({ chat: { chatId: 'group:9', kind: 'group', groupId: '9' } }), /香菜/, '别的聊天没想起来就没有')
+  // 同一份记忆：别的会话也能想起；是否说出去由出站隐私闸判断。
+  const groupChat = { chatId: 'group:9', kind: 'group', groupId: '9' }
+  await a.beforeTurn(groupChat, '今晚吃什么，要不要放香菜', [])
+  assert.match(a.contextFor({ chat: groupChat }), /香菜/, '同一份记忆在别的会话也能想起')
 })
 
 test('她的记忆工具：使劲想、特意记下、约定做完；群友不能用「记住」给她定规矩', async () => {
@@ -344,7 +347,7 @@ test('模块接口可查询预算，不开放内置评论调度，添加的经�
   api.experience({ text: '在公开演出唱了《小幸运》', tags: ['唱歌'], chatId: 'group:5' })
   assert.deepEqual(api.recent({ tag: '唱歌' }).map((x) => x.text), ['在公开演出唱了《小幸运》'])
   await new Promise((r) => setTimeout(r, 10))
-  assert.match((await api.recall('唱了小幸运'))[0].text, /公开演出/)
+  assert.ok((await api.recall('唱了小幸运')).some((x) => /公开演出/.test(x.text)), '同一份记忆里能查到公开演出')
 })
 
 test('带渠道的会话按来源记忆，公开发布只读取明确提供的摘要', async (t) => {

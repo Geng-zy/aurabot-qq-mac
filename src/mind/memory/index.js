@@ -94,7 +94,7 @@ export function createMemory(deps) {
     getJointExperience: () => privacyText.jointExperience,
     anchorDates, relativeDayWords,
   })
-  const { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText } = visibility
+  const { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText } = visibility
 
   function save(e) {
     store.prep('UPDATE episodes SET gist = ?, detail = ?, strength = ?, stability = ?, last_recall = ?, status = ?, json = ? WHERE id = ?')
@@ -242,10 +242,10 @@ export function createMemory(deps) {
   const encodePending = createEncodePending({ store, now, deps, log, dayKey, encodeWindow, pendingWindows, cursorOf })
 
   // ---------- 关键词 ----------
-  const keywordHits = createKeywordHits({ store, visibleIn, row })
+  const keywordHits = createKeywordHits({ store, visibleIn, visibleForRecall, row })
 
   const render = createRender({ memorySummary, pendingLabel, KINDS })
-  const recall = createRecall({ store, now, S, getState: () => state(), embedText, vectors, embedModel, keywordHits, row, visibleIn, rOf, levelOf, levels, getRerank: () => rerank, log, deps, render, hasSecretScope })
+  const recall = createRecall({ store, now, S, getState: () => state(), embedText, vectors, embedModel, keywordHits, row, visibleIn, visibleForRecall, rOf, levelOf, levels, getRerank: () => rerank, log, deps, render, hasSecretScope })
 
   /** 想起来的被加强；隔得越久想起，加得越多。按设置的概率排进睡觉时的改写。 */
   const strengthen = createStrengthen({ store, now, S, row, rOf, save, queueJob, state, random })
@@ -255,13 +255,13 @@ export function createMemory(deps) {
    * 到时候该问一问的事：这几个人的、没放下的、还没问够的、到了该问的时间的。
    * deps.care(人) 0～1：她有多在乎这个人（心疼人的程度 + 亲近），决定问不问、问几次、隔多久。
    */
-  const followupsKit = createFollowups({ store, now, S, DAY, save, row, keywordHits, visibleIn, deps })
+  const followupsKit = createFollowups({ store, now, S, DAY, save, row, keywordHits, visibleIn, visibleForRecall, deps })
   const { pendingRows, dueFollowups, markAsked, closeFollowup, followups, dueIntentions, completeIntention } = followupsKit
 
-  const special = createSpecial({ store, now, deps, DAY, visibleIn, localParts, nameOf, row, save })
+  const special = createSpecial({ store, now, deps, DAY, visibleIn, visibleForRecall, localParts, nameOf, row, save })
   const { specialDays, dueNow, setReminderDelivery } = special
   const working = createWorking({
-    store, now, S, deps, recall, row, visibleIn, save, keywords, markAsked, strengthen,
+    store, now, S, deps, recall, row, visibleIn, visibleForRecall, save, keywords, markAsked, strengthen,
     dueIntentions, dueFollowups, memorySummary, specialDays, visibleOriginalLines,
     embedText, vectors, embedModel, sharesIn, insert, queueJob, hash, nameOf, dayKey, shortTime,
   })
@@ -286,14 +286,14 @@ export function createMemory(deps) {
     return best
   }
 
-  const panel = createPanel({ store, now, place, rOf, levelOf, levels, shareSourceAllowed, visibleIn, render, visibleOriginalLines, row })
+  const panel = createPanel({ store, now, place, rOf, levelOf, levels, shareSourceAllowed, visibleIn, visibleForRecall, render, visibleOriginalLines, row })
   const { list, sourceCounts, related, recallMore, counts } = panel
 
   const vectorState = createVectorState({ store, getEmbedModel: () => embedModel(), isEmbedConnected: () => Boolean(embed), isEmbeddingReady: () => embeddingReady?.() })
   const { staleVectorIds, vectorProgress, canEmbed } = vectorState
 
   return {
-    connect, encodeWindow, encodeThrough, encodePending, pendingThrough, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, sourceVisible, protectedText, sharesIn, sharedText, restrictedShareText, privacyCandidates,
+    connect, encodeWindow, encodeThrough, encodePending, pendingThrough, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, visibleForRecall, sourceVisible, protectedText, sharesIn, sharedText, restrictedShareText, privacyCandidates,
     dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, setPrivateOnly, shareEpisode, revokeShare, audienceRevision, touchAudience, notePrivacyContext, list, sourceCounts, related, counts,
     embedEpisodes, staleVectorIds, vectorProgress, embedModel, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
