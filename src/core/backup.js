@@ -787,9 +787,15 @@ export function stageReceivedBackup(buf, name = 'incoming.zip') {
       renameSync(source.path, target.path)
       const published = checkPath(data, rel)
       if (!published.info || !sameRenamedFile(source.info, published.info)) throw unsafePath(rel)
-      const staged = await stageBackup(published.path, { data, rel, key: published.key })
-      pruneLocalBackups()
-      return staged
+      try {
+        const staged = await stageBackup(published.path, { data, rel, key: published.key })
+        pruneLocalBackups()
+        return staged
+      } catch (error) {
+        // 校验失败的上传包不要留在 backups/ 里反复被列表/清理看到。
+        try { if (checkPath(data, rel).key === published.key) removeChecked(data, rel) } catch {}
+        throw error
+      }
     } finally {
       try {
         if (checkPath(data, temporary).key === key) removeChecked(data, temporary)
