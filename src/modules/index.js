@@ -8,6 +8,5 @@ import song from './song/index.js'
 import profile from './profile/index.js'
 import contacts from './contacts/index.js'
 import video from './video/index.js'
-import groupAdmin from './group-admin/index.js'
 
-export const BUILTINS = [stickers, voice, imagegen, diary, song, profile, contacts, video, groupAdmin]
+export const BUILTINS = [stickers, voice, imagegen, diary, song, profile, contacts, video]
