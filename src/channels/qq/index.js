@@ -14,6 +14,7 @@ import { createFaceCatalog } from './features/face-catalog.js'
 import { readForward } from './forward.js'
 import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
+import { createDispatcher } from './features/dispatch.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -138,24 +139,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     dispatch(ev)
   }
 
-  /** 核对通过后，普通事件先发给原始事件监听器，再拆成壳认识的几种。 */
-  function dispatch(ev) {
-    if (ev.post_type === 'message' && !inbox.accept(ev)) return
-    emit({ type: 'raw', event: ev })
-    if (ev.post_type === 'message') emit({ type: 'message', msg: channel.parse(ev) })
-    else if (ev.post_type !== 'notice') return
-    else if (ev.notice_type === 'bot_offline') {
-      log.warn(`QQ 账号离线${ev.tag ? '（' + String(ev.tag).slice(0, 100) + '）' : ''}${ev.message ? '：' + String(ev.message).slice(0, 300) : ''}`)
-    } else if (ev.notice_type === 'notify' && ev.sub_type === 'poke') {
-      const poke = channel.pokeOf(ev)
-      if (poke) emit({ type: 'poke', poke })
-    } else if (ev.notice_type === 'group_upload') {
-      // 群文件是单独的通知，不是消息：转成一条文件消息走正常流程（白名单、头衔过滤都照旧）
-      channel.groupFileMessage(ev).then((msg) => { if (msg && !disposed) emit({ type: 'message', msg }) }).catch((error) => log.warn('处理群文件出错：', error.message))
-    } else {
-      emit({ type: 'notice', notice: channel.noticeOf(ev) })
-    }
-  }
+  const dispatch = createDispatcher({ emit, inbox, getChannel: () => channel, isDisposed: () => disposed, log })
 
   // 网关未就绪时先攒着：只有「确定没发出去」的消息才入队，连接后按 TTL 补发。
   async function flushOutbox() {
