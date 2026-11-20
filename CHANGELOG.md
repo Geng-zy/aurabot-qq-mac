@@ -23,6 +23,7 @@
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - 增加非 QQ 聊天收表情不写 QQ 收藏的回归测试。
+- 好友/加群申请模块从 `src/modules/contacts` 迁到 `channels/qq/features/contacts`，注册 QQ_FEATURES；旧路径删除。
 - 群管模块从 `src/modules/group-admin` 迁到 `channels/qq/features/group-admin`，注册进 QQ_FEATURES；旧路径删除。
 - 通用表情库增加 `shouldSyncQQ(chatId)`：非 QQ 聊天收集表情时不会误写 QQ 收藏。
 - QQ 的 start/stop/restart/watch/resetInbox 也收进 `features/lifecycle.js`，index 只组合。

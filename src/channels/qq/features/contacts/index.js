@@ -5,8 +5,8 @@
 // 两个工具各一档权限（面板「权限」页）：off 关 / owner 仅管理员私聊（默认）/ all 所有人。
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
-import { defineTool, str, bool } from '../../tools/tools.js'
-import { profileToolVisible, profilePermits, ownerOrFree } from '../../chat/access.js'
+import { defineTool, str, bool } from '../../../../tools/tools.js'
+import { profileToolVisible, profilePermits, ownerOrFree } from '../../../../chat/access.js'
 
 const PENDING_MAX = 50
 const ID_RE = /^\d{5,12}$/

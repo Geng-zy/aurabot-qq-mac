@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-const { default: contacts, planWhitelist, cleanId } = await import('../src/modules/contacts/index.js')
+const { default: contacts, planWhitelist, cleanId } = await import('../src/channels/qq/features/contacts/index.js')
 const { normalize } = await import('../src/core/config.js')
 
 const OWNER = '10001'
