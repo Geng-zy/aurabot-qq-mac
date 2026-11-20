@@ -15,6 +15,7 @@ import { readForward } from './forward.js'
 import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
 import { createDispatcher } from './features/dispatch.js'
+import { createOutboxFlush } from './features/outbox-flush.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -142,27 +143,9 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const dispatch = createDispatcher({ emit, inbox, getChannel: () => channel, isDisposed: () => disposed, log })
 
   // 网关未就绪时先攒着：只有「确定没发出去」的消息才入队，连接后按 TTL 补发。
-  async function flushOutbox() {
-    const revision = connectionRevision
-    const isReady = () => {
-      const config = getConfig()
-      return !disposed && revision === connectionRevision && ready() && config.enabled !== false && !config.debug && !config.dryRun
-    }
-    if (!box || !isReady()) return
-    try {
-      const r = await box.flush((action, params, opts) => gw.call(action, params, { ...opts, retries: 0 }), {
-        isReady,
-        canSend: canReplayDelivery,
-        onSent: (item, result) => emit({
-          type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
-          messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system', replyJournal: item.replyJournal, replyFeed: item.replyFeed,
-        }),
-      })
-      if (r.sent || r.dropped || r.left) log.info(`补发队列：成功 ${r.sent}，丢弃 ${r.dropped}，剩余 ${r.left}`)
-    } catch (error) {
-      log.warn('补发队列出错：', error.message)
-    }
-  }
+  let outboxFlusher = null
+  async function flushOutbox() { return outboxFlusher?.flush() }
+
   // 连接后漏掉的、或补发中途又断网的，定时再试；没连接时直接返回。
   const flushTimer = flushEveryMs > 0 ? setInterval(() => { flushOutbox().catch(() => {}) }, flushEveryMs) : null
   flushTimer?.unref?.()
@@ -317,5 +300,20 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
       gw.stop()
     },
   }
+  outboxFlusher = createOutboxFlush({
+    box,
+    call: (action, params, opts) => gw.call(action, params, { ...opts, retries: 0 }),
+    getConfig,
+    isConnected: () => ready(),
+    isDisposed: () => disposed,
+    getRevision: () => connectionRevision,
+    canReplayDelivery,
+    onSent: (item, result) => emit({
+      type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
+      messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system', replyJournal: item.replyJournal, replyFeed: item.replyFeed,
+    }),
+    log,
+  })
+
   return channel
 }
