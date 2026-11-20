@@ -79,7 +79,7 @@ export function pickEvict(items) {
   return pool.slice().sort((a, b) => (a.uses || 0) - (b.uses || 0) || (a.lastUsed || a.at || 0) - (b.lastUsed || b.at || 0))[0]
 }
 
-export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSegment = null }) {
+export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSegment = null, shouldSyncQQ = () => true }) {
   const recent = [] // 每小时限额
   // QQ 专有动作由 channels/qq/features/stickers-qq.js 注入；没有注入时保留旧 onebot 兼容。
   const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : Promise.reject(new Error('没有注入 QQ 表情写入'))
@@ -162,7 +162,7 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     if (marketId) item.market = { emojiId: marketId, packageId: Number(d.emoji_package_id ?? d.emojiPackageId ?? 0) || 0, key: String(d.key ?? '') }
     recent.push(now)
     // 收藏到 QQ
-    if (!getConfig().dryRun) {
+    if (shouldSyncQQ(from) && !getConfig().dryRun) {
       try {
         const r = await addCustomFace(buf)
         item.emojiId = String(r?.emoji_id || '')
