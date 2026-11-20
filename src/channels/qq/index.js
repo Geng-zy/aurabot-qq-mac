@@ -10,8 +10,8 @@ import { createOutboundApi } from './features/outbound.js'
 import { createActionsApi } from './features/actions.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
-import { buildFaceIndex, createFaces, textToSegments, stripFaceTags } from './faces.js'
-import { FACE_TABLE } from './face-table.js'
+import { createFaces, textToSegments, stripFaceTags } from './faces.js'
+import { createFaceCatalog } from './features/face-catalog.js'
 import { readForward } from './forward.js'
 import { createEventApi } from './features/events.js'
 import { createQqInbox } from './inbox.js'
@@ -235,6 +235,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
+  const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
 
   const channel = {
@@ -291,16 +292,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
     // ---------- 收 ----------
     faces,
-    /** 给面板用的 QQ 系统表情目录：内置整表打底，网关能取到就合并。 */
-    async faceCatalog() {
-      let byId = new Map(FACE_TABLE.map((f) => [String(f.id), f.name]))
-      try {
-        const r = await gw.call('fetch_sys_faces', {}, { timeoutMs: 8000 })
-        const built = buildFaceIndex(r?.packs ? r : r?.data)
-        if (built.byId.size) byId = new Map([...byId, ...built.byId])
-      } catch (error) { log.debug('取 QQ 系统表情目录失败，只用内置的：', error.message) }
-      return [...byId.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => Number(a.id) - Number(b.id))
-    },
+    faceCatalog,
     /** OneBot 消息事件 → 通用形状。 */
     parse: (event) => parseMessageEvent(event, String(event?.self_id || channel.selfId()), { faceName: faces.nameOf }),
     /** AstrBot 风格的适配器方法别名：转换一条原始事件。 */
