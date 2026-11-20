@@ -11,12 +11,12 @@ import { createActionsApi } from './features/actions.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { createFaces, textToSegments, stripFaceTags } from './faces.js'
 import { createFaceCatalog } from './features/face-catalog.js'
-import { readForward } from './forward.js'
 import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
 import { createDispatcher } from './features/dispatch.js'
 import { createOutboxFlush } from './features/outbox-flush.js'
 import { createQuoteApi } from './features/quote.js'
+import { createForwardApi } from './features/forward.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 
@@ -174,6 +174,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
   const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => verifiedLogin, getWrongAccount: () => wrongAccount, setWrongAccount: (v) => { wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
+  const forward = createForwardApi({ call: (a, p, o) => gw.call(a, p, o), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id), log })
 
   const channel = {
     platform: PLATFORM,
@@ -229,7 +230,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     history: fetchHistory,
     quote: quoteApi.quote,
     /** 展开一条合并转发：{ lines, images, stickers }。 */
-    forward: (id) => readForward({ call: (a, p, o) => gw.call(a, p, o) }, id, { selfId: channel.selfId(), faceName: faces.nameOf, log }),
+    ...forward,
     outbox: box,
     flushOutbox,
     isDefiniteFailure,
