@@ -5,10 +5,9 @@ import { readFileSync, existsSync } from 'node:fs'
 import { createStickerStore, stickerPath } from '../../features/stickers.js'
 import { defineTool, int, str } from '../../tools/tools.js'
 import { fetchImage, segmentBytes } from '../../core/net.js'
-import { resolvePainting } from '../../features/paintings.js'
 import { ownerOrFree } from '../../chat/access.js'
 import { parseChat } from '../../channels/ids.js'
-import { createQqStickerBridge, createQqStickerHooks } from '../../channels/qq/features/stickers-qq.js'
+import { createQqStickerBridge, createQqStickerHooks, createQqStickerFeature } from '../../channels/qq/features/stickers-qq.js'
 
 export default {
   id: 'stickers',
@@ -16,12 +15,13 @@ export default {
   version: '1.0.0',
   description: '偷表情、回复时按情绪配表情、她自己改名删图；关掉后不发也不收表情',
   tab: 'stickers',
-  files: ['features/stickers.js'],
+  files: ['features/stickers.js', 'channels/qq/features/stickers-qq.js'],
   setup(api) {
     const { hub, onebot, http } = api.core
     const qqStickerHooks = createQqStickerHooks({ onebot, log: api.log })
     const store = createStickerStore({ dsh: api.dsh, getConfig: api.config, log: api.log, qq: qqStickerHooks, downloadSegment: (seg) => segmentBytes(seg, onebot, { maxBytes: 1024 * 1024 * 1024 }), shouldSyncQQ: (chatId) => parseChat(chatId)?.platform === 'qq' })
     const qqStickers = createQqStickerBridge({ onebot, store, getConfig: api.config, log: api.log })
+    const qqFeature = createQqStickerFeature({ api, store, bridge: qqStickers })
     const isQqChat = (chat) => parseChat(chat.chatId)?.platform === 'qq'
 
     api.tool(({ chat, level, sessionId }) => {
@@ -85,103 +85,7 @@ export default {
           },
         }),
       ]
-      // 「她挑」模式：聊天里刚收到的表情，喜欢就凭编号收下；也能收自己刚画的图
-      // （「只听管理员的」下，别人在场时不能自己收，得等管理员发话）
-      if (isQqChat(chat)) tools.push(defineTool({
-        name: 'qq_collect_sticker',
-        description: '悄悄把聊天里刚出现的表情收进自己的表情库（喜欢才收，不喜欢就别调）。index 从 1 开始；name 是你给它起的名字。收表情是你自己的小习惯，通常不用跟对方说你收没收到。管理员让你收哪张，你收哪张（「只听管理员的」模式下：管理员私聊里可以自己挑着收；群里这一轮只有管理员说话时也能自己收，有别人在场就要等管理员发话）。传 painting（画作编号，如 #1）时，收的是你自己刚画的那张图，不是聊天里的表情。',
-        properties: {
-          index: int('第几张表情（从 1 开始，默认 1）'),
-          name: str('给它起的名字（≤12 字）'),
-          tags: { type: 'array', items: { type: 'string' }, description: '标签，如 开心/委屈' },
-          painting: str('画作编号（如 #1）：收你自己刚画的图时填，和 index 二选一'),
-        },
-        required: [],
-        execute: async ({ index, name, tags, painting }) => {
-          // 收自己的画：不受「只听管理员的」限制（这是她自己画的，不是别人的表情）
-          if (painting) {
-            const p = resolvePainting(current, painting)
-            if (!p) return { ok: false, message: `找不到画作 ${painting}（可能是编号过期了，先让我画一张？）` }
-            let buf
-            try {
-              buf = readFileSync(p.path)
-            } catch (error) {
-              return { ok: false, message: '这张画的文件读不到了：' + error.message }
-            }
-            const r = await store.addFromBuffer(buf, {
-              name: String(name || '').trim().slice(0, 12),
-              tags: Array.isArray(tags) ? tags.slice(0, 3) : [],
-              from: 'painting',
-            })
-            if (!r.ok) return { ok: false, message: r.reason || '没存成' }
-            if (r.existed) return { ok: true, message: `库里已经有这张了（叫「${r.item.name || '未命名'}」）` }
-            return { ok: true, message: `收进库了：「${r.item.name || '未命名'}」（${p.prompt ? '画的是' + p.prompt : '自己画的'}）` }
-          }
-          if (!api.config().stickers.collect) return { ok: false, message: '偷表情关着' }
-          const mode = (api.config().stickers.collectMode || 'auto')
-          if (mode === 'owner' && !ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) {
-            return { ok: false, message: '现在是「只听管理员的」模式：这一轮有别人在，得管理员让我收才行' }
-          }
-          const seg = hub.stickerOf(current, index || 1)
-          if (!seg) return { ok: false, message: '这张表情已经拿不到了（超过 30 分钟，或者这一轮里没有这张）' }
-          let buf
-          try {
-            buf = await segmentBytes(seg, onebot, { maxBytes: 5 * 1024 * 1024 })
-          } catch (error) {
-            return { ok: false, message: '这张表情下载失败了：' + error.message }
-          }
-          const r = await store.addFromBuffer(buf, {
-            name: String(name || '').trim().slice(0, 12),
-            tags: Array.isArray(tags) ? tags.slice(0, 3) : [],
-            from: current,
-          })
-          if (!r.ok) return { ok: false, message: r.reason || '没存成' }
-          if (r.existed) return { ok: true, message: `库里已经有这张了（叫「${r.item.name || '未命名'}」）` }
-          return { ok: true, message: `收进库了：「${r.item.name || '未命名'}」` }
-        },
-      }))
-      // 管理员让她存表情：存这个聊天里刚发来的那张（她看得见图，但拿不到图片地址，所以由插件去找）；
-      // 传 painting（画作编号）时存的是她自己刚画的那张
-      if (isQqChat(chat)) tools.push(defineTool({
-        name: 'qq_save_sticker',
-        description: '把这个聊天里刚发来的那张表情包 / 图片收进你的表情库（同时收藏到 QQ）。管理员说「存一下这个表情」「导入这个表情」「收藏这张」时用。传 painting（画作编号，如 #1）时，存的是你自己刚画的那张图。name 是不超过 12 个字的备注，可以不填（会自动看图起名）。',
-        properties: {
-          name: str('备注（≤12 字，可不填）'),
-          tags: { type: 'array', items: { type: 'string' }, description: '标签，如 开心/委屈（可不填）' },
-          painting: str('画作编号（如 #1）：存你自己刚画的图时填'),
-        },
-        execute: async ({ name, tags, painting }) => {
-          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员能让我存表情' }
-          let buf
-          if (painting) {
-            const p = resolvePainting(current, painting)
-            if (!p) return { ok: false, message: `找不到画作 ${painting}（编号可能过期了，先让我画一张？）` }
-            try {
-              buf = readFileSync(p.path)
-            } catch (error) {
-              return { ok: false, message: '这张画的文件读不到了：' + error.message }
-            }
-          } else {
-            const media = hub.recentMedia(current)
-            // 优先管理员自己发的，其次这个聊天里最近的
-            const pick = media.filter((x) => x.userId === String(api.config().platforms?.qq?.ownerQQ || api.config().ownerQQ)).at(-1) || media.at(-1)
-            if (!pick) return { ok: false, message: '最近半小时这个聊天里没有人发表情或图片，先把那张发过来' }
-            buf = await segmentBytes(pick.seg, api.core.onebot, { maxBytes: 5 * 1024 * 1024 })
-          }
-          const r = await store.addFromBuffer(buf, { name: String(name || '').slice(0, 12), tags: Array.isArray(tags) ? tags.slice(0, 3) : [], from: 'tool' })
-          if (!r.ok) return { ok: false, message: r.reason || '没存成' }
-          if (r.existed) return { ok: true, message: `库里已经有这张了（叫「${r.item.name || '未命名'}」）` }
-          return { ok: true, message: `存好了${r.item.name ? '「' + r.item.name + '」' : ''}` }
-        },
-      }))
-      if (isQqChat(chat)) tools.push(defineTool({
-        name: 'qq_import_qq_stickers',
-        description: '把你 QQ「我喜欢的」收藏里已有的表情全部导进表情库（已经有的跳过），之后就能用 <sticker:名字> 发它们。管理员让你「导入收藏的表情」「同步一下 QQ 表情」时用。',
-        execute: async () => {
-          if (!ownerOrFree(api.config(), hub.turnSendersAllOwner(sessionId))) return { ok: false, message: '只有管理员能让我导入收藏的表情' }
-          return qqStickers.importFromQQ()
-        },
-      }))
+      if (isQqChat(chat)) tools.push(...qqFeature.tools({ chat, level, sessionId }))
       // 管理员私聊（完整权限）才能往库里加图
       if (level === 'full') tools.push(defineTool({
         name: 'qq_add_sticker',
@@ -225,8 +129,8 @@ export default {
     })
     api.route('/sticker/caption-status', async () => ({ ok: true, ...store.captionStatus() }))
     api.route('/sticker/caption-stop', async () => ({ ok: true, ...store.captionCancel() }))
-    api.route('/sticker/import-qq', async () => api.core.channels?.get('qq') ? qqStickers.importFromQQ() : { ok: false, message: '没有启用 QQ 平台' })
-    api.rule(() => '- 管理员让你存某个表情（「存一下」「导入这个表情」）时用 qq_save_sticker；让你把 QQ 收藏里的表情导进来时用 qq_import_qq_stickers。别人让你存，不用理。')
+    qqFeature.mountRoutes()
+    api.rule(qqFeature.rule)
     api.route('/sticker/upload', async (req) => {
       const b = await http.body(req)
       const buf = Buffer.from(String(b.data || '').replace(/^data:[^,]+,/, ''), 'base64')
