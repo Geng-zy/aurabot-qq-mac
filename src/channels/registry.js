@@ -1,13 +1,13 @@
 // 平台适配器注册表：借鉴 AstrBot 的 PlatformAdapter / PlatformManager 分层。
 // 平台只负责：创建连接、把原始事件转成统一消息、把统一消息发回平台。
-import { createQqChannel } from './qq/index.js'
+import { createQqAdapter } from './qq/adapter.js'
 import { createTelegramChannel } from './telegram/index.js'
 
 const adapters = [
   {
     id: 'qq',
     label: 'QQ',
-    create: ({ getConfig, log, canReplayDelivery }) => createQqChannel({
+    create: ({ getConfig, log, canReplayDelivery }) => createQqAdapter({
       getConfig, log: log.child('onebot'), canReplayDelivery,
     }),
   },
