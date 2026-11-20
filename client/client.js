@@ -1128,9 +1128,15 @@ body[data-ds-dark-theme] .ab-root{
         { id: 'mindsettings', label: '设置', search: '参数 记性 遗忘 改写 情绪 后台预算 时区 年龄 生日 本地小模型 一键安装' },
       ] },
       { id: 'platforms', label: '平台', icon: 'puzzle', pages: [
-        { id: 'platforms', label: '平台总览', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
-        { id: 'qq', label: 'QQ', search: 'QQ 连接 权限 回复 模型 语音 空间' },
-        { id: 'telegram', label: 'Telegram', search: 'Telegram Bot Token 平台 配置 长轮询' },
+        { id: 'platforms', label: '平台连接', search: 'QQ Telegram 飞书 Discord 多平台 适配器 状态 能力' },
+      ] },
+      { id: 'qq', label: 'QQ 会话', icon: 'chat', pages: [
+        { id: 'connect', label: '连接', search: 'QQ 网关 SnowLuma OneBot 登录 工作区 自测 重置' },
+        { id: 'access', label: '白名单与权限', search: '管理员 群管 改资料 QQ 命令 好友申请 生图白名单' },
+        { id: 'group', label: '回复规则', search: '群聊 私聊 插话 连发 合并 转发' },
+        { id: 'model', label: '聊天模型', search: 'AI 大模型 视觉 看图 图片 思考强度' },
+        { id: 'asr', label: '语音识别', modules: ['voice'], search: '听语音 转文字 ASR' },
+        { id: 'diary', label: 'QQ 空间', modules: ['diary', 'qzone-social'], search: '空间日记 说说 空间互动' },
       ] },
       { id: 'media', label: '表达与创作', icon: 'sparkles', pages: [
         { id: 'voice', label: '语音合成', modules: ['voice'], search: 'TTS 说话 音色 Edge Breeze' },
@@ -1153,19 +1159,8 @@ body[data-ds-dark-theme] .ab-root{
       ] },
     ]
     const TABS = NAV_GROUPS.flatMap((group) => group.pages.map((page) => ({ ...page, group: group.id })))
-    // 旧书签/模块 tab 仍可落到原页面；导航里不再重复显示。
-    const LEGACY_PLATFORM_TABS = [
-      { id: 'connect', label: 'QQ · 连接', group: 'platforms', hidden: true },
-      { id: 'access', label: 'QQ · 权限', group: 'platforms', hidden: true },
-      { id: 'group', label: 'QQ · 回复', group: 'platforms', hidden: true },
-      { id: 'model', label: 'QQ · 模型', group: 'platforms', hidden: true },
-      { id: 'asr', label: 'QQ · 语音', group: 'platforms', hidden: true, modules: ['voice'] },
-      { id: 'diary', label: 'QQ · 空间', group: 'platforms', hidden: true, modules: ['diary', 'qzone-social'] },
-    ]
-    TABS.push(...LEGACY_PLATFORM_TABS)
     const FIND_SECTIONS = {
       platforms: [['platforms-status', '平台状态', 'QQ Telegram 飞书 适配器 能力 连接']],
-      telegram: [['telegram-config', 'Telegram 连接', 'Bot Token API 地址 管理员 白名单']],
       overview: [['overview-logs', '最近日志', '近期报错 运行状态']],
       connect: [['qq-workspace', '工作区与会话维护', '归档 重开 重置 搬家 目录 所有会话'], ['qq-endpoint', 'QQ 网关配置', 'WebSocket HTTP 令牌 OneBot 机器人号']],
       access: [
@@ -1446,9 +1441,7 @@ body[data-ds-dark-theme] .ab-root{
       useEffect(() => { loadUsage(); get('/models').then((r) => setModels(r.list || [])) }, [])
       const cfg = st.config
       const s = st.stats || {}
-      const platforms = st.channels || []
-      const online = platforms.filter((p) => p.ready || p.state === 'connected')
-      const conn = online.length > 0 || (st.onebot.state === 'connected' && !st.onebot.problem)
+      const conn = st.onebot.state === 'connected' && !st.onebot.problem
       const quick = (p, body) => async () => { const r = await post(p, body); toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err') }
       const model = models.find((m) => m.provider === cfg.model.provider && m.model === cfg.model.model)
       const vision = cfg.model.vision === 'off' ? '仅文字提示' : cfg.model.vision === 'on' ? '按视觉模式发送' : model?.vision === true ? '默认模型支持看图' : model?.vision === false ? '默认模型仅接收提示' : '随会话模型'
@@ -1559,10 +1552,10 @@ body[data-ds-dark-theme] .ab-root{
             h('div', { className: 'ab-cover-meta' }, h('i', { className: cx('ab-dot', connection.cls), 'aria-hidden': true }), connection.text, h('span', { 'aria-hidden': true }, '·'), cfg.enabled ? runMode(cfg) : '已停用'),
             h('h1', null, displayName),
             h('p', null, '聊天模型', h('strong', null, chatModel)),
-            h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'platforms') }, conn ? '查看她现在' : '检查平台连接', navIcon('next'))),
+            h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'connect') }, conn ? '查看她现在' : '检查 QQ 连接', navIcon('next'))),
           h('button', { type: 'button', className: 'ab-cover-portrait', 'aria-label': '查看人格卡和头像', onClick: () => go('selfmind') },
             h('img', { src: avatarSrc(st), alt: '' }))),
-        cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || '没有平台就绪。请在「平台」页检查连接。') : null,
+        cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || 'QQ 网关未就绪。请检查 OneBot 连接。') : null,
         st.outbox?.count ? h('div', { className: 'ab-note warn' }, `${st.outbox.count} 条消息待补发，QQ 网关恢复后会继续发送。`) : null,
         cfg.enabled && cfg.debug ? h(Card, { title: '调试对话', desc: '对话仅在面板和 DSH 中可见，不会发到 QQ 或写入长期记忆。',
           right: h(Btn, { small: true, onClick: quick('/debug/session') }, '打开 DSH 调试会话') }, h(DebugChat, { toast })) : null,
@@ -1577,12 +1570,8 @@ body[data-ds-dark-theme] .ab-root{
         usagePanel,
         h('div', { className: 'ab-overview-pair' },
           h('section', { className: 'ab-card ab-reception' },
-            h('div', { className: 'ab-section-heading' }, h('h2', null, '平台接收能力'), h('span', null, platforms.length ? `${platforms.length} 个平台 · ${online.length} 在线` : sessionCount + ' 个会话')),
-            h('ul', { className: 'ab-data-list' }, (platforms.length ? platforms.map((p) => ({
-              label: p.label || p.platform,
-              state: (p.ready ? '已就绪' : p.state === 'connecting' ? '连接中' : '未连接') + ' · ' + Object.entries(p.caps || {}).filter(([, v]) => v).length + ' 项能力',
-              target: 'platforms', icon: 'puzzle',
-            })) : capabilities.map(([label, state, target, icon]) => ({ label, state, target, icon }))).map(({ label, state, target, icon }) =>
+            h('div', { className: 'ab-section-heading' }, h('h2', null, 'QQ 接收能力'), h('span', null, sessionCount + ' 个会话')),
+            h('ul', { className: 'ab-data-list' }, capabilities.map(([label, state, target, icon]) =>
               h('li', { key: label }, target ? h('button', { type: 'button', onClick: () => go(target) }, navIcon(icon), h('b', null, label), h('small', null, state), navIcon('next'))
                 : h('div', null, navIcon(icon), h('b', null, label), h('small', null, state)))))),
           h('section', { className: 'ab-card ab-overview-paths' },
@@ -1603,7 +1592,7 @@ body[data-ds-dark-theme] .ab-root{
       const entry = (title, ...content) => h('div', { key: title }, h('dt', null, title), h('dd', null, ...content))
       return h('div', { className: 'ab-grid' },
         h(Card, { className: 'ab-about-project', title: 'AuraBot for macOS', desc: 'v' + st.version + ' · 面板 API v' + (st.apiVersion || '?') },
-          h('p', null, '由 Geng-zy 维护的 DeepSeek Harness 插件。心智核心管理大肥鱼的记忆、情绪和关系。平台层支持 QQ（OneBot v11）与 Telegram，也可部署本地念头模型和生图模型。'),
+          h('p', null, '由 Geng-zy 维护的 DeepSeek Harness 插件。心智核心管理大肥鱼的记忆、情绪和关系。Apple 芯片 Mac 上可通过 OneBot v11 接入 QQ，也可部署本地念头模型和生图模型。'),
           h('div', { className: 'ab-note' }, '插件更新请在 DSH 的插件管理器里进行；这里不再自己检查或安装新版本。'),
           h('div', { className: 'ab-about-links' },
             link('项目仓库', PROJECT_REPO, true),
@@ -1651,8 +1640,11 @@ body[data-ds-dark-theme] .ab-root{
     /** 平台入口：QQ / Telegram 共用状态卡；后续适配器会在这里出现。 */
     function Platforms({ st, go, draft, setDraft }) {
       const list = st.channels || []
+      const f = useField(draft, setDraft)
       const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
       const capLabel = { faces: '小黄脸', stickers: '表情包', voice: '语音', files: '文件', recall: '撤回', poke: '戳一戳', react: '贴表情', typing: '输入状态', history: '历史消息', forward: '合并转发', card: '名片', friendRequests: '好友申请', groupRequests: '入群申请', profile: '改资料', groupAdmin: '群管', text: '文字', reply: '回复', images: '图片' }
+      const scrollTo = (id) => document.getElementById('ab-section-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const tg = list.find((p) => p.platform === 'telegram')
       const items = list.length
         ? h('div', { className: 'ab-list' }, list.map((p) => h('div', { key: p.platform, className: 'ab-li ab-platform-row' },
           h('div', { className: 'meta' },
@@ -1661,49 +1653,19 @@ body[data-ds-dark-theme] .ab-root{
             h('span', { className: 'ab-muted ab-small' }, ' · ' + label(p.state) + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
           h('div', { className: 'ab-platform-caps' }, Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => h('span', { key: k, className: 'ab-platform-chip' }, capLabel[k] || k))),
           h('div', { className: 'ab-platform-actions' },
-            p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('qq') }, '配置 QQ') : null,
-            p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => go('telegram') }, '配置 Telegram') : null))))
+            p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null,
+            p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => scrollTo('telegram') }, '配置 Telegram') : null))))
         : h(Empty, { text: '还没有平台适配器' })
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 在「平台 → QQ」配置，Telegram 在「平台 → Telegram」配置。' }, items),
-      )
-    }
-
-    function QqPlatform({ st, draft, setDraft, toast, reload, go, openWizard }) {
-      const [active, setActive] = useState('connect')
-      const sections = [
-        ['connect', '连接'], ['access', '权限'], ['group', '回复'],
-        ['model', '模型'],
-        ...((st.modules || []).some((m) => m.id === 'voice' && m.running) ? [['asr', '语音']] : []),
-        ...((st.modules || []).some((m) => (m.id === 'diary' || m.id === 'qzone-social') && m.running) ? [['diary', '空间']] : []),
-      ]
-      const common = { st, draft, setDraft, toast, reload, go, openWizard }
-      const body = active === 'connect' ? h(Connect, common)
-        : active === 'access' ? h(Access, common)
-        : active === 'group' ? h(Group, common)
-        : active === 'model' ? h(Model, common)
-        : active === 'asr' ? h(Asr, common)
-        : h(Diary, common)
-      return h('div', { className: 'ab-grid' },
-        h(Card, { title: 'QQ 设置', desc: '连接、权限、回复、模型、语音和空间都归在 QQ 平台下；以后其他平台按同样结构扩展。' },
-          h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 6 } },
-            sections.map(([id, label]) => h(Btn, { key: id, small: true, kind: active === id ? 'primary' : 'ghost', onClick: () => setActive(id) }, label)))),
-        body)
-    }
-
-    function Telegram({ st, draft, setDraft }) {
-      const f = useField(draft, setDraft)
-      const tg = (st.channels || []).find((p) => p.platform === 'telegram')
-      const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
-      return h('div', { className: 'ab-grid' },
-        h(Card, { title: 'Telegram 连接', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },
+        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置；Telegram 直接在下方填写。' }, items),
+        h(Card, { section: 'telegram', title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },
           h(Row, { label: '启用 Telegram' }, f.sw('platforms.telegram.enabled')),
           h(Row, { label: 'Bot API 地址', hint: '默认 https://api.telegram.org；服务器访问不了 Telegram 时填可用反代' }, f.text('platforms.telegram.apiBase', { placeholder: 'https://api.telegram.org' })),
           h(Row, { label: 'Bot Token', hint: '只保存在本机配置里' }, f.text('platforms.telegram.token', { type: 'password', placeholder: draft.platforms?.telegram?.tokenSet ? '已保存' : '123456:ABC...' })),
           h(Row, { label: '管理员 Telegram ID', hint: '你的 Telegram 用户 ID，可先用 @userinfobot 查' }, f.text('platforms.telegram.ownerQQ')),
           h(Row, { label: '私聊白名单', hint: '允许私聊的 Telegram 用户 ID，一行一个' }, f.list('platforms.telegram.allow.private', { placeholder: '每行一个用户 ID' })),
-          h(Row, { label: '群白名单', hint: '允许的 Telegram 群 ID，一行一个（群 ID 通常是负数）' }, f.list('platforms.telegram.allow.groups', { placeholder: '每行一个群 ID' })),
-          h('div', { className: 'ab-muted ab-small', style: { marginTop: 10 } }, '能力：文字、回复、图片。语音、文件、原生表情暂未开放。')))
+          h(Row, { label: '群白名单', hint: '允许的 Telegram 群 ID，一行一个（群 ID 通常是负数）' }, f.list('platforms.telegram.allow.groups', { placeholder: '每行一个群 ID' })))
+      )
     }
 
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
@@ -5137,7 +5099,7 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 面板主体 ----------------
     const TAB_CONTENT = {
-      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms, qq: QqPlatform, telegram: Telegram,
+      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms,
       connect: Connect, group: Group, model: Model, asr: Asr, access: Access, diary: Diary,
       voice: Voice, stickers: Stickers, imagegen: ImageGen, song: Song, video: LocalApi,
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,
@@ -5145,7 +5107,7 @@ body[data-ds-dark-theme] .ab-root{
     }
     const moduleSearchText = (m) => [m.description, ...(m.settings || []).flatMap((s) => [s.label, s.key, s.hint])].filter(Boolean).join(' ')
     const TAB_KEYS = {
-      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], telegram: ['platforms.telegram'], qq: ['platforms.qq'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
+      connect: ['platforms', 'snowluma', 'botQQ', 'workspaceDir'], platforms: ['platforms'], access: ['platforms', 'ownerQQ', 'ownerName', 'ownerLevel', 'freedom', 'approvalNotify', 'notice', 'approvalViaQQ', 'qqApi', 'longTasks', 'profilePerms', 'allow', 'drawAllow', 'subagentBackground', 'files', 'group.ownerTools', 'group.ownerToolsGroups'],
       group: ['group.wakeWords', 'group.mustMaxPerHour', 'group.ignoreAtOthers', 'group.crossRead', 'group.engagedMax', 'group.burstMax', 'group.burstWindowSec', 'group.cooldownSec', 'group.minRecentMessages', 'group.activeWindowSec', 'group.overrides', 'merge', 'titleFilter', 'chat'],
       model: ['model', 'chatModels'], voice: ['voice'], asr: ['voice.asr', 'voice.asrApi'], stickers: ['stickers'],
       imagegen: ['imageGen', 'local'], diary: ['diary', 'qzoneSocial'], mood: ['mind', 'memory'], song: ['song'],
@@ -5281,12 +5243,9 @@ body[data-ds-dark-theme] .ab-root{
           err ? h(Card, { title: '暂时无法读取 AuraBot', desc: err, right: h(Btn, { onClick: reload }, '重试') }) : h(Empty, { text: '正在读取 AuraBot…' })))
       }
       const cfg = st.config
-      const platformList = st.channels || []
-      const onlinePlatforms = platformList.filter((p) => p.ready || p.state === 'connected')
-      const conn = onlinePlatforms.length ? true : st.onebot.state === 'connected' && !st.onebot.problem
-      const connection = onlinePlatforms.length
-        ? { cls: 'ok', text: onlinePlatforms.map((p) => p.label || p.platform).join(' / ') + ' 已连接' }
-        : { cls: cfg.enabled && (st.onebot.state === 'connecting' || platformList.some((p) => p.state === 'connecting')) ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? '平台未就绪' : '平台未连接' }
+      const conn = st.onebot.state === 'connected' && !st.onebot.problem
+      const connection = conn ? { cls: 'ok', text: 'QQ 已连接' }
+        : { cls: cfg.enabled && st.onebot.state === 'connecting' ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? 'QQ 未就绪' : 'QQ 未连接' }
       const persona = st.personas.find((p) => p.id === cfg.persona.current)
       const displayName = st.onebot.login?.nickname || persona?.name || '大肥鱼'
       const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true) }
@@ -5304,7 +5263,7 @@ body[data-ds-dark-theme] .ab-root{
       const embeddedModules = Object.groupBy(customUi.filter(embedded), tabOf)
       const extTabs = customUi.filter((m) => !embedded(m))
         .map((m) => ({ id: 'ext:' + m.id, label: m.name, ext: m.id, group: 'extensions', search: moduleSearchText(m) }))
-      const groups = NAV_GROUPS.map((g) => ({ ...g, pages: [...tabs, ...extTabs].filter((t) => t.group === g.id && !t.hidden) }))
+      const groups = NAV_GROUPS.map((g) => ({ ...g, pages: [...tabs, ...extTabs].filter((t) => t.group === g.id) }))
       const current = [...tabs, ...extTabs].find((t) => t.id === tab) || tabs[0]
       const group = groups.find((g) => g.id === current.group)
       const body = current.ext ? ExtPage : TAB_CONTENT[current.id]
