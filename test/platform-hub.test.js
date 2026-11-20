@@ -38,3 +38,10 @@ test('hub.sendText 能通过非 QQ 平台发送', async (t) => {
   assert.equal(sent[0].chatId, 'demo:private:2')
   assert.equal(sent[0].message[0].data.text, '来自别的平台')
 })
+
+test('平台适配器可以动态注册', async () => {
+  const { registerPlatformAdapter, listPlatformAdapters } = await import('../src/channels/registry.js')
+  registerPlatformAdapter({ id: 'demo-registry', label: 'Demo', create: () => ({ platform: 'demo-registry' }) })
+  assert.ok(listPlatformAdapters().some((x) => x.id === 'demo-registry'))
+  assert.throws(() => registerPlatformAdapter({ id: 'demo-registry', create: () => ({}) }), /已经注册/)
+})

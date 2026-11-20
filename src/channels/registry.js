@@ -1,10 +1,9 @@
-// 平台适配器注册表：借鉴 AstrBot 的 PlatformAdapter / PlatformManager 分层，
-// 宿主只按注册表创建连接，不再把 QQ、Telegram 写死在 host 里。
+// 平台适配器注册表：借鉴 AstrBot 的 PlatformAdapter / PlatformManager 分层。
+// 平台只负责：创建连接、把原始事件转成统一消息、把统一消息发回平台。
 import { createQqChannel } from './qq/index.js'
 import { createTelegramChannel } from './telegram/index.js'
 
-/** 每个平台只声明：id、给人看的名字、怎么创建。 */
-export const BUILTIN_ADAPTERS = Object.freeze([
+const adapters = [
   {
     id: 'qq',
     label: 'QQ',
@@ -17,14 +16,29 @@ export const BUILTIN_ADAPTERS = Object.freeze([
     label: 'Telegram',
     create: ({ getConfig, log }) => createTelegramChannel({ getConfig, log: log.child('telegram') }),
   },
-])
+]
+
+/** AstrBot 风格的注册入口：后续平台或扩展模块可以注册自己的适配器。 */
+export function registerPlatformAdapter(adapter) {
+  if (!adapter || typeof adapter !== 'object') throw new Error('平台适配器必须是对象')
+  const id = String(adapter.id || '').trim()
+  if (!/^[a-z][a-z0-9_-]{1,31}$/u.test(id)) throw new Error(`平台适配器 id 不合法：${id}`)
+  if (typeof adapter.create !== 'function') throw new Error(`平台适配器 ${id} 缺少 create()`)
+  if (adapters.some((a) => a.id === id)) throw new Error(`平台适配器已经注册：${id}`)
+  adapters.push({ ...adapter, id })
+  return adapter
+}
+
+export function listPlatformAdapters() {
+  return adapters.map(({ id, label }) => ({ id, label: label || id }))
+}
 
 /**
  * 按注册表创建所有平台连接。
- * ctx.log 需要是带 child() 的 logger；后续新增平台只改这张表。
+ * ctx.log 需要是带 child() 的 logger；新增平台只改注册表或调用 registerPlatformAdapter。
  */
 export function createPlatformChannels(ctx) {
-  return BUILTIN_ADAPTERS.map((adapter) => {
+  return adapters.map((adapter) => {
     try {
       return adapter.create(ctx)
     } catch (error) {
