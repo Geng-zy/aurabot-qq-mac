@@ -71,3 +71,24 @@ test('#31 面板改名字 / 标签：去掉 #、去重、最多 5 个，名字�
   assert.deepEqual(r.item.tags, ['开心', '卖萌', '一二三四五六七八', 'a', 'b'])
   assert.equal(store.rename('nope', 'x').ok, false)
 })
+
+
+test('非 QQ 聊天收表情不写 QQ 收藏', async () => {
+  const cfg = normalize({ dryRun: false, stickers: { caption: false, enabled: true, collect: true } })
+  let qqWrites = 0
+  const store = createStickerStore({
+    dsh: {},
+    getConfig: () => cfg,
+    log,
+    qq: {
+      async addCustomFace() { qqWrites++; return { emoji_id: 'x' } },
+      async modifyCustomFace() {},
+      async deleteCustomFace() {},
+    },
+    downloadSegment: async (seg) => Buffer.from(String(seg.data.url).slice('base64://'.length), 'base64'),
+    shouldSyncQQ: () => false,
+  })
+  const r = await store.collect({ type: 'image', data: { url: 'base64://' + gif(9).toString('base64'), sub_type: 1 } }, 'telegram:group:1')
+  assert.equal(r.ok, true, r.reason)
+  assert.equal(qqWrites, 0)
+})
