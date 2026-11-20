@@ -3,8 +3,8 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, realpathSync, lstatSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { assertPublicUrl, fetchImage } from '../../core/net.js'
-import { imageSize, mimeOf } from '../../core/image-info.js'
+import { assertPublicUrl, fetchImage } from '../../../../core/net.js'
+import { imageSize, mimeOf } from '../../../../core/image-info.js'
 import { insideFolder } from './sources.js'
 
 const MAX_BYTES = 8 * 1024 * 1024

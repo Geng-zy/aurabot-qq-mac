@@ -9,7 +9,7 @@ process.env.AURABOT_DATA_DIR = mkdtempSync(join(tmpdir(), 'aurabot-qzone-'))
 const { createQzone } = await import('../src/features/qzone.js')
 const { dataDir, readJson, writeJson } = await import('../src/core/store.js')
 const { default: qzoneSocial } = await import('../src/channels/qq/features/qzone-social/index.js')
-const { default: diary } = await import('../src/modules/diary/index.js')
+const { default: diary } = await import('../src/channels/qq/features/diary/index.js')
 
 const noopLog = { info() {}, warn() {} }
 const hub = { chatLogOf: () => [] }

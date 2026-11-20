@@ -3,9 +3,9 @@
 import { createHash } from 'node:crypto'
 import { lstatSync, readdirSync, realpathSync, readFileSync } from 'node:fs'
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path'
-import { stickerPath } from '../../features/stickers.js'
-import { dataDir } from '../../core/store.js'
-import { clipText } from '../../core/text.js'
+import { stickerPath } from '../../../../features/stickers.js'
+import { dataDir } from '../../../../core/store.js'
+import { clipText } from '../../../../core/text.js'
 
 export const clip = (value, max = 160) => clipText(String(value || '').replace(/[\r\n\t]+/g, ' ').trim(), max)
 export const sourceId = (value) => createHash('sha256').update(String(value)).digest('hex').slice(0, 28)

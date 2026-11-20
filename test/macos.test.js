@@ -16,7 +16,7 @@ const studio = await import('../src/song/studio.js')
 // 装 uv、选镜像、解压这些通用的东西在 core/python.js（所有用 Python 的功能共用）
 const py = await import('../src/core/python.js')
 const { pickMacVoice } = await import('../src/voice/tts.js')
-const { isSystemLink } = await import('../src/modules/diary/archive.js')
+const { isSystemLink } = await import('../src/channels/qq/features/diary/archive.js')
 
 test('翻唱环境路径：env/bin 下的程序，不带扩展名', () => {
   const mac = studio.pathsOf('/Users/x/Aurabot/rvc')

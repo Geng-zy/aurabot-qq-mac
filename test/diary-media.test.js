@@ -10,9 +10,9 @@ after(() => rmSync(root, { recursive: true, force: true }))
 
 const { normalize } = await import('../src/core/config.js')
 const { createQzone } = await import('../src/features/qzone.js')
-const { collectSources, localPictures, clip } = await import('../src/modules/diary/sources.js')
-const { createDiaryAssets, downloadImage } = await import('../src/modules/diary/assets.js')
-const { createDiaryMedia, parseDraft, reselectPictures, withCredits } = await import('../src/modules/diary/media.js')
+const { collectSources, localPictures, clip } = await import('../src/channels/qq/features/diary/sources.js')
+const { createDiaryAssets, downloadImage } = await import('../src/channels/qq/features/diary/assets.js')
+const { createDiaryMedia, parseDraft, reselectPictures, withCredits } = await import('../src/channels/qq/features/diary/media.js')
 const { readJson, writeJson, dataDir } = await import('../src/core/store.js')
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jXioAAAAASUVORK5CYII=', 'base64')
 const log = { info() {}, warn() {} }
@@ -320,7 +320,7 @@ test('草稿生成后撤销配图授权，原生 post 最后一道检查也会�
 })
 
 test('原生日记的预览接口拒绝 GET 和表单请求，JSON POST 不发布', async () => {
-  const definition = (await import('../src/modules/diary/index.js')).default
+  const definition = (await import('../src/channels/qq/features/diary/index.js')).default
   const f = fixture()
   const routes = new Map()
   const disposers = []
@@ -342,7 +342,7 @@ test('原生日记的预览接口拒绝 GET 和表单请求，JSON POST 不发�
 test('旧的发动态念头驱动日记动作，翻唱动态保留，私密念头不进入发布材料', async (t) => {
   t.mock.method(Date, 'now', () => Date.parse('2026-11-14T11:55:00+08:00'))
   const { createMotivation } = await import('../src/mind/motivation/index.js')
-  const definition = (await import('../src/modules/diary/index.js')).default
+  const definition = (await import('../src/channels/qq/features/diary/index.js')).default
   const social = (await import('../src/channels/qq/features/qzone-social/index.js')).default
   const f = fixture({ config: { diary: { enabled: true, visibility: 'friends', attachImage: false } }, reply: '今天想留一点空白给自己。' })
   writeJson(dataDir('diary.json'), { history: [] })

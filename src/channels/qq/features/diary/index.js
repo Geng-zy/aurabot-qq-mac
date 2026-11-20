@@ -1,11 +1,11 @@
 // 内置模块：空间日记。根据可公开的经历和当前心情写 QQ 空间说说。
 // 导出 createQzone 的发布与历史接口。
 
-import { createQzone, wantsQzonePost } from '../../features/qzone.js'
-import { resolveAudience } from '../../features/qzone-audience.js'
-import { pickDiaryImage } from '../../features/diary-image.js'
-import { defineTool, str } from '../../tools/tools.js'
-import { mimeOf } from '../../core/image-info.js'
+import { createQzone, wantsQzonePost } from '../../../../features/qzone.js'
+import { resolveAudience } from '../../../../features/qzone-audience.js'
+import { pickDiaryImage } from '../../../../features/diary-image.js'
+import { defineTool, str } from '../../../../tools/tools.js'
+import { mimeOf } from '../../../../core/image-info.js'
 import { createDiaryMedia } from './media.js'
 import { createDiaryArchive } from './archive.js'
 

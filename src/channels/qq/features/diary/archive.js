@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, realpathSync, writeFileSync, unlinkSync } from 'node:fs'
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path'
-import { readJson, writeJson } from '../../core/store.js'
+import { readJson, writeJson } from '../../../../core/store.js'
 import { createDiaryAssets } from './assets.js'
 import { collectSources, insideFolder, sourceId } from './sources.js'
 
