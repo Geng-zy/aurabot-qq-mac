@@ -4401,90 +4401,28 @@ body[data-ds-dark-theme] .ab-root{
       static getDerivedStateFromError(error) { return { error } }
       render() { return this.state.error ? h('div', { className: 'ab-note err' }, '这个模块的面板出错了：' + String((this.state.error && this.state.error.message) || this.state.error)) : this.props.children }
     }
-    function panelSandboxHtml(token, source, settings, draft) {
-      const safe = (v) => JSON.stringify(v).replace(/</g, '\\u003c')
-      const shim = [
-        'const TOKEN=' + safe(token) + ';',
-        'const SOURCE=' + safe(source) + ';',
-        'const SETTINGS=' + safe(settings) + ';',
-        'const DRAFT=' + safe(draft) + ';',
-        "const root=document.getElementById('root');",
-        'let seq=0,current=SETTINGS,draft=DRAFT,hooks=[],hookPos=0,effects=[],pending=new Map();',
-        "function post(type,payload){parent.postMessage({token:TOKEN,type:type,payload:payload},'*')}",
-        "function rpc(type,payload){return new Promise(function(resolve){var id=++seq;pending.set(String(id),resolve);post('rpc',{id:id,type:type,payload:payload})})}",
-        "window.addEventListener('message',function(e){var d=e.data;if(!d||d.token!==TOKEN||d.type!=='rpc-result')return;var f=pending.get(String(d.id));if(f){pending.delete(String(d.id));f(d.result)}});",
-        "function call(path,body){return rpc('call',{path:path,body:body})}",
-        "function save(patch){return rpc('save',{patch:patch})}",
-        "function toast(text,kind){post('toast',{text:text,kind:kind})}",
-        "function reload(){post('reload')}",
-        "function setSettings(patch){current=Object.assign({},current,patch||{});render()}",
-        "function h(type,props){var children=[];for(var i=2;i<arguments.length;i++)children.push(arguments[i]);return{type:type,props:props||{},children:children}}",
-        "function flatten(v,out){if(Array.isArray(v)){v.forEach(function(x){flatten(x,out)})}else if(v!==null&&v!==undefined&&v!==false&&v!==true){out.push(v)}return out}",
-        "function mount(v,parent){if(v===null||v===undefined||v===false||v===true)return;if(Array.isArray(v)){v.forEach(function(x){mount(x,parent)});return}if(typeof v==='string'||typeof v==='number'){parent.appendChild(document.createTextNode(String(v)));return}if(typeof v.type==='function'){mount(v.type(Object.assign({},v.props,{children:flatten(v.children,[]).concat(flatten(v.props.children,[]))})),parent);return}var tag=v.type==='Fragment'?'div':String(v.type);var el=document.createElement(tag);var p=v.props||{};Object.keys(p).forEach(function(k){var val=p[k];if(k==='children'||val===null||val===undefined)return;if(k==='className'){el.className=val;return}if(k==='style'&&typeof val==='object'){Object.assign(el.style,val);return}if(k==='value'||k==='checked'||k==='disabled'||k==='placeholder'||k==='type'||k==='title'){el[k]=val;return}if(k.slice(0,2)==='on'&&typeof val==='function'){var ev=k.slice(2).toLowerCase();el.addEventListener(ev,function(e){if(k==='onChange'&&(e.target.type==='checkbox'||e.target.type==='radio')){val(e.target.checked)}else{val(e)}});return}if(k==='html'){el.innerHTML=val;return}try{el.setAttribute(k,val)}catch(e){}});flatten(v.children,[]).concat(flatten(p.children,[])).forEach(function(c){mount(c,el)});parent.appendChild(el)}",
-        "function useState(init){var i=hookPos++;if(!(i in hooks))hooks[i]=typeof init==='function'?init():init;return[hooks[i],function(v){hooks[i]=typeof v==='function'?v(hooks[i]):v;schedule()}]}",
-        "function useEffect(fn,deps){var i=hookPos++;var prev=hooks[i];if(!prev||!deps||!prev.deps||deps.some(function(x,j){return x!==prev.deps[j]})){hooks[i]={deps:deps,fn:fn};effects.push(fn)}}",
-        "function useMemo(fn,deps){var i=hookPos++;var prev=hooks[i];if(!prev||!deps||!prev.deps||deps.some(function(x,j){return x!==prev.deps[j]})){hooks[i]={deps:deps,value:fn()}}return hooks[i].value}",
-        "function useRef(v){var i=hookPos++;if(!(i in hooks))hooks[i]={current:v};return hooks[i]}",
-        "function useCallback(fn,deps){return useMemo(function(){return fn},deps)}",
-        "function schedule(){if(schedule.pending)return;schedule.pending=true;setTimeout(function(){schedule.pending=false;render()},0)}",
-        "function render(){hookPos=0;effects=[];root.innerHTML='';try{var node=C({settings:current,draftSettings:draft,setSettings:setSettings,save:save,toast:toast,reload:reload});mount(node,root);effects.forEach(function(fn){try{fn()}catch(e){console.error(e)}});post('height',{height:document.body.scrollHeight+20})}catch(e){root.textContent='面板出错了：'+String(e&&e.message||e);post('error',{message:String(e&&e.message||e)})}}",
-        "var React={createElement:h,Fragment:'div',useState:useState,useEffect:useEffect,useMemo:useMemo,useRef:useRef,useCallback:useCallback};",
-        "var ui={Card:function(p){return h('section',{className:'card'},p.title?h('h3',null,p.title):null,p.desc?h('p',{className:'muted'},p.desc):null,p.right?h('div',{className:'right'},p.right):null,p.children)},Btn:function(p){return h('button',{className:'btn '+(p.kind||'')+(p.small?' small':''),disabled:p.disabled,onClick:p.onClick},p.children)},Switch:function(p){return h('input',{type:'checkbox',checked:!!p.value,onChange:p.onChange})},Row:function(p){return h('div',{className:'row'},p.label?h('label',null,p.label):null,h('div',null,p.children))},Empty:function(p){return h('div',{className:'empty'},p.text||'暂无')},Select:function(p){return h('select',{value:p.value,onChange:function(e){p.onChange&&p.onChange(e.target.value)}}, (p.options||[]).map(function(o){var v=typeof o==='string'?o:o.value;var l=typeof o==='string'?o:o.label;return h('option',{value:v,key:v},l)}))},Seg:function(p){return h('div',{className:'seg'},p.children)},Range:function(p){return h('input',{type:'range',min:p.min,max:p.max,step:p.step,value:p.value,onChange:function(e){p.onChange&&p.onChange(Number(e.target.value))}})}};",
-        "var C;try{C=new Function('React','h','ui','call','save','toast','reload','settings','draftSettings','setSettings',SOURCE)(React,h,ui,call,save,toast,reload,current,draft,setSettings);if(typeof C!=='function')throw new Error('panel.js 最后要 return 一个组件（函数）')}catch(e){root.textContent='面板加载失败：'+String(e&&e.message||e);post('error',{message:String(e&&e.message||e)});throw e}",
-        "render();post('ready',{});"
-      ].join('\n')
-      return '<!doctype html><html><head><meta charset="utf-8"><style>'
-        + 'body{font:13px/1.5 system-ui,sans-serif;margin:0;padding:8px;color:#ddd;background:transparent}.card{border:1px solid #333;border-radius:8px;padding:10px;margin:8px 0}.muted{color:#999;font-size:12px}.btn{border:1px solid #444;background:#222;color:#eee;border-radius:6px;padding:4px 10px;cursor:pointer}.btn.primary{background:#3b6ea8}.btn.small{padding:2px 7px;font-size:12px}.row{display:flex;gap:8px;align-items:center;margin:6px 0}.row>label{min-width:90px;color:#aaa}.right{float:right}.empty{color:#888;padding:12px}.seg{display:flex;gap:4px}select,input{background:#1c1c1c;color:#eee;border:1px solid #444;border-radius:4px;padding:3px}'
-        + '</style></head><body><div id="root"></div><script>' + shim + '</script></body></html>'
-    }
     function ExtPanel({ m, settings, draftSettings, setSettings, toast, reload }) {
-      const [src, setSrc] = useState(null)
+      const [Comp, setComp] = useState(null)
       const [err, setErr] = useState('')
-      const [height, setHeight] = useState(160)
-      const frame = useRef(null)
-      const token = useMemo(() => 'panel-' + m.id + '-' + Date.now() + '-' + Math.random().toString(36).slice(2), [m.id, m.startedAt])
       useEffect(() => {
         let alive = true
-        fetch(API + '/modules/panel?id=' + encodeURIComponent(m.id) + '&t=' + Date.now(), { cache: 'no-store' })
-          .then((r) => (r.ok ? r.text() : Promise.reject(new Error('读不到 panel.js'))))
-          .then((text) => { if (alive) setSrc(text) })
-          .catch((e) => { if (alive) setErr(e.message) })
+        fetch(API + '/modules/panel?id=' + encodeURIComponent(m.id) + '&t=' + Date.now(), { cache: 'no-store' }).then((r) => (r.ok ? r.text() : Promise.reject(new Error('读不到 panel.js')))).then((src) => {
+          // 接口挂载位置跟服务端一致：内置模块（以及从内置搬出去的）接口在根路径，别的模块在自己 /ext/<id>/ 下。
+          // 按老写法一律拼 /ext/<id>，内置模块面板里的 call('/x') 会去请求 /ext/<id>/x，直接 404。
+          const base = m.routesAtRoot ? '' : '/ext/' + m.id
+          const call = (p, body) => (body === undefined ? get(base + p) : post(base + p, body))
+          const ui = { Card, Btn, Switch, Row, Empty, Select, Seg, Range }
+          const C = new Function('React', 'h', 'ui', 'call', src)(React, h, ui, call)
+          if (typeof C !== 'function') throw new Error('panel.js 最后要 return 一个组件（函数）')
+          if (alive) setComp(() => C)
+        }).catch((e) => alive && setErr(e.message))
         return () => { alive = false }
       }, [m.id, m.startedAt])
-      const doc = useMemo(() => src ? panelSandboxHtml(token, src, settings, draftSettings) : '', [token, src, JSON.stringify(settings), JSON.stringify(draftSettings)])
-      useEffect(() => {
-        const base = m.routesAtRoot ? '' : '/ext/' + m.id
-        const onMessage = async (event) => {
-          if (!frame.current || event.source !== frame.current.contentWindow) return
-          const data = event.data
-          if (!data || data.token !== token) return
-          if (data.type === 'rpc' && data.payload) {
-            let result = null
-            try {
-              const { id, type, payload } = data
-              if (type === 'call') {
-                const p = String(payload.path || '')
-                let decoded = p
-                try { decoded = decodeURIComponent(p) } catch {}
-                if (!p.startsWith('/') || decoded.includes('..') || decoded.includes('\\') || decoded.includes('://')) throw new Error('panel 接口路径不合法')
-                result = payload.body === undefined ? await get(base + p) : await post(base + p, payload.body)
-              }
-              else if (type === 'save') result = await post('/save', { ext: { [m.id]: payload.patch } })
-            } catch (error) { result = { ok: false, message: String(error.message || error) } }
-            frame.current.contentWindow.postMessage({ token, type: 'rpc-result', id: data.payload.id, result }, '*')
-          } else if (data.type === 'toast') toast?.(data.payload?.text || '', data.payload?.kind || 'ok')
-          else if (data.type === 'height') setHeight(Math.max(80, Math.min(2000, Number(data.payload?.height) || 160)))
-          else if (data.type === 'reload') reload?.()
-          else if (data.type === 'error') setErr(data.payload?.message || 'panel.js 出错')
-        }
-        window.addEventListener('message', onMessage)
-        return () => window.removeEventListener('message', onMessage)
-      }, [token, m.id, m.startedAt, m.routesAtRoot, get, post, toast, reload])
       if (err) return h('div', { className: 'ab-note err' }, '面板加载失败：' + err)
-      if (!src) return h(Empty, { icon: '⏳', text: '加载中…' })
-      return h('iframe', { ref: frame, sandbox: 'allow-scripts', srcDoc: doc, title: m.name || m.id, style: { width: '100%', height, border: 0, background: 'transparent' } })
+      if (!Comp) return h(Empty, { icon: '⏳', text: '加载中…' })
+      const save = async (patch) => { const r = await post('/save', { ext: { [m.id]: patch } }); toast(r.ok === false ? r.message : '保存好了', r.ok === false ? 'err' : 'ok'); reload() }
+      return h(PanelBoundary, null, h(Comp, { settings, draftSettings, setSettings, save, toast, reload }))
     }
-
     function ExtPage({ st, draft, setDraft, toast, reload, mod, embedded }) {
       const m = (st.modules || []).find((x) => x.id === mod)
       const f = useField(draft, setDraft)

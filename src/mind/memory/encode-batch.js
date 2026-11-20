@@ -79,10 +79,6 @@ export function createEncodeBatch({ store, now, S, deps, log, cursorOf, sourceDa
       if (!recovery) store.del('encode.fail.' + window)
       // 已在指定群聊提过的分享仍只属于那个群，不能靠重新整理变成别处的经历。
       const audienceShares = [...new Set(rows.flatMap((r) => JSON.parse(r.json || '{}').audienceShares || []))]
-      // 非管理员窗口默认只带回这个窗口：第三方私聊/群聊的经历不能被别处召回。
-      const where = deps.place?.(window)
-      const ownerWindow = Boolean(where?.kind === 'private' && deps.isOwner?.(where.platform ? `${where.platform}:${where.id}` : where.id))
-      const windowOnly = Boolean(where && !ownerWindow)
       for (const ep of Array.isArray(parsed?.episodes) ? parsed.episodes : []) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue
@@ -116,7 +112,7 @@ export function createEncodeBatch({ store, now, S, deps, log, cursorOf, sourceDa
           importance: ep.importance ?? 0.5, emotion: emo, about, speaker,
           who: Array.isArray(ep.who) ? ep.who.map(String) : [],
           sources: src.map((r) => r.id), due, attention,
-          extra: { ...((audienceShares.length || windowOnly) ? { audienceOnly: true, audienceShares } : {}), ...(ep.secret === true ? { secret: true } : {}), ...follow, ...(yb ? { yearly: `${String(yb.month).padStart(2, '0')}-${String(yb.day).padStart(2, '0')}` } : {}) },
+          extra: { ...(audienceShares.length ? { audienceOnly: true, audienceShares } : {}), ...(ep.secret === true ? { secret: true } : {}), ...follow, ...(yb ? { yearly: `${String(yb.month).padStart(2, '0')}-${String(yb.day).padStart(2, '0')}` } : {}) },
         })
         ids.push(id)
         const quote = publicQuote(ep, src, window)

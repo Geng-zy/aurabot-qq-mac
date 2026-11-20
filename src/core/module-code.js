@@ -59,7 +59,7 @@ export function rewriteImports(code, fromKey, keep = new Set()) {
  *   但 getPrototypeOf 掐成 null —— Object.getPrototypeOf(api.core).hub 也绕不回去。
  */
 export function scopeCoreForModule(core, id) {
-  if (!core || !core.hub || typeof core.hub !== 'object') return {}
+  if (!core || !core.hub || typeof core.hub.subagentFor !== 'function') return core || {}
   const scopedHub = {}
   for (const name of Object.getOwnPropertyNames(core.hub)) {
     if (name === 'runSubagentTurn' || name === 'subagentFor') continue
@@ -74,28 +74,15 @@ export function scopeCoreForModule(core, id) {
       Object.defineProperty(scopedHub, name, { enumerable: true, configurable: true, get: () => core.hub[name], set: (v) => { core.hub[name] = v } })
     }
   }
-  if (typeof core.hub.subagentFor === 'function') {
-    Object.defineProperty(scopedHub, 'runSubagentTurn', {
-      enumerable: true, configurable: true,
-      value: (name, title, prompt, opts = {}) => core.hub.subagentFor(id)(name, title, prompt, opts),
-    })
-  }
-  const hidden = new Set(['modules', 'mindFor', 'setConfig'])
+  Object.defineProperty(scopedHub, 'runSubagentTurn', {
+    enumerable: true, configurable: true,
+    value: (name, title, prompt, opts = {}) => core.hub.subagentFor(id)(name, title, prompt, opts),
+  })
   return new Proxy(core, {
     get(target, key, recv) {
       if (key === 'hub') return scopedHub
-      // 模块不能拿回内核控制面或伪造自己的身份；配置只给只读快照。
-      if (hidden.has(key)) return undefined
-      if (key === 'getConfig') return () => structuredClone(target.getConfig())
       return Reflect.get(target, key, recv)
     },
-    getOwnPropertyDescriptor(target, key) {
-      if (key === 'hub') return { value: scopedHub, enumerable: true, configurable: true, writable: false }
-      if (hidden.has(key)) return undefined
-      return Reflect.getOwnPropertyDescriptor(target, key)
-    },
-    ownKeys(target) { return Reflect.ownKeys(target).filter((key) => !hidden.has(key)) },
-    has(target, key) { return key === 'hub' || (!hidden.has(key) && Reflect.has(target, key)) },
     getPrototypeOf() { return null }, // 摸原型拿回原始 hub 的路也堵死（三审 #177）
   })
 }

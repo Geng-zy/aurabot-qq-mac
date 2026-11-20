@@ -32,7 +32,7 @@ test('模块声明 panel 路由复用完整管理闸，普通客户端路由保�
   assert.equal((await fake.call(path, undefined, { 'x-forwarded-for': '127.0.0.1' }, '203.0.113.7')).status, 403)
   assert.equal((await fake.call(path, undefined, { host: 'evil.example' }, '127.0.0.1')).status, 403)
   assert.equal((await fake.call(path, {}, { origin: 'https://evil.example' }, '127.0.0.1')).status, 403)
-  assert.equal((await fake.call('/ext/route-probe/client', undefined, {}, '203.0.113.7')).status, 403)
+  assert.equal((await fake.call('/ext/route-probe/client', undefined, {}, '203.0.113.7')).json().client, true)
   const setSecurity = (patch) => app.setConfig({ ...app.getConfig(), security: { ...app.getConfig().security, ...patch } })
   setSecurity({ trustedProxy: '127.0.0.1' })
   assert.equal((await fake.call(path, undefined, { 'x-forwarded-for': '203.0.113.7' }, '127.0.0.1')).status, 403)

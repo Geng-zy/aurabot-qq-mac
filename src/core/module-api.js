@@ -52,8 +52,7 @@ export function createModuleApi({ state, isDisposed, logger, getConfig, setConfi
       version,
       log: mlog,
       // ---- 配置 ----
-      // 只读快照：模块不能原地改宿主配置，再借下一次保存落盘。
-      config: () => structuredClone(getConfig()),
+      config: () => getConfig(),
       setConfig: writable('setConfig', (patch) => setConfig(typeof patch === 'function' ? patch(getConfig()) : deepMerge(getConfig(), patch))),
       settings: () => ({ ...(def.defaults || {}), ...(getConfig().ext?.[id] || {}) }),
       saveSettings: writable('saveSettings', (patch) => {
