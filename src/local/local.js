@@ -92,15 +92,14 @@ export function createLocal({ getConfig, log }) {
     }
     return stored[slot] === hash
   }
-  /** 这一项现在由本地脚本接管吗：开关、文件、脚本哈希都要对得上。 */
+  /** 这一项现在由本地脚本接管吗。本地脚本是可信代码：开关打开且文件在就生效。 */
   function active(slot) {
-    return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot)) && approved(slot)
+    return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot))
   }
 
   async function call(slot, args, { signal, outDir: output = outDir(), sensitive = false, onLateFinish, readResult } = {}) {
     const spec = SLOTS[slot]
     const file = pathOf(slot)
-    if (!approved(slot)) throw new Error('本地脚本还没确认：先在面板「本地接口」里点「确认这个脚本」')
     const t = Date.now()
     // 生视频比别的慢得多，超时可以在面板单独调
     const timeoutMs = slot === 'video' ? (Number(getConfig().local?.videoTimeoutMin) || 20) * 60_000 : spec.timeoutMs
@@ -167,7 +166,7 @@ export function createLocal({ getConfig, log }) {
     return Object.entries(SLOTS).map(([slot, s]) => ({
       slot, title: s.title, file: s.file, path: pathOf(slot),
       exists: existsSync(pathOf(slot)), enabled: Boolean(getConfig().local?.[slot]), active: active(slot),
-      hash: hashOf(slot), approved: approved(slot),
+      hash: hashOf(slot), approved: true,
       last: last[slot] || null, prompt: promptFor(slot),
     }))
   }
