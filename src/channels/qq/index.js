@@ -5,7 +5,7 @@
 import { createOneBotClient, isDefiniteFailure } from './client.js'
 import { createOutbox } from './outbox.js'
 import { diagnose as diagnoseOneBot } from './diagnose.js'
-import { isLegacyDirectRecord, parseMessageEvent } from './inbound.js'
+import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { buildFaceIndex, createFaces, textToSegments, stripFaceTags } from './faces.js'
 import { FACE_TABLE } from './face-table.js'
 import { readForward } from './forward.js'

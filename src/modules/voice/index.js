@@ -10,7 +10,7 @@ import { toMono16k } from '../../voice/wav.js'
 import { localAudioFile } from '../../local/local.js'
 import { asrConfigured, transcribeAudio } from '../../voice/asr.js'
 import { mergeFromPanel, normalize } from '../../core/config.js'
-import { segmentsOf } from '../../channels/qq/inbound.js'
+import { segmentsOf } from '../../channels/qq/convert.js'
 
 export default {
   id: 'voice',

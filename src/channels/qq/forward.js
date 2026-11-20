@@ -1,6 +1,6 @@
 // 合并转发：把聊天记录展开成文字，顺带收集里面的图片。转发里可以再套转发，所以按层往下拉。
 
-import { isLegacyDirectRecord, parseMessageEvent } from './inbound.js'
+import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 
 export const MAX_FORWARD_DEPTH = 5 // 最多展开几层
 export const MAX_FORWARD_LINES = 200 // 一条消息里所有层加起来最多几行

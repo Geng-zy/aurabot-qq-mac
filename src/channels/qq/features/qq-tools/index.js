@@ -2,7 +2,7 @@
 
 import { defineTool, str, int } from '../../../../tools/tools.js'
 import { readQqFile } from '../../../../features/qq-file.js'
-import { isLegacyDirectRecord, parseMessageEvent } from '../../inbound.js'
+import { isLegacyDirectRecord, parseMessageEvent } from '../../convert.js'
 import { normChat, parseChat, platformOf } from '../../../ids.js'
 import { isOwner } from '../../../../chat/access.js'
 import { describeDelivery } from '../../../../chat/reply.js'
