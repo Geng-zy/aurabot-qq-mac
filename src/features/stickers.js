@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from '
 import { join } from 'node:path'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { imageSize, mimeOf, stickerSizeOk } from '../core/image-info.js'
-import { segmentBytes, fetchImage } from '../core/net.js'
+import { fetchImage } from '../core/net.js'
 import { askModel, canSeeImages } from '../core/llm.js'
 
 const dir = () => dataDir('stickers')
@@ -79,12 +79,12 @@ export function pickEvict(items) {
   return pool.slice().sort((a, b) => (a.uses || 0) - (b.uses || 0) || (a.lastUsed || a.at || 0) - (b.lastUsed || b.at || 0))[0]
 }
 
-export function createStickerStore({ dsh, getConfig, onebot, log, qq = null, downloadSegment = null }) {
+export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSegment = null }) {
   const recent = [] // 每小时限额
   // QQ 专有动作由 channels/qq/features/stickers-qq.js 注入；没有注入时保留旧 onebot 兼容。
-  const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : onebot.call('add_custom_face', { file: 'base64://' + buf.toString('base64') })
-  const modifyCustomFace = (emojiId, desc) => qq?.modifyCustomFace ? qq.modifyCustomFace(emojiId, desc) : onebot.call('modify_custom_face', { emoji_id: emojiId, desc })
-  const deleteCustomFace = (emojiId) => qq?.deleteCustomFace ? qq.deleteCustomFace(emojiId) : onebot.call('delete_custom_face', { emoji_id: emojiId })
+  const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : Promise.reject(new Error('没有注入 QQ 表情写入'))
+  const modifyCustomFace = (emojiId, desc) => qq?.modifyCustomFace ? qq.modifyCustomFace(emojiId, desc) : Promise.reject(new Error('没有注入 QQ 表情修改'))
+  const deleteCustomFace = (emojiId) => qq?.deleteCustomFace ? qq.deleteCustomFace(emojiId) : Promise.reject(new Error('没有注入 QQ 表情删除'))
 
   /** 面板里给起名单独挑的模型；没挑（或者只填了一半）就返回 null = 跟随聊天用的模型。 */
   function captionModelOf(cfg = getConfig()) {
@@ -142,7 +142,8 @@ export function createStickerStore({ dsh, getConfig, onebot, log, qq = null, dow
     const d = seg.data || {}
     let buf
     try {
-      buf = await (downloadSegment || ((s) => segmentBytes(s, onebot, { maxBytes: 1024 * 1024 * 1024 })))(seg)
+      if (typeof downloadSegment !== 'function') return { ok: false, reason: '没有注入媒体下载' }
+      buf = await downloadSegment(seg)
     } catch (error) {
       return { ok: false, reason: '下载失败：' + error.message }
     }

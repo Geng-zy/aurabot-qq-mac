@@ -34,9 +34,16 @@ test('#31 关掉表情包：提示词里不再教她写 <sticker:…>', () => {
   assert.doesNotMatch(moduleOff, /<sticker:/)
 })
 
+
+const testDownload = async (seg) => {
+  const v = String(seg?.data?.url || seg?.data?.file || '')
+  if (v.startsWith('base64://')) return Buffer.from(v.slice('base64://'.length), 'base64')
+  throw new Error('测试只支持 base64')
+}
+
 test('#31 商城表情：收进来记住 emoji_id / 包 id / key，发出去按商城表情原样发；普通表情照旧按图片发', async () => {
   const cfg = normalize({ dryRun: true, stickers: { caption: false } })
-  const store = createStickerStore({ dsh: {}, getConfig: () => cfg, onebot: { call: async () => ({}) }, log })
+  const store = createStickerStore({ dsh: {}, getConfig: () => cfg, log, downloadSegment: testDownload })
   const market = { type: 'image', data: { url: 'base64://' + gif(1).toString('base64'), summary: '[开心]', sub_type: 0, emoji_id: 'abcdef0123456789abcdef0123456789', emoji_package_id: 23456, key: 'k3y' } }
   const r = await store.collect(market, 'group:1')
   assert.equal(r.ok, true, r.reason)
@@ -55,7 +62,7 @@ test('#31 商城表情：收进来记住 emoji_id / 包 id / key，发出去按�
 
 test('#31 面板改名字 / 标签：去掉 #、去重、最多 5 个，名字最多 12 字', async () => {
   const cfg = normalize({ dryRun: true, stickers: { caption: false } })
-  const store = createStickerStore({ dsh: {}, getConfig: () => cfg, onebot: { call: async () => ({}) }, log })
+  const store = createStickerStore({ dsh: {}, getConfig: () => cfg, log, downloadSegment: testDownload })
   await store.collect({ type: 'image', data: { url: 'base64://' + gif(3).toString('base64'), sub_type: 1 } }, 'private:1')
   const md5 = store.library().items[0].md5
   const r = store.rename(md5, '  一个特别特别长的表情名字超过十二个字  ', ['#开心', '开心', '卖萌', '', '一二三四五六七八九', 'a', 'b', 'c'])

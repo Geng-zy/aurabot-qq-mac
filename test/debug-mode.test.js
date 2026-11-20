@@ -41,7 +41,6 @@ test('调试模式：不收表情（不往表情库里添东西）', async () =>
   const store = createStickerStore({
     dsh: null,
     getConfig: () => cfg,
-    onebot: { call: async (a) => { calls.push(a); return {} } },
     log,
   })
   const seg = { type: 'image', data: { url: 'https://example.com/x.jpg', sub_type: 1, summary: '[动画表情]' } }
