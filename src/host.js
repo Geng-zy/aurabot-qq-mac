@@ -650,7 +650,7 @@ export function apply(ctx) {
     }
     tasks.dispose()
     hub.dispose()
-    try { mind?.close() } catch (error) {}
+    try { Promise.resolve(mind?.close()).catch((error) => log.debug('心智关闭出错：', error.message)) } catch (error) {}
     bridge.dispose()
     mods.dispose()
   }, 'aurabot: 收尾')
