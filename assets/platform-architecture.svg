@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="460" viewBox="0 0 1200 460" role="img" aria-label="AuraBot platform architecture">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4f7f73"/></marker>
+  </defs>
+  <rect width="1200" height="460" rx="18" fill="#f6f7f2"/>
+  <g font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="44" y="54" fill="#173b33" font-size="24" font-weight="750">一套心智，多个平台</text>
+    <text x="44" y="82" fill="#607a70" font-size="14">平台只负责连接、转换和发送；业务能力留在共享层。</text>
+    <rect x="44" y="116" width="210" height="82" rx="13" fill="#ffffff" stroke="#cbd8d0"/>
+    <text x="149" y="148" text-anchor="middle" fill="#173b33" font-size="17" font-weight="700">DSH Host</text>
+    <text x="149" y="174" text-anchor="middle" fill="#607a70" font-size="12">模型 · 会话 · 工具</text>
+    <rect x="304" y="108" width="250" height="98" rx="13" fill="#e5f2eb" stroke="#7fb39d" stroke-dasharray="5 4"/>
+    <text x="429" y="140" text-anchor="middle" fill="#27624f" font-size="16" font-weight="700">ChannelManager</text>
+    <text x="429" y="165" text-anchor="middle" fill="#607a70" font-size="12">注册 · 启停 · 事件 · 状态</text>
+    <text x="429" y="184" text-anchor="middle" fill="#607a70" font-size="12">PlatformAdapter 外形</text>
+    <rect x="620" y="42" width="240" height="62" rx="12" fill="#fff4e4" stroke="#dfaa68"/>
+    <text x="740" y="70" text-anchor="middle" fill="#713f12" font-size="16" font-weight="700">QQ Adapter</text>
+    <text x="740" y="90" text-anchor="middle" fill="#8a6332" font-size="12">OneBot v11 · 正向 WS</text>
+    <rect x="620" y="126" width="240" height="62" rx="12" fill="#fff4e4" stroke="#dfaa68"/>
+    <text x="740" y="154" text-anchor="middle" fill="#713f12" font-size="16" font-weight="700">Telegram Adapter</text>
+    <text x="740" y="174" text-anchor="middle" fill="#8a6332" font-size="12">Bot API · 长轮询</text>
+    <rect x="620" y="210" width="240" height="62" rx="12" fill="#f2f1e9" stroke="#c6c9ba" stroke-dasharray="5 4"/>
+    <text x="740" y="238" text-anchor="middle" fill="#5d675a" font-size="15" font-weight="700">Future Adapter</text>
+    <text x="740" y="258" text-anchor="middle" fill="#7b8478" font-size="12">飞书 · Discord · …</text>
+    <rect x="938" y="42" width="218" height="230" rx="13" fill="#ffffff" stroke="#cbd8d0"/>
+    <text x="1047" y="72" text-anchor="middle" fill="#173b33" font-size="16" font-weight="700">共享层</text>
+    <text x="1047" y="104" text-anchor="middle" fill="#607a70" font-size="13">聊天中枢</text>
+    <text x="1047" y="130" text-anchor="middle" fill="#607a70" font-size="13">心智与记忆</text>
+    <text x="1047" y="156" text-anchor="middle" fill="#607a70" font-size="13">语音与媒体</text>
+    <text x="1047" y="182" text-anchor="middle" fill="#607a70" font-size="13">表情与创作</text>
+    <text x="1047" y="208" text-anchor="middle" fill="#607a70" font-size="13">模块与设置</text>
+    <path d="M258 157H300" stroke="#4f7f73" stroke-width="2" marker-end="url(#a)" marker-start="url(#a)"/>
+    <path d="M558 157H610M610 157V73H616M610 157H616M610 157V241H616" stroke="#4f7f73" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M866 157H932" stroke="#4f7f73" stroke-width="2" marker-end="url(#a)"/>
+    <text x="44" y="350" fill="#607a70" font-size="13">QQ 专属能力（群管、资料、空间、语音、表情）在 `channels/qq/features/`；</text>
+    <text x="44" y="374" fill="#607a70" font-size="13">跨平台能力（表情库、生图、翻唱、视频）在 `modules/` 与 `features/`，通过平台 caps 降级。</text>
+    <g transform="translate(44,404)" font-size="12" font-weight="600">
+      <rect width="150" height="30" rx="15" fill="#e5f2eb"/><text x="75" y="20" text-anchor="middle" fill="#27624f">平台专属层隔离</text>
+      <rect x="164" width="160" height="30" rx="15" fill="#fff4e4"/><text x="244" y="20" text-anchor="middle" fill="#713f12">统一消息契约</text>
+      <rect x="338" width="190" height="30" rx="15" fill="#f2f1e9"/><text x="433" y="20" text-anchor="middle" fill="#5d675a">能力不足自动降级</text>
+    </g>
+  </g>
+</svg>

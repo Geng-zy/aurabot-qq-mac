@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/mac-banner.svg" alt="AuraBot for macOS" width="100%">
+<img src="assets/platform-banner.svg" alt="AuraBot for macOS: multi-platform, memory, voice and creation" width="100%">
 
 # AuraBot for macOS
 
@@ -18,9 +18,9 @@ DeepSeek Harness 插件 · Apple 芯片 Mac · 多平台适配器 · OneBot v11
 
 </div>
 
-<img src="docs/screenshots/aurabot-overview.png" alt="AuraBot 工作台概览" width="100%">
+<img src="assets/platform-architecture.svg" alt="AuraBot 平台架构：DSH、ChannelManager、QQ/Telegram 适配器与共享层" width="100%">
 
-> 面板截图来自早期版本，使用演示数据；当前功能以实际安装版本为准。
+> 上图是平台架构示意；界面截图见 <a href="docs/screenshots/">docs/screenshots</a>。
 
 ## 这是什么
 

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-label="AuraBot for macOS: multi-platform, memory, voice and creation">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1d22"/>
+      <stop offset=".55" stop-color="#12383c"/>
+      <stop offset="1" stop-color="#245b55"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".82" cy=".18" r=".62">
+      <stop offset="0" stop-color="#8ee0bd" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#8ee0bd" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffd28a"/>
+      <stop offset="1" stop-color="#8ee0bd"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="360" rx="22" fill="url(#bg)"/>
+  <rect width="1280" height="360" rx="22" fill="url(#glow)"/>
+  <g stroke="#ffffff" stroke-opacity=".045">
+    <path d="M0 72H1280M0 144H1280M0 216H1280M0 288H1280"/>
+    <path d="M160 0V360M320 0V360M480 0V360M640 0V360M800 0V360M960 0V360M1120 0V360"/>
+  </g>
+  <g font-family="-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',Arial,sans-serif">
+    <text x="64" y="102" fill="#b9d9d0" font-size="15" letter-spacing="3">DEEPSEEK HARNESS · macOS PLUGIN</text>
+    <text x="62" y="176" fill="#ffffff" font-size="66" font-weight="800">AuraBot</text>
+    <text x="64" y="218" fill="#d6eee6" font-size="25" font-weight="600">多平台聊天 · 记忆 · 情绪 · 声音 · 创作</text>
+    <text x="64" y="256" fill="#9fc8bd" font-size="16">QQ 与 Telegram 共用一套心智，平台能力各自归位。</text>
+    <g transform="translate(64,286)">
+      <g font-size="14" font-weight="600">
+        <rect width="94" height="34" rx="17" fill="#ffffff" fill-opacity=".08" stroke="#8ee0bd" stroke-opacity=".42"/>
+        <text x="47" y="22" text-anchor="middle" fill="#d9f5e9">QQ</text>
+        <rect x="106" width="118" height="34" rx="17" fill="#ffffff" fill-opacity=".08" stroke="#8ee0bd" stroke-opacity=".42"/>
+        <text x="165" y="22" text-anchor="middle" fill="#d9f5e9">Telegram</text>
+        <rect x="236" width="112" height="34" rx="17" fill="#ffffff" fill-opacity=".06" stroke="#ffffff" stroke-opacity=".16"/>
+        <text x="292" y="22" text-anchor="middle" fill="#9fc8bd">Future</text>
+      </g>
+    </g>
+    <g transform="translate(820,64)">
+      <rect width="396" height="232" rx="18" fill="#081619" fill-opacity=".55" stroke="#ffffff" stroke-opacity=".12"/>
+      <g font-size="13" fill="#b9d9d0">
+        <text x="24" y="34" font-size="12" letter-spacing="2" fill="#8ee0bd">PLATFORM ADAPTERS</text>
+        <rect x="24" y="52" width="348" height="38" rx="9" fill="#ffffff" fill-opacity=".07"/>
+        <text x="42" y="76" fill="#ffffff" font-weight="700">ChannelManager</text>
+        <text x="290" y="76" fill="#8ee0bd">typed</text>
+        <path d="M198 90V110M198 110H88M198 110H308" stroke="#8ee0bd" stroke-opacity=".5"/>
+        <rect x="24" y="118" width="128" height="40" rx="8" fill="#ffffff" fill-opacity=".06"/>
+        <text x="88" y="143" text-anchor="middle" fill="#ffffff">QQ Adapter</text>
+        <rect x="170" y="118" width="150" height="40" rx="8" fill="#ffffff" fill-opacity=".06"/>
+        <text x="245" y="143" text-anchor="middle" fill="#ffffff">Telegram Adapter</text>
+        <rect x="338" y="118" width="34" height="40" rx="8" fill="#ffffff" fill-opacity=".04"/>
+        <text x="355" y="143" text-anchor="middle" fill="#9fc8bd">+</text>
+        <path d="M198 158V176M88 176H308" stroke="#8ee0bd" stroke-opacity=".5"/>
+        <text x="24" y="202" fill="#9fc8bd">Mind · Memory · Voice · Stickers · Modules</text>
+      </g>
+    </g>
+  </g>
+</svg>

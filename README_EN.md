@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/mac-banner.svg" alt="AuraBot for macOS" width="100%">
+<img src="assets/platform-banner.svg" alt="AuraBot for macOS: multi-platform, memory, voice and creation" width="100%">
 
 # AuraBot for macOS
 
@@ -18,9 +18,9 @@ A DeepSeek Harness plugin for Apple-silicon Macs · multi-platform adapters · O
 
 </div>
 
-<img src="docs/screenshots/aurabot-overview.png" alt="AuraBot overview" width="100%">
+<img src="assets/platform-architecture.svg" alt="AuraBot platform architecture: DSH, ChannelManager, QQ/Telegram adapters and shared layer" width="100%">
 
-> Screenshot from an earlier release with demo data; the installed version is authoritative.
+> The diagram above shows the platform architecture; UI screenshots live in <a href="docs/screenshots/">docs/screenshots</a>.
 
 ## What it is
 
