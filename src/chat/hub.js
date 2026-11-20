@@ -1313,7 +1313,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   async function sendSticker(chatId, query, replyId, userId, opts = {}) {
     const result = (status) => opts.detailed ? status : status === 'delivered' || status === 'simulated'
-    if (channelOf(chatId)?.caps?.stickers === false) return result('disabled')
+    const channel = channelOf(chatId)
+    const native = channel?.caps?.stickers !== false
+    if (!native && channel?.caps?.images === false) return result('disabled')
     // 面板里把表情包关了：回复里的 <sticker:…>、工具、扩展模块要发的一律不发（#31）
     if (!getConfig().stickers.enabled) {
       log.debug(`表情包关着，「${typeof query === 'object' ? query?.name || '' : query}」不发`)
@@ -1329,12 +1331,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     let delivered = false
     const r = await sendSegments(chatId, [...quote(replyId), ...mention(userId), seg], `[表情] ${item.name || item.md5.slice(0, 8)}`, {
       ...opts,
-      sticker: { item, segment: seg },
+      ...(native ? { sticker: { item, segment: seg } } : {}),
       onReceipt(confirmed) {
-        delivered = confirmed.some(({ kind }) => kind === 'sticker')
+        delivered = confirmed.some(({ kind }) => kind === 'sticker' || (!native && kind === 'image'))
         if (delivered) {
           stickers.markUsed?.(item.md5)
-          bump('stickers')
+          bump(native ? 'stickers' : 'sent')
         }
       },
     })

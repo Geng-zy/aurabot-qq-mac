@@ -42,6 +42,23 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     }
   }
 
+  async function callForm(method, form, { signal, timeoutMs = 30000 } = {}) {
+    if (!token()) throw new Error('Telegram Bot Token 未配置')
+    const ctl = new AbortController()
+    const timer = setTimeout(() => ctl.abort(new Error('Telegram 请求超时')), timeoutMs)
+    const abort = () => ctl.abort()
+    signal?.addEventListener('abort', abort, { once: true })
+    try {
+      const res = await fetchImpl(`${base()}/${method}`, { method: 'POST', body: form, signal: ctl.signal })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || data.ok === false) throw new Error(data.description || `Telegram ${method} 失败：HTTP ${res.status}`)
+      return data.result
+    } finally {
+      clearTimeout(timer)
+      signal?.removeEventListener?.('abort', abort)
+    }
+  }
+
   function normalize(msg) {
     if (!msg?.chat) return null
     const kind = msg.chat.type === 'private' ? 'private' : 'group'
@@ -131,10 +148,23 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       const replyId = (segments || []).find((s) => s.type === 'reply')?.data?.id
       const params = { chat_id: target.id, ...(replyId ? { reply_parameters: { message_id: Number(replyId) } } : {}) }
       let result
-      if (image && text.length > 1024) {
-        result = await call('sendPhoto', { ...params, photo: image.data?.file || image.data?.url })
+      const photo = image?.data?.file || image?.data?.url
+      const isLocalPhoto = typeof photo === 'string' && (photo.startsWith('base64://') || photo.startsWith('data:image/'))
+      if (image && isLocalPhoto) {
+        // Telegram 的 sendPhoto 不接受裸 base64，需要 multipart 上传。
+        const raw = photo.replace(/^base64:\/\//, '').replace(/^data:image\/[^;]+;base64,/, '')
+        const bytes = Buffer.from(raw, 'base64')
+        const form = new FormData()
+        form.set('chat_id', target.id)
+        if (replyId) form.set('reply_parameters', JSON.stringify({ message_id: Number(replyId) }))
+        if (text && text.length <= 1024) form.set('caption', text)
+        form.set('photo', new Blob([bytes]), 'sticker.jpg')
+        result = await callForm('sendPhoto', form)
+        if (text && text.length > 1024) await call('sendMessage', { chat_id: target.id, text })
+      } else if (image && text.length > 1024) {
+        result = await call('sendPhoto', { ...params, photo })
         await call('sendMessage', { chat_id: target.id, text })
-      } else if (image) result = await call('sendPhoto', { ...params, photo: image.data?.file || image.data?.url, caption: text || undefined })
+      } else if (image) result = await call('sendPhoto', { ...params, photo, caption: text || undefined })
       else if (text) result = await call('sendMessage', { ...params, text })
       else return { queued: false }
       return { ...result, messageId: String(result?.message_id || '') }
