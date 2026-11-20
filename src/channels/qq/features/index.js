@@ -12,4 +12,6 @@ export const QQ_FEATURES = [qqTools, qqApi, qzoneSocial, groupAdmin, contacts, p
   ...def,
   sourcePath: `channels/qq/features/${def.id}/index.js`,
   platforms: ['qq'],
+  platform: 'qq',
+  platformFeature: true,
 }))

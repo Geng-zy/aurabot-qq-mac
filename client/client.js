@@ -4354,7 +4354,8 @@ body[data-ds-dark-theme] .ab-root{
       const setModules = (list) => list && setData((d) => ({ ...d, list }))
       if (!data) return h(Empty, { icon: '⏳', text: '加载中…' })
       const list = data.list || []
-      const builtin = list.filter((m) => m.builtin)
+      const platformFeatures = list.filter((m) => m.platformFeature)
+      const builtin = list.filter((m) => m.builtin && !m.platformFeature)
       const mine = list.filter((m) => !m.builtin && !m.community)
       const fromCommunity = list.filter((m) => m.community)
       const props = { draft, setModules, toast, reload: () => { reload(); load() } }
@@ -4378,6 +4379,7 @@ body[data-ds-dark-theme] .ab-root{
           st.config.safeMode ? h('div', { className: 'ab-note warn' }, '安全模式开着：你写的模块现在都没加载。') : null),
         fromCommunity.length ? h(Card, { title: '从市场装的（' + fromCommunity.length + '）' }, h('div', null, fromCommunity.map((m) => h(ModuleRow, { key: m.id, m, ...props })))) : null,
         mine.length ? h(Card, { title: '自己写的（' + mine.length + '）' }, h('div', null, mine.map((m) => h(ModuleRow, { key: m.id, m, ...props })))) : null,
+        platformFeatures.length ? h('div', { className: 'ab-note', style: { marginBottom: 2 } }, 'QQ 平台功能（群管、联系人、资料、空间日记、语音、基础 QQ 工具）随 QQ 连接加载，不再作为通用模块显示；相关开关在 QQ 页面。') : null,
         h(Card, { title: '内置模块（' + builtin.length + '）', desc: '关掉的模块：ta就没有这项本事，相关的标签页也会藏起来。连接、权限、人格、聊天这些是核心，不能关。' },
           h('div', null, builtin.map((m) => h(ModuleRow, { key: m.id, m, ...props })))),
         h('details', { className: 'ab-card' },

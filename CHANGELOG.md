@@ -24,6 +24,7 @@
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - 增加非 QQ 聊天收表情不写 QQ 收藏的回归测试。
 - 通用表情库不再解析 QQ 的 emoji_id/mface：market 与原生 segment 由 QQ hooks 注入。
+- QQ 平台功能在模块状态里标记 platformFeature；模块管理 UI 不再把它们列成通用内置模块。
 - QQ 表情工具（collect/save/import 及 import-qq 路由）从通用 stickers 模块移入 `channels/qq/features/stickers-qq.js`。
 - QQ 专属 helper 继续归堆：qq-profile 进 profile，qq-file 进 qq-tools，diary-image/qzone/qzone-audience 进 diary。
 - 图片式表情可跨 QQ/Telegram 发送；QQ 商城 mface 仅 QQ 发送，其他平台跳过。
