@@ -166,7 +166,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
       installDocs()
       await sync()
       if (disposed) return
-      watching = setInterval(() => { sync().catch((error) => log.warn('检查模块变化出错：', error.message)) }, 3000)
+      watching = setInterval(() => { sync().catch((error) => log.warn('检查模块变化出错：', error.message)) }, 5000)
       watching.unref?.()
     })().catch((error) => log.error('加载自己写的模块出错：', error.message))
   }
