@@ -1,6 +1,20 @@
 // QQ 专有表情：从机器人号「我喜欢的」导入。通用表情库不直接碰 OneBot。
 import { fetchImage } from '../../../core/net.js'
 
+export function createQqStickerHooks({ onebot, log }) {
+  return {
+    async addCustomFace(buf) {
+      return onebot.call('add_custom_face', { file: 'base64://' + buf.toString('base64') })
+    },
+    async modifyCustomFace(emojiId, desc) {
+      return onebot.call('modify_custom_face', { emoji_id: emojiId, desc })
+    },
+    async deleteCustomFace(emojiId) {
+      return onebot.call('delete_custom_face', { emoji_id: emojiId })
+    },
+  }
+}
+
 export function createQqStickerBridge({ onebot, store, getConfig, log }) {
   let importing = null
 

@@ -7,7 +7,7 @@ import { defineTool, int, str } from '../../tools/tools.js'
 import { fetchImage, segmentBytes } from '../../core/net.js'
 import { resolvePainting } from '../../features/paintings.js'
 import { ownerOrFree } from '../../chat/access.js'
-import { createQqStickerBridge } from '../../channels/qq/features/stickers-qq.js'
+import { createQqStickerBridge, createQqStickerHooks } from '../../channels/qq/features/stickers-qq.js'
 
 export default {
   id: 'stickers',
@@ -19,7 +19,8 @@ export default {
   files: ['features/stickers.js'],
   setup(api) {
     const { hub, onebot, http } = api.core
-    const store = createStickerStore({ dsh: api.dsh, getConfig: api.config, onebot, log: api.log })
+    const qqStickerHooks = createQqStickerHooks({ onebot, log: api.log })
+    const store = createStickerStore({ dsh: api.dsh, getConfig: api.config, onebot, log: api.log, qq: qqStickerHooks })
     const qqStickers = createQqStickerBridge({ onebot, store, getConfig: api.config, log: api.log })
 
     api.tool(({ chat, level, sessionId }) => {

@@ -79,8 +79,12 @@ export function pickEvict(items) {
   return pool.slice().sort((a, b) => (a.uses || 0) - (b.uses || 0) || (a.lastUsed || a.at || 0) - (b.lastUsed || b.at || 0))[0]
 }
 
-export function createStickerStore({ dsh, getConfig, onebot, log }) {
+export function createStickerStore({ dsh, getConfig, onebot, log, qq = null }) {
   const recent = [] // 每小时限额
+  // QQ 专有动作由 channels/qq/features/stickers-qq.js 注入；没有注入时保留旧 onebot 兼容。
+  const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : onebot.call('add_custom_face', { file: 'base64://' + buf.toString('base64') })
+  const modifyCustomFace = (emojiId, desc) => qq?.modifyCustomFace ? qq.modifyCustomFace(emojiId, desc) : onebot.call('modify_custom_face', { emoji_id: emojiId, desc })
+  const deleteCustomFace = (emojiId) => qq?.deleteCustomFace ? qq.deleteCustomFace(emojiId) : onebot.call('delete_custom_face', { emoji_id: emojiId })
 
   /** 面板里给起名单独挑的模型；没挑（或者只填了一半）就返回 null = 跟随聊天用的模型。 */
   function captionModelOf(cfg = getConfig()) {
@@ -159,7 +163,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log }) {
     // 收藏到 QQ
     if (!getConfig().dryRun) {
       try {
-        const r = await onebot.call('add_custom_face', { file: 'base64://' + buf.toString('base64') })
+        const r = await addCustomFace(buf)
         item.emojiId = String(r?.emoji_id || '')
       } catch (error) {
         log.warn('收藏到 QQ 失败（本地已留档）：', error.message)
@@ -179,7 +183,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log }) {
         it.tags = tags.length ? tags : it.tags
         saveLibrary(l)
         if (it.emojiId && it.name) {
-          try { await onebot.call('modify_custom_face', { emoji_id: it.emojiId, desc: it.name.slice(0, 20) }) } catch (error) { log.warn('写回 QQ 备注失败：', error.message) }
+          try { await modifyCustomFace(it.emojiId, it.name.slice(0, 20)) } catch (error) { log.warn('写回 QQ 备注失败：', error.message) }
         }
         log.info(`表情 ${md5.slice(0, 8)} 起名「${it.name}」${it.tags.length ? ' #' + it.tags.join(' #') : ''}`)
       }).catch((error) => log.warn('表情起名收尾出错：', error.message))
@@ -202,7 +206,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log }) {
     const item = { md5, file, name: String(name).slice(0, 12), tags, from, at: Date.now(), width, height, bytes: buf.length, emojiId: '' }
     if (toQQ && !getConfig().dryRun) {
       try {
-        const r = await onebot.call('add_custom_face', { file: 'base64://' + buf.toString('base64') })
+        const r = await addCustomFace(buf)
         item.emojiId = String(r?.emoji_id || '')
         if (item.emojiId && item.name) await onebot.call('modify_custom_face', { emoji_id: item.emojiId, desc: item.name })
       } catch (error) {
@@ -242,7 +246,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log }) {
     const it = lib.items.find((i) => i.md5 === md5)
     if (!it) return { ok: false, reason: '没有这张' }
     if (fromQQ && it.emojiId) {
-      try { await onebot.call('delete_custom_face', { emoji_id: it.emojiId }) } catch (error) { log.warn('从 QQ 收藏里删除失败：', error.message) }
+      try { await deleteCustomFace(it.emojiId) } catch (error) { log.warn('从 QQ 收藏里删除失败：', error.message) }
     }
     try { unlinkSync(join(dir(), it.file)) } catch (error) {}
     lib.items = lib.items.filter((i) => i.md5 !== md5)
@@ -260,7 +264,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log }) {
     if (fromQQ && !getConfig().dryRun) {
       for (const it of found) {
         if (!it.emojiId) continue
-        try { await onebot.call('delete_custom_face', { emoji_id: it.emojiId }) } catch (error) { qqFailed++; log.warn('从 QQ 收藏里删除失败：', error.message) }
+        try { await deleteCustomFace(it.emojiId) } catch (error) { qqFailed++; log.warn('从 QQ 收藏里删除失败：', error.message) }
       }
     }
     for (const it of found) { try { unlinkSync(join(dir(), it.file)) } catch (error) {} }
@@ -280,7 +284,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log }) {
     if (name !== undefined) it.name = String(name).trim().slice(0, 12)
     if (tags !== undefined) it.tags = [...new Set((Array.isArray(tags) ? tags : []).map((t) => String(t).replace(/^#/, '').trim().slice(0, 8)).filter(Boolean))].slice(0, 5)
     saveLibrary(lib)
-    if (it.emojiId && !getConfig().dryRun) onebot.call('modify_custom_face', { emoji_id: it.emojiId, desc: it.name }).catch(() => {})
+    if (it.emojiId && !getConfig().dryRun) modifyCustomFace(it.emojiId, it.name).catch(() => {})
     return { ok: true, item: it }
   }
 
