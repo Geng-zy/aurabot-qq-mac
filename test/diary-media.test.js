@@ -9,7 +9,7 @@ process.env.AURABOT_DATA_DIR = root
 after(() => rmSync(root, { recursive: true, force: true }))
 
 const { normalize } = await import('../src/core/config.js')
-const { createQzone } = await import('../src/features/qzone.js')
+const { createQzone } = await import('../src/channels/qq/features/diary/qzone.js')
 const { collectSources, localPictures, clip } = await import('../src/channels/qq/features/diary/sources.js')
 const { createDiaryAssets, downloadImage } = await import('../src/channels/qq/features/diary/assets.js')
 const { createDiaryMedia, parseDraft, reselectPictures, withCredits } = await import('../src/channels/qq/features/diary/media.js')

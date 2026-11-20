@@ -6,7 +6,7 @@ import { join } from 'node:path'
 
 process.env.AURABOT_DATA_DIR = mkdtempSync(join(tmpdir(), 'aurabot-qzone-'))
 
-const { createQzone } = await import('../src/features/qzone.js')
+const { createQzone } = await import('../src/channels/qq/features/diary/qzone.js')
 const { dataDir, readJson, writeJson } = await import('../src/core/store.js')
 const { default: qzoneSocial } = await import('../src/channels/qq/features/qzone-social/index.js')
 const { default: diary } = await import('../src/channels/qq/features/diary/index.js')

@@ -13,7 +13,7 @@ const setDataDir = () => {
 
 test('空间日记配图：优先今天她画的最新一张，昨天的不算', async () => {
   const root = setDataDir()
-  const { pickDiaryImage } = await import('../src/features/diary-image.js')
+  const { pickDiaryImage } = await import('../src/channels/qq/features/diary/diary-image.js')
   const { savePainting } = await import('../src/features/paintings.js')
   const now = new Date(2026, 9, 29, 16, 0)
   assert.equal(pickDiaryImage({ now }), '', '空数据目录时没有配图')
@@ -29,7 +29,7 @@ test('空间日记配图：优先今天她画的最新一张，昨天的不算',
 
 test('空间日记配图：今天没画图就用今天收的表情包；都没有就空', async () => {
   const root = setDataDir()
-  const { pickDiaryImage } = await import('../src/features/diary-image.js')
+  const { pickDiaryImage } = await import('../src/channels/qq/features/diary/diary-image.js')
   const now = new Date(2026, 9, 29, 16, 0)
   const sdir = join(root, 'stickers')
   mkdirSync(sdir, { recursive: true })

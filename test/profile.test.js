@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import profileModule from '../src/channels/qq/features/profile/index.js'
-import { createQqProfile } from '../src/features/qq-profile.js'
+import { createQqProfile } from '../src/channels/qq/features/profile/qq-profile.js'
 import { normalize } from '../src/core/config.js'
 import { startMockOneBot } from './helpers/mock-onebot.js'
 

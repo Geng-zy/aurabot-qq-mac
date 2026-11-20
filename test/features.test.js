@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { wantsQzonePost } from '../src/features/qzone.js'
+import { wantsQzonePost } from '../src/channels/qq/features/diary/qzone.js'
 import { matchSticker, pickForReply } from '../src/features/stickers.js'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

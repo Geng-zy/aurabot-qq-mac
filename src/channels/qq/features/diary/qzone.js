@@ -1,10 +1,10 @@
 // QQ 空间：按配置写日记、发说说和核对发布记录。
 
-import { dataDir, readJson, writeJson } from '../core/store.js'
-import { fetchImage } from '../core/net.js'
+import { dataDir, readJson, writeJson } from '../../../../core/store.js'
+import { fetchImage } from '../../../../core/net.js'
 import { resolveAudience } from './qzone-audience.js'
-import { cleanOutboundText } from '../chat/reply.js'
-import { dayKey, inRange, minuteOfDay, parseRange } from '../mind/clock.js'
+import { cleanOutboundText } from '../../../../chat/reply.js'
+import { dayKey, inRange, minuteOfDay, parseRange } from '../../../../mind/clock.js'
 
 /** 写和发是同一件事；浏览、评论及发送翻唱各有自己的能力。 */
 export function wantsQzonePost(text) {

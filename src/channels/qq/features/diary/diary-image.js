@@ -1,8 +1,8 @@
 // 空间日记的配图：优先用今天她自己画的图，其次用今天收进表情库的表情包。
 // 只从本机数据目录里挑，不接受外部输入；找不到就返回空串（日记照常只发文字）。
 
-import { listPaintings, paintingPath } from './paintings.js'
-import { loadLibrary, stickerPath } from './stickers.js'
+import { listPaintings, paintingPath } from '../../../../features/paintings.js'
+import { loadLibrary, stickerPath } from '../../../../features/stickers.js'
 
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 

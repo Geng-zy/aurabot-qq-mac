@@ -1,9 +1,9 @@
 // 内置模块：空间日记。根据可公开的经历和当前心情写 QQ 空间说说。
 // 导出 createQzone 的发布与历史接口。
 
-import { createQzone, wantsQzonePost } from '../../../../features/qzone.js'
-import { resolveAudience } from '../../../../features/qzone-audience.js'
-import { pickDiaryImage } from '../../../../features/diary-image.js'
+import { createQzone, wantsQzonePost } from './qzone.js'
+import { resolveAudience } from './qzone-audience.js'
+import { pickDiaryImage } from './diary-image.js'
 import { defineTool, str } from '../../../../tools/tools.js'
 import { mimeOf } from '../../../../core/image-info.js'
 import { createDiaryMedia } from './media.js'
@@ -16,7 +16,7 @@ export default {
   version: '1.0.0',
   description: '每天自己写几条 QQ 空间说说；管理员私聊里能让她发说说（qq_send_qzone）',
   tab: 'diary',
-  files: ['features/qzone.js', 'features/qzone-audience.js', 'features/diary-image.js'],
+  files: ['channels/qq/features/diary/qzone.js', 'channels/qq/features/diary/qzone-audience.js', 'channels/qq/features/diary/diary-image.js'],
   setup(api) {
     const { hub, onebot, http } = api.core
     const panelAction = (run) => async (req) => {

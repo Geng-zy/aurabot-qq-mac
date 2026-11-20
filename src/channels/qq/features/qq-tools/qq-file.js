@@ -1,8 +1,8 @@
 // 读别人发来的 QQ 文件：私聊文件段自带下载地址，群文件要用 file_id 去换。只读文本类文件。
 
 import { extname } from 'node:path'
-import { fetchImage } from '../core/net.js'
-import { cleanText, clipText } from '../core/text.js'
+import { fetchImage } from '../../../../core/net.js'
+import { cleanText, clipText } from '../../../../core/text.js'
 
 const MAX_BYTES = 2 * 1024 * 1024
 const MAX_CHARS = 20000

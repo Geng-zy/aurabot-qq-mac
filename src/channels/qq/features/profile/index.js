@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { defineTool, str } from '../../../../tools/tools.js'
 import { isOwner, profileToolVisible, profilePermits, freeWill } from '../../../../chat/access.js'
-import { createQqProfile } from '../../../../features/qq-profile.js'
+import { createQqProfile } from './qq-profile.js'
 import { resolvePainting } from '../../../../features/paintings.js'
 import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../../../../core/img.js'
 import { segmentBytes } from '../../../../core/net.js'
@@ -46,7 +46,7 @@ export default {
   name: '改资料',
   version: '1.2.0',
   description: '管理员私聊时查看自己的 QQ 资料与头像图片（qq_get_profile）、发送当前头像（qq_send_avatar）；按权限修改 QQ 资料',
-  files: ['features/qq-profile.js'],
+  files: ['qq-profile.js'],
   setup(api, { fetchAvatar, ask } = {}) {
     const { hub, onebot } = api.core
     const reader = createQqProfile({ getConfig: api.config, onebot, dsh: api.dsh, log: api.log, fetchAvatar, ask })

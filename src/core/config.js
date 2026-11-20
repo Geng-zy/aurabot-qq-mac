@@ -5,7 +5,7 @@ import { dataDir, readJson, writeJson } from './store.js'
 import { DEFAULT_GROUP_POLICY } from '../chat/group-policy.js'
 import { LEVELS, PROFILE_PERM_KEYS, PROFILE_PERM_LEVELS, profilePermDefault } from '../chat/access.js'
 import { normalizeChatModels } from '../chat/chat-model.js'
-import { DIARY_AUDIENCES } from '../features/qzone-audience.js'
+import { DIARY_AUDIENCES } from '../channels/qq/features/diary/qzone-audience.js'
 
 export const DEFAULTS = {
   enabled: false, // 总开关：关着一句都不发

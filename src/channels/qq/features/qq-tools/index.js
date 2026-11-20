@@ -1,7 +1,7 @@
 // QQ 渠道内置功能：基础 QQ 工具。翻聊天记录；管理员私聊里还能让她主动给别人发消息、发文件。
 
 import { defineTool, str, int } from '../../../../tools/tools.js'
-import { readQqFile } from '../../../../features/qq-file.js'
+import { readQqFile } from './qq-file.js'
 import { isLegacyDirectRecord, parseMessageEvent } from '../../convert.js'
 import { normChat, parseChat, platformOf } from '../../../ids.js'
 import { isOwner } from '../../../../chat/access.js'

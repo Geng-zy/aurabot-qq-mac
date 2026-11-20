@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { isStickerSegment, parseMessageEvent } from '../src/channels/qq/convert.js'
 import { gifFrames } from '../src/core/image-info.js'
-import { readQqFile } from '../src/features/qq-file.js'
+import { readQqFile } from '../src/channels/qq/features/qq-tools/qq-file.js'
 
 const file = (over = {}) => ({ name: 'a.txt', size: 5, id: 'f1', url: 'https://x/a', hash: '', busid: 0, ...over })
 const download = (text) => async () => Buffer.from(text)

@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { cleanOutboundText, cleanOutboundSegments, stripToolText, parseReply } from '../src/chat/reply.js'
 import { createHub } from '../src/chat/hub.js'
 import { normalize } from '../src/core/config.js'
-import { createQzone } from '../src/features/qzone.js'
+import { createQzone } from '../src/channels/qq/features/diary/qzone.js'
 import { cleanComment } from '../src/channels/qq/features/qzone-social/social.js'
 
 const screenshot = ['@苏眠眠 </ | | DSML | | invoke>', '</ | | DSML | | calls>']

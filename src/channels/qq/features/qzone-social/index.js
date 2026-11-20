@@ -1,7 +1,7 @@
 // QQ 渠道内置功能：空间互动。逛好友动态点赞评论，回复自己说说下的新评论。
 
 import { createQzoneSocial } from './social.js'
-import { wantsQzonePost } from '../../../../features/qzone.js'
+import { wantsQzonePost } from '../diary/qzone.js'
 
 export default {
   id: 'qzone-social',
