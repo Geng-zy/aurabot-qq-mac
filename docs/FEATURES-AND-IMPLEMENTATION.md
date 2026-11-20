@@ -19,12 +19,12 @@
 ## QQ 会话与回复
 
 1. **连接与恢复。** OneBot v11 正向 WebSocket 接收事件，HTTP 可选用于动作调用。未填 HTTP 地址时由 WebSocket 调用动作。连接后先通过 `get_login_info` 核对机器人账号，再开放会话。回连可补收最近漏掉的普通文字，覆盖管理员好友私聊及聊天白名单内的好友私聊和群聊。补收保留原始时间并按消息去重，群聊仍走正常回复判断。SnowLuma 或其他兼容网关由使用者部署并登录。 [QQ 渠道](../src/channels/qq/index.js) · [连接诊断](../src/channels/qq/diagnose.js) · [补收](../src/channels/qq/inbox.js)
-2. **入站与上下文。** 私聊默认进入对话，管理员私聊自动通过聊天白名单。群聊结合白名单、静音、点名、引用、近期话题和插话预算决策。连发可合并，忙碌中的管理员私聊消息可作为插话交给当前轮。引用先验证会话归属，再附上原文、时间和可用图片。合并转发提供历史上下文，多图按消息与发送者标注来源。 DSH 的本机会话与 QQ 会话用会话映射接起来。 [聊天中枢](../src/chat/hub.js) · [入站解析](../src/channels/qq/inbound.js) · [合并转发](../src/channels/qq/forward.js) · [群聊规则](../src/chat/group-policy.js)
+2. **入站与上下文。** 私聊默认进入对话，管理员私聊自动通过聊天白名单。群聊结合白名单、静音、点名、引用、近期话题和插话预算决策。连发可合并，忙碌中的管理员私聊消息可作为插话交给当前轮。引用先验证会话归属，再附上原文、时间和可用图片。合并转发提供历史上下文，多图按消息与发送者标注来源。 DSH 的本机会话与 QQ 会话用会话映射接起来。 [聊天中枢](../src/chat/hub.js) · [入站解析](../src/channels/qq/convert.js) · [合并转发](../src/channels/qq/forward.js) · [群聊规则](../src/chat/group-policy.js)
 3. **会话与模型。** QQ 会话集中在「Aurabot · QQ」工作区。正式和调试模式各记自己的 DSH 会话。权限档位改变、会话被归档、恢复失败或达到心智换会话条件时，可以创建新的会话并衔接近期聊天。模型优先使用该私聊或该群的单独配置，其次是该类会话默认、AuraBot 全局设置和 DSH 默认。切换从该聊天下一轮生效，思考强度收敛到所选模型支持的档位。 [会话中枢](../src/chat/hub.js) · [模型优先级](../src/chat/chat-model.js) · [宿主预设](../cordis.patch.yml)
 4. **挂载失败。** DSH 0.2.2-rc.3 及更早版本可能先创建会话、再报告工作区挂载失败。AuraBot 对宿主明确报告的新会话重试挂载，并在保存映射前核对会话仍属于目标工作区。持续失败时保留消息和退避状态，符合条件的新建孤儿交宿主管理。已映射、已归档或归属其他工作区的会话不参与这一恢复流程。 [挂载与退避](../src/chat/hub.js) · [会话恢复用例](../test/system-session-backoff.test.js)
 5. **输出与回执。** 回复先检查块类型、输出边界和隐私，再拆成 QQ 文本、引用与点名、语音、图片、表情等消息段。口语清理覆盖管理员私聊和群聊，针对句首空转套话及单纯安抚时重复的饥饿表述。默认发最后一段正文，可开启逐步发出。发送结果区分已确认、排队、试运行和未确认。只有确认送达的内容才登记为已经说过或作为成功经历。断线队列重新检查账号和可见范围后再补发。 [输出解析](../src/chat/reply.js) · [口语清理](../src/chat/reply-style.js) · [断线队列](../src/channels/qq/outbox.js)
 
-管理员可以在 QQ 用 `/silent`、`/active`、`/quiet`、`/chatty`、`/model`、`/remember`、`/reset` 等命令管理聊天。联系人模块处理好友和入群申请，资料模块支持查询及修改昵称、签名和头像。群管理与 OneBot 工具依赖当前会话权限、QQ 账号在群里的角色以及网关支持的动作。 [命令入口](../src/chat/commands.js) · [联系人](../src/modules/contacts/index.js) · [资料](../src/modules/profile/index.js) · [QQ 工具](../src/channels/qq/features/qq-tools/index.js)
+管理员可以在 QQ 用 `/silent`、`/active`、`/quiet`、`/chatty`、`/model`、`/remember`、`/reset` 等命令管理聊天。联系人模块处理好友和入群申请，资料模块支持查询及修改昵称、签名和头像。群管理与 OneBot 工具依赖当前会话权限、QQ 账号在群里的角色以及网关支持的动作。 [命令入口](../src/chat/commands.js) · [联系人](../src/channels/qq/features/contacts/index.js) · [资料](../src/channels/qq/features/profile/index.js) · [QQ 工具](../src/channels/qq/features/qq-tools/index.js)
 
 ## 语音、媒体与创作
 
@@ -40,7 +40,7 @@
 | 本地视频 | 配置本地 `video` 脚本后，可从聊天工具启动并把结果发回。具体生成能力由脚本提供。 |
 | QQ 空间 | 日记可手动触发、预览、定时或按自主行动配置发布，使用当前可公开材料和时间情绪上下文。可按面板选择可见范围，归档内容、图片和评论。空间互动模块查新评论并按设置处理与好友动态的互动。 |
 
-实现入口。 [语音模块](../src/modules/voice/index.js) · [语音收发](../src/chat/hub.js) · [表情库](../src/modules/stickers/index.js) · [生图模块](../src/modules/imagegen/index.js) · [本地生图](../src/features/local-image.js) · [翻唱管线](../src/song/pipeline.js) · [任务记录](../src/core/tasks.js) · [视频模块](../src/modules/video/index.js) · [空间日记](../src/modules/diary/index.js) · [空间互动](../src/channels/qq/features/qzone-social/social.js)
+实现入口。 [语音模块](../src/channels/qq/features/voice/index.js) · [语音收发](../src/chat/hub.js) · [表情库](../src/modules/stickers/index.js) · [生图模块](../src/modules/imagegen/index.js) · [本地生图](../src/features/local-image.js) · [翻唱管线](../src/song/pipeline.js) · [任务记录](../src/core/tasks.js) · [视频模块](../src/modules/video/index.js) · [空间日记](../src/channels/qq/features/diary/index.js) · [空间互动](../src/channels/qq/features/qzone-social/social.js)
 
 参考图、尺寸和多图的支持由实际生图服务决定。内置本地生图对输出边长有限制，订阅接法目前只接受文字生图并使用自动尺寸。选择网络服务会把所需文字和参考图发给服务提供方。试运行用于防止发送 QQ 消息，实际模型调用、画作保存及可能的服务用量仍会发生。 [生图调度](../src/features/imagegen.js) · [订阅接口](../src/features/codex-image.js) · [试运行与画作登记](../src/modules/imagegen/index.js)
 

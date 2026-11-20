@@ -327,6 +327,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   let selfId = ''
   let lastChatAt = 0
   let lastOwnerChatAt = 0
+  let lastOwnerChatId = ''
   const lastPrivateAt = new Map() // QQ 号 → 最后一次和这个人私聊的时间（主动搭话白名单用）
   let lastBotToOwner = { at: 0, text: '' } // 她在管理员私聊里最后说的话
 
@@ -2358,7 +2359,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (disposed) return
     logChat(msg.chatId, msg.nickname, text, msg.userId)
     lastChatAt = now
-    if (msg.kind === 'private' && msg.userId === cfg.ownerQQ) lastOwnerChatAt = now
+    if (msg.kind === 'private' && isOwner(cfg, msg.userId, msg.chatId)) { lastOwnerChatAt = now; lastOwnerChatId = msg.chatId }
     if (msg.kind === 'private') lastPrivateAt.set(msg.userId, now)
     onActivity?.({ kind: 'in', chatId: msg.chatId, userId: msg.userId, nickname: msg.nickname, text, direct: msg.kind === 'private' || msg.mentioned || mode === 'must', owner: isOwner(cfg, msg.userId, msg.chatId) })
 
@@ -3253,7 +3254,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     try { mind?.perceive?.({ ...chat, text: text || '', images: image ? [{}] : [], messageId: originId ? `${source}:${originId}` : '' }) } catch (error) { log.debug('心智感知失败：', error.message) }
     logChat(chatId, chat.nickname, text || '[图片]', owner, { via: source, originId })
     lastChatAt = Date.now()
-    if (chatId === `private:${owner}`) { lastOwnerChatAt = lastChatAt; lastPrivateAt.set(owner, lastChatAt) }
+    if (chatId === `private:${owner}`) { lastOwnerChatAt = lastChatAt; lastOwnerChatId = chatId; lastPrivateAt.set(owner, lastChatAt) }
     onActivity?.({ kind: 'in', chatId, userId: owner, nickname: chat.nickname, text, direct: true, owner: true })
     await pushToSession(chat, content, owner, { queryText: text || '[图片]', steer: running.has(chatId) && !turnEpochs.get(chatId)?.st?.rewriting, assertAuthorized: validate })
     return { ok: true }
@@ -3586,8 +3587,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 现在这次调用算不算「管理员开口」：最近 5 分钟有管理员私聊消息算 owner，否则后台（一审 #177 复审：source 由宿主判断）。 */
   const OWNER_ACTIVE_MS = 5 * 60_000
   function ownerSourceNow() {
-    const qq = String(getConfig().ownerQQ || '')
-    if (qq && lastOwnerChatAt && Date.now() - lastOwnerChatAt <= OWNER_ACTIVE_MS) return { kind: 'owner', chatId: `private:${qq}` }
+    if (lastOwnerChatAt && lastOwnerChatId && Date.now() - lastOwnerChatAt <= OWNER_ACTIVE_MS) return { kind: 'owner', chatId: lastOwnerChatId }
     return { kind: 'system', reason: 'background' }
   }
 

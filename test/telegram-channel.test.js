@@ -32,3 +32,23 @@ test('Telegram 适配器能启动、发送文本和图片', async () => {
   assert.equal((await channel.group('telegram:group:-1001')).name, '测试群')
   channel.stop()
 })
+
+test('Telegram base64 图片用 multipart 上传', async () => {
+  let form = null
+  const fetchImpl = async (url, init) => {
+    const method = String(url).split('/').pop()
+    if (method === 'sendPhoto') {
+      form = init.body
+      return { ok: true, json: async () => ({ ok: true, result: { message_id: 21 } }) }
+    }
+    return { ok: true, json: async () => ({ ok: true, result: {} }) }
+  }
+  const channel = createTelegramChannel({ getConfig: () => ({ enabled: true, platforms: { telegram: { enabled: true, token: 'TOKEN' } } }), fetchImpl, log: { info() {}, warn() {}, debug() {} } })
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lK3Q6wAAAABJRU5ErkJggg==', 'base64')
+  const r = await channel.send('telegram:private:42', [{ type: 'image', data: { file: 'base64://' + png.toString('base64') } }])
+  assert.equal(r.messageId, '21')
+  assert.ok(form && typeof form.get === 'function')
+  assert.equal(form.get('chat_id'), '42')
+  assert.equal(form.get('photo')?.size, png.length)
+  channel.stop()
+})

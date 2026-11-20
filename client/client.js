@@ -323,6 +323,11 @@ body[data-ds-dark-theme] .ab-root{
 .ab-li .meta{flex:0 1 12em;color:var(--ab-dim);font-size:11.5px;overflow-wrap:anywhere}
 .ab-li .body{flex:1 1 16rem;min-width:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .ab-li>.ab-flex{flex:0 1 auto;flex-wrap:wrap;max-width:100%}
+.ab-platform-row .meta{display:flex;align-items:center;gap:6px;flex:1 1 15em}
+.ab-platform-caps{display:flex;flex-wrap:wrap;gap:4px;flex:1 1 16rem;align-items:center}
+.ab-platform-chip{font-size:10.5px;line-height:1.8;padding:0 7px;border:1px solid var(--ab-line);border-radius:999px;background:var(--ab-foam);color:var(--ab-sub)}
+.ab-platform-actions{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.ab-badge.ok{background:var(--ab-ok)}
 .ab-logs{font-family:var(--dsh-font-family-code,ui-monospace,monospace);font-size:12px;max-height:520px;overflow:auto;border-radius:10px;background:var(--ab-card-2);padding:8px 0}
 .ab-log{display:flex;gap:10px;padding:2px 12px;align-items:baseline}
 .ab-log:hover{background:var(--ab-hover)}
@@ -1632,21 +1637,28 @@ body[data-ds-dark-theme] .ab-root{
         h(Row, { label: 'HTTP 令牌' }, f.text('platforms.qq.httpToken', { type: 'password', placeholder: draft.platforms?.qq?.httpTokenSet ? '已保存' : '没有就留空' })))
     }
 
-    /** 平台入口：目前只有 QQ，后续适配器会在这里出现。 */
+    /** 平台入口：QQ / Telegram 共用状态卡；后续适配器会在这里出现。 */
     function Platforms({ st, go, draft, setDraft }) {
       const list = st.channels || []
       const f = useField(draft, setDraft)
       const label = (s) => ({ connected: '已连接', connecting: '连接中', stopped: '未启动', error: '异常' }[s] || s || '未知')
+      const capLabel = { faces: '小黄脸', stickers: '表情包', voice: '语音', files: '文件', recall: '撤回', poke: '戳一戳', react: '贴表情', typing: '输入状态', history: '历史消息', forward: '合并转发', card: '名片', friendRequests: '好友申请', groupRequests: '入群申请', profile: '改资料', groupAdmin: '群管', text: '文字', reply: '回复', images: '图片' }
+      const scrollTo = (id) => document.getElementById('ab-section-' + id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      const tg = list.find((p) => p.platform === 'telegram')
       const items = list.length
-        ? h('div', { className: 'ab-list' }, list.map((p) => h('div', { key: p.platform, className: 'ab-li' },
-          h('div', { className: 'meta' }, p.label || p.platform,
+        ? h('div', { className: 'ab-list' }, list.map((p) => h('div', { key: p.platform, className: 'ab-li ab-platform-row' },
+          h('div', { className: 'meta' },
+            h('i', { className: cx('ab-dot', p.state === 'connected' ? 'ok' : p.state === 'connecting' ? 'warn' : 'err') }),
+            p.label || p.platform,
             h('span', { className: 'ab-muted ab-small' }, ' · ' + label(p.state) + (p.ready ? ' · 已就绪' : ' · 未就绪'))),
-          h('div', { className: 'body ab-small' }, '能力：' + (Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => k).join('、') || '未声明')),
-          h('div', { style: { marginTop: 6 } }, p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null))))
+          h('div', { className: 'ab-platform-caps' }, Object.entries(p.caps || {}).filter(([, v]) => v).map(([k]) => h('span', { key: k, className: 'ab-platform-chip' }, capLabel[k] || k))),
+          h('div', { className: 'ab-platform-actions' },
+            p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null,
+            p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => scrollTo('telegram') }, '配置 Telegram') : null))))
         : h(Empty, { text: '还没有平台适配器' })
       return h('div', { className: 'ab-grid' },
-        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置。' }, items),
-        h(Card, { title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: 'ab-badge' }, '可选平台') },
+        h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置；Telegram 直接在下方填写。' }, items),
+        h(Card, { section: 'telegram', title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },
           h(Row, { label: '启用 Telegram' }, f.sw('platforms.telegram.enabled')),
           h(Row, { label: 'Bot API 地址', hint: '默认 https://api.telegram.org；服务器访问不了 Telegram 时填可用反代' }, f.text('platforms.telegram.apiBase', { placeholder: 'https://api.telegram.org' })),
           h(Row, { label: 'Bot Token', hint: '只保存在本机配置里' }, f.text('platforms.telegram.token', { type: 'password', placeholder: draft.platforms?.telegram?.tokenSet ? '已保存' : '123456:ABC...' })),
