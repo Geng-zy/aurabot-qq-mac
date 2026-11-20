@@ -690,7 +690,12 @@ function planSessionRestore(data, info) {
   let target = info.workspaceDir
   if (info.home && target.toLowerCase().startsWith(info.home.toLowerCase())) target = homedir() + target.slice(info.home.length)
   if (!existsSync(parse(target).root)) return { target: null }
-  const homeRoot = dshHome()
+  // 缺失的工作区只允许在用户主目录下创建，不能凭备份清单在任意路径 mkdir。
+  const userHome = homedir()
+  const dshRoot = dshHome()
+  const underRoot = (root) => target === root || target.startsWith(root + '/')
+  if (!existsSync(target) && !underRoot(userHome) && !underRoot(dshRoot)) return { target: null }
+  const homeRoot = dshRoot
   mkdirSync(homeRoot, { recursive: true })
   const home = dataBoundary(homeRoot)
   const directory = 'sessions/' + sessionDirName(target)

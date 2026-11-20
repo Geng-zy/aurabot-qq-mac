@@ -6,6 +6,8 @@
 
 - 全插件审计：- 审计补充：- 心智关闭前等待在飞编码（最多 5 秒），避免回写落到已关闭库。
 - 人格卡文件写入失败时回滚库内改动，避免面板下一次保存用旧文件覆盖。
+- 模块 panel.js 改为 sandbox iframe + postMessage 白名单，不再在父页面 new Function；RPC 路径校验和高度同步。
+- 备份恢复工作区只允许用户主目录/DSH home 下缺失路径创建，避免任意目录 mkdir。
 - 模块 sendText/reply/sendSegments 走后台发送闸，跨平台不再插进多气泡中间。
 - QQ outbox 补发接上同一发送闸：drain 前等待当前聊天多气泡结束，避免补发插进气泡中间。
 - 后台通知/补发发送闸：多气泡发送期间排队，轮内不插入；host 的提醒/审批/心智通知改走 sendBackground。
