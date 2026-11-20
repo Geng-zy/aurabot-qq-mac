@@ -23,6 +23,7 @@
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
 - 增加非 QQ 聊天收表情不写 QQ 收藏的回归测试。
+- 非原生表情平台发送 QQ 商城表情时退回本地预览图；图片式表情已可跨 QQ/Telegram 发送。
 - 平台页状态卡：QQ/Telegram 状态点、中文能力标签、分别配置按钮；Telegram 配置卡带状态锚点。
 - 修复跨平台管理员活跃时间只认 QQ：Telegram 管理员私聊也会进入 owner source。
 - Telegram base64 图片 multipart 增加回归测试；文档中的 QQ 模块路径更新。

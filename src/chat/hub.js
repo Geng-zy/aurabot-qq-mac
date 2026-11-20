@@ -1327,7 +1327,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       log.debug(`没找到「${query}」这张表情，跳过`)
       return result('missing')
     }
-    const seg = stickers.segmentFor(item)
+    // 没有原生表情能力的平台：QQ 商城表情退回本地预览图，按普通图片发；否则无法解码 mface。
+    const seg = !native && item.market
+      ? (stickers.segmentFor({ ...item, market: null }) || stickers.segmentFor(item))
+      : stickers.segmentFor(item)
     if (!seg) return result('missing')
     let delivered = false
     const r = await sendSegments(chatId, [...quote(replyId), ...mention(userId), seg], `[表情] ${item.name || item.md5.slice(0, 8)}`, {
