@@ -40,7 +40,11 @@ async function withRetry(fn, retryMs) {
 
 /** 边收边报进度；没有流的响应（测试替身）直接整包读。 */
 async function readBody(r, onBytes) {
-  if (!r.body) return Buffer.from(await r.arrayBuffer())
+  if (!r.body) {
+    const buf = Buffer.from(await r.arrayBuffer())
+    if (buf.length > MAX_ZIP_BYTES) throw new Error('安装包太大')
+    return buf
+  }
   const chunks = []
   let got = 0
   for await (const chunk of r.body) {

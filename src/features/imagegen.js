@@ -133,7 +133,10 @@ export function customRequest (imageGen, prompt, image) {
 async function valueToBuffer (v, signal) {
   if (typeof v !== 'string' || !v) throw new Error('生图接口没有返回图片')
   const b64 = /^data:image\/[^;]+;base64,(.+)$/i.exec(v)
-  if (b64) return Buffer.from(b64[1], 'base64')
+  if (b64) {
+    if (b64[1].length > 28 * 1024 * 1024) throw new Error('生图接口返回的图片太大')
+    return Buffer.from(b64[1], 'base64')
+  }
   if (/^https?:\/\//i.test(v)) return fetchImage(v, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
   throw new Error('生图接口返回的既不是图片地址也不是图片')
 }
