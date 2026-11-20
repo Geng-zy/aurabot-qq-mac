@@ -3,6 +3,7 @@
 // WebSocket、OneBot 事件解析、出站队列等实现暂时收在 transport 里，后续可以逐块替换，
 // 这样群管、空间、文件、语音这些已有能力不会在重写入口时一起丢掉。
 import { createQqChannel } from './index.js'
+import { convertMessageEvent } from './convert.js'
 
 export function createQqAdapter(ctx = {}) {
   const transport = ctx.createTransport ? ctx.createTransport(ctx) : createQqChannel(ctx)
@@ -21,7 +22,7 @@ export function createQqAdapter(ctx = {}) {
     state: () => transport.state(),
     status: () => transport.status(),
     on: (fn) => transport.on(fn),
-    convert: (raw) => transport.convert(raw),
+    convert: (raw) => convertMessageEvent(raw, transport.selfId(), { faceName: transport.faces?.nameOf }),
     send: (chatId, segments, opts) => transport.send(chatId, segments, opts),
     sendBySession: (session, segments, opts) => transport.send(session, segments, opts),
     // 事件由 ChannelManager 统一转发；保留别名，方便以后接 AstrBot 式 queue。
