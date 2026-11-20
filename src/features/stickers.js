@@ -79,7 +79,7 @@ export function pickEvict(items) {
   return pool.slice().sort((a, b) => (a.uses || 0) - (b.uses || 0) || (a.lastUsed || a.at || 0) - (b.lastUsed || b.at || 0))[0]
 }
 
-export function createStickerStore({ dsh, getConfig, onebot, log, qq = null }) {
+export function createStickerStore({ dsh, getConfig, onebot, log, qq = null, downloadSegment = null }) {
   const recent = [] // 每小时限额
   // QQ 专有动作由 channels/qq/features/stickers-qq.js 注入；没有注入时保留旧 onebot 兼容。
   const addCustomFace = (buf) => qq?.addCustomFace ? qq.addCustomFace(buf) : onebot.call('add_custom_face', { file: 'base64://' + buf.toString('base64') })
@@ -142,7 +142,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log, qq = null }) {
     const d = seg.data || {}
     let buf
     try {
-      buf = await segmentBytes(seg, onebot, { maxBytes: 1024 * 1024 * 1024 })
+      buf = await (downloadSegment || ((s) => segmentBytes(s, onebot, { maxBytes: 1024 * 1024 * 1024 })))(seg)
     } catch (error) {
       return { ok: false, reason: '下载失败：' + error.message }
     }
@@ -208,7 +208,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log, qq = null }) {
       try {
         const r = await addCustomFace(buf)
         item.emojiId = String(r?.emoji_id || '')
-        if (item.emojiId && item.name) await onebot.call('modify_custom_face', { emoji_id: item.emojiId, desc: item.name })
+        if (item.emojiId && item.name) await modifyCustomFace(item.emojiId, item.name)
       } catch (error) {
         log.warn('收藏到 QQ 失败（本地已留档）：', error.message)
       }
@@ -389,7 +389,7 @@ export function createStickerStore({ dsh, getConfig, onebot, log, qq = null }) {
         if (tags.length) cur.tags = tags
         saveLibrary(l)
         if (cur.emojiId && !getConfig().dryRun) {
-          try { await onebot.call('modify_custom_face', { emoji_id: cur.emojiId, desc: cur.name.slice(0, 20) }) } catch (error) { log.warn('写回 QQ 备注失败：', error.message) }
+          try { await modifyCustomFace(cur.emojiId, cur.name.slice(0, 20)) } catch (error) { log.warn('写回 QQ 备注失败：', error.message) }
         }
         job.ok++
         job.last = cur.name

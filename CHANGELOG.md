@@ -22,6 +22,7 @@
 - 发送能力降级：平台声明不支持 voice 时语音改文字，不支持 stickers 时跳过表情；未声明能力的旧适配器保持原行为。
 - 删除 QQ `inbound.js` 兼容层，所有调用和测试统一改用 `convert.js`。
 - 删除 QQ `client.js` 兼容 shim，测试和代码全部改用 `transport.js`。
+- 通用表情库支持注入 `downloadSegment`，消息媒体下载也不再直接绑定 OneBot；模块负责传入 QQ 下载实现。
 - 通用表情库支持注入 QQ hooks（add/modify/delete custom face），QQ 专有写操作从 store 移出。
 - QQ 收藏表情导入从通用 sticker store 拆到 `channels/qq/features/stickers-qq.js`；通用库只保留 store 能力。
 - 清理 QQ index：去掉重复 isDefiniteFailure 和未使用的 quote helper 解构；连接提示改用 platform botAccount。
