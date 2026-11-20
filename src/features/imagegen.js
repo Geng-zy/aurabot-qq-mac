@@ -281,7 +281,9 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     // 直接返回图片字节（pollinations 这类）
     if (type.startsWith('image/')) {
       if (!r.ok) throw serviceError(r.status, `HTTP ${r.status}`, image)
-      return Buffer.from(await r.arrayBuffer())
+      const raw = Buffer.from(await r.arrayBuffer())
+      if (raw.length > 20 * 1024 * 1024) throw serviceError(502, '生图服务返回的图片太大', false)
+      return raw
     }
     const j = await r.json().catch(() => null)
     if (!r.ok) throw serviceError(r.status, (j && (j.error?.message || j.message)) || `HTTP ${r.status}`, image)

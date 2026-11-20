@@ -154,6 +154,9 @@ async function fetchAudio(url, init, timeoutMs = 120000) {
   const r = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) })
   if (!r.ok) throw new Error(`HTTP ${r.status}：${(await r.text().catch(() => '')).slice(0, 120)}`)
   const buf = Buffer.from(await r.arrayBuffer())
+  if (buf.length > 30 * 1024 * 1024) throw new Error('语音服务返回的音频太大')
+  if (buf.length > 30 * 1024 * 1024) throw new Error('语音服务返回的音频太大')
+  if (buf.length > 30 * 1024 * 1024) throw new Error('语音服务返回的音频太大')
   if (buf.length < 400) throw new Error('返回的音频太短：' + buf.toString('utf8').slice(0, 120))
   return buf
 }
@@ -334,6 +337,7 @@ export async function httpSynth(text, c) {
   if (!r.ok) throw new Error(`HTTP ${r.status}：${(await r.text().catch(() => '')).slice(0, 160)}`)
 
   let buf = Buffer.from(await r.arrayBuffer())
+  if (buf.length > 30 * 1024 * 1024) throw new Error('语音服务返回的音频太大')
   const ctype = String(r.headers.get('content-type') || '')
   const looksJson = ctype.includes('json') || buf[0] === 0x7b
   if (looksJson) {
