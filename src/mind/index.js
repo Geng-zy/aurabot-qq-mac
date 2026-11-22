@@ -4,7 +4,7 @@
 // 感知记录（收到和发出的每条消息）、认识的人、版本管理、删除记录、快照备份。
 
 import { join } from 'node:path'
-import { appendFileSync, readFileSync, readdirSync, statSync, renameSync, existsSync, mkdirSync } from 'node:fs'
+import { appendFileSync, readFileSync, readdirSync, statSync, renameSync, rmSync, existsSync, mkdirSync } from 'node:fs'
 import { openRecoverableStore, GENERATED_COLUMNS } from './store.js'
 import { resolveSettings, paramOf, clampParam, PARAMS, GROUPS } from './params.js'
 import { currentAge, dayKey, describeNow, isBirthday, validTimeZone } from './clock.js'

@@ -9,8 +9,8 @@
 DeepSeek Harness 插件 · Apple 芯片 Mac · 多平台适配器 · OneBot v11
 
 [![Release](https://img.shields.io/github/v/release/Geng-zy/aurabot-qq-mac?style=flat-square&label=release)](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-1558%20passing-brightgreen?style=flat-square)](#开发与测试)
-[![Node](https://img.shields.io/badge/node-%E2%89%A522.13-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
+[![Tests](https://img.shields.io/badge/tests-1559%20passing-brightgreen?style=flat-square)](#开发与测试)
+[![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-2e7763?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-QQ%20%7C%20Telegram-588b78?style=flat-square)](#平台)
 
@@ -125,12 +125,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH `0.2.2-rc.3` 或更新版本。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.5.11.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.5.12.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.11.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.12.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -204,7 +204,7 @@ docs/                      设计、手册、迁移与审计
 
 ## 开发与测试
 
-需要 Node.js ≥ 22.13.0。
+需要 Node.js ≥ 24.0.0。
 
 ```bash
 npm test
@@ -215,7 +215,7 @@ npm run check
 
 ```text
 393 个文件语法检查通过
-1558 个测试通过
+1559 个测试通过
 ```
 
 也提供离线心智回放：

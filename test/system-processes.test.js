@@ -47,6 +47,22 @@ test('管理接口拒绝损坏或类型错误的 JSON，并且不改变现有设
   }
 })
 
+test('知识库写接口用真实请求体：写、读、改 scope、改名、删除', async (t) => {
+  const { fake } = await setup(t)
+  const note = await fake.call('/knowledge/note', { title: '路由测试', content: '真实 JSON 请求体', scope: 'qq:group:9' })
+  assert.equal(note.json().ok, true, JSON.stringify(note.json()))
+  const list = (await fake.call('/knowledge/list')).json()
+  const item = list.list.find((x) => x.title === '路由测试')
+  assert.ok(item)
+  assert.equal(item.scope, 'qq:group:9')
+  assert.equal((await fake.call('/knowledge/read?path=' + encodeURIComponent(item.path))).json().ok, true)
+  assert.equal((await fake.call('/knowledge/scope', { path: item.path, scope: 'private' })).json().ok, true)
+  assert.equal((await fake.call('/knowledge/rename', { path: item.path, title: '改过的路由测试' })).json().ok, true)
+  const renamed = (await fake.call('/knowledge/list')).json().list.find((x) => x.title === '改过的路由测试')
+  assert.ok(renamed)
+  assert.equal((await fake.call('/knowledge/delete', { path: renamed.path })).json().ok, true)
+})
+
 test('连接自测只接受主动提交，排队或模拟的消息不算送达', async (t) => {
   const { fake, api } = await setup(t)
   await fake.call('/save', { enabled: true, debug: false, dryRun: false })

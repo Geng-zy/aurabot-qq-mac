@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.12
+
+- 修复知识库写笔记、导入、改名、删除、改 scope 四个 HTTP 接口重复解析 JSON 导致全部失败；补真实路由回归。
+- 修复知识库搜索命中 TDZ、页面卸载 Promise、未改 scope 保存成 all、深目录枚举和 2MB 写入/读取不一致。
+- 修复 Seedream / xAI / Gemini / SenseNova / ComfyUI provider 保存重启后被 normalize 成 openai；备用服务保留 provider。
+- 修复快照轮换缺少 rmSync；增加 SQLite FTS5 启动检查，Node engines 收紧到 24。
+- 输入隐私：群聊按 audienceWindow 过滤私聊事实；管理员私聊保留跨会话回忆，第三方私聊不进入群聊上下文。
+- 出站隐私：严格校验 JSON boolean，异常 fail-closed；预算/模型不可用时只按字面受限内容兜底。
+- 跨平台联动：bridge 按平台+账号校验 owner/白名单；/bridge/token/reset 只接受 POST。
+- 恢复自定义模块 panelSandboxHtml，修正模块 RPC envelope；补 Breeze toast。
+- 修复 qzone 公开评论被误标为 secret，导致后续无关通知被隐私闸误拦。
+- 回归更新为 393 个语法文件、1559 个测试；串行全量通过。
+
 ## 1.5.11
 
 - 群聊秘书闸：所有平台群聊可选轻量模型预判，@/引用/唤醒词必回不经过闸；支持按群覆盖、开关、日志、持久化统计、按天汇总和导出。

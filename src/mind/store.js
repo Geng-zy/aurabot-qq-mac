@@ -114,7 +114,20 @@ export function openStore(file) {
   }
 }
 
+function assertFts5(db) {
+  let row
+  try {
+    row = db.prepare("SELECT sqlite_compileoption_used('ENABLE_FTS5') AS ok").get()
+  } catch (error) {
+    // 损坏库交给 openRecoverableStore 处理，不能误报成 FTS5 缺失。
+    if (/not a database|malformed|corrupt/i.test(String(error.message || ''))) throw error
+    throw new Error('当前 Node 的 SQLite 没有 FTS5，心智记忆无法启动；请使用自带 FTS5 的 Node 24+。' + (error.message ? '（' + error.message + '）' : ''))
+  }
+  if (!row || !Number(row.ok)) throw new Error('当前 Node 的 SQLite 没有启用 FTS5，心智记忆无法启动；请使用自带 FTS5 的 Node 24+。')
+}
+
 function initialize(db, file) {
+  assertFts5(db)
   db.exec('PRAGMA busy_timeout = 2000')
   const version = db.prepare('PRAGMA user_version').get().user_version
   if (version > SCHEMA_VERSION) {

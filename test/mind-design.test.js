@@ -161,8 +161,8 @@ test('管理员私聊只分享核验过的日常原话，删除或设为私密�
     assert.equal(mind.memory.visibleIn(notes[0], audience), true)
     const recall = await mind.memory.recall({ window: audience, audienceWindow: audience, cue: '下雨 天气', deliberate: true })
     assert.match(JSON.stringify(recall), /下雨以后天气凉快多了/)
-    // 同一份记忆可以想起原始经历；出站和分享仍由 visibleIn/protectedText 控制。
-    assert.match(JSON.stringify(recall), /原始记忆的细节/)
+    // 公共片段可以想起；原始私密经历不能进入其他会话。
+    assert.doesNotMatch(JSON.stringify(recall), /原始记忆的细节/)
     assert.doesNotMatch(JSON.stringify(recall), /伪造片段/)
   }
   const share = mind.memory.shareEpisode(original, { audience: window, text: '今天变凉快了' })
@@ -227,8 +227,8 @@ test('管理员允许的一句话仅在指定会话可用，撤回后旧编号�
   assert.equal(memory.shareEpisode(original, { text: excerpt, audience: window }), id)
   const got = await memory.workingMemory({ window, cue: '一起看了这部电影', compact: true })
   assert.match(got.text, /一起看了这部电影/)
-  // 同一份记忆里原始经历也能被想起；分享文本和外部会话仍受 visibleIn 限制。
-  assert.match(got.text, /昨晚|琥珀灯塔/)
+  // 只允许想起已核准的分享文本；原始经历和私密地点不能进入当前群。
+  assert.doesNotMatch(got.text, /昨晚|琥珀灯塔/)
   assert.equal(memory.recallMore(original, { audienceWindow: window }), null)
   for (const audienceWindow of ['demo:group:other', 'demo:private:friend', '']) {
     assert.equal(memory.recallMore(id, { audienceWindow }), null)

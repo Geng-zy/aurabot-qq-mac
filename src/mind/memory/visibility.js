@@ -24,6 +24,8 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
     if (path.has(e.id)) return false
     const { data } = e
     if (data.audienceOnly && e.window !== window) return false
+    // 任何私聊来源都不能进入别的会话；管理员私聊的跨会话回忆由 visibleForAudience 明确放行。
+    if (e.window && e.window !== window && place(e.window).kind === 'private' && !(window === '' && !ownerPrivate(e.window))) return false
     if (data.privateOnly) {
       if (!ownerPrivate(window)) return false
     }
@@ -56,6 +58,14 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
     if (!e || e.data.needsRecompute || e.data.shareRevoked) return false
     if ((e.data.kind === 'dream' && !Array.isArray(e.data.from)) || (!e.window && e.data.kind === 'belief' && e.data.speaker === 'self')) return false
     return true
+  }
+
+  /** 对话/上下文召回：管理员私聊保持同一份记忆，其他窗口必须按收件人范围过滤。 */
+  function visibleForAudience(e, audienceWindow) {
+    if (audienceWindow === undefined) return visibleForRecall(e)
+    if (audienceWindow === '' && e.window && place(e.window).kind === 'private') return false
+    if (ownerPrivate(audienceWindow)) return visibleForRecall(e)
+    return visibleIn(e, audienceWindow)
   }
 
   function sourceVisible(source, window) {
@@ -119,5 +129,5 @@ export function createVisibility({ store, deps, place, row, S, publicSourceLines
   }
 
 
-  return { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText }
+  return { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, visibleForAudience, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText }
 }

@@ -30,6 +30,8 @@ function fakePng(w, h, salt = 0) {
 
 // 「模型」脚本
 async function brain({ preset, text, images, callTool }) {
+  // 隐私判断：测试里的假模型明确返回允许，避免把空间评论等无关输出误拦。
+  if (text.includes('"draft"') && text.includes('"restricted"')) return '{"block":false}'
   if (text.includes('主动联系回执测试-沉默')) return '[沉默]'
   if (text.includes('主动联系回执测试-发出')) return '今天想和你聊会儿。'
   if (text.includes('【你看到的事，不是管理员说的话】')) return '你电脑上 pwsh 那俩会话卡住啦，去点一下批准嘛'
@@ -627,13 +629,14 @@ test('群聊：她还在回上一段时新来的消息先攒着，回完再一�
 })
 
 test('群聊被引用：引用她的消息后，回复引用并 @ 对方', async () => {
-  const outgoing = await api.hub.sendText('group:555', '前一条测试消息')
+  // 用独立群，避免前序 /silent、群聊状态用例把 555 的会话/静音状态带进来。
+  const outgoing = await api.hub.sendText('group:556', '前一条测试消息')
   const sentId = String(outgoing.message_id)
-  const target = grp('555', '779', [{ type: 'reply', data: { id: sentId } }, ...text('谢谢你')])
-  const n = sentTo('group', '555').length
+  const target = grp('556', '779', [{ type: 'reply', data: { id: sentId } }, ...text('谢谢你')])
+  const n = sentTo('group', '556').length
   mock.push(target)
-  await until(() => sentTo('group', '555').length > n)
-  const segs = sentTo('group', '555').at(-1).params.message
+  await until(() => sentTo('group', '556').length > n)
+  const segs = sentTo('group', '556').at(-1).params.message
   assert.deepEqual(segs[0], { type: 'reply', data: { id: String(target.message_id) } })
   assert.deepEqual(segs[1], { type: 'at', data: { qq: '779' } })
 })

@@ -12,7 +12,7 @@ function notesDir() { return join(root(), 'notes') }
 function ensure() { mkdirSync(rawDir(), { recursive: true }); mkdirSync(notesDir(), { recursive: true }) }
 
 function files(dir, out = [], depth = 0) {
-  if (depth > 4) return out
+  if (depth > 6) return out
   let entries = []
   try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return out }
   for (const e of entries) {
@@ -62,7 +62,7 @@ export function createKnowledge() {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
     return files(rawDir()).concat(files(notesDir())).map((file) => {
       let text = ''
-      try { text = readFileSync(file, 'utf8').slice(0, MAX_FILE) } catch { return null }
+      try { if (statSync(file).size > MAX_FILE) return null; text = readFileSync(file, 'utf8') } catch { return null }
       if (!admin && !scopeAllows(scopeOf(text), chatId)) return null
       const hay = (basename(file) + '\n' + text).toLowerCase()
       const score = words.reduce((n, w) => n + (hay.includes(w) ? 1 : 0), 0)
@@ -97,6 +97,7 @@ export function createKnowledge() {
     let file = join(dir, name + '.md')
     for (let n = 2; existsSync(file); n++) file = join(dir, `${name}-${n}.md`)
     const text = `---\nscope: ${sc}\n---\n\n${body}${body.endsWith('\n') ? '' : '\n'}`
+    if (Buffer.byteLength(text) > MAX_FILE) return { ok: false, message: '笔记超过 2MB，没有写入' }
     writeFileSync(file, text, 'utf8')
     return { ok: true, path: relative(root(), file), message: `已写入 ${relative(root(), file)}` }
   }
@@ -104,7 +105,7 @@ export function createKnowledge() {
   function list() {
     return files(rawDir()).concat(files(notesDir())).map((file) => {
       let text = ''
-      try { text = readFileSync(file, 'utf8').slice(0, MAX_FILE) } catch { return null }
+      try { if (statSync(file).size > MAX_FILE) return null; text = readFileSync(file, 'utf8') } catch { return null }
       return { path: relative(root(), file), title: basename(file, extname(file)), scope: scopeOf(text), bytes: Buffer.byteLength(text) }
     }).filter(Boolean).sort((a, b) => a.path.localeCompare(b.path))
   }

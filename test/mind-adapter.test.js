@@ -234,7 +234,7 @@ test('每轮回复前想起相关的事，放进她的上下文，并标明是�
   // 同一份记忆：别的会话也能想起；是否说出去由出站隐私闸判断。
   const groupChat = { chatId: 'group:9', kind: 'group', groupId: '9' }
   await a.beforeTurn(groupChat, '今晚吃什么，要不要放香菜', [])
-  assert.match(a.contextFor({ chat: groupChat }), /香菜/, '同一份记忆在别的会话也能想起')
+  assert.doesNotMatch(a.contextFor({ chat: groupChat }), /香菜/, '群聊不能看到管理员私聊里的秘密')
 })
 
 test('她的记忆工具：使劲想、特意记下、约定做完；群友不能用「记住」给她定规矩', async () => {
@@ -366,7 +366,7 @@ test('带渠道的会话按来源记忆，公开发布只读取明确提供的�
   const id = api.experience({ chatId: 'mock:private:2', text: '私人极光画像', publicSummary: '不应发布的摘要' })
   assert.equal(a.mind.memory.row(id).data.about, 'mock:2')
   assert.deepEqual(api.recent().map(({ text }) => text), ['私人极光画像'])
-  assert.ok(a.groupInterest({ chatId: 'group:9', texts: ['私人极光画像'] }).relevance > 0)
+  assert.equal(a.groupInterest({ chatId: 'group:9', texts: ['私人极光画像'] }).relevance, 0)
   api.experience({ kind: 'seen', text: '她看完后的私人想法', publicSummary: '看了一部公开纪录片' })
   api.experience({ text: '仅自己可见的日记', secret: true })
   assert.deepEqual(api.recent({ publicOnly: true }).map(({ text }) => text), ['看了一部公开纪录片'])

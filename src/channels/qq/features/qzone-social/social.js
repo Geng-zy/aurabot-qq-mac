@@ -119,7 +119,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         s.replied[m.tid] = [...handled].slice(-200)
         if (!text) continue
         if (!(await sendComment(m.tid, `回复 ${last.name}：${text}`))) continue
-        if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: true, tags: ['空间'], importance: 0.35 })
+        if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: false, tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
         done++
       }
@@ -167,7 +167,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         (existing.length ? `下面已经有这些评论：\n${existing.join('\n')}\n\n` : '') +
         `想评论的话，结合说说内容${existing.length ? '和下面大家在聊的（别重复别人说过的话，可以接大家的梗）' : ''}，用你的口气评一句（像朋友之间随手评论那样）。`)
       if (!text || !(await sendComment(f.key, text, f.uin))) continue
-      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: true, tags: ['空间'] })
+      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: false, tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++
     }

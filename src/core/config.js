@@ -584,7 +584,7 @@ export function normalize(raw) {
     if (!/^[a-z0-9_-]+$/i.test(id) || fallbackIds.has(id)) return []
     fallbackIds.add(id)
     return [{
-      id, provider: item.provider === 'codex' ? 'codex' : 'openai',
+      id, provider: ['openai','seedream','xai','gemini','sensenova','comfyui','custom','codex','local'].includes(item.provider) ? item.provider : 'openai',
       baseUrl: String(item.baseUrl || '').trim().replace(/\/+$/, '').slice(0, 500),
       apiKey: String(item.apiKey || '').trim(), model: String(item.model || '').trim().slice(0, 200),
     }]
@@ -598,7 +598,7 @@ export function normalize(raw) {
   c.imageGen.galleryShown = Math.min(50, Math.max(1, Math.round(Number(c.imageGen.galleryShown) || 20)))
   c.imageGen.shape = ['her', 'square', 'portrait', 'landscape', 'wide'].includes(c.imageGen.shape) ? c.imageGen.shape : 'her'
 
-  c.imageGen.provider = ['custom', 'codex', 'local'].includes(c.imageGen.provider) ? c.imageGen.provider : 'openai'
+  c.imageGen.provider = ['openai','seedream','xai','gemini','sensenova','comfyui','custom','codex','local'].includes(c.imageGen.provider) ? c.imageGen.provider : 'openai'
   c.imageGen.localSteps = Math.max(4, Math.min(50, Math.round(Number(c.imageGen.localSteps) || 20)))
   if (!isObj(c.imageGen.codex)) c.imageGen.codex = { ...DEFAULTS.imageGen.codex }
   const igx = c.imageGen.codex

@@ -63,7 +63,7 @@ test('按日期回顾能找到已归档的周摘要，并沿用会话可见性',
   assert.match(owner.message, /读书清单/)
   const group = await tools(GROUP).mind_recall.execute({ period: '上周' })
   assert.match(group.message, /游戏更新/)
-  assert.match(group.message, /读书清单/)
+  assert.doesNotMatch(group.message, /读书清单/)
 })
 
 test('mind_read_day：群和其他私聊可跨会话查原话，管理员私聊留在来源会话', async (testContext) => {

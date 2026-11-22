@@ -10,6 +10,8 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { defineTool } from '../tools/tools.js'
 import { describeDelivery } from '../chat/reply.js'
+import { checkAllowed } from '../chat/access.js'
+import { parseChat } from '../channels/index.js'
 
 const RING = 300
 
@@ -28,14 +30,17 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
   // ---------- 能发给谁 ----------
   function canSend(target) {
     const cfg = getConfig()
-    const parts = String(target || '').split(':')
-    const [kind, id] = parts.length >= 3 && ['private', 'group'].includes(parts[1])
-      ? [parts[1], parts.slice(2).join(':')]
-      : parts
-    if (!id || !['private', 'group'].includes(kind)) return '目标要写成 private:QQ号 或 group:群号'
-    if (cfg.bridge.allowTargets === 'owner') return kind === 'private' && id === cfg.ownerQQ ? '' : '设置成了只能发给管理员'
-    const ok = kind === 'group' ? cfg.allow.groups : [cfg.ownerQQ, ...cfg.allow.private]
-    return ok.includes(id) ? '' : '不在白名单里，不能发'
+    const chat = parseChat(target)
+    if (!chat) return '目标要写成 private:QQ号 或 group:群号'
+    const platformCfg = cfg.platforms?.[chat.platform] || {}
+    const owner = String(platformCfg.ownerQQ || (chat.platform === 'qq' ? cfg.ownerQQ : ''))
+    if (cfg.bridge.allowTargets === 'owner') {
+      return chat.kind === 'private' && chat.id === owner ? '' : '设置成了只能发给管理员'
+    }
+    const result = checkAllowed(cfg, {
+      chatId: target, kind: chat.kind, userId: chat.id, groupId: chat.id,
+    })
+    return result.allowed ? '' : result.reason || '不在白名单里，不能发'
   }
   const ownerTarget = () => `private:${getConfig().ownerQQ}`
 

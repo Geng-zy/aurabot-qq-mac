@@ -29,11 +29,19 @@ export function createSharing({ store, now, deps, place, ownerPrivate, shareSour
     return true
   }
 
+  function sharesGram(a, b, n = 3) {
+    const left = String(a || '').toLowerCase().replace(/\s+/g, '')
+    const right = String(b || '').toLowerCase().replace(/\s+/g, '')
+    if (left.length < n || right.length < n) return left && right ? left === right : false
+    for (let i = 0; i + n <= left.length; i++) if (right.includes(left.slice(i, i + n))) return true
+    return false
+  }
+
   function privacyCandidates(text, ownerWindow, audience) {
     const rows = [...keywordHits(text)].filter(([, score]) => score >= 0.45).sort((a, b) => b[1] - a[1])
       .map(([id]) => row(id)).filter(Boolean)
     // 所有当前收件人看不到的经历都要参与比对，不能只挑管理员私聊/分享；第三方私聊秘密同样要拦。
-    const hits = rows.filter((e) => !visibleIn(e, audience))
+    const hits = rows.filter((e) => (e.data.secret || e.data.privateOnly || e.data.kind === 'shared-note' || (e.window && String(e.window).includes(':private:'))) && !visibleIn(e, audience) && sharesGram(text, [e.gist, e.detail].filter(Boolean).join(' ')))
     const allowed = rows.filter((e) => ['shared-note', 'public-note'].includes(e.data.kind) && visibleIn(e, audience))
     return {
       private: hits.slice(0, 6).map((e) => [e.gist, e.detail].filter(Boolean).join('\n').slice(0, 450)),
@@ -42,5 +50,5 @@ export function createSharing({ store, now, deps, place, ownerPrivate, shareSour
   }
 
 
-  return { shareEpisode, revokeShare, privacyCandidates }
+  return { shareEpisode, revokeShare, privacyCandidates, sharesGram }
 }

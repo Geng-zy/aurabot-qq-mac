@@ -9,7 +9,8 @@ export function createSocial({ mind, mem, opts, now, windowOf, refOfChat, dayKey
       .all(now() - mins * 60000, here)
     const byWindow = new Map()
     for (const r of rows) {
-      if (!mem.visibleIn({ ...r, data: JSON.parse(r.json) }, here)) continue
+      const entry = { ...r, data: JSON.parse(r.json) }
+      if (!(mem.visibleForAudience ? mem.visibleForAudience(entry, here) : mem.visibleIn(entry, here))) continue
       if (!byWindow.has(r.window)) { if (byWindow.size >= 4) continue; byWindow.set(r.window, []) }
       const list = byWindow.get(r.window)
       if (list.length < per) list.push(r)

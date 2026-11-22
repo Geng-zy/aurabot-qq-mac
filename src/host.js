@@ -746,25 +746,25 @@ export function apply(ctx) {
   route('/knowledge/rename', async (req) => {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
-    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
     return knowledge.rename(String(b.path || ''), String(b.title || ''))
   })
   route('/knowledge/delete', async (req) => {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
-    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
     return knowledge.remove(String(b.path || ''))
   })
   route('/knowledge/note', async (req) => {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
-    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
     return knowledge.createNote(String(b.title || ''), String(b.content || ''), { scope: String(b.scope || 'all'), folder: String(b.folder || '') })
   })
   route('/knowledge/scope', async (req) => {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
-    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
     return knowledge.setScope(String(b.path || ''), String(b.scope || 'all'))
   })
   route('/logs', async (req) => {
@@ -1584,7 +1584,7 @@ export function apply(ctx) {
 
   // 联动
   route('/bridge/token', async () => ({ ok: true, token: cfg.bridge.http ? bridge.ensureToken() : '' }))
-  route('/bridge/token/reset', async () => ({ ok: true, token: bridge.resetToken(), message: '换了新密钥，旧的立刻失效' }))
+  route('/bridge/token/reset', async (req) => req?.method === 'POST' ? { ok: true, token: bridge.resetToken(), message: '换了新密钥，旧的立刻失效' } : { ok: false, message: '换密钥要用 POST' })
   route('/bridge/examples', async (req) => ({ ok: true, ...bridge.examples(String(query(req).base || 'http://127.0.0.1:端口')) }))
   // 开放接口：都要带密钥。/open/* 给外部程序（curl/脚本）用，跨机 + 自定义 Host 是正常用法，
   // 且有自己的 Bearer 鉴权——跳过管理面的 Host 允许名单（复审 2·P1-2 的豁免原则同理）。

@@ -94,7 +94,7 @@ export function createMemory(deps) {
     getJointExperience: () => privacyText.jointExperience,
     anchorDates, relativeDayWords,
   })
-  const { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText } = visibility
+  const { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, visibleForAudience, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText } = visibility
 
   function save(e) {
     store.prep('UPDATE episodes SET gist = ?, detail = ?, strength = ?, stability = ?, last_recall = ?, status = ?, json = ? WHERE id = ?')
@@ -109,7 +109,8 @@ export function createMemory(deps) {
   async function ask(scene, system, text, maxTokens = 1200) {
     if (!think) throw new Error('没接模型')
     const est = estimateTokens(system) + estimateTokens(text) + maxTokens
-    const finish = deps.budget.reserve(scene, est)
+    // 隐私判断是安全闸，不占用后台创作预算；否则预算耗尽会把所有出站都卡死。
+    const finish = scene === 'privacy' ? () => {} : deps.budget.reserve(scene, est)
     if (!finish) {
       const e = new Error('今天的后台预算用完了')
       e.code = 'BUDGET'
@@ -242,10 +243,10 @@ export function createMemory(deps) {
   const encodePending = createEncodePending({ store, now, deps, log, dayKey, encodeWindow, pendingWindows, cursorOf })
 
   // ---------- 关键词 ----------
-  const keywordHits = createKeywordHits({ store, visibleIn, visibleForRecall, row })
+  const keywordHits = createKeywordHits({ store, visibleIn, visibleForRecall, visibleForAudience, row })
 
   const render = createRender({ memorySummary, pendingLabel, KINDS })
-  const recall = createRecall({ store, now, S, getState: () => state(), embedText, vectors, embedModel, keywordHits, row, visibleIn, visibleForRecall, rOf, levelOf, levels, getRerank: () => rerank, log, deps, render, hasSecretScope })
+  const recall = createRecall({ store, now, S, getState: () => state(), embedText, vectors, embedModel, keywordHits, row, visibleIn, visibleForRecall, visibleForAudience, rOf, levelOf, levels, getRerank: () => rerank, log, deps, render, hasSecretScope })
 
   /** 想起来的被加强；隔得越久想起，加得越多。按设置的概率排进睡觉时的改写。 */
   const strengthen = createStrengthen({ store, now, S, row, rOf, save, queueJob, state, random })
@@ -293,7 +294,7 @@ export function createMemory(deps) {
   const { staleVectorIds, vectorProgress, canEmbed } = vectorState
 
   return {
-    connect, encodeWindow, encodeThrough, encodePending, pendingThrough, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, visibleForRecall, sourceVisible, protectedText, sharesIn, sharedText, restrictedShareText, privacyCandidates,
+    connect, encodeWindow, encodeThrough, encodePending, pendingThrough, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, visibleForRecall, visibleForAudience, sourceVisible, protectedText, sharesIn, sharedText, restrictedShareText, privacyCandidates,
     dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, setPrivateOnly, shareEpisode, revokeShare, audienceRevision, touchAudience, notePrivacyContext, list, sourceCounts, related, counts,
     embedEpisodes, staleVectorIds, vectorProgress, embedModel, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }

@@ -9,8 +9,8 @@
 A DeepSeek Harness plugin for Apple-silicon Macs · multi-platform adapters · OneBot v11
 
 [![Release](https://img.shields.io/github/v/release/Geng-zy/aurabot-qq-mac?style=flat-square&label=release)](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-1558%20passing-brightgreen?style=flat-square)](#development)
-[![Node](https://img.shields.io/badge/node-%E2%89%A522.13-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
+[![Tests](https://img.shields.io/badge/tests-1559%20passing-brightgreen?style=flat-square)](#development)
+[![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-2e7763?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-QQ%20%7C%20Telegram-588b78?style=flat-square)](#platforms)
 
@@ -123,12 +123,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH `0.2.2-rc.3` or newer. QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.5.11.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.5.12.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.11.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.12.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -157,7 +157,7 @@ Use **⌥ K** to search settings. Clicking the active group again collapses its 
 
 ## Development
 
-Requires Node.js ≥ 22.13.0.
+Requires Node.js ≥ 24.0.0.
 
 ```bash
 npm test
@@ -168,7 +168,7 @@ Current regression:
 
 ```text
 393 files syntax-checked
-1558 tests passing
+1559 tests passing
 ```
 
 Offline mind replay:

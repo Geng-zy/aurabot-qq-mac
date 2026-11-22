@@ -1,7 +1,7 @@
 // 按线索想起：向量、关键词、身边人、时间范围、精排和联想扩散。
 const DAY = 86400000
 
-export function createRecall({ store, now, S, getState, embedText, vectors, embedModel, keywordHits, row, visibleIn, visibleForRecall, rOf, levelOf, levels, getRerank, log, deps, render, hasSecretScope }) {
+export function createRecall({ store, now, S, getState, embedText, vectors, embedModel, keywordHits, row, visibleIn, visibleForRecall, visibleForAudience, rOf, levelOf, levels, getRerank, log, deps, render, hasSecretScope }) {
   // ---------- 想起 ----------
   /**
    * 按线索想起。
@@ -62,7 +62,7 @@ export function createRecall({ store, now, S, getState, embedText, vectors, embe
     for (const [id, sim] of cand) {
       const e = row(id)
       const historicalReview = e?.status === 'archived' && archivedReviews.has(id)
-      if (!e || (e.status !== 'live' && !historicalReview) || !visibleForRecall(e)) continue
+      if (!e || (e.status !== 'live' && !historicalReview) || !visibleForAudience(e, audienceWindow)) continue
       if (!inPeriod(e)) continue
       if (e.data.kind === 'intention' && e.data.done) continue
       if (!deliberate && !period && e.data.kind === 'pending' && !cueHits.has(id) && !contextHits.has(id)) continue
@@ -95,7 +95,7 @@ export function createRecall({ store, now, S, getState, embedText, vectors, embe
         log.debug('精排没成，按原来的顺序：', error.message)
       }
     }
-    const eligible = scored.filter(({ e }) => visibleForRecall(e))
+    const eligible = scored.filter(({ e }) => visibleForAudience(e, audienceWindow))
     if (!deliberate && !period) {
       // 对方明确提到待跟进事项时，让有直接词证的事项排在仅因人物关系而想起的记忆前面。
       eligible.sort((a, b) => Number(b.e.data.kind === 'pending' && cueHits.has(b.e.id)) - Number(a.e.data.kind === 'pending' && cueHits.has(a.e.id)))

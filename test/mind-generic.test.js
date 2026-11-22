@@ -29,11 +29,11 @@ test('群的了解按整个窗口记：不同平台同一个群号不串', () =>
   assert.match(m.relations.describe([], { window: 'feishu:group:9' }), /飞书工作群/)
 })
 
-test('其他人的私聊记忆可以跨平台使用，管理员的私聊原话仅在来源窗口可读', async () => {
+test('其他人的私聊记忆不进入群聊上下文，管理员的私聊原话仅在来源窗口可读', async () => {
   const m = mk()
   m.memory.insert({ at: T0, window: 'wechat:private:wxid_2', gist: '小明说他在准备考研复试', kind: 'fact', about: 'wechat:wxid_2', speaker: 'wechat:wxid_2', importance: 0.8 })
   const w = await m.memory.workingMemory({ cue: '考研复试', window: 'feishu:group:9', people: ['wechat:wxid_2'] })
-  assert.match(w.text, /考研复试/)
+  assert.doesNotMatch(w.text, /考研复试/, '群聊不能看到第三方私聊事实')
   assert.match((await m.memory.workingMemory({ cue: '考研复试', window: 'wechat:private:wxid_2' })).text, /考研复试/)
   const dm = 'wechat:private:wxid_o'
   m.perceive({ window: dm, who: 'wechat:wxid_o', text: '这段话只在私聊说', msgId: 'w1', at: T0 })
