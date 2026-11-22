@@ -3,7 +3,7 @@
 // 设计见设计文档「记忆」一章。
 
 import { createHash, randomUUID } from 'node:crypto'
-import { retention, initialStability, afterRecall, levelOf } from './curve.js'
+import { retention, initialStability, levelOf } from './curve.js'
 import { createVectorIndex } from './vectors.js'
 import { estimateTokens } from '../budget.js'
 import { zonedToEpoch, shortTime, dayKey, localParts, parseBirthday } from '../clock.js'

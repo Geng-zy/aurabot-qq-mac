@@ -25,7 +25,8 @@ export function savePainting (buf, prompt, { now = new Date() } = {}) {
     const stamp = `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`
     const slug = paintingSlug(prompt)
     const ext = mimeOf(buf) === 'image/jpeg' ? 'jpg' : 'png'
-    const file = join(d, `${stamp}-${slug}.${ext}`)
+    let file = join(d, `${stamp}-${slug}.${ext}`)
+    for (let n = 1; existsSync(file); n++) file = join(d, `${stamp}-${String(now.getMilliseconds()).padStart(3, '0')}-${n}-${slug}.${ext}`)
     writeFileSync(file, buf)
     return file
   } catch (error) {
@@ -109,11 +110,6 @@ export function rememberPainting (chatId, file) {
   return 1
 }
 
-/** 这个聊天最近画过几张（编号从 1 开始，1 = 最新）。 */
-export function paintingCount (chatId) {
-  return (recent.get(String(chatId || '')) || []).length
-}
-
 /** 这个聊天最近几张画（新 → 旧），给「我都画过什么」用。 */
 export function recentPaintings (chatId, limit = 10) {
   const list = recent.get(String(chatId || '')) || []
@@ -179,11 +175,11 @@ export function openPaintFolder ({ run = spawn } = {}) {
   ensureDir(d)
   try {
     const opts = { detached: true, stdio: 'ignore' }
-    run('open', [d], opts).unref()
+    const child = run('open', [d], opts)
+    if (typeof child.on === 'function') child.on('error', (error) => { try { child.kill?.() } catch {} ; void error })
+    child.unref?.()
     return { ok: true, message: '打开了：' + d, path: d }
   } catch (error) {
     return { ok: false, message: '打不开文件夹：' + error.message, path: d }
   }
 }
-
-export const paintDir = dir

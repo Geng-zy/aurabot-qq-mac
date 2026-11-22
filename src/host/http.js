@@ -2,6 +2,8 @@
 //
 // 这里是插件的管理面边界：DSH 的 webServer 没有服务器级鉴权，所以本机闸、Host 闸
 // （DNS rebinding）和 CSRF 闸都在这一层统一处理。路由表本身留在 host.js。
+import { isIP } from 'node:net'
+import { StringDecoder } from 'node:string_decoder'
 import { redact } from '../core/redact.js'
 
 /**
@@ -22,13 +24,15 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
   const readBody = async (req, max = 2 * 1024 * 1024) => {
     let s = ''
     let n = 0
+    const decoder = new StringDecoder('utf8')
     try {
       for await (const c of req) {
         const part = Buffer.isBuffer(c) ? c : Buffer.from(c)
         n += part.length
         if (n > max) throw new Error(`请求内容太大了（最多 ${Math.round(max / 1024 / 1024)}MB）`)
-        s += part.toString('utf8')
+        s += decoder.write(part)
       }
+      s += decoder.end()
     } catch (error) { throw new Error(error.message || '请求内容没有接收完整') }
     if (!s.trim()) return {}
     let body
@@ -69,11 +73,14 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
   // 反代层再加一道认证——README 写明这是硬要求）。
   // 【首审 P1-1】闸的覆盖范围不能只有 /panel/*：/state（能读到全部配置与密钥）、/save（能改配置）、
   // /logs、/modules*（能装代码）、/bridge/token（直接返回联动密钥）
-  // 这些**都是管理面**，必须一起纳入。只有客户端直连用的 /ext/<模块>/* 与 /asset/* 不受此闸限制
-  //（它们各自有 token 校验）。
+  // 这些**都是管理面**，必须一起纳入。/ext/<模块>/* 由模块路由自己的管理面策略处理；/asset/* 路由并不存在。
   const isLoopbackAddr = (ip) => {
-    const s = String(ip || '')
-    return s === '::1' || s === '127.0.0.1' || s === '::ffff:127.0.0.1' || /^127\./.test(s) || s.startsWith('::ffff:127.')
+    const s = String(ip || '').trim().replace(/^\[|\]$/g, '')
+    if (s === '::1') return true
+    const fam = isIP(s)
+    if (fam === 4) return /^127\./.test(s)
+    if (fam === 6) return /^::ffff:127\./i.test(s) || /^::ffff:7f00:/i.test(s)
+    return false
   }
   const normAddr = (ip) => String(ip || '').trim().replace(/^::ffff:/i, '').replace(/^\[|\]$/g, '')
   /** 可信反代地址列表（security.trustedProxy，逗号分隔；留空 = 从不相信任何转发头）。 */

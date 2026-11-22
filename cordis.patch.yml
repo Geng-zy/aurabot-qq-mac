@@ -1,7 +1,7 @@
 # Aurabot —— DSH bundle patch（插件自带的挂载声明）
 #
 # 1) aurabot：插件本体（宿主半边 src/host.js + 网页半边 client/client.js）
-# 2) 三个 agent preset，只给 Aurabot 自己建的 QQ 会话/子智能体用：
+# 2) 五个 agent preset，只给 Aurabot 自己建的 QQ 会话/子智能体用：
 #    - aurabot-private：管理员私聊，完整工具 + 大肥鱼人格
 #    - aurabot-private-long：同上，另挂 jobs + schedule（面板「长任务模式」打开时用，默认关）
 #    - aurabot-social ：群聊 / 其他人私聊，没有任何本地工具（shell / 文件 / 网络），只有插件按会话挂的 QQ 工具

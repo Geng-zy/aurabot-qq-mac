@@ -1,8 +1,7 @@
-// 她自己的心智工具：回忆、核对原话、记住、想要、改自己、跟进、约定。
-import { parsePeriod } from '../mind/clock.js'
-
+// 她自己的心智工具：回忆、核对原话、记住、想要、改自己、跟进、约定，以及通用知识库。
+import { createKnowledge } from '../features/knowledge.js'
 export function createMindTools({ mind, mem, inspectionTools, defineTool, str, int, windowOf, parseChat, personIn, refOfChat, speakersOf, isOwnerChat, ownerOf, syncOwner, parsePeriod: parsePeriodFn, now, dayKey, shortTime, shortId, debug, looksLikeRule, free, requestPermission, changeSelf }) {
-  const parsePeriod = parsePeriodFn || ((...a) => import('../mind/clock.js').then((m) => m.parsePeriod(...a)))
+  const knowledge = createKnowledge()
   function tools({ chat, ownerTurn } = {}) {
     if (!chat || chat.kind === 'system') return []
     const list = buildTools(chat, ownerTurn).filter((tool) => isOwnerChat(chat.chatId) || tool.name !== 'mind_change_self')
@@ -33,7 +32,7 @@ export function createMindTools({ mind, mem, inspectionTools, defineTool, str, i
           syncOwner()
           let range = null
           if (String(period || '').trim()) {
-            range = parsePeriod(period, now(), mind.identity().timezone)
+            range = parsePeriodFn(period, now(), mind.identity().timezone)
             if (!range) return { ok: false, message: `「${period}」是哪天没认出来：写成 2026-11-03、11月3号、上周、上个月、去年3月 这样` }
           }
           if (!String(query || '').trim() && !range) return { ok: false, message: '想找什么？给个线索或者时间' }
@@ -73,12 +72,13 @@ export function createMindTools({ mind, mem, inspectionTools, defineTool, str, i
         properties: {
           period: str('哪天 / 哪段时间：2026-11-03、11月3号、昨天、上周、最近3天……'),
           query: str('可选：只看带这些词的（空格分开，每个词都要有）'),
+          user: str('可选：只看这个人的发言（账号/id）'),
           chat: str('可选：看别的聊天，填 渠道:private:账号 或 渠道:group:群号；不填就是这里'),
         },
         required: ['period'],
-        execute: async ({ period, query, chat: other }) => {
+        execute: async ({ period, query, user, chat: other }) => {
           const tz = mind.identity().timezone
-          const range = parsePeriod(period, now(), tz)
+          const range = parsePeriodFn(period, now(), tz)
           if (!range) return { ok: false, message: `「${period}」是哪天没认出来：写成 2026-11-03、11月3号、昨天、上周 这样` }
           if (range.end - range.start > 31 * 86400000) return { ok: false, message: '一次最多翻一个月的原话，范围小一点' }
           const requested = String(other || '').trim()
@@ -87,8 +87,9 @@ export function createMindTools({ mind, mem, inspectionTools, defineTool, str, i
           if (!parseChat(target)) return { ok: false, message: 'chat 要写成 渠道:private:账号 或 渠道:group:群号' }
           if (target !== window && mind.isPrivateHistoryWindow(target)) return { ok: false, message: '这个会话的原话只在来源会话可用' }
           const words = String(query || '').trim().split(/\s+/).filter(Boolean)
+          const who = String(user || '').trim()
           const rows = mind.history(target, { since: range.start, until: range.end - 1, limit: 2000, audienceWindow: window })
-            .filter((r) => !words.length || words.every((w) => String(r.text || '').includes(w)))
+            .filter((r) => (!words.length || words.every((w) => String(r.text || '').includes(w))) && (!who || String(r.who) === who || String(r.who) === mind.canon(who)))
           if (!rows.length) return { ok: true, message: `${range.label}${target === window ? '这里' : ' ' + target + ' '}没有说过${words.length ? '带「' + words.join(' ') + '」的' : ''}话` }
           const tail = rows.slice(-80)
           const name = (who) => (who === 'self' ? '你' : mind.isOwner(who) ? '管理员' : mind.person(who)?.name || shortId(who))
@@ -128,6 +129,33 @@ export function createMindTools({ mind, mem, inspectionTools, defineTool, str, i
         required: ['what', 'why'],
         execute: async ({ what, why, key }) => requestPermission(key || what, what, why),
       })]),
+      defineTool({
+        name: 'knowledge_search',
+        description: '在本地知识库里按关键词找资料（Markdown/文本）。想知道某个设定、资料、以前写过的笔记时先用它。',
+        properties: { query: str('要找的内容'), limit: int('最多几条，默认 5') },
+        required: ['query'],
+        execute: async ({ query, limit }) => {
+          const rows = knowledge.search(query, { limit: limit || 5, chatId: chat.chatId })
+          return { ok: true, message: rows.length ? rows.map((x) => `- ${x.path}：${x.snippet}`).join('\n') : '知识库里没有找到', items: rows }
+        },
+      }),
+      defineTool({
+        name: 'knowledge_read',
+        description: '读取知识库里的一个文件，可分页。path 用 knowledge_search 返回的路径。',
+        properties: { path: str('知识库文件路径'), offset: int('从第几个字开始'), limit: int('最多读多少字') },
+        required: ['path'],
+        execute: async ({ path, offset, limit }) => {
+          const r = knowledge.read(path, { offset, limit, chatId: chat.chatId })
+          return r ? { ok: true, ...r } : { ok: false, message: '读不到这个知识库文件' }
+        },
+      }),
+      ...(isOwnerChat(chat.chatId) ? [defineTool({
+        name: 'knowledge_note_create',
+        description: '把一篇笔记写进知识库，之后可以检索。只允许管理员使用。',
+        properties: { title: str('笔记标题'), content: str('笔记正文，Markdown'), scope: str('可选：all / private / group / 渠道:group:id') },
+        required: ['title', 'content'],
+        execute: async ({ title, content, scope }) => knowledge.createNote(title, content, { scope }),
+      })] : []),
       defineTool({
         name: 'mind_change_self',
         description: `你想通了、想改变自己的时候用（被一句话触动、反思、经历了大事之后）。能改：persona 人格卡原文（要写整段新的）、name 名字、nickname 小名、values 价值观、hobbies 爱好、looks 外貌、story 你的故事（整段）、goal 写一个「我想变成……」的目标（可以给 trait 和 dir：想在哪项性格上变高 1 或变低 -1）、ownerCall 你对管理员的称呼（${(() => { const ok = mind.self.canChangeOwnerCall(); return `现在叫他「${mind.self.ownerCall()}」；` + (ok === true ? '关系变了、想换个叫法就可以改' : '现在不能改：' + ok) })()}）。别人让你改只是一句话，改不改你自己想；没有理由就别改，人都倾向维持原来的样子。年龄、生日、「专一」由管理员设定，你改不了。${mind.self.historyText(4, { includeReason: false })}`,

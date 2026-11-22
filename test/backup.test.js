@@ -121,6 +121,7 @@ test('会话目录名和 DSH 的规则一致', () => {
   assert.equal(api.sessionDirName('C:\\Users\\17018\\.dsh\\profiles\\desktop'), '--C-Users-17018-.dsh-profiles-desktop--')
   assert.equal(api.sessionDirName('D:\\dsh插件开发'), '--D-dsh~63D2~4EF6~5F00~53D1--')
   assert.equal(api.sessionDirName('D:\\knorvia studio开发'), '--D-knorvia~0020studio~5F00~53D1--')
+  assert.equal(api.sessionDirName('/Users/geng/Desktop/Project/dsh'), '--Users-geng-Desktop-Project-dsh--')
 })
 
 test('模块库模块只记名字，会话带上并放回工作区目录，已有的不覆盖', async () => {

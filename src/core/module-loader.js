@@ -1,7 +1,7 @@
 // 模块生命周期：启动、停止、热重载、同步和卸载。
 // 只依赖 state 与组合根传进来的依赖，不直接碰面板/注册表实现。
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
-import { dirname, join, relative, sep } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { registerSecretField } from './config.js'
 

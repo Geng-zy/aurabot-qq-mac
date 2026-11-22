@@ -151,10 +151,6 @@ const isUnsupportedEffort = (error) => {
   return /UNSUPPORTED_REASONING_EFFORT|does not support reasoning effort|reasoning effort/i.test(msg)
 }
 
-/** 最近一次模型一个字没写时流里有什么：排查「模型没返回内容」用。 */
-let lastEmpty = ''
-export const lastEmptyInfo = () => lastEmpty
-
 async function runStream (llm, params, onUsage) {
   let out = ''
   const types = {}
@@ -179,7 +175,6 @@ async function runStream (llm, params, onUsage) {
     // 报错也已经计费了，所以在 finally 里记，且一次调用最多一行；记的是数字，不含聊天内容
     if (usage && onUsage) { try { onUsage(usage) } catch (error) {} }
   }
-  if (!out.trim()) lastEmpty = `结束原因 ${finish || '无'}，数据块 ${JSON.stringify(types)}`
   return out.trim()
 }
 

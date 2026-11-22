@@ -182,12 +182,14 @@ export function defaults() {
   return Object.fromEntries(PARAMS.map((p) => [p.key, p.def]))
 }
 
+const DEFAULT_SETTINGS = Object.freeze(defaults())
+
 /**
  * 把用户设置和默认值合起来，并按范围夹紧；未知的键丢掉。
  * @param {Record<string, any>} saved
  */
 export function resolveSettings(saved = {}) {
-  const out = defaults()
+  const out = { ...DEFAULT_SETTINGS }
   for (const [key, value] of Object.entries(saved || {})) {
     const p = byKey.get(key)
     if (!p || value === undefined) continue

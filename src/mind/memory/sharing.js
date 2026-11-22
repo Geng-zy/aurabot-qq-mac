@@ -1,6 +1,4 @@
 // 分享、撤回和隐私候选。
-import { randomUUID } from 'node:crypto'
-
 export function createSharing({ store, now, deps, place, ownerPrivate, shareSourceAllowed, insert, save, touchAudience, randomUUID: randomUUIDFn, keywordHits, row, visibleIn }) {
   const randomUUID = randomUUIDFn
   /** 只由宿主的管理员设置入口调用。单独保存管理员核准的说法，不把原经历的任何字段复制给接收方。 */

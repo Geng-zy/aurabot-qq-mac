@@ -95,7 +95,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   async function flushOutbox() { return outboxFlusher?.flush() }
 
   // 连接后漏掉的、或补发中途又断网的，定时再试；没连接时直接返回。
-  const flushTimer = flushEveryMs > 0 ? setInterval(() => { flushOutbox().catch(() => {}) }, flushEveryMs) : null
+  const flushTimer = flushEveryMs > 0 && box ? setInterval(() => { flushOutbox().catch(() => {}) }, flushEveryMs) : null
   flushTimer?.unref?.()
 
   const connectionProblem = () => baseConnectionProblem(() => auth.wrongAccount)

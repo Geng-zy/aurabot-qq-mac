@@ -53,6 +53,8 @@ export default {
       return fn()
     }
     const panelOnly = { access: 'panel' }
+    api.route('/image/status', async () => ({ ok: true, lastError: gen.lastError?.() || null }), panelOnly)
+    api.route('/image/status/clear', async (req) => req?.method === 'POST' ? gen.clearLastError?.() || { ok: true } : { ok: false, message: '要用 POST' }, panelOnly)
     api.route('/image/local/status', async () => localImage.status(), panelOnly)
     api.route('/image/local/install', localAction(async () => {
       const status = localImage.status()
@@ -60,6 +62,14 @@ export default {
       void localImage.install()
       return { ok: true, ...localImage.status() }
     }), panelOnly)
+    api.route('/image/test', async (req) => {
+      if (req?.method !== 'POST') return { ok: false, message: '请从生图面板发起测试' }
+      if (!gen.enabled()) return { ok: false, message: '生图还没启用，先把生图方式配好' }
+      try {
+        const buf = await gen.generate('一条蓝色小鱼在水草间游动，柔和光线，水彩插画', { size: '512x512' })
+        return { ok: true, image: buf.toString('base64'), message: '试画成功。' }
+      } catch (error) { return { ok: false, message: error.message } }
+    }, panelOnly)
     api.route('/image/local/test', localAction(async () => {
       try {
         const buf = await localImage.generate('一条蓝色小鱼在水草间游动，柔和光线，水彩插画', { size: '512x512', steps: 8 })
@@ -198,6 +208,18 @@ export default {
         }
         if (redraw && reference) {
           drawPrompt = '以原图角色为参考绘制新的独立画面。重新设计取景与构图，去掉参考图的文字、白边和原排版。用户指定的细节优先。\n' + drawPrompt
+        }
+        // Pollinations 的免费模型对中文提示词基本不服从（会把“蓝色小鱼”画成随机人物）：
+        // 只对这类自定义接口做一次英文转写，其他付费/本地服务保持原提示词。
+        const customUrl = String(api.config().imageGen?.custom?.url || '')
+        if (/pollinations/i.test(customUrl) && /[\u3400-\u9fff]/.test(drawPrompt)) {
+          try {
+            const translated = String(await api.ask({
+              system: 'Translate the following image prompt into natural English for an image model. Preserve names, style, colors, counts and composition. Output only the English prompt, no explanation.',
+              text: drawPrompt, maxTokens: 500, reasoningEffort: 'low',
+            }) || '').trim()
+            if (translated) { drawPrompt = translated; api.log.info('生图提示词已转成英文（Pollinations 中文服从度差）') }
+          } catch (error) { api.log.debug('生图提示词转写失败，继续用原文：', error.message) }
         }
         if (hub.containsProtectedText?.(chat.chatId, drawPrompt)) return { ok: false, message: '画面描述含私密内容' }
         const draw = async (task) => {

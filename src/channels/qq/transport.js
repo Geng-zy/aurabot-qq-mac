@@ -86,9 +86,7 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
         if (error.name === 'AbortError') throw new OneBotError(action, { message: '超时' }, { uncertain: true })
         if (!notConnected(error)) throw new OneBotError(action, { message: describeNetError(error, ep) }, { uncertain: true })
         if (generation !== stopGeneration) throw new OneBotError(action, { message: 'QQ 网关客户端已停止' })
-        if (ws && ws.readyState === 1) {
-          try { return await callWs(action, params, timeoutMs) } catch (wsError) { throw wsError }
-        }
+        if (ws && ws.readyState === 1) return callWs(action, params, timeoutMs)
         throw new OneBotError(action, { message: describeNetError(error, ep) }, { transport: true })
       } finally {
         clearTimeout(t)
@@ -176,7 +174,17 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
       return
     }
     ws = sock
+    let openTimer
+    const clearOpenTimer = () => { if (openTimer) { clearTimeout(openTimer); openTimer = null } }
+    openTimer = setTimeout(() => {
+      if (ws !== sock || sock.readyState === 1) return
+      log.warn('WS 连接超时，准备重连')
+      try { sock.close() } catch {}
+      if (ws === sock) { ws = null; setState('disconnected', '连接超时'); schedule() }
+    }, 15_000)
+    openTimer.unref?.()
     sock.onopen = () => {
+      clearOpenTimer()
       if (ws !== sock) return
       backoff = RECONNECT_MIN
       setState('connected')
@@ -199,6 +207,7 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
       }
     }
     sock.onclose = (ev) => {
+      clearOpenTimer()
       if (ws !== sock) return
       ws = null
       clearPending('连接断开')
@@ -207,7 +216,7 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
         schedule()
       }
     }
-    sock.onerror = () => {}
+    sock.onerror = () => { clearOpenTimer() }
   }
 
   function schedule() {

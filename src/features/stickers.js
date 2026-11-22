@@ -6,8 +6,8 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from '
 import { basename, join } from 'node:path'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { imageSize, mimeOf, stickerSizeOk } from '../core/image-info.js'
-import { fetchImage } from '../core/net.js'
 import { askModel, canSeeImages } from '../core/llm.js'
+import { dHash, dHashDistance, toWebP } from './sticker-hash.js'
 
 const dir = () => dataDir('stickers')
 const indexFile = () => join(dir(), 'index.json')
@@ -33,6 +33,9 @@ export function stickerPath(item) {
 export function matchSticker(items, query) {
   const q = String(query || '').trim()
   if (!q || !items.length) return null
+  // 同名变体有主图时优先用主图；没有主图再在变体里随机。
+  const named = items.filter((it) => it.name === q)
+  if (named.length) return named.find((it) => it.primary) || named[Math.floor(Math.random() * named.length)]
   let best = null
   let bestScore = 0
   for (const it of items) {
@@ -141,6 +144,19 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
   }
 
   /** 收一张表情。seg 必须已经过 isStickerSegment 严格判定。 */
+  /** 近似重复：已有条目没有 dhash 时顺手补算，命中就复用旧条目。 */
+  async function nearDuplicate(lib, hash) {
+    if (!hash) return null
+    for (const item of lib.items) {
+      if (item.dhash === undefined) {
+        try { item.dhash = await dHash(readFileSync(join(dir(), item.file))) } catch { item.dhash = '' }
+      }
+      if (item.dhash && dHashDistance(item.dhash, hash) <= 5) return item
+    }
+    saveLibrary(lib)
+    return null
+  }
+
   function collect(seg, from) { return withLibraryLock(() => collectInner(seg, from)) }
   async function collectInner(seg, from) {
     const cfg = getConfig().stickers
@@ -162,11 +178,15 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     const md5 = createHash('md5').update(buf).digest('hex')
     const lib = loadLibrary()
     if (lib.items.some((i) => i.md5 === md5)) return { ok: false, reason: '已经有了' }
-    const mime = mimeOf(buf)
+    const similar = await nearDuplicate(lib, await dHash(buf))
+    if (similar) return { ok: false, reason: '和库里这张很像', item: similar }
+    let mime = mimeOf(buf)
+    const webp = cfg.webp && mime !== 'image/gif' ? await toWebP(buf) : null
+    if (webp) { buf = webp; mime = 'image/webp' }
     mkdirSync(dir(), { recursive: true })
     const file = `collected-${md5}.${ext(mime)}`
     writeFileSync(join(dir(), file), buf)
-    const item = { md5, file, name: '', tags: [], from, at: now, width, height, bytes: buf.length, emojiId: '', summary: String(d.summary || '').replace(/[[\]]/g, '') }
+    const item = { md5, dhash: await dHash(buf), file, name: '', tags: [], from, at: now, width, height, bytes: buf.length, emojiId: '', summary: String(d.summary || '').replace(/[[\]]/g, '') }
     // 平台原生表情元数据由平台 hook 解析（例如 QQ 的 mface）；通用库不认具体平台字段。
     const market = typeof readMarket === 'function' ? readMarket(seg) : null
     if (market) item.market = market
@@ -209,13 +229,21 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     const lib = loadLibrary()
     const exist = lib.items.find((i) => i.md5 === md5)
     if (exist) return { ok: true, item: exist, existed: true }
-    const mime = mimeOf(buf)
+    const similar = await nearDuplicate(lib, await dHash(buf))
+    const requestedName = String(name || '').trim().slice(0, 12)
+    // 同名表情允许作为变体共存；没有名字的近似图仍然按重复处理。
+    const variantOf = similar && requestedName && requestedName === similar.name ? similar.md5 : ''
+    if (similar && !variantOf) return { ok: true, item: similar, existed: true, similar: true }
+    let mime = mimeOf(buf)
     if (!mime.startsWith('image/')) return { ok: false, reason: '不是图片' }
+    const webp = getConfig().stickers.webp && mime !== 'image/gif' ? await toWebP(buf) : null
+    if (webp) { buf = webp; mime = 'image/webp' }
     mkdirSync(dir(), { recursive: true })
     const file = `manual-${md5}.${ext(mime)}`
     writeFileSync(join(dir(), file), buf)
     const { width, height } = imageSize(buf)
-    const item = { md5, file, name: String(name).slice(0, 12), tags, from, at: Date.now(), width, height, bytes: buf.length, emojiId: '' }
+    const item = { md5, dhash: await dHash(buf), file, name: requestedName, tags, from, at: Date.now(), width, height, bytes: buf.length, emojiId: '' }
+    if (variantOf) item.variantOf = variantOf
     if (toQQ && !getConfig().dryRun) {
       try {
         const r = await addCustomFace(buf)
@@ -257,7 +285,7 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     const lib = loadLibrary()
     const it = lib.items.find((i) => i.md5 === md5)
     if (!it) return { ok: false, reason: '没有这张' }
-    if (fromQQ && it.emojiId) {
+    if (fromQQ && it.emojiId && !getConfig().dryRun) {
       try { await deleteCustomFace(it.emojiId) } catch (error) { log.warn('从 QQ 收藏里删除失败：', error.message) }
     }
     try { unlinkSync(join(dir(), it.file)) } catch (error) {}
@@ -301,6 +329,15 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
   }
 
   /** 发表情用的消息段：商城表情按商城表情原样发（带 emoji_id，网关会认回成 mface）；其余本地图片按表情（sub_type=1）发。 */
+  function setPrimary(md5) {
+    const lib = loadLibrary()
+    const it = lib.items.find((x) => x.md5 === String(md5 || ''))
+    if (!it) return { ok: false, message: '找不到这张表情' }
+    lib.items = lib.items.map((x) => x.name && x.name === it.name ? { ...x, primary: x.md5 === it.md5 } : x)
+    saveLibrary(lib)
+    return { ok: true, md5: it.md5, name: it.name }
+  }
+
   function segmentFor(item) {
     if (item.market?.emojiId && typeof nativeSegment === 'function') return nativeSegment(item)
     const p = stickerPath(item)
@@ -419,5 +456,5 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     return { ok: true, total: queue.length, started: true, status: captionStatus(), message: `开始给 ${queue.length} 张表情起名字（后台跑，可以关掉面板）` }
   }
 
-  return { collect, addFromBuffer, remove, removeMany, rename, segmentFor, markUsed, trim, captionLibrary, captionStatus, captionCancel, captionTargets, dispose, library: loadLibrary, match: (q) => matchSticker(loadLibrary().items, q), pickForReply: (t) => pickForReply(loadLibrary().items, t) }
+  return { collect, addFromBuffer, remove, removeMany, rename, segmentFor, setPrimary, markUsed, trim, captionLibrary, captionStatus, captionCancel, captionTargets, dispose, library: loadLibrary, match: (q) => matchSticker(loadLibrary().items, q), pickForReply: (t) => pickForReply(loadLibrary().items, t) }
 }

@@ -95,7 +95,7 @@ export function createRecall({ store, now, S, getState, embedText, vectors, embe
         log.debug('精排没成，按原来的顺序：', error.message)
       }
     }
-    const eligible = scored.filter(({ e }) => visibleForRecall(row(e.id)))
+    const eligible = scored.filter(({ e }) => visibleForRecall(e))
     if (!deliberate && !period) {
       // 对方明确提到待跟进事项时，让有直接词证的事项排在仅因人物关系而想起的记忆前面。
       eligible.sort((a, b) => Number(b.e.data.kind === 'pending' && cueHits.has(b.e.id)) - Number(a.e.data.kind === 'pending' && cueHits.has(a.e.id)))

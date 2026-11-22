@@ -50,5 +50,3 @@ export function writeJson(file, value) {
   writeFileSync(tmp, JSON.stringify(value, null, 2), 'utf8')
   renameSync(tmp, file)
 }
-
-export { existsSync }

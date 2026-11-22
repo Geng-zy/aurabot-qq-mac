@@ -46,7 +46,7 @@ export function createWorking({ store, now, S, deps, recall, row, visibleIn, vis
    * 想起来的会被加强（她真的想起来了）。
    */
   async function workingMemory({ cue, contextCue, window, people = [], readOnly = false, isCurrent = () => true, limit, embeddingTimeoutMs, compact = false } = {}) {
-    const max = Number(S('workingChars')) || 1800
+    const max = Number(S('workingChars')) || 4000
     const got = await recall({ cue, contextCue, window, people, embeddingTimeoutMs, audienceWindow: window || '', limit, compact })
     if (!isCurrent()) return { text: '', recalled: [] }
     const lines = []

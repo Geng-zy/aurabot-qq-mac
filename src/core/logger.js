@@ -11,7 +11,8 @@ const LEVELS = ['debug', 'info', 'warn', 'error']
 export function createLogger({ dsh, retainDays = 14 } = {}) {
   const ring = []
   const listeners = new Set()
-  const dir = () => ensureDir(dataDir('logs'))
+  let dirCache = ''
+  const dir = () => (dirCache ||= ensureDir(dataDir('logs')))
   let lastCleanup = 0
 
   function cleanup() {

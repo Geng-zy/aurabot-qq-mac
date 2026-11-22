@@ -77,7 +77,7 @@ export function createModuleApi({ state, isDisposed, logger, getConfig, setConfi
       dsh: ctx,
       lib,
       // ---- 往插件里加东西 ----
-      tool: (builder) => { rec.tools.push(builder); return () => remove(rec.tools, builder) },
+      tool: (builder) => { delete rec.toolNamesCache; rec.tools.push(builder); return () => { delete rec.toolNamesCache; remove(rec.tools, builder) } },
       defineTool,
       context: (fn) => { rec.contexts.push(fn); return () => remove(rec.contexts, fn) },
       rule: (fn) => { rec.rules.push(fn); return () => remove(rec.rules, fn) },

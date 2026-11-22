@@ -3,7 +3,8 @@
 //   ② custom —— 自己填接口：GET / POST、URL 模板（{prompt} 占位）、自定义参数名、从返回 JSON 里按路径取图
 // 地址和密钥由管理员在面板里填；生成结果统一成 Buffer 交给 QQ 发出。
 
-import { lstatSync, readFileSync } from 'node:fs'
+import { lstatSync, readFileSync, unlinkSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { fetchImage, withTimeoutSignal } from '../core/net.js'
 import { resolvePainting } from './paintings.js'
 import { createCodexAuth } from './codex-auth.js'
@@ -11,6 +12,7 @@ import { createCodexImage } from './codex-image.js'
 import { mimeOf } from '../core/image-info.js'
 import { imageToolBlock } from '../core/img.js'
 import { imageSizeFor, normalizeRequestedSize } from './image-shape.js'
+import { dataDir, readJson, writeJson } from '../core/store.js'
 export { imageToolBlock }
 
 /** 把模板里的 {占位符} 替换掉；不认识的占位符原样留着。 */
@@ -141,7 +143,19 @@ async function valueToBuffer (v, signal) {
   throw new Error('生图接口返回的既不是图片地址也不是图片')
 }
 
+const PROVIDER_PRESETS = {
+  seedream: { baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', model: 'doubao-seedream-3-0-t2i-250415' },
+  xai: { baseUrl: 'https://api.x.ai/v1', model: 'grok-2-image' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-2.5-flash-image' },
+  sensenova: { baseUrl: 'https://api.sensenova.cn/v1', model: 'sensenova-u1' },
+}
+function withPreset(c) {
+  const preset = PROVIDER_PRESETS[c.provider]
+  return preset ? { ...c, baseUrl: c.baseUrl || preset.baseUrl, model: c.model || preset.model } : c
+}
+
 export function createImageGen({ getConfig, log, local, localImage, fetchImpl, codexAuth }) {
+  const statusFile = dataDir('imagegen-last-error.json')
   const fetch = fetchImpl || ((...args) => globalThis.fetch(...args))
   const auth = codexAuth || createCodexAuth({ log, fetchImpl: fetch })
   const viaCodex = createCodexImage({ auth, fetchImpl: fetch, log })
@@ -153,12 +167,12 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
   /**
    * extra：除了 image 以外的参考图（比如她的形象图的其余几张）。能一次收好几张的服务（gpt-image 系列）都给，别的只用 image 那一张
    */
-  async function generate(prompt, { shape, image, size, extra = [], signal, redraw } = {}) {
+  async function generateInner(prompt, { shape, image, size, extra = [], signal, redraw } = {}) {
     signal?.throwIfAborted()
     const config = getConfig().imageGen
     const requestedSize = size == null || size === '' ? '' : normalizeRequestedSize(size)
     if (size != null && size !== '' && !requestedSize) throw new Error('图片尺寸格式不对，应为 1024x1024 或 2048x2048 这类格式')
-    const c = { ...config, size: requestedSize || imageSizeFor(shape, config) }
+    const c = withPreset({ ...config, size: requestedSize || imageSizeFor(shape, config) })
     if (image != null && (!Buffer.isBuffer(image) || !String(mimeOf(image)).startsWith('image/'))) throw new Error('参考图不是可用的图片')
     if (image && c.img2img === false) throw new Error('参考图功能已关闭')
     const full = [c.stylePrompt, prompt].filter(Boolean).join('，')
@@ -181,7 +195,10 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     const run = async (endpoint) => {
       const buf = endpoint.provider === 'codex'
         ? await viaCodex(endpoint, full, { shape, image, signal })
-        : endpoint.provider === 'custom' ? await viaCustom(endpoint, full, image, signal) : await viaOpenAI(endpoint, full, image, extra, signal)
+        : endpoint.provider === 'custom' ? await viaCustom(endpoint, full, image, signal)
+          : endpoint.provider === 'gemini' ? await viaGemini(endpoint, full, image, signal)
+            : endpoint.provider === 'comfyui' ? await viaComfy(endpoint, full, image, signal)
+              : await viaOpenAI(endpoint, full, image, extra, signal)
       signal?.throwIfAborted()
       if (!buf?.length) throw serviceError(502, '生图接口没有返回图片', false)
       if (!String(mimeOf(buf)).startsWith('image/')) throw serviceError(502, '生图接口返回的不是图片', false)
@@ -206,6 +223,30 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     return buf
   }
 
+  async function generate(prompt, opts = {}) {
+    try {
+      const out = await generateInner(prompt, opts)
+      try { unlinkSync(statusFile) } catch {}
+      return out
+    } catch (error) {
+      try {
+        const c = getConfig().imageGen || {}
+        writeJson(statusFile, { at: Date.now(), provider: c.provider || '', model: c.model || '', message: String(error?.message || error).slice(0, 500) })
+      } catch (saveError) { log?.debug?.('记生图失败原因失败：', saveError.message) }
+      throw error
+    }
+  }
+
+  function lastError() {
+    const v = readJson(statusFile, null)
+    return v && typeof v === 'object' ? v : null
+  }
+
+  function clearLastError() {
+    try { unlinkSync(statusFile) } catch {}
+    return { ok: true }
+  }
+
   function fallbacks(c) {
     if (!c.fallbackEnabled) return []
     return (c.fallbacks || []).flatMap((item) => {
@@ -216,7 +257,8 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
         const url = new URL(item.baseUrl)
         if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return []
         if (c.provider === 'openai' && item.model === c.model && item.baseUrl === c.baseUrl) return []
-        return [{ ...c, ...item, provider: 'openai', isFallback: true }]
+        const endpoint = withPreset({ ...c, ...item })
+        return [{ ...endpoint, provider: ['gemini', 'comfyui'].includes(item.provider) ? item.provider : 'openai', isFallback: true }]
       } catch { return [] }
     })
   }
@@ -268,6 +310,98 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     return buf
   }
 
+  /** ComfyUI 直连：提交 API workflow，轮询 history，取输出图。 */
+  async function viaComfy(c, prompt, image, signal) {
+    const cf = c.comfy || {}
+    const base = String(cf.baseUrl || '').replace(/\/+$/, '')
+    if (!base || !cf.workflow) throw serviceError(404, '还没填 ComfyUI 地址或 workflow', false)
+    let workflow
+    try { workflow = typeof cf.workflow === 'string' ? JSON.parse(cf.workflow) : cf.workflow } catch { throw serviceError(400, 'ComfyUI workflow 不是合法 JSON', false) }
+    if (!workflow || typeof workflow !== 'object') throw serviceError(400, 'ComfyUI workflow 为空', false)
+    let hasPrompt = false
+    const put = (obj, value) => {
+      if (Array.isArray(obj)) return obj.map((x) => put(x, value))
+      if (!obj || typeof obj !== 'object') return obj
+      const out = {}
+      for (const [k, v] of Object.entries(obj)) {
+        if (typeof v === 'string' && v.includes('__PROMPT__')) { out[k] = v.replaceAll('__PROMPT__', value); hasPrompt = true }
+        else out[k] = put(v, value)
+      }
+      return out
+    }
+    workflow = put(workflow, prompt)
+    const promptNode = String(cf.promptNode || '')
+    if (promptNode) {
+      const node = workflow[promptNode]
+      if (!node?.inputs) throw serviceError(400, `找不到 ComfyUI 提示词节点 ${promptNode}`, false)
+      node.inputs.text = prompt
+      hasPrompt = true
+    }
+    if (!hasPrompt) throw serviceError(400, 'workflow 里没有 __PROMPT__，也没配提示词节点', false)
+    if (image) {
+      const fd = new FormData()
+      fd.append('image', new Blob([image], { type: mimeOf(image) }), 'reference.' + mimeOf(image).split('/')[1])
+      fd.append('overwrite', 'true')
+      const up = await request(base + '/upload/image', { method: 'POST', body: fd, signal: withTimeoutSignal(60000, signal) })
+      const uj = await up.json().catch(() => ({}))
+      if (!up.ok) throw serviceError(up.status, uj?.error || 'ComfyUI 上传参考图失败', image)
+      const name = [uj.subfolder, uj.name].filter(Boolean).join('/') || uj.name
+      const imageNode = String(cf.imageNode || '')
+      if (!imageNode || !workflow[imageNode]?.inputs) throw serviceError(400, '用了参考图，但没配 ComfyUI LoadImage 节点', image)
+      workflow[imageNode].inputs.image = name
+    }
+    const clientId = randomUUID()
+    const r = await request(base + '/prompt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ prompt: workflow, client_id: clientId }), signal: withTimeoutSignal(60000, signal) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw serviceError(r.status, j?.error?.message || j?.error || 'ComfyUI 提交失败', image)
+    const id = j.prompt_id || j.promptId
+    if (!id) throw serviceError(502, 'ComfyUI 没有返回 prompt_id', image)
+    const deadline = Date.now() + 180000
+    while (Date.now() < deadline) {
+      signal?.throwIfAborted()
+      await new Promise((resolve) => setTimeout(resolve, Math.max(200, Number(cf.pollMs) || 1000)))
+      const hr = await request(base + '/history/' + encodeURIComponent(id), { signal: withTimeoutSignal(20000, signal) })
+      if (!hr.ok) continue
+      const hj = await hr.json().catch(() => ({}))
+      const entry = hj[id]
+      const outputs = entry?.outputs || {}
+      const nodes = cf.outputNode ? [outputs[cf.outputNode]] : Object.values(outputs)
+      const img = nodes.flatMap((o) => o?.images || []).find((x) => x?.filename)
+      if (img) {
+        const q = new URLSearchParams({ filename: img.filename, subfolder: img.subfolder || '', type: img.type || 'output' })
+        const fr = await request(base + '/view?' + q.toString(), { signal: withTimeoutSignal(60000, signal) })
+        if (!fr.ok) throw serviceError(fr.status, 'ComfyUI 取图失败', image)
+        const buf = Buffer.from(await fr.arrayBuffer())
+        if (!buf.length || buf.length > 20 * 1024 * 1024) throw serviceError(502, 'ComfyUI 返回的图片为空或太大', false)
+        return buf
+      }
+    }
+    throw serviceError(504, 'ComfyUI 等待出图超时', image)
+  }
+
+  /** Gemini 原生 generateContent（API Key 走 query，和 OpenAI 兼容层分开）。 */
+  async function viaGemini(c, prompt, image, signal) {
+    const base = String(c.baseUrl || PROVIDER_PRESETS.gemini.baseUrl).replace(/\/+$/, '')
+    const model = c.model || PROVIDER_PRESETS.gemini.model
+    if (!c.apiKey) throw serviceError(401, 'Gemini 需要 API Key', false)
+    const parts = []
+    if (image) parts.push({ inlineData: { mimeType: mimeOf(image), data: image.toString('base64') } })
+    parts.push({ text: prompt })
+    const url = `${base}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(c.apiKey)}`
+    const r = await request(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contents: [{ parts }] }), signal: withTimeoutSignal(180000, signal) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw serviceError(r.status, j?.error?.message || `HTTP ${r.status}`, image)
+    const out = (j.candidates || []).flatMap((x) => x?.content?.parts || []).find((p) => p?.inlineData?.data)
+    if (out?.inlineData?.data) {
+      const buf = Buffer.from(out.inlineData.data, 'base64')
+      if (buf.length > 20 * 1024 * 1024) throw serviceError(502, '生图服务返回的图片太大', false)
+      return buf
+    }
+    const text = (j.candidates || []).flatMap((x) => x?.content?.parts || []).map((p) => p?.text).filter(Boolean).join('\n')
+    if (text) return valueToBuffer(text, signal)
+    throw serviceError(502, 'Gemini 没有返回图片', image)
+  }
+
   /** 自定义接口：GET 直接把参数拼在地址上，POST 放进 JSON / 表单。 */
   async function viaCustom (c, prompt, image, signal) {
     const cp = c.custom || {}
@@ -302,10 +436,11 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     if (!c.enabled) return false
     if (fallbacks(c).length) return true
     if (c.provider === 'codex') return auth.status().loggedIn
-    return c.provider === 'custom' ? Boolean(c.custom && c.custom.url) : Boolean(c.baseUrl && c.model)
+    if (c.provider === 'comfyui') return Boolean(c.comfy?.baseUrl && c.comfy?.workflow)
+    return c.provider === 'custom' ? Boolean(c.custom && c.custom.url) : Boolean(withPreset(c).baseUrl && withPreset(c).model)
   }
 
-  return { generate, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
+  return { generate, lastError, clearLastError, enabled, localReady, codexAuth: auth, dispose: () => auth.dispose?.() }
 }
 
 /**

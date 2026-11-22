@@ -121,6 +121,8 @@ test('Host 允许名单：rebind 域名的 GET 请求必须 403（复审 2·P1-1
     const r = await fake.call(p, null, { host: 'evil.example' }, '127.0.0.1')
     assert.equal(r.status, 403, `${p} 的异常 Host 必须拒绝`)
   }
+  const rebind = await fake.call('/state', null, { host: '127.evil.com:5099' }, '127.0.0.1')
+  assert.equal(rebind.status, 403, '127.<域名> 不能当回环 IP')
   // 白名单内的 Host 照常
   const ok1 = await fake.call('/state', null, { host: '127.0.0.1:5099' }, '127.0.0.1')
   assert.equal(ok1.status, 200, '回环 Host 正常')

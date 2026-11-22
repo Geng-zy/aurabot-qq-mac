@@ -58,16 +58,16 @@ export function separatorReady(dir, model) {
   if (!files) return existsSync(join(dir, model))
   const extra = EXTRA_SEPARATORS[model]
   if (extra && !readJson(join(dir, 'extra-models.json'), () => ({}))[extra.key]) return false
-  return files.every(([name]) => existsSync(join(dir, name)) && statSync(join(dir, name)).size > 0)
+  return files.every(([name]) => fileSize(join(dir, name)) > 0)
 }
 
 /** 下载一个文件：已经有了就跳过；地址按顺序轮流试，断了接着下，走系统代理。 */
 async function fetchFile(python, dest, urls, note, log, onProgress, label = basename(dest), sha256 = '') {
   const rel = label
-  if (existsSync(dest) && statSync(dest).size > 0) return
+  if (fileSize(dest) > 0) return
   // 上次没下完的（.download）会接着下
   const part = dest + '.download'
-  note?.(existsSync(part) ? `接着下 ${rel}（上次下到 ${Math.round(statSync(part).size / 1048576)} MB）` : `下载 ${rel}`)
+  note?.(fileSize(part) ? `接着下 ${rel}（上次下到 ${Math.round(fileSize(part) / 1048576)} MB）` : `下载 ${rel}`)
   let lastPct = -1
   await run(python, [FETCH_SCRIPT, ...(sha256 ? ['--sha256', sha256] : []), dest, ...urls], {
     log,
@@ -185,6 +185,8 @@ export const SEPARATOR_FILES = {
     ['leap_xe_config_voc.yaml', leapUrls('leap_xe_config_voc.yaml'), 'd3cb8c84be2e9bcbc64c1086e2256dc097ab5addebc5ce507818e90ff8cbdc25'],
   ],
 }
+const fileSize = (file) => { try { return statSync(file, { throwIfNoEntry: false })?.size || 0 } catch { return 0 } }
+
 const BUNDLED_SEP = fileURLToPath(new URL('./separator/', import.meta.url))
 const SEPARATOR_RUN = fileURLToPath(new URL('./separator_run.py', import.meta.url))
 
@@ -212,7 +214,7 @@ export function separatorCommand(p, args) {
  * 给了分离模型文件夹时只列还缺的文件（Leap Xe 要模型本体和一个配置文件，缺哪个列哪个）。
  */
 export function separatorLinks(model, dir = '') {
-  return (SEPARATOR_FILES[model] || []).filter(([name]) => !dir || !(existsSync(join(dir, name)) && statSync(join(dir, name)).size > 0))
+  return (SEPARATOR_FILES[model] || []).filter(([name]) => !dir || fileSize(join(dir, name)) === 0)
     .flatMap(([, urls]) => urls.slice(0, 3))
 }
 
@@ -470,7 +472,7 @@ export function explainSongError(message) {
 
 export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say, onSung, local }) {
   const cfg = () => getConfig().song
-  const P = () => withSystemFfmpeg(pathsOf(cfg().root || defaultRoot()))
+  const P = () => withSystemFfmpeg(pathsOf(cfg().root || defaultRoot()), { find: () => findFfmpeg(getConfig().local?.ffmpegPath || '') })
   const work = () => dataDir('songs')
   // 确认过没有人声的歌（网易云 id），下次直接跳过，不用再花几分钟分离一遍
   const noVocalFile = () => join(work(), 'no-vocals.json')

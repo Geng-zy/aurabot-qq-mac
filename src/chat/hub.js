@@ -5,10 +5,10 @@
 
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { mkdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { basename, isAbsolute, join, relative, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ownerAuthorizationRevision } from '../core/config.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
@@ -26,7 +26,7 @@ import { normalizeForMatch } from '../security/leak-guard.js'
 import { forwardBody } from '../channels/qq/forward.js'
 import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../core/img.js'
 import { redact } from '../core/redact.js'
-import { askModel, defaultModel, pickReasoningEffort, canSeeImages, modelVision, modelContextWindow } from '../core/llm.js'
+import { askModel, defaultModel, pickReasoningEffort, modelVision, modelContextWindow } from '../core/llm.js'
 import { resolveChatModel } from './chat-model.js'
 import { stripFaceTags, splitSpeakable } from './tags.js'
 import { expandMentions, hasMention } from './mentions.js'
@@ -1023,7 +1023,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const activeScope = outputScope.getStore()
     const scope = activeScope?.chatId === chatId ? activeScope : null
     const displayed = message.filter((seg) => seg.type === 'text').map((seg) => seg.data?.text || '').join('')
-    if (displayed && !(scope?.chatId === chatId && scope.checkedText?.includes(displayed))) {
+    if (displayed && !(scope?.chatId === chatId && scope.checkedText?.has(displayed))) {
       const revision = audienceRevision(chatId)
       if (await mind?.checkOutgoingPrivacy?.(chatId, displayed)) return null
       if (disposed || audienceRevision(chatId) !== revision || (isCurrent && !isCurrent())) return null
@@ -1042,14 +1042,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       log.info(`调试（没真发）→ ${chatId}：${note}`)
       return null
     }
-    if (force) {}
-    else if (!cfg.enabled) {
-      log.info(`总开关关着，没发 → ${chatId}：${note}`)
-      return null
-    }
-    else if (cfg.dryRun) {
-      log.info(`试运行（没真发）→ ${chatId}：${note}`)
-      return null
+    if (!force) {
+      if (!cfg.enabled) { log.info(`总开关关着，没发 → ${chatId}：${note}`); return null }
+      if (cfg.dryRun) { log.info(`试运行（没真发）→ ${chatId}：${note}`); return null }
     }
     const channel = channelOf(chatId)
     if (!channel) { log.warn(`发不出去：${chatId} 所在的平台没有连接`); return null }
@@ -1130,7 +1125,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     if (channelOf(chatId)?.caps?.voice === false) return Boolean(await sendText(chatId, text, replyId, undefined, userId, opts))
     const revision = audienceRevision(chatId)
     const scope = outputScope.getStore()
-    if (!(scope?.chatId === chatId && scope.checkedText?.includes(text)) && await mind?.checkOutgoingPrivacy?.(chatId, text)) return false
+    if (!(scope?.chatId === chatId && scope.checkedText?.has(text)) && await mind?.checkOutgoingPrivacy?.(chatId, text)) return false
     const originalIsCurrent = opts.isCurrent
     const isCurrent = () => audienceRevision(chatId) === revision && (originalIsCurrent?.() ?? true)
     if (!isCurrent()) return false
@@ -1530,7 +1525,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     items = capOutboundText(items, (item) => ['text', 'voice'].includes(item.kind) ? item.value : undefined,
       (item, value) => ({ ...item, value }))
-    outputScope.getStore().checkedText = items.filter((item) => ['text', 'voice'].includes(item.kind)).map((item) => item.value)
+    outputScope.getStore().checkedText = new Set(items.filter((item) => ['text', 'voice'].includes(item.kind)).map((item) => item.value))
     // 一段只有一个人明确 @ / 引用她时，第一条回复引用并 @ 那个人；多人同时叫她不猜。
     // 模型明确选了引用编号时尊重它，不再自动引用另一条。
     const refs = inGroup ? groupRefs.get(groupKey(chatId)) || {} : {}
@@ -1995,15 +1990,14 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (localApi?.active('asr')) {
         try {
           const wav = await recordWav(rec, suppliedWav, msg.chatId)
-          const { writeFileSync, mkdirSync } = await import('node:fs')
-          const { join } = await import('node:path')
-          const dir = localApi.dir() + '/out'
-          mkdirSync(dir, { recursive: true })
-          const file = join(dir, `asr-${Date.now()}.wav`)
-          writeFileSync(file, wav)
-          const r = await localApi.call('asr', { file })
-          const text = String(typeof r === 'string' ? r : r?.text || '').trim()
-          if (text) return `[语音] ${text}`
+          const dir = mkdtempSync(join(tmpdir(), 'aurabot-asr-'))
+          try {
+            const file = join(dir, 'input.wav')
+            writeFileSync(file, wav)
+            const r = await localApi.call('asr', { file })
+            const text = String(typeof r === 'string' ? r : r?.text || '').trim()
+            if (text) return `[语音] ${text}`
+          } finally { rmSync(dir, { recursive: true, force: true }) }
         } catch (error) {
           log.debug('本地接口语音识别失败：', error.message)
         }
@@ -2609,6 +2603,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // ---------- 连发合并：人常常一口气发好几句，等对方说完再一起交给她，别一句一回 ----------
   // 群聊再加一层：她正在回上一段时，新消息先攒着，等她说完再一起交给她（不会一条消息一轮、挨个回）
   const pending = new Map() // chatId → { chat, texts, images, senders, wantVoice, timer, firstAt, mode, count }
+  const attentionRetryTimers = new Map() // chatId → timer：注意力/忙碌兜底重试，dispose 时清理
+  const secretaryLogs = new Map() // chatId → 最近几次秘书判断（面板排错用）
+  const secretaryStatsFile = dataDir('secretary-stats.json')
+  const secretaryStats = (() => { const v = readJson(secretaryStatsFile, {}); return v && typeof v === 'object' ? v : {} })()
   const busy = new Map() // chatId → 这一轮开始的时间（她正在想 / 正在发）
   const flushing = new Set() // chatId：flush 正在准备提示词/等网络，避免第二个定时器并发
   const BUSY_MAX_MS = 4 * 60_000 // 卡住保护：超过这么久就当她已经回完了
@@ -2788,6 +2786,65 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     p.timer.unref?.()
   }
 
+  function scheduleAttentionRetry(chatId, delay = 30_000) {
+    if (disposed || attentionRetryTimers.has(chatId)) return
+    const timer = setTimeout(() => {
+      attentionRetryTimers.delete(chatId)
+      if (!disposed && pending.get(chatId)?.waiting) flush(chatId).catch(() => {})
+    }, delay)
+    timer.unref?.()
+    attentionRetryTimers.set(chatId, timer)
+  }
+
+  /** 可选的群聊秘书闸：用便宜模型先判断这段值不值得叫主模型；关着时零影响。 */
+  function recordSecretary(chatId, allowed, reason = '') {
+    const at = Date.now()
+    const list = secretaryLogs.get(chatId) || []
+    list.push({ at, allowed: Boolean(allowed), reason: String(reason || '').slice(0, 160) })
+    secretaryLogs.set(chatId, list.slice(-20))
+    try {
+      const row = secretaryStats[chatId] || { allowed: 0, blocked: 0, lastAt: 0, days: {} }
+      const day = new Date(at).toISOString().slice(0, 10)
+      row.days = row.days || {}
+      const today = row.days[day] || { allowed: 0, blocked: 0 }
+      if (allowed) { row.allowed += 1; today.allowed += 1 } else { row.blocked += 1; today.blocked += 1 }
+      row.days[day] = today
+      row.days = Object.fromEntries(Object.entries(row.days).sort(([a], [b]) => b.localeCompare(a)).slice(0, 30))
+      row.lastAt = at
+      secretaryStats[chatId] = row
+      writeJson(secretaryStatsFile, secretaryStats)
+    } catch (error) { log.debug('秘书统计写入失败：', error.message) }
+  }
+
+  async function secretaryVeto(p) {
+    const base = getConfig().chat?.secretary
+    const sec = base?.groups?.[p.chat.chatId] ? { ...base, ...base.groups[p.chat.chatId] } : base
+    if (!sec?.enabled || p.chat.kind !== 'group' || p.mode === 'must') return false
+    const model = sec.provider && sec.model ? { provider: sec.provider, model: sec.model } : (targetModel(p.chat) || defaultModel(dsh, getConfig()))
+    if (!model) return false
+    const recent = (groupBuf.get(groupKey(p.chat.chatId)) || []).slice(-Math.max(1, Number(sec.maxRecent) || 20))
+      .map((x) => `${x.nick || x.uid}: ${x.text || '（图片/表情）'}`)
+    const text = [...recent, ...p.texts].filter(Boolean).join('\n').slice(0, 6000)
+    try {
+      const out = await askModel(dsh, {
+        cfg: getConfig(), model,
+        system: '你是群聊接话判断器。只根据这段聊天判断她此刻接一句是否自然、有价值。不要回复聊天内容。只输出 JSON：{"should_reply":true} 或 {"should_reply":false}。被明确叫到必须 true；没人叫她、话题接不上、刷屏或重复时 false。',
+        text, maxTokens: 80, reasoningEffort: 'low', module: 'chat-secretary', signal: AbortSignal.timeout(8000), retryEmpty: false,
+      })
+      const raw = String(out || '').trim()
+      const start = raw.indexOf('{'); const end = raw.lastIndexOf('}')
+      if (start >= 0 && end > start) {
+        const blocked = JSON.parse(raw.slice(start, end + 1)).should_reply === false
+        recordSecretary(p.chat.chatId, !blocked, blocked ? '秘书判断不接' : '秘书判断可以接')
+        return blocked
+      }
+    } catch (error) {
+      log.debug('群聊秘书判断失败，按原逻辑继续：', error.message)
+      recordSecretary(p.chat.chatId, true, '判断失败，放行：' + error.message)
+    }
+    return false
+  }
+
   async function flush(chatId) {
     if (disposed) return
     const p = pending.get(chatId)
@@ -2817,6 +2874,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     // 她还在回上一段：先攒着，回完了再交（release 会叫 flush）
     if (isBusy(chatId)) {
       p.waiting = true
+      scheduleAttentionRetry(chatId, 35_000)
       return
     }
     // 心智核心：单一注意力——她正在别的聊天里回话，这一段先等着，回完再看（管理员的可以插队）
@@ -2824,11 +2882,17 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       p.waiting = true
       attentionQueue.set(chatId, { at: Date.now(), priority: attentionPriority(chatId, p) })
       // 兜底：那边卡住没 release，过一会儿再看一眼
-      setTimeout(() => { if (pending.get(chatId)?.waiting && !disposed) flush(chatId).catch(() => {}) }, 30_000)
+      scheduleAttentionRetry(chatId)
       return
     }
     attentionQueue.delete(chatId)
     pending.delete(chatId)
+    if (await secretaryVeto(p)) {
+      // 判断为不接：把这段标成已读，避免下一条消息又把同一段重复交给她。
+      for (const x of groupBuf.get(groupKey(chatId)) || []) x.fed = true
+      log.debug(`${chatId}：群聊秘书判断这次不接`)
+      return
+    }
     if (p.count > 1) log.info(`${chatId}：合并了 ${p.count} 条消息一起交给她`)
     let content
     if (p.chat.kind === 'group') {
@@ -3785,7 +3849,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     busy.clear()
     for (const timer of runningTimers.values()) clearTimeout(timer)
     runningTimers.clear()
+    for (const timer of attentionRetryTimers.values()) clearTimeout(timer)
+    attentionRetryTimers.clear()
+    for (const map of [groupBuf, recentFiles, sendChain, turnSendLocks, reactStamps, noticesFor, saidElsewhere, groupSaid, groupInterjects, groupMusts, groupRefs, groupEngaged, groupEngagedRun, groupNames, lastPoker, lastSpeaker, pokeAt, lastPrivateAt, attentionQueue, debugWaiters, handoffEncodings, historySeeded, historyReads, historyRetry, sessionFailures, sessionCreating, stickerStash]) { try { map?.clear?.() } catch {} }
     turnEpochs.clear()
+    secretaryLogs.clear()
     running.clear()
     recentMedia.dispose()
   }
@@ -3824,6 +3892,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     maybeReact,
     deliver,
     sendText,
+    sendBackground,
+    whenTurnIdle,
+    secretaryLog: (chatId) => [...(secretaryLogs.get(String(chatId)) || [])],
+    secretaryStats: (chatId) => chatId ? (secretaryStats[String(chatId)] || { allowed: 0, blocked: 0, lastAt: 0 }) : { ...secretaryStats },
     sendVoice,
     sendVoiceFile,
     sendFile,
@@ -3851,7 +3923,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     chatOfSession,
     isOwnedSession,
     canSeeImages: canSeeFor,
-    modelFor: targetModel,
     resetSessions,
     ensureDebugSession,
     lastTextOf: (sessionId) => turnState.get(sessionKey(sessionId))?.lastText || '',

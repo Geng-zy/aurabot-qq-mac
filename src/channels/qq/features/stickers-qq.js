@@ -48,7 +48,7 @@ export function createQqStickerBridge({ onebot, store, getConfig, log }) {
       let failed = 0
       for (const url of urls) {
         let buf
-        try { buf = await fetchImage(url, { maxBytes: 1024 * 1024 * 1024 }) } catch (error) { failed++; continue }
+        try { buf = await fetchImage(url, { maxBytes: 20 * 1024 * 1024 }) } catch (error) { failed++; continue }
         const r = await store.addFromBuffer(buf, { from: 'qq', toQQ: false })
         if (r.ok && !r.existed) added++
         else if (r.ok && r.existed) existed++

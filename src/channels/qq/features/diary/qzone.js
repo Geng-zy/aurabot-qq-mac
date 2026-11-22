@@ -42,7 +42,7 @@ export function createQzone({ getConfig, onebot, hub, log, onDiary, publicExperi
     const imageIndexes = []
     for (const [index, src] of images.entries()) {
       try {
-        imgs.push('base64://' + (await fetchImage(src, { maxBytes: 1024 * 1024 * 1024 })).toString('base64'))
+        imgs.push('base64://' + (await fetchImage(src, { maxBytes: 20 * 1024 * 1024 })).toString('base64'))
         imageIndexes.push(index)
       } catch (error) {
         log.warn('说说配图读不到，跳过：', error.message)

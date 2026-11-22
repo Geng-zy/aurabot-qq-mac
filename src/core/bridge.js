@@ -28,7 +28,10 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
   // ---------- 能发给谁 ----------
   function canSend(target) {
     const cfg = getConfig()
-    const [kind, id] = String(target || '').split(':')
+    const parts = String(target || '').split(':')
+    const [kind, id] = parts.length >= 3 && ['private', 'group'].includes(parts[1])
+      ? [parts[1], parts.slice(2).join(':')]
+      : parts
     if (!id || !['private', 'group'].includes(kind)) return '目标要写成 private:QQ号 或 group:群号'
     if (cfg.bridge.allowTargets === 'owner') return kind === 'private' && id === cfg.ownerQQ ? '' : '设置成了只能发给管理员'
     const ok = kind === 'group' ? cfg.allow.groups : [cfg.ownerQQ, ...cfg.allow.private]
@@ -130,6 +133,8 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
   function dispose() {
     disposed = true
     clearTools()
+    try { offActivity?.() } catch {}
+    try { offOpen?.() } catch {}
   }
   function refresh() {
     if (disposed) return
@@ -181,11 +186,11 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
   }
 
   // 记事件：收到的消息、她发出去的话
-  mods.listen('activity', (a) => {
+  const offActivity = mods.listen('activity', (a) => {
     if (a.kind === 'in') record('message', { chatId: a.chatId, userId: a.userId, nickname: a.nickname, text: a.text })
     else if (a.kind === 'out') record('reply', { chatId: a.chatId, text: a.reply })
   })
-  mods.listen('open/event', (type, data) => record(String(type), data && typeof data === 'object' ? { data } : { data: String(data) }))
+  const offOpen = mods.listen('open/event', (type, data) => record(String(type), data && typeof data === 'object' ? { data } : { data: String(data) }))
 
   return {
     ops, service, refresh, dispose, ensureToken, resetToken, authorized,

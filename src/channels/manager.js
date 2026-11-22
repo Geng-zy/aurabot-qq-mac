@@ -16,7 +16,7 @@ export function createChannelManager({ log } = {}) {
     registry.add(channel)
     if (typeof channel.on === 'function') {
       const off = channel.on((event) => emit({ ...event, platform: channel.platform }))
-      offs.set(channel.platform, off)
+      offs.set(channel, off)
     }
     return channel
   }

@@ -16,7 +16,7 @@ export function imageSize(buf) {
     if (!buf || buf.length < 24) return { width: 0, height: 0 }
     if (buf[0] === 0x89 && buf[1] === 0x50) return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
     if (buf[0] === 0x47 && buf[1] === 0x49) return { width: buf.readUInt16LE(6), height: buf.readUInt16LE(8) }
-    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[8] === 0x57) {
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[8] === 0x57 && buf.toString('ascii', 8, 12) === 'WEBP') {
       const chunk = buf.toString('ascii', 12, 16)
       if (chunk === 'VP8X') return { width: 1 + buf.readUIntLE(24, 3), height: 1 + buf.readUIntLE(27, 3) }
       if (chunk === 'VP8 ') return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff }
@@ -53,7 +53,7 @@ export function mimeOf(buf) {
   if (!buf || buf.length < 12) return 'application/octet-stream'
   if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png'
   if (buf[0] === 0x47 && buf[1] === 0x49) return 'image/gif'
-  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[8] === 0x57) return 'image/webp'
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf.toString('ascii', 8, 12) === 'WEBP') return 'image/webp'
   if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg'
   return 'application/octet-stream'
 }

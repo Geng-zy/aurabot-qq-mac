@@ -19,8 +19,10 @@ export function createEncodeBatch({ store, now, S, deps, log, cursorOf, sourceDa
     if (!force && !idle && !waitedTooLong && rows.length < batch) return { encoded: 0, waiting: true }
     const name = deps.identity().name
     const fmt = (t) => dayKey(t, tz) + ' ' + shortTime(t, tz).slice(6)
+    const rowJson = new Map()
     const lines = rows.map((r, i) => {
       const j = JSON.parse(r.json || '{}')
+      rowJson.set(r.id, j)
       const who = r.dir === 'out' ? 'self' : r.who
       const nick = r.dir === 'out' ? '你' : (j.name || deps.person(r.who)?.name || r.who)
       return `${i + 1}. ${fmt(r.at)} [${who}] ${nick}：${String(r.text).replace(/\s+/g, ' ').slice(0, 300)}`
@@ -78,7 +80,7 @@ export function createEncodeBatch({ store, now, S, deps, log, cursorOf, sourceDa
       if (!unchanged()) return false
       if (!recovery) store.del('encode.fail.' + window)
       // 已在指定群聊提过的分享仍只属于那个群，不能靠重新整理变成别处的经历。
-      const audienceShares = [...new Set(rows.flatMap((r) => JSON.parse(r.json || '{}').audienceShares || []))]
+      const audienceShares = [...new Set(rows.flatMap((r) => rowJson.get(r.id)?.audienceShares || []))]
       for (const ep of Array.isArray(parsed?.episodes) ? parsed.episodes : []) {
         const gist = String(ep?.gist || '').trim()
         if (!gist) continue

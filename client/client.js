@@ -1120,6 +1120,7 @@ body[data-ds-dark-theme] .ab-root{
       { id: 'mind', label: '心智', icon: 'mind', pages: [
         { id: 'now', label: '她现在', search: '心情 情绪 精力 困 饿 投喂 睡觉 叫醒 身体' },
         { id: 'mood', label: '记忆', search: '梦 遗忘 隐私 私聊 保密 跨会话 分享 向量' },
+        { id: 'knowledge', label: '知识库', search: '资料 笔记 Markdown 知识 scope 文件' },
         { id: 'persona', label: '关系', search: '人物 亲近 信任 喜欢 亲密 激情 承诺 老梗 群 关系星图' },
         { id: 'inner', label: '念头与行动', search: '内心 念头 日记 欲望 动力 犯懒 主动找 权限 申请 本地小模型' },
       ] },
@@ -1175,6 +1176,7 @@ body[data-ds-dark-theme] .ab-root{
       ],
       group: [
         ['qq-wake', '群聊回应与唤醒词', '群聊必回 群里必回 引用 艾特 @ 别名 叫法 接话'],
+        ['qq-secretary', '群聊秘书闸', '便宜模型 判断 接话 主模型'],
         ['qq-merge', '连发合并', '多条消息 等待 攒消息'],
         ['qq-history', '跨群阅读与会话上下文', '跨群 看别的群 历史 接上聊天 扩展线索'],
         ['qq-reply-output', '回复正文与超时', '思考 内心 外泄 回复防漏 严格正文 每段都发 回合时限'],
@@ -1185,7 +1187,7 @@ body[data-ds-dark-theme] .ab-root{
       ],
       model: [['qq-chat-models', '按会话选模型', '默认 私聊模型 群模型 单独切换 思考强度'], ['qq-model-speed', '模型列表与测速', '延迟 测试 可用模型']],
       now: [['mind-feelings', '此刻的感受', '当前情绪 心情 感受']],
-      mood: [['memory-entries', '她记得的事', '经历 搜索记忆 记忆列表'], ['memory-privacy', '私聊隐私', '跨会话 片段 保护 保密 共享'], ['memory-vectors', '向量检索与精排', 'embedding BGE-M3 rerank 向量重算 相似 本地 离线'], ['memory-chat-log', '聊天流水保留', '原话 保存几天 流水'], ['memory-dreams', '最近的梦', '做梦 睡眠 整理']],
+      mood: [['knowledge-files', '知识库', '资料 笔记 Markdown 知识'], ['memory-entries', '她记得的事', '经历 搜索记忆 记忆列表'], ['memory-privacy', '私聊隐私', '跨会话 片段 保护 保密 共享'], ['memory-vectors', '向量检索与精排', 'embedding BGE-M3 rerank 向量重算 相似 本地 离线'], ['memory-chat-log', '聊天流水保留', '原话 保存几天 流水'], ['memory-dreams', '最近的梦', '做梦 睡眠 整理']],
       inner: [['mind-journal', '内心日记', '念头记录 深想记录'], ['mind-wants', '她想要的', '愿望 基本需要 帮她放下'], ['mind-actions', '能做的事', '待行动 动力 主动行为'], ['mind-outreach', '主动找你', '主动联系 搭话 勿扰'], ['mind-grants', '权限申请', '批准 收回 授权']],
       selfmind: [['self-persona', '人格卡与头像', '人设 头像 名字 小名 人格卡'], ['self-versions', '人格卡的版本', '回滚 还原 退回 人格历史'], ['self-traits', '性格（19 项）', '大五 气质 基线 影子模式'], ['self-versions-manage', '版本对比与清理', '删除 清理 对比 版本']],
       mindsettings: [['mind-local-model', '本地小模型', '一键安装 本地念头 MLX Python']],
@@ -1728,7 +1730,7 @@ body[data-ds-dark-theme] .ab-root{
       const inp = document.createElement('input')
       inp.type = 'file'
       inp.accept = 'image/png,image/jpeg,image/gif,image/webp'
-      const file = await new Promise((res) => { inp.onchange = () => res(inp.files && inp.files[0]); inp.click() })
+      const file = await new Promise((res) => { inp.onchange = () => res(inp.files && inp.files[0]); inp.oncancel = () => res(null); inp.click() })
       if (!file) return
       if (file.size > 5 * 1024 * 1024) return toast('图片太大了，最多 5MB', 'err')
       const data = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(file) })
@@ -2156,12 +2158,75 @@ body[data-ds-dark-theme] .ab-root{
       const f = useField(draft, setDraft)
       const overrides = draft.group.overrides || {}
       const [newGid, setNewGid] = useState('')
+      const [secChat, setSecChat] = useState('')
+      const [secLog, setSecLog] = useState(null)
+      const [secGroupId, setSecGroupId] = useState('')
+      const [secGroupProvider, setSecGroupProvider] = useState('')
+      const [secGroupModel, setSecGroupModel] = useState('')
+      const [secStats, setSecStats] = useState({})
+      const loadSecretary = async () => {
+        if (!secChat.trim()) { setSecLog([]); setSecStats({}); return }
+        const r = await get('/chat/secretary?chatId=' + encodeURIComponent(secChat.trim()))
+        setSecLog(r.list || []); setSecStats(r.stats || {})
+      }
       return h('div', { className: 'ab-grid' },
         h(Card, { section: 'qq-wake', title: '群聊回应与唤醒词', desc: '被 @、有人引用回复ta的消息、或者提到下面这些名字时，ta一定会回。',
           right: go ? h(Btn, { small: true, kind: 'ghost', onClick: () => go('access', { section: 'qq-host-tools' }) }, '本机工具与发文件 →') : null },
           h(Row, { label: '@ 了别人不算叫ta', hint: '有人 @ 别人时顺口提到ta的名字，不算在叫ta；ta还是可以按平时的频率插话。默认关' }, f.sw('group.ignoreAtOthers')),
           h(Row, { label: '别的叫法', hint: '她的名字和小名自动算（她改名后跟着变）；这里加别的叫法，一行一个' },f.list('group.wakeWords', { placeholder: '一行一个' })),
           h(Row, { label: '每小时必回上限', hint: '一个群里一小时内因被 @、引用、叫名字而必回的次数最多这么多，超过就不回（管理员说话不受限，也不计入）；小时一过自动恢复。0 = 不限' }, f.range('group.mustMaxPerHour', 0, 100, 5, (v) => (v === 0 ? '不限' : v + ' 次'))),
+        ),
+        h(Card, { fold: 'qq-secretary', title: '群聊秘书闸', right: f.sw('chat.secretary.enabled'), desc: '可选：先用便宜的模型判断这段群聊值不值得叫主模型。默认关；@、引用、叫名字的必回不经过这里。' },
+          h(Row, { label: '秘书模型', hint: '填 provider/model；留空用当前聊天模型。建议用便宜的小模型' },
+            f.text('chat.secretary.provider', { placeholder: 'provider，如 openai' }),
+            f.text('chat.secretary.model', { placeholder: 'model，如 gpt-4o-mini' })),
+          h(Row, { label: '最多看几条', hint: '最近这么多条群消息 + 本轮合并内容' }, f.num('chat.secretary.maxRecent', { min: 1, max: 100, step: 1 })),
+        ),
+        h(Card, { fold: 'qq-secretary-groups', title: '按群秘书覆盖', desc: '只对某个群改秘书模型；没写的群继承上面的全局设置。' },
+          Object.keys(draft.chat?.secretary?.groups || {}).length === 0 ? h('div', { className: 'ab-muted ab-small' }, '还没有单独设置。') :
+            Object.entries(draft.chat.secretary.groups).map(([gid, v]) => h(Row, { key: gid, label: '群 ' + gid },
+              h('span', { className: 'ab-muted' }, `${v.enabled === false ? '关' : '开'} · ${v.provider || '默认'}/${v.model || '默认'}`),
+              h(Btn, { small: true, kind: 'ghost', onClick: () => {
+                const groups = { ...draft.chat.secretary.groups, [gid]: { ...v, enabled: v.enabled === false } }
+                setDraft(setPath(draft, 'chat.secretary.groups', groups))
+              } }, v.enabled === false ? '开启' : '关闭'),
+              h(Btn, { small: true, kind: 'ghost', onClick: () => {
+                const next = { ...draft.chat.secretary.groups }; delete next[gid]
+                setDraft(setPath(draft, 'chat.secretary.groups', next))
+              } }, '移除'))),
+          h('div', { className: 'ab-flex', style: { gap: 6, marginTop: 8 } },
+            h('input', { className: 'ab-input sm', placeholder: '群号', value: secGroupId, onChange: (e) => setSecGroupId(e.target.value.replace(/\D/g, '')) }),
+            h('input', { className: 'ab-input sm', placeholder: 'provider', value: secGroupProvider, onChange: (e) => setSecGroupProvider(e.target.value) }),
+            h('input', { className: 'ab-input sm', placeholder: 'model', value: secGroupModel, onChange: (e) => setSecGroupModel(e.target.value) }),
+            h(Btn, { small: true, disabled: !secGroupId, onClick: () => {
+              const id = secGroupId.startsWith('qq:') ? secGroupId : 'qq:group:' + secGroupId
+              const groups = { ...(draft.chat?.secretary?.groups || {}), [id]: { enabled: true, provider: secGroupProvider, model: secGroupModel } }
+              setDraft(setPath(draft, 'chat.secretary.groups', groups))
+              setSecGroupId(''); setSecGroupProvider(''); setSecGroupModel('')
+            } }, '添加')),
+        ),
+        h(Card, { fold: 'qq-secretary-log', title: '最近秘书判断', desc: '按会话查看最近 20 次秘书闸结果，排查“为什么没回”。',
+          right: h('span', { className: 'ab-flex', style: { gap: 6 } },
+            h(Btn, { small: true, kind: 'ghost', onClick: loadSecretary }, '刷新'),
+            h(Btn, { small: true, kind: 'ghost', onClick: async () => {
+              const r = await get('/chat/secretary/export')
+              const blob = new Blob([JSON.stringify(r.stats || {}, null, 2)], { type: 'application/json' })
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'secretary-stats.json'; a.click(); URL.revokeObjectURL(a.href)
+            } }, '导出')) },
+          h(Row, { label: '会话 ID', hint: '如 qq:group:123456 或 telegram:group:-100…' },
+            h('input', { className: 'ab-input wide', value: secChat, placeholder: '渠道:group:群号', onChange: (e) => setSecChat(e.target.value) })),
+          secLog === null ? h('div', { className: 'ab-muted ab-small' }, '填会话 ID 后点刷新')
+            : secLog.length === 0 ? h('div', { className: 'ab-muted ab-small' }, '还没有记录')
+              : h('div', null,
+                h('div', { className: 'ab-muted ab-small', style: { marginBottom: 6 } },
+                  `累计：放行 ${secStats.allowed || 0}，不接 ${secStats.blocked || 0}；本页最近 ${secLog.length} 次`),
+                h('table', { className: 'ab-table' }, h('tbody', null, secLog.slice().reverse().map((x, i) => h('tr', { key: i },
+                  h('td', null, new Date(x.at).toLocaleString()), h('td', null, x.allowed ? '放行' : '不接'), h('td', { className: 'ab-muted' }, x.reason))))),
+                secStats.days && Object.keys(secStats.days).length ? h('div', { style: { marginTop: 10 } },
+                  h('div', { className: 'ab-muted ab-small' }, '按天'),
+                  h('table', { className: 'ab-table' }, h('tbody', null, Object.entries(secStats.days).slice(0, 7).map(([day, n]) => h('tr', { key: day },
+                    h('td', null, day), h('td', null, `放行 ${n.allowed || 0}`), h('td', null, `不接 ${n.blocked || 0}`)))))) : null,
+              ),
         ),
         h(Card, { fold: 'qq-merge', title: '连发合并', right: f.sw('merge.enabled'), desc: '人常常一口气发好几句。打开后ta会等对方说完再一起回，而不是一句一回。' },
           h(Row, { label: '对方停顿多久算说完' }, f.range('merge.waitSec', 0.5, 10, 0.5, (v) => v + ' 秒')),
@@ -2797,12 +2862,15 @@ body[data-ds-dark-theme] .ab-root{
         title: picking ? (selected ? '再点一下取消选中' : '点一下选中这张') : undefined,
       },
         h('img', { src: API + '/sticker/image?md5=' + it.md5, alt: it.name || '表情', loading: 'lazy' }),
+        it.variantOf ? h('span', { className: 'ab-badge', title: '同名表情的变体', style: { position: 'absolute', left: 6, top: 6 } }, '变体') : null,
         picking ? h('span', { className: 'ck' }, selected ? '✓' : '') : null,
+        it.primary ? h('span', { className: 'ab-badge', title: '同名表情的主图', style: { position: 'absolute', right: 6, top: 6 } }, '主图') : null,
         h('input', { className: 'nm', value: name, placeholder: '未命名（点这里改）', title: '名字 / 备注，最多 12 字', maxLength: 12, readOnly: Boolean(picking), tabIndex: picking ? -1 : undefined, onChange: (e) => setName(e.target.value),
           onBlur: () => { if (!picking && name !== (it.name || '')) save({ name }, '名字') } }),
         h('input', { className: 'tg', value: tags, placeholder: '加标签，空格隔开', title: '标签，空格或逗号隔开，最多 5 个', readOnly: Boolean(picking), tabIndex: picking ? -1 : undefined, onChange: (e) => setTags(e.target.value),
           onBlur: () => { if (!picking && tags.trim() !== tagText) save({ tags: tags.split(/[\s,，、#]+/).map((x) => x.trim()).filter(Boolean).slice(0, 5) }, '标签') } }),
         picking ? null : h(Btn, { small: true, kind: 'danger', title: '删除', onClick: async () => { if (!confirm('删掉这张表情？（QQ 收藏里也会删）')) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
+        !picking && it.name ? h(Btn, { small: true, kind: 'ghost', title: '同名表情默认发这张', onClick: async () => { const r = await post('/sticker/primary', { md5: it.md5 }); toast(r.ok ? '设为主图了' : (r.message || '没设成'), r.ok ? 'ok' : 'err'); if (r.ok) onChanged() } }, '主图') : null,
       )
     }
 
@@ -3106,37 +3174,6 @@ body[data-ds-dark-theme] .ab-root{
         local && !canInstall ? h('p', { className: 'ab-muted ab-small' }, '一键安装需要 Apple 芯片 Mac。') : null)
     }
 
-    const PET_MOODS = [{ key: 'idle', label: '😐 平常' }, { key: 'happy', label: '😄 开心' }, { key: 'shy', label: '😳 害羞' }, { key: 'sad', label: '😢 委屈' }, { key: 'angry', label: '😠 生气' }, { key: 'sleepy', label: '😴 困了' }, { key: 'think', label: '🤔 想事' }, { key: 'love', label: '🥰 喜欢你' }]
-    // tier：1 = 第一批已开放；2 = 第二批图标动作（服务端隔离区，可一键归还）；3 = 第三批暂未实现（点了客户端回执 refused:not-implemented）。
-    const PET_BEHAVIOR_ACTIONS = [
-      { action: 'chase_cursor', name: '追鼠标', effect: '扑过去追着你的鼠标跑，追到后按住指针 5 秒再松开', tier: 1 },
-      { action: 'wander', name: '溜达', effect: '自己溜达到屏幕另一头', tier: 1 },
-      { action: 'idle_anim', name: '小动作', effect: '随便播一段小动作（摇尾巴、眨眼这类），不移动', tier: 1 },
-      { action: 'steal_cursor', name: '叼鼠标', effect: '冲到鼠标位置叼住，带着鼠标同步跑到一个随机位置（也可由 AI 指定坐标）再松口', tier: 1 },
-      { action: 'say', name: '说一句', effect: '只冒个气泡说句话，不做动作', tier: 1 },
-      { action: 'drag_icon', name: '叼图标', effect: '叼起桌面图标搬到另一个位置放下（默认随机落点，不填图标名就随机挑一个）', tier: 2 },
-      { action: 'hide_icon', name: '收图标', effect: '把桌面图标收进隔离区，随时可以放回去', tier: 2 },
-      { action: 'nudge_window', name: '推窗口', effect: '把窗口一路推到屏幕边界外（只剩一条边），人和窗口一起走，5 秒后再一起拉回原位', tier: 3 },
-      { action: 'close_window', name: '关窗口', effect: '跑到窗口右上角，优雅关掉（等于点右上角 X，另有独立安全开关）', tier: 3 },
-    ]
-    // 回执展示口径：played / refused / failed 是客户端 /playback 回的三种终态，pending 是刚下发还没回。
-    const PET_RECEIPT_VIEW = {
-      played: { icon: '✅', word: '演完了', color: 'var(--ab-ok)' },
-      refused: { icon: '🚫', word: '被拦下', color: 'var(--ab-warn)' },
-      failed: { icon: '❌', word: '没演成', color: 'var(--ab-err)' },
-      pending: { icon: '⏳', word: '等回执', color: 'var(--ab-sub)' },
-      other: { icon: '·', word: '', color: 'var(--ab-sub)' },
-    }
-
-    function parseBehaviorReceipt(line) {
-      const m = /^([a-z_]+)\s*→\s*(.+)$/.exec(String(line || '').trim())
-      if (!m) return null
-      const rest = m[2].trim()
-      const status = /^played\b/.test(rest) ? 'played' : /^refused\b/.test(rest) ? 'refused' : /^failed\b/.test(rest) ? 'failed' : /下发/.test(rest) ? 'pending' : 'other'
-      const i = rest.indexOf('（')
-      const why = i >= 0 ? rest.slice(i + 1).replace(/）\s*$/, '') : ''
-      return { action: m[1], status, why, text: rest }
-    }
     function Mood({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const mc = draft.mind || {}
@@ -3271,6 +3308,129 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     /** 她的记忆：数量、今天花了多少、上次睡觉整理，按状态 / 种类 / 关键字翻，单条加强或删除，对照原始记录。 */
+    function Knowledge({ toast }) {
+      const [list, setList] = useState(null)
+      const [edit, setEdit] = useState({})
+      const [open, setOpen] = useState(null)
+      const [q, setQ] = useState('')
+      const [hits, setHits] = useState([])
+      const [hasMore, setHasMore] = useState(false)
+      const [renaming, setRenaming] = useState(null)
+      const [folderFilter, setFolderFilter] = useState('')
+      const [note, setNote] = useState({ title: '', content: '', scope: 'all' })
+      const load = () => get('/knowledge/list').then((r) => setList(r.list || [])).catch(() => setList([]))
+      useEffect(load, [])
+      const mark = (text) => {
+        const q = String(q || '').trim()
+        if (!q) return text
+        const safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        return String(text || '').split(new RegExp('(' + safe + ')', 'ig')).map((part, i) => part.toLowerCase() === q.toLowerCase() ? h('mark', { key: i }, part) : part)
+      }
+      const preview = async (path) => {
+        setOpen({ path, text: '加载中…' })
+        const r = await get('/knowledge/read?path=' + encodeURIComponent(path))
+        setOpen({ path, text: r.ok ? r.text : (r.message || '读取失败') })
+      }
+      const importFile = async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        try {
+          const text = await file.text()
+          const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: 'all' })
+          toast(r.ok ? '导入了' : (r.message || '导入失败'), r.ok ? 'ok' : 'err')
+          if (r.ok) load()
+        } catch (error) { toast('读取文件失败：' + error.message, 'err') }
+        e.target.value = ''
+      }
+      const search = async (reset = true) => {
+        if (!q.trim()) { setHits([]); setHasMore(false); return }
+        const offset = reset ? 0 : hits.length
+        const r = await get('/knowledge/search?q=' + encodeURIComponent(q.trim()) + '&limit=30&offset=' + offset)
+        const next = r.list || []
+        setHits(reset ? next : [...hits, ...next])
+        setHasMore(Boolean(r.hasMore))
+      }
+      const importFolder = async (e) => {
+        const files = [...(e.target.files || [])].filter((f) => /\.(md|txt)$/i.test(f.name))
+        if (!files.length) { toast('文件夹里没有 .md / .txt', 'err'); return }
+        let ok = 0
+        for (const file of files) {
+          try {
+            const folder = String(file.webkitRelativePath || file.name).split('/').slice(0, -1).join('/')
+            const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: await file.text(), scope: 'all', folder })
+            if (r.ok) ok++
+          } catch {}
+        }
+        toast(`导入 ${ok}/${files.length}`, ok ? 'ok' : 'err')
+        load(); e.target.value = ''
+      }
+      const save = async (path) => {
+        const r = await post('/knowledge/scope', { path, scope: edit[path] || 'all' })
+        toast(r.ok ? '改好了' : (r.message || '没改成'), r.ok ? 'ok' : 'err')
+        if (r.ok) load()
+      }
+      const folders = list ? [...new Set(list.map((f) => f.path.split('/').slice(0, -1).join('/')).filter(Boolean))] : []
+      const shown = list ? (folderFilter ? list.filter((f) => f.path.split('/').slice(0, -1).join('/') === folderFilter) : list) : null
+      const rows = shown ? shown.map((f) => h('tr', { key: f.path },
+        h('td', null,
+          renaming?.path === f.path
+            ? h('div', { className: 'ab-flex', style: { gap: 6 } },
+              h('input', { className: 'ab-input sm', value: renaming.value, onChange: (e) => setRenaming({ ...renaming, value: e.target.value }) }),
+              h(Btn, { small: true, onClick: async () => {
+                const r = await post('/knowledge/rename', { path: f.path, title: renaming.value })
+                toast(r.ok ? '改好了' : (r.message || '没改成'), r.ok ? 'ok' : 'err')
+                if (r.ok) { setRenaming(null); load() }
+              } }, '保存'),
+              h(Btn, { small: true, kind: 'ghost', onClick: () => setRenaming(null) }, '取消'))
+            : h('div', null,
+              h('button', { className: 'ab-link', onClick: () => preview(f.path) }, h('b', null, f.title)),
+              h('div', { className: 'ab-muted ab-small' }, f.path))),
+        h('td', null, h('input', {
+          className: 'ab-input', value: edit[f.path] ?? f.scope,
+          placeholder: 'all / private / group / qq:group:9',
+          onChange: (e) => setEdit({ ...edit, [f.path]: e.target.value }),
+        })),
+        h('td', { style: { textAlign: 'right' } },
+          h(Btn, { small: true, onClick: () => save(f.path) }, '保存'),
+          h(Btn, { small: true, kind: 'ghost', onClick: () => setRenaming({ path: f.path, value: f.title }) }, '改名'),
+          h(Btn, { small: true, kind: 'danger', onClick: async () => {
+            if (!confirm('删掉这个知识库文件？')) return
+            const r = await post('/knowledge/delete', { path: f.path })
+            toast(r.ok ? '删掉了' : (r.message || '删不掉'), r.ok ? 'ok' : 'err')
+            if (r.ok) load()
+          } }, '删除')))) : []
+      return h('div', { className: 'ab-grid' },
+        h(Card, { title: '知识库文件', desc: 'data/knowledge 下的 Markdown / 文本。scope 控制哪些会话能读。', right: h('span', { className: 'ab-flex', style: { gap: 6 } }, h(Select, { value: folderFilter, onChange: setFolderFilter, width: 170, options: [{ value: '', label: '全部目录' }, ...folders.map((f) => ({ value: f, label: f }))] }), h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新')) },
+          !list ? h('div', { className: 'ab-muted ab-small' }, '加载中…')
+            : list.length === 0 ? h('div', { className: 'ab-muted ab-small' }, '还没有文件。把资料放进 data/knowledge/raw，或让ta写笔记。')
+              : h('table', { className: 'ab-table' }, h('tbody', null, rows))),
+        h(Card, { title: '全文搜索', desc: '在 knowledge/raw 和 notes 里按关键词搜，返回命中的文件和片段。' },
+          h('div', { className: 'ab-flex', style: { gap: 8 } },
+            h('input', { className: 'ab-input', style: { flex: 1 }, value: q, placeholder: '搜资料、笔记、设定…', onChange: (e) => setQ(e.target.value), onKeyDown: (e) => { if (e.key === 'Enter') search() } }),
+            h(Btn, { small: true, onClick: () => search(true) }, '搜索')),
+          hits.length ? h('div', { style: { marginTop: 8 } }, hits.map((x, i) => h('button', { key: i, className: 'ab-link', style: { display: 'block', textAlign: 'left', marginTop: 6 }, onClick: () => preview(x.path) },
+            h('b', null, x.path), h('div', { className: 'ab-muted ab-small' }, mark(x.snippet))))) : null,
+          hasMore ? h('div', { style: { marginTop: 8 } }, h(Btn, { small: true, onClick: () => search(false) }, '加载更多')) : null,
+        ),
+        h(Card, { title: '写一篇笔记', desc: '写进 knowledge/notes，之后可以检索。scope 控制哪些会话能读。' },
+          h(Row, { label: '标题' }, h('input', { className: 'ab-input wide', value: note.title, placeholder: '例如：九群设定', onChange: (e) => setNote({ ...note, title: e.target.value }) })),
+          h(Row, { label: 'scope' }, h('input', { className: 'ab-input wide', value: note.scope, placeholder: 'all / private / group / qq:group:9', onChange: (e) => setNote({ ...note, scope: e.target.value }) })),
+          h(Row, { label: '正文' }, h('textarea', { className: 'ab-input wide', rows: 5, value: note.content, placeholder: 'Markdown 正文', onChange: (e) => setNote({ ...note, content: e.target.value }) })),
+          h('div', { className: 'ab-flex', style: { marginTop: 8 } },
+            h('input', { type: 'file', accept: '.md,.txt,text/markdown,text/plain', onChange: importFile }),
+            h('label', { className: 'ab-btn ab-btn-small', style: { cursor: 'pointer' } },
+              '导入文件夹', h('input', { type: 'file', webkitdirectory: '', multiple: true, style: { display: 'none' }, onChange: importFolder })),
+            h(Btn, { small: true, onClick: async () => {
+            const r = await post('/knowledge/note', note)
+            toast(r.ok ? '写好了' : (r.message || '没写成'), r.ok ? 'ok' : 'err')
+            if (r.ok) { setNote({ title: '', content: '', scope: 'all' }); load() }
+          } }, '写入知识库')),
+        ),
+        open ? h(Card, { title: open.path, right: h(Btn, { small: true, kind: 'ghost', onClick: () => setOpen(null) }, '关闭') },
+          h('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: 460, overflow: 'auto', fontSize: 12.5 } }, open.text)) : null,
+      )
+    }
+
     function MindMemory({ toast, privacy }) {
       const [state, setState] = useState(null)
       const [items, setItems] = useState(null)
@@ -3627,6 +3787,7 @@ body[data-ds-dark-theme] .ab-root{
       const [d, setD] = useState(null)
       const [draft, setDraft] = useState(null)
       const [busy, setBusy] = useState(false)
+      const [edit, setEdit] = useState(null)
       const load = () => get('/mind/self').then((r) => { setD(r); if (r.ok) setDraft(Object.fromEntries(r.personality.traits.map((t) => [t.id, t.base]))) })
       useEffect(() => { load() }, [])
       if (!d) return h(Card, { title: '人格与自我' }, h('p', { className: 'ab-muted' }, '读取中…'))
@@ -3636,16 +3797,23 @@ body[data-ds-dark-theme] .ab-root{
       const restore = async (kind, id) => { if (!confirm('退回到这个版本？（会新存一个版本，写明是退回）')) return; const r = await post('/mind/self/restore', { kind, id }); toast(r.message || (r.ok ? '退回了' : '没成功')); load() }
       const infer = async () => { if (ps.confirmed && !confirm('重新从人格卡推一份？只是给你参考，确认之前不会改她本来的样子。')) return; setBusy(true); const r = await post('/mind/traits/infer', {}); setBusy(false); toast(r.message); load() }
       const confirmBase = async () => { const r = await post('/mind/traits/confirm', { base: draft }); toast(r.message); load() }
-      const changeSelf = async (what, label, multiline) => {
+      const changeSelf = (what, label, multiline) => {
         const cur = what === 'values' || what === 'hobbies' || what === 'looks' ? d.profile[what] : what === 'story' ? d.profile.story.text : what === 'name' ? d.identity.name : what === 'ownerCall' ? d.ownerCall : d.identity.nickname
-        const v = prompt('改' + label + '（会存一个版本）' + (multiline ? '，长文字建议在「人设」页改' : ''), cur || '')
-        if (v === null) return
-        const r = await post('/mind/self/change', { what, content: v, why: '管理员在面板里改的' })
-        toast(r.message); load()
+        setEdit({ what, label, multiline: Boolean(multiline), value: cur || '' })
+      }
+      const saveSelf = async () => {
+        if (!edit) return
+        const r = await post('/mind/self/change', { what: edit.what, content: edit.value, why: '管理员在面板里改的' })
+        toast(r.message); setEdit(null); load()
       }
       const unread = (ps.alerts || []).filter((a) => !a.read)
       const BY = { owner: '你', self: '她自己', sleep: '睡觉时', migration: '迁移' }
       return h(Fragment, null,
+        edit ? h(Card, { title: '改' + edit.label, desc: '会存一个版本；长文字建议在「人设」页改。' },
+          h('textarea', { className: 'ab-textarea', rows: edit.multiline ? 6 : 2, value: edit.value, onChange: (e) => setEdit({ ...edit, value: e.target.value }) }),
+          h('div', { className: 'ab-flex', style: { gap: 6 } },
+            h(Btn, { small: true, kind: 'primary', onClick: saveSelf }, '保存'),
+            h(Btn, { small: true, onClick: () => setEdit(null) }, '取消'))) : null,
         unread.length ? h(Card, { title: '提醒', right: h(Btn, { small: true, onClick: async () => { await post('/mind/traits/alerts/read', {}); load() } }, '知道了') },
           h('div', { className: 'ab-list' }, unread.map((a, i) => h('div', { key: i, className: 'ab-li' }, h('div', { className: 'meta' }, mindDay(a.at)), h('div', { className: 'body' }, a.text, h('span', { className: 'ab-muted ab-small' }, '  看下面「性格的版本」里的理由，必要时退回')))))) : null,
         h(Card, { fold: 'self-traits', title: '性格（19 项）', desc: '「本来的样子」相当于她的天生气质，从第一版人格卡推出来、由你确认，她改人格卡不会动它。「现在」随经历慢慢变：同一种表现要在不同的日子里出现够多次才走一小步，每晚睡觉时检查。数值只给你看，她看到的是每一档对应的那句话。' + (ps.shadowMode ? ' 影子模式开着：变化只计算、不生效。' : ''),
@@ -4396,47 +4564,6 @@ body[data-ds-dark-theme] .ab-root{
     }
 
     /** 自己写的模块的面板：自动表单 + 模块自己的 panel.js。 */
-    class PanelBoundary extends React.Component {
-      constructor(p) { super(p); this.state = { error: null } }
-      static getDerivedStateFromError(error) { return { error } }
-      render() { return this.state.error ? h('div', { className: 'ab-note err' }, '这个模块的面板出错了：' + String((this.state.error && this.state.error.message) || this.state.error)) : this.props.children }
-    }
-    function panelSandboxHtml(token, source, settings, draft) {
-      const safe = (v) => JSON.stringify(v).replace(/</g, '\\u003c')
-      const shim = [
-        'const TOKEN=' + safe(token) + ';',
-        'const SOURCE=' + safe(source) + ';',
-        'const SETTINGS=' + safe(settings) + ';',
-        'const DRAFT=' + safe(draft) + ';',
-        "const root=document.getElementById('root');",
-        'let seq=0,current=SETTINGS,draft=DRAFT,hooks=[],hookPos=0,effects=[],pending=new Map();',
-        "function post(type,payload){parent.postMessage({token:TOKEN,type:type,payload:payload},'*')}",
-        "function rpc(type,payload){return new Promise(function(resolve){var id=++seq;pending.set(String(id),resolve);post('rpc',{id:id,type:type,payload:payload})})}",
-        "window.addEventListener('message',function(e){var d=e.data;if(!d||d.token!==TOKEN||d.type!=='rpc-result')return;var f=pending.get(String(d.id));if(f){pending.delete(String(d.id));f(d.result)}});",
-        "function call(path,body){return rpc('call',{path:path,body:body})}",
-        "function save(patch){return rpc('save',{patch:patch})}",
-        "function toast(text,kind){post('toast',{text:text,kind:kind})}",
-        "function reload(){post('reload')}",
-        "function setSettings(patch){current=Object.assign({},current,patch||{});render()}",
-        "function h(type,props){var children=[];for(var i=2;i<arguments.length;i++)children.push(arguments[i]);return{type:type,props:props||{},children:children}}",
-        "function flatten(v,out){if(Array.isArray(v)){v.forEach(function(x){flatten(x,out)})}else if(v!==null&&v!==undefined&&v!==false&&v!==true){out.push(v)}return out}",
-        "function mount(v,parent){if(v===null||v===undefined||v===false||v===true)return;if(Array.isArray(v)){v.forEach(function(x){mount(x,parent)});return}if(typeof v==='string'||typeof v==='number'){parent.appendChild(document.createTextNode(String(v)));return}if(typeof v.type==='function'){mount(v.type(Object.assign({},v.props,{children:flatten(v.children,[]).concat(flatten(v.props.children,[]))})),parent);return}var tag=v.type==='Fragment'?'div':String(v.type);var el=document.createElement(tag);var p=v.props||{};Object.keys(p).forEach(function(k){var val=p[k];if(k==='children'||val===null||val===undefined)return;if(k==='className'){el.className=val;return}if(k==='style'&&typeof val==='object'){Object.assign(el.style,val);return}if(k==='value'||k==='checked'||k==='disabled'||k==='placeholder'||k==='type'||k==='title'){el[k]=val;return}if(k.slice(0,2)==='on'&&typeof val==='function'){var ev=k.slice(2).toLowerCase();el.addEventListener(ev,function(e){if(k==='onChange'&&(e.target.type==='checkbox'||e.target.type==='radio')){val(e.target.checked)}else{val(e)}});return}if(k==='html'){el.innerHTML=val;return}try{el.setAttribute(k,val)}catch(e){}});flatten(v.children,[]).concat(flatten(p.children,[])).forEach(function(c){mount(c,el)});parent.appendChild(el)}",
-        "function useState(init){var i=hookPos++;if(!(i in hooks))hooks[i]=typeof init==='function'?init():init;return[hooks[i],function(v){hooks[i]=typeof v==='function'?v(hooks[i]):v;schedule()}]}",
-        "function useEffect(fn,deps){var i=hookPos++;var prev=hooks[i];if(!prev||!deps||!prev.deps||deps.some(function(x,j){return x!==prev.deps[j]})){hooks[i]={deps:deps,fn:fn};effects.push(fn)}}",
-        "function useMemo(fn,deps){var i=hookPos++;var prev=hooks[i];if(!prev||!deps||!prev.deps||deps.some(function(x,j){return x!==prev.deps[j]})){hooks[i]={deps:deps,value:fn()}}return hooks[i].value}",
-        "function useRef(v){var i=hookPos++;if(!(i in hooks))hooks[i]={current:v};return hooks[i]}",
-        "function useCallback(fn,deps){return useMemo(function(){return fn},deps)}",
-        "function schedule(){if(schedule.pending)return;schedule.pending=true;setTimeout(function(){schedule.pending=false;render()},0)}",
-        "function render(){hookPos=0;effects=[];root.innerHTML='';try{var node=C({settings:current,draftSettings:draft,setSettings:setSettings,save:save,toast:toast,reload:reload});mount(node,root);effects.forEach(function(fn){try{fn()}catch(e){console.error(e)}});post('height',{height:document.body.scrollHeight+20})}catch(e){root.textContent='面板出错了：'+String(e&&e.message||e);post('error',{message:String(e&&e.message||e)})}}",
-        "var React={createElement:h,Fragment:'div',useState:useState,useEffect:useEffect,useMemo:useMemo,useRef:useRef,useCallback:useCallback};",
-        "var ui={Card:function(p){return h('section',{className:'card'},p.title?h('h3',null,p.title):null,p.desc?h('p',{className:'muted'},p.desc):null,p.right?h('div',{className:'right'},p.right):null,p.children)},Btn:function(p){return h('button',{className:'btn '+(p.kind||'')+(p.small?' small':''),disabled:p.disabled,onClick:p.onClick},p.children)},Switch:function(p){return h('input',{type:'checkbox',checked:!!p.value,onChange:p.onChange})},Row:function(p){return h('div',{className:'row'},p.label?h('label',null,p.label):null,h('div',null,p.children))},Empty:function(p){return h('div',{className:'empty'},p.text||'暂无')},Select:function(p){return h('select',{value:p.value,onChange:function(e){p.onChange&&p.onChange(e.target.value)}}, (p.options||[]).map(function(o){var v=typeof o==='string'?o:o.value;var l=typeof o==='string'?o:o.label;return h('option',{value:v,key:v},l)}))},Seg:function(p){return h('div',{className:'seg'},p.children)},Range:function(p){return h('input',{type:'range',min:p.min,max:p.max,step:p.step,value:p.value,onChange:function(e){p.onChange&&p.onChange(Number(e.target.value))}})}};",
-        "var C;try{C=new Function('React','h','ui','call','save','toast','reload','settings','draftSettings','setSettings',SOURCE)(React,h,ui,call,save,toast,reload,current,draft,setSettings);if(typeof C!=='function')throw new Error('panel.js 最后要 return 一个组件（函数）')}catch(e){root.textContent='面板加载失败：'+String(e&&e.message||e);post('error',{message:String(e&&e.message||e)});throw e}",
-        "render();post('ready',{});"
-      ].join('\n')
-      return '<!doctype html><html><head><meta charset="utf-8"><style>'
-        + 'body{font:13px/1.5 system-ui,sans-serif;margin:0;padding:8px;color:#ddd;background:transparent}.card{border:1px solid #333;border-radius:8px;padding:10px;margin:8px 0}.muted{color:#999;font-size:12px}.btn{border:1px solid #444;background:#222;color:#eee;border-radius:6px;padding:4px 10px;cursor:pointer}.btn.primary{background:#3b6ea8}.btn.small{padding:2px 7px;font-size:12px}.row{display:flex;gap:8px;align-items:center;margin:6px 0}.row>label{min-width:90px;color:#aaa}.right{float:right}.empty{color:#888;padding:12px}.seg{display:flex;gap:4px}select,input{background:#1c1c1c;color:#eee;border:1px solid #444;border-radius:4px;padding:3px}'
-        + '</style></head><body><div id="root"></div><script>' + shim + '</script></body></html>'
-    }
     function ExtPanel({ m, settings, draftSettings, setSettings, toast, reload }) {
       const [src, setSrc] = useState(null)
       const [err, setErr] = useState('')
@@ -4681,7 +4808,7 @@ body[data-ds-dark-theme] .ab-root{
           return h('fieldset', { key: item.id, className: 'ab-card', style: { marginBottom: 8, minWidth: 0 } },
             h('legend', null, '备用服务 ' + (index + 1)),
             h(Row, { label: '接口格式' }, h(Select, { value: item.provider || 'openai', onChange: (v) => set('provider', v),
-              options: [{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'codex', label: '已登录的 Codex 订阅' }] })),
+              options: [{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'seedream', label: '豆包 Seedream' }, { value: 'xai', label: 'xAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'sensenova', label: 'SenseNova' }, { value: 'comfyui', label: 'ComfyUI' }, { value: 'codex', label: '已登录的 Codex 订阅' }] })),
             !codex ? h(Row, { label: '服务地址' }, input('baseUrl', { placeholder: 'https://example.com/v1' })) : null,
             h(Row, { label: '模型' }, input('model')),
             !codex ? h(Row, { label: 'API Key' }, input('apiKey', { type: 'password', placeholder: item.apiKeySet ? '已保存' : '可留空' }),
@@ -4749,11 +4876,22 @@ body[data-ds-dark-theme] .ab-root{
 
     function ImageGen({ draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
+      const [imageTest, setImageTest] = useState(null)
+      const [testingImage, setTestingImage] = useState(false)
+      const [lastImageError, setLastImageError] = useState(null)
+      useEffect(() => { get('/image/status').then((r) => setLastImageError(r.lastError || null)).catch(() => {}) }, [])
+      const testImage = async () => {
+        if (!confirm('会真的调用当前生图服务画一张测试图，可能消耗额度。继续？')) return
+        setTestingImage(true); setImageTest(null)
+        try { const r = await post('/image/test'); setImageTest(r.ok ? { ok: true, image: r.image, message: r.message } : { ok: false, message: r.message || '试画失败' }) }
+        catch (e) { setImageTest({ ok: false, message: e.message }) } finally { setTestingImage(false) }
+      }
       const c = draft.imageGen
       const custom = c.custom || {}
       const isCustom = c.provider === 'custom'
       const isCodex = c.provider === 'codex'
       const isLocal = c.provider === 'local'
+      const isComfy = c.provider === 'comfyui'
       const isPost = custom.method === 'POST'
       const params = Array.isArray(custom.params) ? custom.params : []
       const setParams = (next) => setDraft(setPath(draft, 'imageGen.custom.params', next))
@@ -4764,9 +4902,17 @@ body[data-ds-dark-theme] .ab-root{
             h(Select, {
               value: c.provider || 'openai', width: 270,
               onChange: (v) => setDraft(setPath(draft, 'imageGen.provider', v)),
-              options: [{ value: 'openai', label: 'OpenAI 格式' }, { value: 'custom', label: '自定义接口' }, { value: 'codex', label: 'Codex 订阅（实验性）' }, { value: 'local', label: '本地部署' }],
+              options: [{ value: 'openai', label: 'OpenAI 格式' }, { value: 'seedream', label: '豆包 Seedream' }, { value: 'xai', label: 'xAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'sensenova', label: 'SenseNova' }, { value: 'comfyui', label: 'ComfyUI' }, { value: 'custom', label: '自定义接口' }, { value: 'codex', label: 'Codex 订阅（实验性）' }, { value: 'local', label: '本地部署' }],
             })),
-          isLocal ? h(BuiltinLocalImage, { draft, setDraft, toast }) : isCodex ? h(CodexSub, { draft, setDraft, toast }) : isCustom ? h('div', null,
+          isLocal ? h(BuiltinLocalImage, { draft, setDraft, toast }) : isCodex ? h(CodexSub, { draft, setDraft, toast }) : isComfy ? h('div', null,
+            h(Row, { label: 'ComfyUI 地址', hint: '只填到主机和端口，不要带 /prompt' }, f.text('imageGen.comfy.baseUrl', { size: 'wide', placeholder: 'http://127.0.0.1:8188' })),
+            h(Row, { label: 'API workflow', hint: 'ComfyUI「Save (API Format)」导出的 JSON；没有提示词节点时用 __PROMPT__ 占位，参考图用 __IMAGE__' },
+              h('textarea', { className: 'ab-input wide', rows: 5, value: c.comfy?.workflow || '', placeholder: '{"6":{"class_type":"CLIPTextEncode","inputs":{"text":"__PROMPT__"}}}', onChange: (e) => setDraft(setPath(draft, 'imageGen.comfy.workflow', e.target.value)) })),
+            h(Row, { label: '提示词节点', hint: '可选，如 6；填了就直接改这个节点的 inputs.text' }, f.text('imageGen.comfy.promptNode', { placeholder: '6' })),
+            h(Row, { label: '参考图节点', hint: '可选，LoadImage 节点编号；用参考图时必须填' }, f.text('imageGen.comfy.imageNode', { placeholder: '10' })),
+            h(Row, { label: '输出节点', hint: '可选，只从这个节点的 images 取图' }, f.text('imageGen.comfy.outputNode', { placeholder: '9' })),
+            h(Row, { label: '轮询间隔', hint: '默认 1000ms' }, f.num('imageGen.comfy.pollMs', { min: 200, max: 10000, step: 100 })),
+          ) : isCustom ? h('div', null,
             h(Row, { label: '请求方式', hint: 'GET 把参数都拼在地址上；POST 放进请求体' },
               h(Seg, {
                 value: isPost ? 'POST' : 'GET',
@@ -4816,6 +4962,13 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '固定风格', hint: '每次画都会加在描述前面' }, f.text('imageGen.stylePrompt', { size: 'wide', placeholder: '例如：日系二次元，柔和光线，蓝白配色' })),
           h(Row, { label: '允许参考图改画', hint: '默认开启，只接受当前聊天收到的图、引用图或图库文件名；Codex 订阅暂不支持' }, f.sw('imageGen.img2img')),
           h(Row, { label: '让ta画完自己看一眼', hint: '开着才把画好的图传给ta看（模型不支持看图时自动不传）；关掉就只回一句「画好了」，不传图' }, f.sw('imageGen.seeOwn')),
+          h(Row, { label: '连通性测试', hint: '会真的调用当前生图服务画一张 512×512 测试图，可能消耗额度' },
+            h(Btn, { small: true, disabled: testingImage, onClick: testImage }, testingImage ? '试画中…' : '试画一张'),
+            imageTest ? h('span', { className: 'ab-muted ab-small' }, imageTest.message || (imageTest.ok ? '成功' : '失败')) : null),
+          imageTest?.image ? h('img', { src: 'data:image/png;base64,' + imageTest.image, alt: '生图测试结果', style: { maxWidth: 220, borderRadius: 8, marginTop: 8 } }) : null,
+          lastImageError ? h('div', { className: 'ab-note', style: { marginTop: 8 } },
+            `上次失败（${new Date(lastImageError.at).toLocaleString()}，${lastImageError.provider || '未知服务'}）：${lastImageError.message}`,
+            h(Btn, { small: true, kind: 'ghost', onClick: async () => { await post('/image/status/clear'); setLastImageError(null) } }, '清除')) : null,
           isCustom ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, '例子：地址填 https://image.pollinations.ai/prompt/{prompt}，再加 model=flux-anime、width=1080、height=1920、nologo=true 四个参数，GET 就会请求 …/prompt/<提示词>?model=flux-anime&width=1080&…') : null,
           !c.enabled ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, isLocal ? '部署完成后，打开右上角开关并保存。' : '填好接口信息后，打开右上角开关并保存。') : null,
         ),
@@ -5161,7 +5314,7 @@ body[data-ds-dark-theme] .ab-root{
 
     // ---------------- 面板主体 ----------------
     const TAB_CONTENT = {
-      overview: Overview, now: MindNow, mood: Mood, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms,
+      overview: Overview, now: MindNow, mood: Mood, knowledge: Knowledge, persona: MindPeople, inner: MindInner, selfmind: Identity, mindsettings: MindSettings, platforms: Platforms,
       connect: Connect, group: Group, model: Model, asr: Asr, access: Access, diary: Diary,
       voice: Voice, stickers: Stickers, imagegen: ImageGen, song: Song, video: LocalApi,
       logs: Logs, backup: Backup, security: Security, browser: Browser, local: LocalApi, about: About,

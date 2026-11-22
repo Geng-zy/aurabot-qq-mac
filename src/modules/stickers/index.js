@@ -3,7 +3,7 @@
 
 import { readFileSync, existsSync } from 'node:fs'
 import { createStickerStore, stickerPath } from '../../features/stickers.js'
-import { defineTool, int, str } from '../../tools/tools.js'
+import { defineTool, str } from '../../tools/tools.js'
 import { fetchImage, segmentBytes } from '../../core/net.js'
 import { ownerOrFree } from '../../chat/access.js'
 import { parseChat } from '../../channels/ids.js'
@@ -131,6 +131,10 @@ export default {
     api.route('/sticker/caption-stop', async () => ({ ok: true, ...store.captionCancel() }), { access: 'panel' })
     qqFeature.mountRoutes()
     api.rule(qqFeature.rule)
+    api.route('/sticker/primary', async (req) => {
+      const b = await http.body(req)
+      return store.setPrimary(String(b.md5 || ''))
+    }, { access: 'panel' })
     api.route('/sticker/upload', async (req) => {
       const b = await http.body(req)
       const buf = Buffer.from(String(b.data || '').replace(/^data:[^,]+,/, ''), 'base64')

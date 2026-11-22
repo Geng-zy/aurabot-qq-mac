@@ -319,7 +319,8 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
       }
     }
     if (!alive()) return result // 插件已卸载：旧实例不能把旧配置写回去
-    setConfig({ ...getConfig(), communityMigrated: done })
+    const previous = getConfig().communityMigrated
+    if (!previous || JSON.stringify(done) !== JSON.stringify(previous)) setConfig({ ...getConfig(), communityMigrated: done })
     return result
   }
 

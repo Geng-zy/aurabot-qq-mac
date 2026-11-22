@@ -21,8 +21,8 @@ export function createSnapshot({ opts, mind, log, trashDir }) {
   function backupFiles(prefix = 'mind/') {
     const files = new Map([[prefix + 'mind.sqlite', mind.backupBytes()]])
     // 删除账本不进 SQLite 快照；不带它，换机恢复后已删除的记忆会复活。
-    const log = opts.dir && join(opts.dir, 'deletions.jsonl')
-    try { if (log && existsSync(log)) files.set(prefix + 'deletions.jsonl', readFileSync(log)) } catch (error) { /* 下次备份再试 */ }
+    const deletionsFile = opts.dir && join(opts.dir, 'deletions.jsonl')
+    try { if (deletionsFile && existsSync(deletionsFile)) files.set(prefix + 'deletions.jsonl', readFileSync(deletionsFile)) } catch (error) { /* 下次备份再试 */ }
     return files
   }
 

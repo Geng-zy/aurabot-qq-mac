@@ -18,7 +18,7 @@ import { createModulePanel } from './module-panel.js'
 import { createModuleApi } from './module-api.js'
 import { createModuleRegistry } from './module-registry.js'
 import { createModuleLoader } from './module-loader.js'
-import { rewriteImports, scopeCoreForModule, lazyProxy, deepMerge } from './module-code.js'
+import { rewriteImports, scopeCoreForModule, lazyProxy } from './module-code.js'
 export { rewriteImports, scopeCoreForModule, lazyProxy } from './module-code.js'
 
 /** 扩展接口版本：只加不改。哪天不得不改已有的东西才升到 2，并在更新说明里写清楚怎么迁移。 */

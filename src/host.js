@@ -20,7 +20,6 @@ import { registerSecret } from './core/redact.js'
 import { LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createChannelManager } from './channels/manager.js'
 import { createPlatformChannels } from './channels/registry.js'
-import { isOwner } from './chat/access.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
 import { createHub, workspaceDirOf } from './chat/hub.js'
 import { moveWorkspace, realWorkspace } from './core/workspace-move.js'
@@ -48,6 +47,7 @@ import { createBridge } from './core/bridge.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
+import { createKnowledge } from './features/knowledge.js'
 import { createMindAdapter } from './mind-adapter/index.js'
 import { createPurgeScope } from './integration/purge-scope.js'
 import { installPromptVariables } from './host/prompt-vars.js'
@@ -401,6 +401,7 @@ export function apply(ctx) {
     prefix: PREFIX,
   })
 
+  const knowledge = createKnowledge()
   const route = (path, handler, opts = {}) => ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: PREFIX + path,
@@ -730,6 +731,42 @@ export function apply(ctx) {
     }
   })
 
+  route('/knowledge/list', async () => ({ ok: true, list: knowledge.list() }))
+  route('/knowledge/read', async (req) => {
+    const r = knowledge.read(String(query(req).path || ''), { limit: 30000, admin: true })
+    return r ? { ok: true, ...r } : { ok: false, message: '读不到这个知识库文件' }
+  })
+  route('/knowledge/search', async (req) => {
+    const q = String(query(req).q || '').trim()
+    const limit = Math.max(1, Math.min(50, Number(query(req).limit) || 20))
+    const offset = Math.max(0, Number(query(req).offset) || 0)
+    const list = q ? knowledge.search(q, { limit, offset, admin: true }) : []
+    return { ok: true, list, hasMore: list.length >= limit }
+  })
+  route('/knowledge/rename', async (req) => {
+    if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
+    let b = {}
+    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    return knowledge.rename(String(b.path || ''), String(b.title || ''))
+  })
+  route('/knowledge/delete', async (req) => {
+    if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
+    let b = {}
+    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    return knowledge.remove(String(b.path || ''))
+  })
+  route('/knowledge/note', async (req) => {
+    if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
+    let b = {}
+    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    return knowledge.createNote(String(b.title || ''), String(b.content || ''), { scope: String(b.scope || 'all'), folder: String(b.folder || '') })
+  })
+  route('/knowledge/scope', async (req) => {
+    if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
+    let b = {}
+    try { b = JSON.parse(await readBody(req) || '{}') } catch { return { ok: false, message: 'JSON 不对' } }
+    return knowledge.setScope(String(b.path || ''), String(b.scope || 'all'))
+  })
   route('/logs', async (req) => {
     const q = query(req)
     return { ok: true, entries: logger.recent(Number(q.limit) || 300, { level: q.level || '', area: q.area || '' }) }
@@ -1378,6 +1415,8 @@ export function apply(ctx) {
     setConfig({ ...getConfig(), notice })
     return { ok: true, notice: getConfig().notice }
   })
+  route('/chat/secretary', async (req) => { const chatId = String(query(req).chatId || ''); return { ok: true, list: hub?.secretaryLog?.(chatId) || [], stats: hub?.secretaryStats?.(chatId) || {} } })
+  route('/chat/secretary/export', async () => ({ ok: true, stats: hub?.secretaryStats?.() || {} }))
   route('/local/status', async () => ({ ok: true, dir: local.dir(), list: local.status() }))
   route('/local/template', async (req) => {
     const slot = String((await readBody(req)).slot || '')
@@ -1600,7 +1639,7 @@ export function apply(ctx) {
     send(res, 200, readFileSync(file), 'image/jpeg')
   })
   route('/avatar/upload', async (req) => {
-    const b = await readBody(req)
+    const b = await readBody(req, 8 * 1024 * 1024)
     const buf = Buffer.from(String(b.data || '').replace(/^data:[^,]+,/, ''), 'base64')
     if (!buf.length || buf.length > 5 * 1024 * 1024) return { ok: false, message: '图片太大（最多 5MB）或是空的' }
     if (!mimeOf(buf).startsWith('image/')) return { ok: false, message: '只支持 PNG、JPG、GIF、WebP 图片' }

@@ -26,7 +26,7 @@ export function createAppearance({ dir, trashDir, shrink = async (b) => b, now =
     if (!existsSync(dir)) return []
     const m = meta()
     const files = readdirSync(dir).filter((f) => NAME_RE.test(f))
-      .map((f) => ({ file: f, at: m.added?.[f] || statSync(join(dir, f)).mtimeMs, bytes: statSync(join(dir, f)).size }))
+      .map((f) => { const st = statSync(join(dir, f)); return { file: f, at: m.added?.[f] || st.mtimeMs, bytes: st.size } })
       .sort((a, b) => a.at - b.at)
     const primary = files.find((f) => f.file === m.primary) ? m.primary : files[0]?.file || ''
     return files.map((f) => ({ ...f, primary: f.file === primary })).sort((a, b) => Number(b.primary) - Number(a.primary) || a.at - b.at)
@@ -79,7 +79,7 @@ export function createAppearance({ dir, trashDir, shrink = async (b) => b, now =
 
   /** 生图要用的参考图：主图在前，最多 n 张。 */
   function buffers(n = MAX_APPEARANCE) {
-    return list().slice(0, n).map((f) => readFileSync(join(dir, f.file)))
+    return list().slice(0, n).flatMap((f) => { try { return [readFileSync(join(dir, f.file))] } catch { return [] } })
   }
 
   /** 文字描述（看图写的或管理员自己写的）。 */

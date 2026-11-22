@@ -62,7 +62,8 @@ export function readPersona(id) {
   seedPersonas()
   const f = join(dir(), `${safeId(id)}.md`)
   if (!existsSync(f)) return null
-  return { ...parsePersona(safeId(id), readFileSync(f, 'utf8')), raw: readFileSync(f, 'utf8') }
+  const raw = readFileSync(f, 'utf8')
+  return { ...parsePersona(safeId(id), raw), raw }
 }
 
 export function savePersona(id, { name, tags, body, nickname }) {

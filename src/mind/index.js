@@ -135,7 +135,7 @@ export function createMind(opts) {
     memory.touchAudience()
   }
   function isOwner(personId) {
-    return Boolean(ownerId) && canon(personId) === canon(ownerId)
+    return Boolean(ownerId) && canon(personId) === ownerId
   }
   /** 名字和小名（她改名后自动跟着变），加上管理员额外加的昵称。 */
   function wakeWords(extra = []) {
@@ -181,7 +181,7 @@ export function createMind(opts) {
     const source = place(window)
     if (source.kind !== 'private') return false
     const id = source.platform ? `${source.platform}:${source.id}` : source.id
-    return isOwner(id) || privateOwners.has(id) || privateOwners.has(canon(id))
+    return isOwner(id) || privateOwners.has(canon(id))
   }
 
   // ---------- 版本 ----------
@@ -511,7 +511,7 @@ export function createMind(opts) {
     const per = store.prep(`SELECT * FROM perception WHERE who = ?${winSql}`).all(pid, ...wins)
     const gone = new Set(eps.map((r) => r.id))
     const kept = store.prep('SELECT id, json FROM episodes WHERE instr(json, ?) > 0').all(q)
-      .filter((r) => !gone.has(r.id) && Array.isArray(JSON.parse(r.json).who) && JSON.parse(r.json).who.includes(pid)).length
+      .filter((r) => { if (gone.has(r.id)) return false; const d = JSON.parse(r.json); return Array.isArray(d.who) && d.who.includes(pid) }).length
     // 这些事之间、和别的事之间的联想连线也一起收着，放回来时连回去
     const linkRows = []
     const linkQ = store.prep('SELECT a, b, kind, weight FROM links WHERE a = ? OR b = ?')

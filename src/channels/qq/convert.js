@@ -58,7 +58,8 @@ export function convertMessageEvent(event, selfId, { faceName } = {}) {
   const records = []
   const forwards = [] // 合并转发的 id
   const files = []
-  for (const seg of segmentsOf(event)) {
+  const segs = segmentsOf(event)
+  for (const seg of segs) {
     const d = seg.data || {}
     switch (seg.type) {
       case 'text':
@@ -150,7 +151,7 @@ export function convertMessageEvent(event, selfId, { faceName } = {}) {
     files,
     subType: String(event.sub_type || ''),
     selfId: self,
-    segments: segmentsOf(event),
+    segments: segs,
     raw: event,
   }
 }

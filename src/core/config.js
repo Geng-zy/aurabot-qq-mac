@@ -1,7 +1,7 @@
 // 插件配置：默认值 + 归一化 + 读写。配置文件 ~/.dsh/plugins-data/aurabot/config.json
 
 import { randomUUID } from 'node:crypto'
-import { dataDir, readJson, readJsonStrict, writeJson } from './store.js'
+import { dataDir, readJsonStrict, writeJson } from './store.js'
 import { DEFAULT_GROUP_POLICY } from '../chat/group-policy.js'
 import { LEVELS, PROFILE_PERM_KEYS, PROFILE_PERM_LEVELS, profilePermDefault } from '../chat/access.js'
 import { normalizeChatModels } from '../chat/chat-model.js'
@@ -76,7 +76,7 @@ export const DEFAULTS = {
   merge: { enabled: true, waitSec: 2.5, maxSec: 8, groupWaitSec: 5, groupMaxSec: 15 }, // 连发合并：对方停顿 waitSec 秒再一起回，最多等 maxSec 秒；群里等得久一点，把一段话攒齐
   imageGen: {
     enabled: false,
-    provider: 'openai', // openai / custom / codex / local
+    provider: 'openai', // openai / seedream / xai / gemini / custom / codex / local
     localSteps: 20,
     baseUrl: '',
     apiKey: '',
@@ -93,6 +93,8 @@ export const DEFAULTS = {
     custom: { method: 'GET', url: '', bodyType: 'json', responsePath: '', params: [] },
     // 实验性订阅接法；登录令牌独立保存在数据目录，不进入配置。
     codex: { model: 'gpt-image-2', quality: 'auto', background: 'auto' },
+    // ComfyUI 直连：workflow 是 API 格式的 JSON；用 __PROMPT__/__IMAGE__ 占位，或指定节点。
+    comfy: { baseUrl: 'http://127.0.0.1:8188', workflow: '', promptNode: '', imageNode: '', outputNode: '', pollMs: 1000 },
   },
   persona: { current: 'dafeiyu' },
   // 管理员私聊里问起群里的事：把最近 24 小时的群聊流水补进这一轮（默认关，开启前先把群加进白名单）
@@ -156,6 +158,7 @@ export const DEFAULTS = {
     maxPerHour: 20,
     maxLibrary: 300, // 表情库最多存多少张（QQ 收藏表情有上限），超了就清掉最少用的
     caption: true, // 用视觉模型起备注
+    webp: false, // 表情入库时统一转 WebP（GIF 保留原格式，需要 sharp）
     // 起名单独挑的模型：{ provider, model }；留空 = 跟随聊天用的模型
     captionModel: { provider: '', model: '' },
   },
@@ -190,7 +193,7 @@ export const DEFAULTS = {
   // everyStep：一轮里她分几段说就发几条（默认关 = 只发最后一段）
   // rescueFromThinking：整轮一段正文都没写时，从思考里捞出她自己定稿的那段（默认关，捞不到就不发）
   // turnTimeoutMinutes：一轮跑超过这么多分钟就强制放开（模型 / 工具卡死时私聊会一直不理人）；0 = 不兜底
-  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false, thinkingGuard: true, replyMarker: false, shareRecentWithModules: false, turnTimeoutMinutes: 30, clicheFilters: [] },
+  chat: { seedHistory: false, seedHistoryCount: 20, everyStep: false, rescueFromThinking: false, thinkingGuard: true, replyMarker: false, shareRecentWithModules: false, turnTimeoutMinutes: 30, clicheFilters: [], secretary: { enabled: false, provider: '', model: '', maxRecent: 20, groups: {} } },
   // 聊天流水 chatlog/ 留多久（记忆本身在心智核心里）
   memory: { keepChatlogDays: 7, keepChatlogSet: false },
   song: {
@@ -277,7 +280,7 @@ const num = (v, d, lo, hi) => {
 const bool = (v, d) => (typeof v === 'boolean' ? v : d)
 const qq = (v) => String(v ?? '').replace(/\D/g, '')
 const qqList = (v) => [...new Set((Array.isArray(v) ? v : String(v || '').split(/[\s,，;；]+/)).map(qq).filter(Boolean))]
-const hhmm = (v, d) => (/^\d{1,2}:\d{2}$/.test(String(v)) ? String(v) : d)
+const hhmm = (v, d) => (/^([01]?\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : d)
 // 严格校验 'YYYY-MM-DD'（面板手填/配置文件手改都可能乱），非法日期当没填。
 const dateKey = (v) => {
   const s = String(v ?? '').trim()

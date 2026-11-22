@@ -81,7 +81,7 @@ export function createBody(deps) {
    * 时间推进到 at：精力、困、饿按时间常数变化。
    * 超过一天的离线间隔会补算睡眠周期，但只留下最终状态，不补发一堆历史事件。
    */
-  function advance(s, at, { sleep = false } = {}) {
+  function advance(s, at, { sleep: catchUpSleep = false } = {}) {
     const events = []
     followTimezone(s, at)
     const rise = Number(B('sleepRiseHours')) || 18.2
@@ -90,7 +90,7 @@ export function createBody(deps) {
     const hungerHours = Number(B('hungerHours')) || 5
     // 离线超过 7 天只补最近 7 天：既保留时差/睡眠趋势，也避免旧时间戳把主线程逐 10 分钟算到卡死。
     if (at - s.at > 7 * 24 * 3600000) s.at = at - 7 * 24 * 3600000
-    const catchUp = sleep && at - s.at >= CATCHUP_GAP
+    const catchUp = catchUpSleep && at - s.at >= CATCHUP_GAP
     let t = s.at
     while (t < at) {
       const dt = Math.min(10 * MIN, at - t)
@@ -123,7 +123,8 @@ export function createBody(deps) {
           }
         } else {
           const n = night()
-          const pastEnd = ((minuteOfDay(t, deps.tz()) - n.end + 1440) % 1440) / 60
+          const nowMinute = minuteOfDay(t, deps.tz())
+          const pastEnd = ((nowMinute - n.end + 1440) % 1440) / 60
           if (p <= Number(B('wakeThreshold')) || (pastEnd >= 3 && pastEnd < 12)) wakeUp(s, t, '')
         }
       }

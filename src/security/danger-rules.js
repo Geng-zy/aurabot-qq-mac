@@ -9,10 +9,7 @@
 // 为什么放在 tools/pre-execute 这一层：DSH 在工具真正执行前会走这个 waterfall，
 // 这里返回 deny 就不会执行，能拿到「命令原文」，比只靠提示词可靠。
 
-import { isOwner } from '../chat/access.js'
 
-const CONFIRM_RE = /^(确认|确认执行|同意|同意执行|允许|允许执行|可以|执行吧|放行|yes|y|ok)$/i
-const CANCEL_RE = /^(取消|取消执行|拒绝|不要|不|不行|别|停|停手|拦下|no|n)$/i
 
 /**
  * 危险命令规则分两层：

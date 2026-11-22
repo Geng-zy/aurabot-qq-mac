@@ -161,8 +161,8 @@ export function sessionDirName(cwd) {
   const body = [...String(cwd).replace(/[\\/]+$/, '')].map((ch) => {
     if (/[\\/:]/.test(ch)) return '-'
     return /[A-Za-z0-9._-]/.test(ch) ? ch : '~' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')
-  }).join('').replace(/-{2,}/g, '-')
-  return `--${body}--`
+  }).join('').replace(/-{2,}/g, '-').replace(/^-+/, '')
+  return `--${body.slice(0, 251)}--`
 }
 
 function safeName(name) {

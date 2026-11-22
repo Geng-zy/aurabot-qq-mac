@@ -3,14 +3,15 @@
 
 const FALLBACK_TZ = 'Asia/Shanghai'
 const fmtCache = new Map()
+const zoneCache = new Map()
 
 export function validTimeZone(tz) {
-  try {
-    new Intl.DateTimeFormat('en-US', { timeZone: String(tz) })
-    return true
-  } catch {
-    return false
-  }
+  const key = String(tz || FALLBACK_TZ)
+  if (zoneCache.has(key)) return zoneCache.get(key)
+  let ok = false
+  try { new Intl.DateTimeFormat('en-US', { timeZone: key }); ok = true } catch {}
+  zoneCache.set(key, ok)
+  return ok
 }
 
 function formatter(tz) {

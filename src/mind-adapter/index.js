@@ -1,6 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
 import { createHash } from 'node:crypto'
-import { estimateTokens } from '../mind/budget.js'
 import { fileURLToPath } from 'node:url'
 import { createEmbedder } from './local-embedding.js'
 // 心智核心和 Aurabot 之间的对接层。
@@ -10,15 +8,14 @@ import { createEmbedder } from './local-embedding.js'
 
 import { join } from 'node:path'
 import { homedir } from 'node:os'
-import { existsSync, readdirSync, statSync } from 'node:fs'
 import { createMind } from '../mind/index.js'
 import { paramOf } from '../mind/params.js'
 import { effortForScene, speechScene } from '../mind/conversation.js'
 import { createEmbedClient, createRerankClient } from '../mind/memory/vectors.js'
 import { parseJson } from '../mind/memory/index.js'
 import { keywords } from '../mind/memory/words.js'
-import { dayKey, inRange, minuteOfDay, parsePeriod, parseRange, shortTime } from '../mind/clock.js'
-import { createLocalModel, hasLocalModel } from '../mind/local/runner.js'
+import { dayKey, parsePeriod, shortTime } from '../mind/clock.js'
+import { createLocalModel } from '../mind/local/runner.js'
 import { defineTool, str, int } from '../tools/tools.js'
 import { deliveryChat, personIn, windowOf, personOf } from './ids.js'
 import { LEGACY_PLATFORM, parseChat, parsePerson, privateChatOf, refOfChat } from '../channels/ids.js'
@@ -137,7 +134,7 @@ export function createMindAdapter(opts) {
   const notRemembered = (person) => Boolean(person) && mind.person(person)?.noMemory === true
   const social = createSocial({ mind, mem, opts, now, windowOf, refOfChat, dayKey, shortTime, LEGACY_TAG, log })
   const { elsewhere, importLegacySocial } = social
-  const turnPolicy = createTurnPolicy({ mind, now, debug, isOwnerChat, ownerOf, notRemembered, parseChat, personIn, refOfChat })
+  const turnPolicy = createTurnPolicy({ mind, now, debug, isOwnerChat, ownerOf, notRemembered, parseChat, personIn, refOfChat, windowOf })
   const { canSeedHistory, recentUserMessages, shouldRotate, attention, effects } = turnPolicy
 
 

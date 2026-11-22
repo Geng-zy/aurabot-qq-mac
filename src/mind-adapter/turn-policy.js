@@ -1,5 +1,5 @@
 // 会话策略：注意力设置、心情/身体影响、换会话判断、历史种子和最近管理员原话。
-export function createTurnPolicy({ mind, now, debug, isOwnerChat, ownerOf, notRemembered, parseChat, personIn, refOfChat }) {
+export function createTurnPolicy({ mind, now, debug, isOwnerChat, ownerOf, notRemembered, parseChat, personIn, refOfChat, windowOf }) {
   function canSeedHistory(chatId, senderId) {
     const chat = parseChat(chatId)
     return Boolean(chat && senderId) &&

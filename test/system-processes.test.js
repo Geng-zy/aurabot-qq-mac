@@ -52,11 +52,11 @@ test('连接自测只接受主动提交，排队或模拟的消息不算送达',
   await fake.call('/save', { enabled: true, debug: false, dryRun: false })
   const calls = []
   let receipt = { queued: true }
-  t.mock.method(api.hub, 'sendText', async (...args) => { calls.push(args); return receipt })
+  t.mock.method(api.hub, 'sendBackground', async (...args) => { calls.push(args); return receipt })
   assert.equal((await fake.call('/test-send')).json().ok, false)
   assert.equal(calls.length, 0)
   assert.equal((await fake.call('/test-send', {})).json().ok, false)
-  assert.deepEqual(calls[0][5], { allowQueue: false, system: true })
+  assert.deepEqual(calls[0][3], { allowQueue: false, system: true })
   receipt = { simulated: true }
   assert.equal((await fake.call('/test-send', {})).json().ok, false)
   receipt = { message_id: 10 }

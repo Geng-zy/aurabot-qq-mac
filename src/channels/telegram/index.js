@@ -183,7 +183,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         await call('sendMessage', { chat_id: target.id, text })
       } else if (image) result = await call('sendPhoto', { ...params, photo, caption: text || undefined })
       else if (text) result = await call('sendMessage', { ...params, text })
-      else return { queued: false }
+      else return null
       return { ...result, messageId: String(result?.message_id || '') }
     },
     async group(chatId) {
