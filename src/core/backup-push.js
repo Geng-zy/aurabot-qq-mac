@@ -337,7 +337,8 @@ async function pushBackupGitee(r, { version = '', sourceName = '', onLog = () =>
   const wanted = String(sourceName || '').trim()
   if (wanted && !zips.includes(wanted)) throw new Error('本机 backups 里找不到要推送的备份：' + wanted)
   if (!wanted && !zips.length) throw new Error('还没有备份文件：先「立即备份」一次，或等每天到点自动打包')
-  const name = wanted || zips[0]
+  const full = zips.filter((n) => n.startsWith('aurabot-backup-')).sort().reverse()
+  const name = wanted || full[0] || zips[0]
   const base = baseOf(name)
   const wd = workDir()
   mkdirSync(wd, { recursive: true })

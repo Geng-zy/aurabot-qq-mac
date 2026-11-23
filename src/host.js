@@ -921,13 +921,22 @@ export function apply(ctx) {
   })
   // 「获取可用模型」：面板填好地址和 Key 后问服务有哪些模型。Key 留空 = 用已经保存的那个（面板不回显已保存的 Key）
   const SAVED_KEYS = { imageGen: () => cfg.imageGen?.apiKey, asr: () => cfg.voice?.asrApi?.apiKey, mind: () => cfg.mind?.embedKey }
+  const normEndpoint = (v) => String(v || '').trim().replace(/\/+$/, '')
+  const savedEndpoint = {
+    imageGen: () => normEndpoint(cfg.imageGen?.provider === 'custom' ? cfg.imageGen?.custom?.url : cfg.imageGen?.baseUrl),
+    asr: () => normEndpoint(cfg.voice?.asrApi?.baseUrl),
+    mind: () => mind ? normEndpoint(mind.mind.setting('memory.embedUrl')) : '',
+  }
   route('/provider-models', async (req) => {
     const b = await readBody(req)
-    const saved = SAVED_KEYS[String(b.keyFrom || '')]
+    const from = String(b.keyFrom || '')
     let baseUrl = String(b.baseUrl || '').trim()
-    if (!baseUrl && b.keyFrom === 'mind' && mind) baseUrl = String(mind.mind.setting('memory.embedUrl') || '')
+    if (!baseUrl && from === 'mind' && mind) baseUrl = String(mind.mind.setting('memory.embedUrl') || '')
+    // 已保存的 Key 只用于它实际绑定的端点；草稿里换了地址就不继承。
+    const sameEndpoint = from && baseUrl && normEndpoint(baseUrl) === savedEndpoint[from]?.()
+    const savedKey = sameEndpoint ? String(SAVED_KEYS[from]?.() || '') : ''
     try {
-      return await listProviderModels({ baseUrl, apiKey: String(b.apiKey || '').trim() || (saved ? String(saved() || '') : ''), kind: String(b.kind || '') })
+      return await listProviderModels({ baseUrl, apiKey: String(b.apiKey || '').trim() || savedKey, kind: String(b.kind || '') })
     } catch (error) {
       return { ok: false, message: error.message }
     }
@@ -1272,7 +1281,10 @@ export function apply(ctx) {
   }
   route('/backup/state', async () => ({ ok: true, job: backupJob, list: listBackups(), pending: pendingRestore(), modules: pendingModules(), dir: dataDir('backups') }))
   route('/backup/verify', async (req) => {
-    try { return { ok: true, ...(await inspectBackup(String(query(req).name || ''))) } }
+    try {
+      const body = await readBody(req).catch(() => ({}))
+      return { ok: true, ...(await inspectBackup(String(body?.name || query(req).name || ''))) }
+    }
     catch (error) { return { ok: false, message: error.message } }
   })
   route('/backup/create', backupAction(async () => {

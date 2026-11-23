@@ -730,6 +730,7 @@ export function cancelRestore() {
   rmSync(stageDir(), { recursive: true, force: true })
   rmSync(sessionStage(), { recursive: true, force: true })
   rmSync(pendingFile(), { force: true })
+  try { rmSync(join(backupsDir(), 'incoming.zip'), { force: true }) } catch {}
 }
 
 export function pendingRestore() {
@@ -774,6 +775,7 @@ export async function inspectBackup(name) {
     const entries = await readEntries(fh, Number(st.size))
     const head = entries.find((entry) => entry.name === MANIFEST)
     if (!head) throw new Error('这不是 Aurabot 的备份文件')
+    if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('备份清单格式认不出来')
     let bytes = 0
@@ -829,7 +831,10 @@ export function stageReceivedBackup(buf, name = 'incoming.zip') {
       const source = verifyFile(data, { rel: temporary, key })
       if (checkPath(data, rel).key !== target.key) throw unsafePath(rel)
       // 同名不同内容不覆盖已有备份：先把新包留在私有临时文件里，确认没有占用再提交。
-      if (target.info) throw new Error('已经有同名备份，不会覆盖：' + name)
+      if (target.info) {
+        if (name !== 'incoming.zip') throw new Error('已经有同名备份，不会覆盖：' + name)
+        removeChecked(data, rel) // incoming.zip 是本次上传缓存，允许用新包替换；用户命名的备份不覆盖
+      }
       renameSync(source.path, target.path)
       const published = checkPath(data, rel)
       if (!published.info || !sameRenamedFile(source.info, published.info)) throw unsafePath(rel)
