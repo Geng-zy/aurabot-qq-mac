@@ -2,6 +2,13 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.20
+
+- 翻唱人声分离：增强模型下载失败不再把整套安装判死，主模型和 RVC 就绪即可使用。
+- MLX 本地生图：HuggingFace 大文件下载超时延长，禁 Xet/传输插件，失败后可续传重试。
+- 实测 RVC：Mac mini 完成 Applio/PyTorch/MPS、Leap Xe 分离和 RVC 换声，生成 3.49 秒音频。
+- 回归：393 个语法文件、1559 个测试，串行全量通过。
+
 ## 1.5.19
 
 - 增加独立 oxlint：no-undef 为 error、no-unused-vars 为 warning；先覆盖 src 和 client。

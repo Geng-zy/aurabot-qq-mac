@@ -647,6 +647,10 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
           try {
             const [cmd, args] = separatorCommand(p, ['--model_filename', m, '--model_file_dir', p.separatorModels, '--download_model_only'])
             await run(cmd, args, { log, onLine: note, env: pyEnv(), timeoutMs: 2 * 3600_000 })
+          } catch (error) {
+            // 增强模型是可选的：主模型和 RVC 已经能用时，不让一个增强模型下载失败把整套安装判死。
+            note(`  跳过翻唱增强模型 ${m}：${String(error.message || error).slice(0, 160)}`)
+            log.warn(`翻唱增强模型下载失败，跳过 ${m}：`, error.message)
           } finally {
             stop()
           }

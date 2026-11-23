@@ -136,7 +136,7 @@ export function createLocalImage({
         const missing = modelFiles.filter(([file, size]) => statSync(join(modelDir, file), { throwIfNoEntry: false })?.size !== size)
         const code = 'import sys; from huggingface_hub import snapshot_download; snapshot_download(repo_id=sys.argv[1], revision=sys.argv[2], local_dir=sys.argv[3], allow_patterns=sys.argv[4:], max_workers=2, token=False)'
         await runImpl(python, ['-c', code, REPO, REVISION, modelDir, ...missing.map(([file]) => file)], {
-          env: { ...hfEnv, HF_HUB_OFFLINE: '0', HF_HUB_ETAG_TIMEOUT: '30', HF_HUB_DOWNLOAD_TIMEOUT: '120', HF_HUB_DISABLE_XET: '1' },
+          env: { ...hfEnv, HF_HUB_OFFLINE: '0', HF_HUB_ETAG_TIMEOUT: '60', HF_HUB_DOWNLOAD_TIMEOUT: '600', HF_HUB_DISABLE_XET: '1', HF_HUB_ENABLE_HF_TRANSFER: '0' },
           signal, timeout: 12 * 60 * 60_000,
         })
         if (presentBytes(modelDir) !== modelBytes) throw new Error('权重未下载完整，重新部署会补齐缺少的文件。')
