@@ -4,8 +4,10 @@ export function createPrivacy({ mem, log, isOwnerChat, ownerOf, windowOf, privat
     if (isOwnerChat(chatId) || !String(text).trim()) return false
     const draft = String(text).slice(0, 5000)
     let timer
+    let restricted = []
+    let allowed = []
     try {
-      const { private: restricted, allowed } = mem.privacyCandidates(draft, privateChatOf(ownerOf()), windowOf(chatId))
+      ;({ private: restricted, allowed } = mem.privacyCandidates(draft, privateChatOf(ownerOf()), windowOf(chatId)))
       if (!restricted.length) return false
       // 没有模型/模型不可用时不能默认放行：有候选就拦，宁可少说一句。
       if (!mem.canThink()) {

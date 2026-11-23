@@ -1274,9 +1274,9 @@ test('头像：上传自定义头像、同步成 QQ 头像、恢复默认', asyn
   assert.equal((await fake.call('/state')).json().avatar.custom, true)
   assert.deepEqual(Buffer.from((await fake.call('/avatar')).raw()), png)
   assert.equal((await fake.call('/avatar/upload', { data: Buffer.from('not an image at all').toString('base64') })).json().ok, false)
-  assert.equal((await fake.call('/avatar/sync-qq')).json().ok, true)
+  assert.equal((await fake.call('/avatar/sync-qq', {})).json().ok, true)
   assert.ok(mock.sent('set_qq_avatar')[0].params.file.startsWith('base64://'))
-  await fake.call('/avatar/reset')
+  await fake.call('/avatar/reset', {})
   assert.equal((await fake.call('/state')).json().avatar.custom, false)
   assert.equal((await fake.call('/avatar')).raw().length, before.length)
 })
@@ -1291,7 +1291,7 @@ test('日志里没有令牌原文', async () => {
 test('重新开始：归档会话，下一条消息开新会话', async () => {
   const before = Object.keys((await fake.call('/state')).json().sessions).length
   assert.ok(before > 0)
-  const r = (await fake.call('/sessions/reset')).json()
+  const r = (await fake.call('/sessions/reset', {})).json()
   assert.equal(r.ok, true)
   assert.equal(Object.keys((await fake.call('/state')).json().sessions).length, 0)
 })
@@ -1899,7 +1899,7 @@ test('管理员私聊可以查询最新 QQ 资料，关闭资料模块后查询�
 
 test('#58 在 DSH 会话窗口里直接打字：这一轮按管理员说的算（重开会话后也一样）', async () => {
   // 先重新开始所有 QQ 会话，模拟用户点「重新开始所有 QQ 会话」
-  await fake.call('/sessions/reset')
+  await fake.call('/sessions/reset', {})
   // 从 QQ 发一条消息，建立新的 QQ 会话
   const n = fake.turns.length
   mock.push(priv(OWNER, text('在吗')))

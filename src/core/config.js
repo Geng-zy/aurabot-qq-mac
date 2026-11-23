@@ -793,7 +793,8 @@ export function mergeFromPanel(current, incoming) {
     const saved = new Map((current.imageGen?.fallbacks || []).map((item) => [item.id, item]))
     next.imageGen.fallbacks = incoming.imageGen.fallbacks.filter(isObj).map((item) => {
       const old = saved.get(item.id)
-      const sameEndpoint = old && old.baseUrl === String(item.baseUrl || '').trim().replace(/\/+$/, '') && (item.provider === 'codex' ? 'codex' : 'openai') === old.provider
+      const provider = ['openai','seedream','xai','gemini','sensenova','comfyui','custom','codex','local'].includes(item.provider) ? item.provider : 'openai'
+      const sameEndpoint = old && old.baseUrl === String(item.baseUrl || '').trim().replace(/\/+$/, '') && provider === old.provider
       return { ...item, apiKey: item.apiKey === null ? '' : item.apiKey || (sameEndpoint ? old.apiKey : '') }
     })
   }

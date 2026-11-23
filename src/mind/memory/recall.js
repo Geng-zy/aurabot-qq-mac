@@ -119,7 +119,7 @@ export function createRecall({ store, now, S, getState, embedText, vectors, embe
             const act = f.act * Math.max(0, Math.min(1, Number(l.weight) || 0)) * decay
             if (act < 0.2) continue
             const e = row(l.id)
-            if (!e || e.status !== 'live' || !visibleForRecall(e) || (e.data.kind === 'intention' && e.data.done)) continue
+            if (!e || e.status !== 'live' || !visibleForAudience(e, audienceWindow) || (e.data.kind === 'intention' && e.data.done)) continue
             if (!deliberate && e.data.kind === 'pending' && !cueHits.has(e.id) && !contextHits.has(e.id)) continue
             seen.add(l.id)
             const r = rOf(e, at)

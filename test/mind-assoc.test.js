@@ -31,12 +31,12 @@ test('从一件事想到下一件、再下一件，越远越淡（两步外只�
   assert.equal(c.level, 'vague')
 })
 
-test('对话的联想跳过受保护的来源，内部联想保留', async () => {
+test('对话的联想跳过受保护的来源，不把私聊来源带进群聊', async () => {
   const { m } = setup()
   const w = await m.memory.workingMemory({ cue: '海边看了日出', window: 'qq:group:5', people: [] })
   assert.match(w.text, /看了日出/)
-  // 同一份记忆：内部联想可以看到受保护来源；出站隐私另行拦截。
-  assert.match(w.text, /其实很累|想去海边/)
+  // 对话联想必须沿用当前会话可见范围。
+  assert.doesNotMatch(w.text, /其实很累|想去海边/)
 })
 
 test('回顾和提炼结果继承来源范围，其他人的私聊可以跨会话', async (t) => {
