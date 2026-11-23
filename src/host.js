@@ -772,7 +772,8 @@ export function apply(ctx) {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
     try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
-    return knowledge.setScope(String(b.path || ''), b.scope == null ? 'all' : String(b.scope))
+    if (b.scope == null) return { ok: false, message: '改范围必须明确指定 scope（公开请写 all）' }
+    return knowledge.setScope(String(b.path || ''), String(b.scope))
   })
   route('/logs', async (req) => {
     const q = query(req)
@@ -953,9 +954,9 @@ export function apply(ctx) {
     if (!mind) return mindOff
     const b = await readBody(req)
     try {
-      const beforeUrl = String(mind.mind.setting('memory.embedUrl') || '')
+      const beforeUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
       const changed = mind.mind.updateSettings(b.patch || {}, 'owner')
-      const afterUrl = String(mind.mind.setting('memory.embedUrl') || '')
+      const afterUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
       if (beforeUrl !== afterUrl && getConfig().mind?.embedKey) {
         cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg)
       }
@@ -967,7 +968,10 @@ export function apply(ctx) {
   route('/mind/settings/reset', async (req) => {
     if (!mind) return mindOff
     const b = await readBody(req)
+    const beforeUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
     mind.mind.resetSetting(String(b.key || ''))
+    const afterUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
+    if (beforeUrl !== afterUrl && getConfig().mind?.embedKey) cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg)
     return { ok: true, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
   })
   route('/mind/sleep', async () => {

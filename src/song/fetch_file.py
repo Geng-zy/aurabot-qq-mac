@@ -45,9 +45,14 @@ def fetch(opener, url, part, want, can_switch):
         header_len = int(r.headers.get('Content-Length') or 0)
         if r.status == 206:
             cr = r.headers.get('Content-Range') or ''
-            m = re.search(r'/(\d+)$', cr)
+            m = re.match(r'bytes\s+(\d+)-(\d+)/(\d+)', cr.strip(), re.I)
             if m:
-                want = int(m.group(1))
+                start, end, total = map(int, m.groups())
+                if start != have or end < start:
+                    raise IOError('续传区间不对：请求 %d，返回 %d-%d' % (have, start, end))
+                if header_len and header_len != end - start + 1:
+                    raise IOError('续传区间长度不对：头 %d 字节，区间 %d-%d' % (header_len, start, end))
+                want = total
         elif not want and header_len:
             want = header_len
         # 服务器不支持续传就从头来

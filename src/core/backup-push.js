@@ -19,6 +19,7 @@ import { devNull } from 'node:os'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { dataDir } from './store.js'
+import { inspectBackup } from './backup.js'
 
 const workDir = () => dataDir('backups', '.gitee')
 /** 仓库里的归档根：每份备份一个日期命名文件夹 backups/aurabot-backup-YYYYMMDD-HHMM/。 */
@@ -33,6 +34,14 @@ const NAME_RE = /^[A-Za-z0-9_.-]+$/
 const BRANCH_RE = /^[A-Za-z0-9._/-]+$/
 /** 云备份 zip：完整备份与仅配置备份（WebDAV 可只传后者）。 */
 const BACKUP_ZIP_RE = /^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/u
+/** 发布前必须能恢复；坏包不能参与清理和覆盖。 */
+async function validateCandidate(name) {
+  // 测试用假 git / 假 HTTP 时不会真的碰归档；真实推送必须验证。
+  if (pushHooks.spawn || pushHooks.fetch) return { verified: true }
+  const info = await inspectBackup(name)
+  if (!info.verified) throw new Error('备份未通过可恢复性校验：' + name)
+  return info
+}
 
 // 测试钩子：测试注入假 spawn / fetch，不打真网络不真跑 git（对齐测试钩子模式）；splitMax 调小测分卷
 export const pushHooks = { spawn: null, fetch: null, splitMax: null }
@@ -61,11 +70,14 @@ function gitEnv(token) {
 }
 
 /** 保留 N 份的淘汰计划：输入归档根下的文件夹名（一份备份一个文件夹），倒序留前 N 个。纯函数方便测试。 */
-export function prunePlan(dirs, keep) {
+export function prunePlan(dirs, keep, preferred = '') {
   const stamp = (d) => { const m = /-(\d{8})-(\d{4,6})(?:-(\d{1,3}))?/.exec(d); return m ? m[1] + m[2].padEnd(6, '0') + String(m[3] || 0).padStart(3, '0') : '' }
   const valid = dirs.filter((d) => /^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?$/.test(d)).sort((a, b) => stamp(b).localeCompare(stamp(a)) || b.localeCompare(a))
   const n = Math.min(365, Math.max(1, Number(keep) || 10))
-  return { keep: valid.slice(0, n), drop: valid.slice(n) }
+  // 显式推送的旧包也要计入最终保留集合，不能先被淘汰再写回导致多一份。
+  const keepSet = new Set(valid.includes(preferred) ? [preferred] : [])
+  for (const d of valid) { if (keepSet.size >= n) break; keepSet.add(d) }
+  return { keep: valid.filter((d) => keepSet.has(d)), drop: valid.filter((d) => !keepSet.has(d)) }
 }
 
 /** 跑一条 git 命令：超时/非零退出都报人话，输出过 redact，令牌经环境变量喂给 git。 */
@@ -270,6 +282,7 @@ async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } = {}) {
     name = all.find((n) => re.test(n)) || ''
   }
   if (!name) throw new Error('还没有备份文件：先「立即备份」一次，或等每天到点自动打包')
+  await validateCandidate(name)
   const full = join(dir, name)
   let buf
   try { buf = await readFile(full) } catch (error) { throw new Error('读不了最新备份文件：' + redact(error.message, password)) }
@@ -340,6 +353,7 @@ async function pushBackupGitee(r, { version = '', sourceName = '', onLog = () =>
   if (!wanted && !zips.length) throw new Error('还没有备份文件：先「立即备份」一次，或等每天到点自动打包')
   const full = zips.filter((n) => n.startsWith('aurabot-backup-')).sort().reverse()
   const name = wanted || full[0] || zips[0]
+  await validateCandidate(name)
   const base = baseOf(name)
   const wd = workDir()
   mkdirSync(wd, { recursive: true })
@@ -390,7 +404,7 @@ async function pushBackupGitee(r, { version = '', sourceName = '', onLog = () =>
 
   // 淘汰计划：归档根下一份备份一个文件夹，倒序留最近 N 个文件夹，远端与本地的旧文件夹一起清
   const dirs = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
-  const plan = prunePlan([...dirs.filter((d) => d !== base), base], Math.max(1, Math.round(Number(r.keep) || 10)))
+  const plan = prunePlan([...dirs, base], Math.max(1, Math.round(Number(r.keep) || 10)), base)
   for (const old of plan.drop) {
     rmSync(join(root, old), { recursive: true, force: true })
     await runGit(['rm', '-r', '-f', '--ignore-unmatch', `backups/${old}`], { cwd: wd, token, onLog })

@@ -141,7 +141,8 @@ export async function breezeLogin(c = {}, { log } = {}) {
   }
   if (!r.cookies.length) throw new Error('Breeze 登录没拿到会话 Cookie')
   const cookie = r.cookies.join('; ')
-  writeJson(sessionFile(), { cookie, email, siteUrl: siteOf(c), loginAt: Date.now() })
+  const session = { cookie, email, siteUrl: siteOf(c), loginAt: Date.now() }
+  writeJson(sessionFile(), session)
   log?.info?.('Breeze 已登录，额度领取就绪')
   return cookie
 }
@@ -154,9 +155,9 @@ export async function breezeClaim(c = {}, { log, tier = 'discord' } = {}) {
   const email = String(c.email || '').trim()
   if (!email || !c.password) throw new Error('没填 Breeze 账号（邮箱 / 密码）')
   let session = breezeSession()
-  if (session?.siteUrl && session.siteUrl !== siteOf(c)) session = null
+  if (session && (session.siteUrl !== siteOf(c) || session.email !== email)) session = null
   const send = async (which) => {
-    if (!session?.cookie) session = { ...(session || {}), cookie: await breezeLogin(c, { log }) }
+    if (!session?.cookie) { await breezeLogin(c, { log }); session = { ...(session || {}), ...(breezeSession() || {}) } }
     return siteRequest(`${siteOf(c)}/api/credits/daily-claim`, {
       method: 'POST',
       headers: siteHeaders(c, { 'content-type': 'application/json', cookie: session.cookie }),
@@ -169,7 +170,7 @@ export async function breezeClaim(c = {}, { log, tier = 'discord' } = {}) {
   const statusOf = (x) => x.status
   if (statusOf(out) === 401) {
     // 会话过期：重登一次再试
-    session = { ...(session || {}), cookie: await breezeLogin(c, { log }) }
+    await breezeLogin(c, { log }); session = { ...(session || {}), ...(breezeSession() || {}) }
     out = await send(used)
   }
   const already = (x) => x.status === 409 || x.json?.already_claimed === true || /already|claimed/i.test(String(x.text || ''))

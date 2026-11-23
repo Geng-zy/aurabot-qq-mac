@@ -279,7 +279,7 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     if (!base || !c.model) throw serviceError(404, '还没填生图服务地址或模型', false)
     const headers = { 'content-type': 'application/json' }
     if (c.apiKey) headers.authorization = `Bearer ${c.apiKey}`
-    const body = { model: c.model, prompt, image: `data:${mimeOf(image)};base64,${image.toString('base64')}`, n: 1, response_format: 'b64_json' }
+    const body = { model: c.model, prompt, image: { type: 'image_url', url: `data:${mimeOf(image)};base64,${image.toString('base64')}` }, n: 1, response_format: 'b64_json' }
     let r = await request(`${base}/images/edits`, { method: 'POST', headers, body: JSON.stringify(body), signal: withTimeoutSignal(180000, signal) })
     if ([404, 405].includes(r.status)) r = await request(`${base}/images/generations`, { method: 'POST', headers, body: JSON.stringify(body), signal: withTimeoutSignal(180000, signal) })
     const j = await r.json().catch(() => ({}))

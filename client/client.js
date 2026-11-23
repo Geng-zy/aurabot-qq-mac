@@ -3368,17 +3368,19 @@ body[data-ds-dark-theme] .ab-root{
         for (const file of files) {
           try { previews.push(`${file.name} → ${importScope(await file.text()) || '（空值，会被拒绝）'}`) } catch {}
         }
-        if (!confirm(`将导入 ${files.length} 份文件\n\n${previews.slice(0, 8).join('\n')}${previews.length > 8 ? '\n…' : ''}\n\n确认写入？`)) { e.target.value = ''; return }
+        if (!confirm(`将导入 ${files.length} 份文件\n\n${previews.join('\n')}\n\n确认写入？`)) { e.target.value = ''; return }
         let ok = 0
+        const failed = []
         for (const file of files) {
           try {
             const folder = String(file.webkitRelativePath || file.name).split('/').slice(0, -1).join('/')
             const text = await file.text()
             const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: importScope(text), folder })
             if (r.ok) ok++
-          } catch {}
+            else failed.push(`${file.name}: ${r.message || '失败'}`)
+          } catch (error) { failed.push(`${file.name}: ${error.message}`) }
         }
-        toast(`导入 ${ok}/${files.length}`, ok ? 'ok' : 'err')
+        toast(`导入 ${ok}/${files.length}${failed.length ? '；失败：' + failed.slice(0, 3).join('；') : ''}`, ok ? 'ok' : 'err')
         load(); e.target.value = ''
       }
       const save = async (path) => {
