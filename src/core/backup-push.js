@@ -62,7 +62,7 @@ function gitEnv(token) {
 
 /** 保留 N 份的淘汰计划：输入归档根下的文件夹名（一份备份一个文件夹），倒序留前 N 个。纯函数方便测试。 */
 export function prunePlan(dirs, keep) {
-  const valid = dirs.filter((d) => /^aurabot-backup-\d{8}-\d{4}$/.test(d)).sort().reverse()
+  const valid = dirs.filter((d) => /^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?$/.test(d)).sort().reverse()
   const n = Math.min(365, Math.max(1, Number(keep) || 10))
   return { keep: valid.slice(0, n), drop: valid.slice(n) }
 }
@@ -322,7 +322,7 @@ export async function pushBackup(remote, options = {}) {
   if (String(r.provider || 'gitee') === 'webdav') return pushBackupWebdav(r, options)
   return pushBackupGitee(r, options)
 }
-async function pushBackupGitee(r, { version = '', onLog = () => {} } = {}) {
+async function pushBackupGitee(r, { version = '', sourceName = '', onLog = () => {} } = {}) {
   const token = String(r.token || '')
   if (!r.owner || !r.repo) throw new Error('先在面板填 Gitee 用户名和仓库名')
   if (!token) throw new Error('先在面板填 Gitee 私人令牌（要 projects + repo 权限）')
@@ -333,16 +333,18 @@ async function pushBackupGitee(r, { version = '', onLog = () => {} } = {}) {
   const branch = String(r.branch || 'master')
   if (!BRANCH_RE.test(branch) || branch.includes('..') || branch.startsWith('-') || branch.startsWith('/')) throw new Error('分支名格式不对：只能用字母、数字、点、下划线、连字符和斜杠，且不能以 - 或 .. 开头')
   const dir = join(dataDir('backups'))
-  const zips = existsSync(dir) ? readdirSync(dir).filter((n) => /^aurabot-backup-\d{8}-\d{4}\.zip$/.test(n)).sort().reverse() : []
-  if (!zips.length) throw new Error('还没有备份文件：先「立即备份」一次，或等每天到点自动打包')
-  const name = zips[0]
+  const zips = existsSync(dir) ? readdirSync(dir).filter((n) => BACKUP_ZIP_RE.test(n)).sort().reverse() : []
+  const wanted = String(sourceName || '').trim()
+  if (wanted && !zips.includes(wanted)) throw new Error('本机 backups 里找不到要推送的备份：' + wanted)
+  if (!wanted && !zips.length) throw new Error('还没有备份文件：先「立即备份」一次，或等每天到点自动打包')
+  const name = wanted || zips[0]
   const base = baseOf(name)
   const wd = workDir()
   mkdirSync(wd, { recursive: true })
   const root = archiveRoot(wd)
   mkdirSync(root, { recursive: true })
   // 旧版结构把 zip/分卷平铺在中转目录根：挪进各自文件夹（迁移一次），后面按文件夹统一处理
-  for (const f of readdirSync(wd).filter((f) => /^aurabot-backup-\d{8}-\d{4}\.zip(\.part\d+)?$/.test(f))) {
+  for (const f of readdirSync(wd).filter((f) => BACKUP_ZIP_RE.test(f.replace(/\.part\d+$/, '')))) {
     const b = baseOf(f)
     mkdirSync(join(root, b), { recursive: true })
     try { renameSync(join(wd, f), join(root, b, f)) } catch { copyFileSync(join(wd, f), join(root, b, f)); rmSync(join(wd, f), { force: true }) }

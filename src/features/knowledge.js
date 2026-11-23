@@ -40,9 +40,9 @@ function safePath(rel) {
 
 function declaredScope(text) {
   const m = /^---\s*\n([\s\S]*?)\n---/u.exec(String(text || ''))
-  if (!m) return ''
+  if (!m) return null
   const line = m[1].split(/\r?\n/).find((x) => /^\s*(scope|visibility)\s*:/i.test(x))
-  return line ? line.replace(/^\s*(scope|visibility)\s*:\s*/i, '').trim().replace(/^['"]|['"]$/g, '') : ''
+  return line ? line.replace(/^\s*(scope|visibility)\s*:\s*/i, '').trim().replace(/^['"]|['"]$/g, '') : null
 }
 function scopeOf(text) {
   return declaredScope(text) || 'all'
@@ -91,7 +91,8 @@ export function createKnowledge() {
     const body = String(content || '').trim()
     if (!body) return { ok: false, message: '笔记内容不能为空' }
     const declared = declaredScope(body)
-    const sc = String(declared || scope || 'all').trim()
+    if (declared === '') return { ok: false, message: '导入文件的 scope 为空，请明确指定可见范围' }
+    const sc = String(declared ?? scope ?? 'all').trim()
     if (!sc) return { ok: false, message: '导入文件的 scope 为空，请明确指定可见范围' }
     if (!/^(all|private|group|[a-z0-9_-]+:(?:private|group):[a-z0-9_-]+)$/i.test(sc)) return { ok: false, message: 'scope 要写 all、private、group 或 渠道:private/group:id' }
     const parts = String(folder || '').split('/').map((x) => x.trim().replace(/[\\:*?"<>|\0]/g, '-')).filter((x) => x && x !== '.' && x !== '..').slice(0, 6)

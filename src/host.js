@@ -1359,7 +1359,7 @@ export function apply(ctx) {
     const r = getConfig().backup?.remote || {}
     if (r.provider !== 'webdav') return { ok: false, message: '先把云备份方式切到 WebDAV' }
     const name = String((await readBody(req)).name || '')
-    if (!/^aurabot-(?:backup|config)-\d{8}-\d{4}\.zip$/.test(name)) return { ok: false, message: '备份文件名不对' }
+    if (!/^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/u.test(name)) return { ok: false, message: '备份文件名不对' }
     try {
       const got = await downloadWebdavBackup(r, name)
       const result = await stageReceivedBackup(got.buffer, name)

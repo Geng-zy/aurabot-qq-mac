@@ -804,8 +804,9 @@ export function mergeFromPanel(current, incoming) {
     const after = incoming.imageGen
     const oldProvider = String(before.provider || 'openai')
     const newProvider = String(after.provider || oldProvider)
-    const oldBase = String(before.baseUrl || '').trim().replace(/\/+$/, '')
-    const newBase = String(after.baseUrl ?? before.baseUrl ?? '').trim().replace(/\/+$/, '')
+    const endpointOf = (ig) => String(ig?.provider === 'custom' ? ig?.custom?.url : ig?.provider === 'comfyui' ? ig?.comfy?.baseUrl : ig?.baseUrl || '').trim().replace(/\/+$/, '')
+    const oldBase = endpointOf(before)
+    const newBase = endpointOf({ ...before, ...after, provider: newProvider, custom: { ...(before.custom || {}), ...(after.custom || {}) }, comfy: { ...(before.comfy || {}), ...(after.comfy || {}) } })
     if (after.apiKey !== null && !after.apiKey && (oldProvider !== newProvider || oldBase !== newBase)) next.imageGen.apiKey = ''
   }
   // 联动密钥只由插件生成，面板不能改

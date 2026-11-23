@@ -9,6 +9,8 @@ on:
     branches:
       - main
       - beta/v1.5.10
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
@@ -40,7 +42,14 @@ jobs:
         run: npm run check
       - name: Independent lint
         run: npm run lint
-      - name: Pack smoke
-        run: npm pack --dry-run
+      - name: Pack artifact
+        run: npm pack --silent
+      - name: Verify npm pack layout
+        run: |
+          tgz=$(ls dsh-aurabot-qq-*.tgz | head -n 1)
+          test -n "$tgz"
+          tar -tzf "$tgz" | grep -qx 'package/src/host.js'
+          tar -tzf "$tgz" | grep -qx 'package/client/client.js'
+          tar -tzf "$tgz" | grep -qx 'package/package.json'
       - name: Run tests
         run: npm test
