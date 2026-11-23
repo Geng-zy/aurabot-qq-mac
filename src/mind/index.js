@@ -608,7 +608,7 @@ export function createMind(opts) {
       store.del(forgottenKey(pid))
     })
     log?.info?.(`${b.name || pid} 从恢复区放回来了：${b.episodes.length} 件事、${b.perception.length} 句原话`)
-    return b.episodes.map((r) => r.id)
+    return [...b.episodes, ...(b.derived || [])].map((r) => r.id)
   }
 
   // ---------- 关系星图 ----------

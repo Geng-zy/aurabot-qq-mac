@@ -272,10 +272,28 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     }
   }
 
+  /** xAI 编辑：官方要求 JSON（图片用 data URL），不能沿用 OpenAI 的 multipart。 */
+  async function viaXaiEdit(c, prompt, image, signal) {
+    const base = String(c.baseUrl || '').replace(/\/+$/, '')
+    if (!base || !c.model) throw serviceError(404, '还没填生图服务地址或模型', false)
+    const headers = { 'content-type': 'application/json' }
+    if (c.apiKey) headers.authorization = `Bearer ${c.apiKey}`
+    const body = { model: c.model, prompt, image: `data:${mimeOf(image)};base64,${image.toString('base64')}`, n: 1, response_format: 'b64_json' }
+    let r = await request(`${base}/images/edits`, { method: 'POST', headers, body: JSON.stringify(body), signal: withTimeoutSignal(180000, signal) })
+    if ([404, 405].includes(r.status)) r = await request(`${base}/images/generations`, { method: 'POST', headers, body: JSON.stringify(body), signal: withTimeoutSignal(180000, signal) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw serviceError(r.status, j?.error?.message || j?.message || `HTTP ${r.status}`, true)
+    const item = (j.data || j.images || [])[0] || {}
+    if (item.b64_json) return Buffer.from(item.b64_json, 'base64')
+    if (item.url) return fetchImage(item.url, { maxBytes: 20 * 1024 * 1024, allowLocal: false, timeoutMs: 120000, signal })
+    throw serviceError(502, 'xAI 没有返回图片', false)
+  }
+
   /** OpenAI 兼容接口。 */
   async function viaOpenAI (c, prompt, image, extra, signal) {
     const base = String(c.baseUrl || '').replace(/\/+$/, '')
     if (!base || !c.model) throw serviceError(404, '还没填生图服务地址或模型', false)
+    if (image && c.provider === 'xai') return viaXaiEdit(c, prompt, image, signal)
     const headers = image ? {} : { 'content-type': 'application/json' }
     if (c.apiKey) headers.authorization = `Bearer ${c.apiKey}`
     // response_format、image_size 不是每家都认（官方 OpenAI 就不认）：被拒了去掉再发。被拒的请求没出图，重发不会多画

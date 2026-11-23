@@ -63,13 +63,29 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     }
   }
 
-  function normalize(msg) {
+  async function normalize(msg) {
     if (!msg?.chat) return null
     const kind = msg.chat.type === 'private' ? 'private' : 'group'
     const chatId = chatIdOf(PLATFORM, kind, String(msg.chat.id))
     const text = String(msg.text || msg.caption || '')
     const photo = Array.isArray(msg.photo) && msg.photo.length ? msg.photo.at(-1) : null
-    const images = photo?.file_id ? [{ type: 'image', data: { file: photo.file_id } }] : []
+    let images = []
+    if (photo?.file_id) {
+      try {
+        const info = await call('getFile', { file_id: photo.file_id }, { timeoutMs: 15000 })
+        const path = String(info?.file_path || '')
+        if (path) {
+          const fileUrl = `${String(cfg().apiBase || 'https://api.telegram.org').replace(/\/+$/, '')}/file/bot${token()}/${path}`
+          const r = await fetchImpl(fileUrl, { signal: AbortSignal.timeout(20000) })
+          if (r.ok) {
+            const buf = Buffer.from(await r.arrayBuffer())
+            if (buf.length && buf.length <= 20 * 1024 * 1024) {
+              images = [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') }, mediaType: String(r.headers?.get?.('content-type') || 'image/jpeg') }]
+            }
+          }
+        }
+      } catch (error) { log.warn?.('Telegram 图片下载失败：', error.message) }
+    }
     const entities = [...(msg.entities || []), ...(msg.caption_entities || [])].filter((e) => e?.type === 'mention' && Number.isInteger(e.offset) && Number.isInteger(e.length))
     const handles = entities.map((e) => text.slice(e.offset, e.offset + e.length).replace(/^@/, '').toLowerCase()).filter(Boolean)
     const botName = String(me?.username || '').toLowerCase()
@@ -92,7 +108,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     if (!msg) return
     // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
     if (Number(msg.date) && Number(msg.date) < startedAt - 2) return
-    const parsed = normalize(msg)
+    const parsed = await normalize(msg)
     if (parsed) emit({ type: 'message', msg: parsed })
   }
 

@@ -22,9 +22,13 @@ class TooSlow(Exception):
 
 
 def total_size(opener, url):
+    # HEAD 只是用来显示总大小；服务器不支持 HEAD（405/501/网络错误）时不能因此放弃 GET。
     req = urllib.request.Request(url, method='HEAD', headers={'User-Agent': 'aurabot'})
-    with opener.open(req, timeout=STALL) as r:
-        return int(r.headers.get('Content-Length') or 0)
+    try:
+        with opener.open(req, timeout=STALL) as r:
+            return int(r.headers.get('Content-Length') or 0)
+    except Exception:
+        return 0
 
 
 def fetch(opener, url, part, want, can_switch):

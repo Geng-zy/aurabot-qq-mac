@@ -3343,7 +3343,9 @@ body[data-ds-dark-theme] .ab-root{
         if (!file) return
         try {
           const text = await file.text()
-          const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: importScope(text) })
+          const scope = importScope(text)
+          if (!confirm(`导入「${file.name}」\n可见范围：${scope || '（空，服务端会拒绝）'}\n确认写入知识库？`)) return
+          const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope })
           toast(r.ok ? '导入了' : (r.message || '导入失败'), r.ok ? 'ok' : 'err')
           if (r.ok) load()
         } catch (error) { toast('读取文件失败：' + error.message, 'err') }
