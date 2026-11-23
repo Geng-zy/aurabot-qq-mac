@@ -809,6 +809,11 @@ export function createMind(opts) {
 
   // 启动时主动清掉过期的恢复区，不能只在打开面板列表时才清理。
   try { forgottenList() } catch (error) { log?.debug?.('恢复区过期清理失败：', error.message) }
+  // 运行期间也每天清理一次；unref 不阻止进程退出。
+  const pruneTimer = setInterval(() => {
+    try { forgottenList() } catch (error) { log?.debug?.('恢复区每日清理失败：', error.message) }
+  }, 24 * 3600_000)
+  pruneTimer.unref?.()
 
   return {
     // 设置
@@ -838,7 +843,7 @@ export function createMind(opts) {
     personality, self, relations, selfPrompt, savePerson,
     // 其他
     nowText, today, status,
-    close: () => { conversation.close(); store.close() },
+    close: () => { clearInterval(pruneTimer); conversation.close(); store.close() },
     _store: store,
   }
 }
