@@ -493,7 +493,7 @@ async function stageBackup(path, received) {
     if (!head) throw new Error('这不是 Aurabot 的备份文件')
     if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')
     const configEntry = entries.find((entry) => entry.name === 'data/config.json')
-    try { JSON.parse((await readEntry(fh, configEntry)).toString('utf8')) } catch { throw new Error('备份里的 config.json 损坏') }
+    try { const v = JSON.parse((await readEntry(fh, configEntry)).toString('utf8')); if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(); } catch { throw new Error('备份里的 config.json 损坏或根节点不是对象') }
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('这个备份的格式认不出来，先更新插件')
     const { createdAt, version, dataDir: oldData, home, workspaceDir, platform, market = [], sessions = 0 } = manifest
@@ -781,7 +781,7 @@ export async function inspectBackup(name) {
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('备份清单格式认不出来')
     const configEntry = entries.find((entry) => entry.name === 'data/config.json')
-    try { JSON.parse((await readEntry(fh, configEntry)).toString('utf8')) } catch { throw new Error('备份里的 config.json 损坏') }
+    try { const v = JSON.parse((await readEntry(fh, configEntry)).toString('utf8')); if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(); } catch { throw new Error('备份里的 config.json 损坏或根节点不是对象') }
     let bytes = 0
     for (const entry of entries) {
       if (entry === head) continue

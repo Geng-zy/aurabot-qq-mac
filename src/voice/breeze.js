@@ -141,7 +141,7 @@ export async function breezeLogin(c = {}, { log } = {}) {
   }
   if (!r.cookies.length) throw new Error('Breeze 登录没拿到会话 Cookie')
   const cookie = r.cookies.join('; ')
-  writeJson(sessionFile(), { cookie, email, loginAt: Date.now() })
+  writeJson(sessionFile(), { cookie, email, siteUrl: siteOf(c), loginAt: Date.now() })
   log?.info?.('Breeze 已登录，额度领取就绪')
   return cookie
 }
@@ -154,6 +154,7 @@ export async function breezeClaim(c = {}, { log, tier = 'discord' } = {}) {
   const email = String(c.email || '').trim()
   if (!email || !c.password) throw new Error('没填 Breeze 账号（邮箱 / 密码）')
   let session = breezeSession()
+  if (session?.siteUrl && session.siteUrl !== siteOf(c)) session = null
   const send = async (which) => {
     if (!session?.cookie) session = { ...(session || {}), cookie: await breezeLogin(c, { log }) }
     return siteRequest(`${siteOf(c)}/api/credits/daily-claim`, {

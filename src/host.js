@@ -766,13 +766,13 @@ export function apply(ctx) {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
     try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
-    return knowledge.createNote(String(b.title || ''), String(b.content || ''), { scope: String(b.scope || 'all'), folder: String(b.folder || '') })
+    return knowledge.createNote(String(b.title || ''), String(b.content || ''), { scope: b.scope == null ? undefined : String(b.scope), folder: String(b.folder || '') })
   })
   route('/knowledge/scope', async (req) => {
     if (req?.method !== 'POST') return { ok: false, message: '要用 POST' }
     let b = {}
     try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }
-    return knowledge.setScope(String(b.path || ''), String(b.scope || 'all'))
+    return knowledge.setScope(String(b.path || ''), b.scope == null ? 'all' : String(b.scope))
   })
   route('/logs', async (req) => {
     const q = query(req)
@@ -922,15 +922,17 @@ export function apply(ctx) {
   // 「获取可用模型」：面板填好地址和 Key 后问服务有哪些模型。Key 留空 = 用已经保存的那个（面板不回显已保存的 Key）
   const SAVED_KEYS = { imageGen: () => cfg.imageGen?.apiKey, asr: () => cfg.voice?.asrApi?.apiKey, mind: () => cfg.mind?.embedKey }
   const normEndpoint = (v) => String(v || '').trim().replace(/\/+$/, '')
+  const normAsr = (v) => normEndpoint(v).replace(/\/audio\/(?:speech|transcriptions)$/i, '')
   const savedEndpoint = {
     imageGen: () => normEndpoint(cfg.imageGen?.provider === 'custom' ? cfg.imageGen?.custom?.url : cfg.imageGen?.baseUrl),
-    asr: () => normEndpoint(cfg.voice?.asrApi?.baseUrl || ({ siliconflow: 'https://api.siliconflow.cn/v1', openai: 'https://api.openai.com/v1' })[cfg.voice?.asrApi?.provider]),
+    asr: () => normAsr(cfg.voice?.asrApi?.baseUrl || ({ siliconflow: 'https://api.siliconflow.cn/v1', openai: 'https://api.openai.com/v1' })[cfg.voice?.asrApi?.provider]),
     mind: () => mind ? normEndpoint(mind.mind.setting('memory.embedUrl')) : '',
   }
   route('/provider-models', async (req) => {
     const b = await readBody(req)
     const from = String(b.keyFrom || '')
     let baseUrl = String(b.baseUrl || '').trim()
+    if (from === 'asr') baseUrl = normAsr(baseUrl)
     if (!baseUrl && from === 'mind' && mind) baseUrl = String(mind.mind.setting('memory.embedUrl') || '')
     if (!baseUrl && from === 'asr') baseUrl = savedEndpoint.asr()
     // 已保存的 Key 只用于它实际绑定的端点；草稿里换了地址就不继承。
@@ -951,7 +953,12 @@ export function apply(ctx) {
     if (!mind) return mindOff
     const b = await readBody(req)
     try {
+      const beforeUrl = String(mind.mind.setting('memory.embedUrl') || '')
       const changed = mind.mind.updateSettings(b.patch || {}, 'owner')
+      const afterUrl = String(mind.mind.setting('memory.embedUrl') || '')
+      if (beforeUrl !== afterUrl && getConfig().mind?.embedKey) {
+        cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg)
+      }
       return { ok: true, changed, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
     } catch (error) {
       return { ok: false, message: error.message }

@@ -821,6 +821,11 @@ export function mergeFromPanel(current, incoming) {
     const after = endpoint(next.voice?.asrApi)
     if (before !== after && !String(incoming.voice.asrApi.apiKey || '').trim()) next.voice.asrApi.apiKey = ''
   }
+  // Breeze 云端 Key 跟 API 地址绑定；换站点地址不继承旧 Key。
+  if (isObj(incoming?.voice?.breeze)) {
+    const endpoint = (v) => String(v?.url || 'https://api.breeze.blue').trim().replace(/\/+$/, '')
+    if (endpoint(current?.voice?.breeze) !== endpoint(next.voice?.breeze) && !String(incoming.voice.breeze.key || '').trim()) next.voice.breeze.key = ''
+  }
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''
   if (incoming?.group?.overrides) next.group.overrides = incoming.group.overrides

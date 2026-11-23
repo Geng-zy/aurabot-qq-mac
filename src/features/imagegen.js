@@ -261,7 +261,7 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
         if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return []
         if (c.provider === 'openai' && item.model === c.model && item.baseUrl === c.baseUrl) return []
         const endpoint = withPreset({ ...c, ...item })
-        return [{ ...endpoint, provider: ['gemini', 'comfyui'].includes(item.provider) ? item.provider : 'openai', isFallback: true }]
+        return [{ ...endpoint, provider: ['gemini', 'comfyui', 'xai'].includes(item.provider) ? item.provider : 'openai', isFallback: true }]
       } catch { return [] }
     })
   }

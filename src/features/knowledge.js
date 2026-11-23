@@ -138,7 +138,8 @@ export function createKnowledge() {
   function setScope(rel, scope) {
     const full = safePath(rel)
     if (!full || !existsSync(full) || !statSync(full).isFile()) return { ok: false, message: '找不到这个知识库文件' }
-    const sc = String(scope || 'all').trim()
+    const sc = String(scope == null ? 'all' : scope).trim()
+    if (!sc) return { ok: false, message: 'scope 不能为空；显式公开请写 all' }
     if (!/^(all|private|group|[a-z0-9_-]+:(?:private|group):[a-z0-9_-]+)$/i.test(sc)) return { ok: false, message: 'scope 要写 all、private、group 或 渠道:private/group:id' }
     let text = ''
     try { text = readFileSync(full, 'utf8') } catch (error) { return { ok: false, message: error.message } }

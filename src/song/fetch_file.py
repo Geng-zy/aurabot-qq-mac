@@ -6,6 +6,7 @@
 """
 import hashlib
 import os
+import re
 import socket
 import sys
 import time
@@ -40,6 +41,15 @@ def fetch(opener, url, part, want, can_switch):
         headers['Range'] = 'bytes=%d-' % have
     req = urllib.request.Request(url, headers=headers)
     with opener.open(req, timeout=STALL) as r:
+        # HEAD 不可用时，GET 自己的 Content-Length / Content-Range 也能判断是否截断。
+        header_len = int(r.headers.get('Content-Length') or 0)
+        if r.status == 206:
+            cr = r.headers.get('Content-Range') or ''
+            m = re.search(r'/(\d+)$', cr)
+            if m:
+                want = int(m.group(1))
+        elif not want and header_len:
+            want = header_len
         # 服务器不支持续传就从头来
         mode = 'ab' if have and r.status == 206 else 'wb'
         if mode == 'wb':
@@ -63,6 +73,8 @@ def fetch(opener, url, part, want, can_switch):
                     if can_switch and window_bytes / (now - window_start) < SLOW_BPS:
                         raise TooSlow('%.0f KB/s' % (window_bytes / (now - window_start) / 1024))
                     window_start, window_bytes = now, 0
+    if want and have < want:
+        raise IOError('下载不完整：%d/%d 字节' % (have, want))
     return not want or have >= want
 
 
