@@ -1154,12 +1154,16 @@ test('获取可用模型：Key 框留空就用已保存的 Key 去问', async ()
   const srv = http.createServer((req, res) => { auth = req.headers.authorization || ''; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ data: [{ id: 'Kwai-Kolors/Kolors' }, { id: 'qwen-chat' }] })) })
   await new Promise((r) => srv.listen(0, '127.0.0.1', r))
   try {
-    await fake.call('/save', { imageGen: { apiKey: 'saved-image-key' } })
-    const r = await (await fake.call('/provider-models', { kind: 'image', keyFrom: 'imageGen', baseUrl: `http://127.0.0.1:${srv.address().port}/v1`, apiKey: '' })).json()
+    const savedUrl = `http://127.0.0.1:${srv.address().port}/v1`
+    await fake.call('/save', { imageGen: { apiKey: 'saved-image-key', baseUrl: savedUrl } })
+    const r = await (await fake.call('/provider-models', { kind: 'image', keyFrom: 'imageGen', baseUrl: savedUrl, apiKey: '' })).json()
     assert.equal(r.ok, true, JSON.stringify(r))
     assert.equal(auth, 'Bearer saved-image-key')
     assert.deepEqual(r.models, ['Kwai-Kolors/Kolors'])
     assert.deepEqual(r.others, ['qwen-chat'])
+    auth = ''
+    await fake.call('/provider-models', { kind: 'image', keyFrom: 'imageGen', baseUrl: savedUrl + '/other', apiKey: '' })
+    assert.equal(auth, '', '换地址后不能复用旧 Key')
     const bad = await (await fake.call('/provider-models', { kind: 'image', baseUrl: 'not a url' })).json()
     assert.equal(bad.ok, false)
   } finally {
