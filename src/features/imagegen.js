@@ -253,6 +253,8 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
       if (!item.model) return []
       if (item.provider === 'codex') return auth.status().loggedIn && (c.provider !== 'codex' || item.model !== c.codex?.model)
         ? [{ ...c, provider: 'codex', codex: { ...c.codex, model: item.model } }] : []
+      // ComfyUI 备用端点需要完整 workflow/节点配置，当前备用表单不完整，先不参与降级。
+      if (item.provider === 'comfyui') return []
       try {
         const url = new URL(item.baseUrl)
         if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) return []

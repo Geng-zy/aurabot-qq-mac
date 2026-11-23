@@ -3331,12 +3331,17 @@ body[data-ds-dark-theme] .ab-root{
         const r = await get('/knowledge/read?path=' + encodeURIComponent(path))
         setOpen({ path, text: r.ok ? r.text : (r.message || '读取失败') })
       }
+      const importScope = (text) => {
+        const m = /^---\s*\n([\s\S]*?)\n---/u.exec(String(text || ''))
+        const line = m && m[1].split(/\r?\n/).find((x) => /^\s*scope\s*:/i.test(x))
+        return line ? line.replace(/^\s*scope\s*:\s*/i, '').trim() : (note.scope || 'all')
+      }
       const importFile = async (e) => {
         const file = e.target.files?.[0]
         if (!file) return
         try {
           const text = await file.text()
-          const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: 'all' })
+          const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: importScope(text) })
           toast(r.ok ? '导入了' : (r.message || '导入失败'), r.ok ? 'ok' : 'err')
           if (r.ok) load()
         } catch (error) { toast('读取文件失败：' + error.message, 'err') }
@@ -3357,7 +3362,8 @@ body[data-ds-dark-theme] .ab-root{
         for (const file of files) {
           try {
             const folder = String(file.webkitRelativePath || file.name).split('/').slice(0, -1).join('/')
-            const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: await file.text(), scope: 'all', folder })
+            const text = await file.text()
+            const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: importScope(text), folder })
             if (r.ok) ok++
           } catch {}
         }
@@ -4583,7 +4589,7 @@ body[data-ds-dark-theme] .ab-root{
         "function save(patch){return rpc('save',{patch:patch})}",
         "function toast(text,kind){post('toast',{text:text,kind:kind})}",
         "function reload(){post('reload')}",
-        "function setSettings(patch){current=Object.assign({},current,patch||{});render()}",
+        "function setSettings(patch){draft=Object.assign({},draft,patch||{});render()}",
         "function h(type,props){var children=[];for(var i=2;i<arguments.length;i++)children.push(arguments[i]);return{type:type,props:props||{},children:children}}",
         "function flatten(v,out){if(Array.isArray(v)){v.forEach(function(x){flatten(x,out)})}else if(v!==null&&v!==undefined&&v!==false&&v!==true){out.push(v)}return out}",
         "function mount(v,parent){if(v===null||v===undefined||v===false||v===true)return;if(Array.isArray(v)){v.forEach(function(x){mount(x,parent)});return}if(typeof v==='string'||typeof v==='number'){parent.appendChild(document.createTextNode(String(v)));return}if(typeof v.type==='function'){mount(v.type(Object.assign({},v.props,{children:flatten(v.children,[]).concat(flatten(v.props.children,[]))})),parent);return}var tag=v.type==='Fragment'?'div':String(v.type);var el=document.createElement(tag);var p=v.props||{};Object.keys(p).forEach(function(k){var val=p[k];if(k==='children'||val===null||val===undefined)return;if(k==='className'){el.className=val;return}if(k==='style'&&typeof val==='object'){Object.assign(el.style,val);return}if(k==='value'||k==='checked'||k==='disabled'||k==='placeholder'||k==='type'||k==='title'){el[k]=val;return}if(k.slice(0,2)==='on'&&typeof val==='function'){var ev=k.slice(2).toLowerCase();el.addEventListener(ev,function(e){if(k==='onChange'&&(e.target.type==='checkbox'||e.target.type==='radio')){val(e.target.checked)}else{val(e)}});return}if(k==='html'){el.innerHTML=val;return}try{el.setAttribute(k,val)}catch(e){}});flatten(v.children,[]).concat(flatten(p.children,[])).forEach(function(c){mount(c,el)});parent.appendChild(el)}",
@@ -4847,7 +4853,7 @@ body[data-ds-dark-theme] .ab-root{
           return h('fieldset', { key: item.id, className: 'ab-card', style: { marginBottom: 8, minWidth: 0 } },
             h('legend', null, '备用服务 ' + (index + 1)),
             h(Row, { label: '接口格式' }, h(Select, { value: item.provider || 'openai', onChange: (v) => set('provider', v),
-              options: [{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'seedream', label: '豆包 Seedream' }, { value: 'xai', label: 'xAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'sensenova', label: 'SenseNova' }, { value: 'comfyui', label: 'ComfyUI' }, { value: 'codex', label: '已登录的 Codex 订阅' }] })),
+              options: [{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'seedream', label: '豆包 Seedream' }, { value: 'xai', label: 'xAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'sensenova', label: 'SenseNova' }, { value: 'codex', label: '已登录的 Codex 订阅' }] })),
             !codex ? h(Row, { label: '服务地址' }, input('baseUrl', { placeholder: 'https://example.com/v1' })) : null,
             h(Row, { label: '模型' }, input('model')),
             !codex ? h(Row, { label: 'API Key' }, input('apiKey', { type: 'password', placeholder: item.apiKeySet ? '已保存' : '可留空' }),

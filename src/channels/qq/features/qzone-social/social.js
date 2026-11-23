@@ -60,6 +60,8 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
 
   const self = () => String(hub.selfId || getConfig().botQQ)
   const owner = () => getConfig().ownerName || '管理员'
+  // QQ 空间的可见范围未知时宁可标私密；明确公开（is_private=false）才允许跨会话想起。
+  const privatePost = (x) => Boolean(x && (x.is_private === true || [4, 16, 64, 128].includes(Number(x.ugc_right))))
 
   async function write(prompt) {
     const out = await hub.runSystemTurn('qzone-social', 'QQ · 空间互动', `【空间互动，不是聊天，这一轮不会发到聊天里】\n${prompt}\n\n只输出评论正文本身，一两句、口语、不超过 40 个字，别加引号和前缀；不想评就只回 [沉默]。`, { timeoutMs: 120000 })
@@ -119,7 +121,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         s.replied[m.tid] = [...handled].slice(-200)
         if (!text) continue
         if (!(await sendComment(m.tid, `回复 ${last.name}：${text}`))) continue
-        if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: false, tags: ['空间'], importance: 0.35 })
+        if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: privatePost(m), tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
         done++
       }
@@ -167,7 +169,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         (existing.length ? `下面已经有这些评论：\n${existing.join('\n')}\n\n` : '') +
         `想评论的话，结合说说内容${existing.length ? '和下面大家在聊的（别重复别人说过的话，可以接大家的梗）' : ''}，用你的口气评一句（像朋友之间随手评论那样）。`)
       if (!text || !(await sendComment(f.key, text, f.uin))) continue
-      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: false, tags: ['空间'] })
+      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(f), tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++
     }
