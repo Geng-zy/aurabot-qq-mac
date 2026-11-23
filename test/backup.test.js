@@ -211,7 +211,7 @@ test('仅配置备份：只带配置/人格，排除画作、表情、截图、�
     w('stickers/a.png', 'p')
     w('chatlog/2026-11-07.jsonl', 'p')
     const b = await api.createBackup({ version: 'x', configOnly: true })
-    assert.match(b.name, /^aurabot-config-\d{8}-\d{4}\.zip$/)
+    assert.match(b.name, /^aurabot-config-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/)
     assert.equal(b.configOnly, true)
     assert.equal(b.files, 3, '只打包 config、人格和轻量聊天流水')
   } finally {

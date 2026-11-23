@@ -186,7 +186,7 @@ before(async () => {
   // 也不让她闲着时自己去想、去找人（内心活动和主动找人另有测试），不然会在这里插进多余的消息
   // 群里主动接话由她自己（概率随性格、心情变），测试里默认关掉，要测插话的用例自己打开
   api.mind.mind.updateSettings({ 'body.energyPerTurn': 0, 'attention.inner': false, 'relations.interjectScale': 0 })
-  await fake.call('/onebot/reconnect')
+  await fake.call('/onebot/reconnect', {})
   await until(() => mock.connected() > 0)
 })
 
@@ -1118,7 +1118,7 @@ test('云备份：WebDAV「仅配置」推上去的包里也有心智核心的�
     assert.equal((await fake.call('/backup/push', {}, H)).json().ok, true)
     const st = await (await fake.call('/backup/remote/state')).json()
     assert.equal(st.job?.ok, true, JSON.stringify(st.job))
-    const zip = puts.find((x) => /aurabot-config-\d{8}-\d{4}\.zip$/.test(x.url))
+    const zip = puts.find((x) => /aurabot-config-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/.test(x.url))
     assert.ok(zip, '推了一个仅配置的包：' + puts.map((x) => x.url).join(','))
     assert.ok(zip.body.includes(Buffer.from('mind/mind.sqlite')), '包里要有 mind/mind.sqlite')
     push.pushHooks.fetch = async () => { throw new Error('备份服务断开') }

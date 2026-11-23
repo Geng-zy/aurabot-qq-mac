@@ -46,7 +46,7 @@ before(async () => {
   const host = await import(`file://${REPO}/src/host.js`)
   api = host.apply(fake.ctx)
   await api.ready.catch(() => {})
-  await fake.call('/onebot/reconnect')
+  await fake.call('/onebot/reconnect', {})
   await until(() => mock.connected() > 0)
 })
 after(async () => { fake?.dispose(); await mock?.close(); setTimeout(() => process.exit(0), 200).unref() })

@@ -403,7 +403,7 @@ export function apply(ctx) {
 
   const knowledge = createKnowledge()
   // 写操作统一拒绝 GET：具体 handler 仍可做更严格的方法校验。
-  const writeLike = /(?:^|\/)(?:save|delete|reset|restore|remove|create|reload|install|upload|push|config|revoke|share|change|feed|wake|sleepnow|close|drop|edit|use|pin|infer|confirm|act|test-send|move|trust|setup)(?:\/|$)/
+  const writeLike = /(?:^|\/)(?:save|delete|reset|restore|remove|create|reload|install|upload|push|config|revoke|share|change|feed|wake|sleepnow|sleep|close|drop|edit|use|pin|infer|confirm|act|test-send|move|trust|setup|sync|reconnect|tidy|organize|forget|boost|private|scope|note)(?:\/|$)/
   const route = (path, handler, opts = {}) => ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: PREFIX + path,
@@ -411,8 +411,9 @@ export function apply(ctx) {
       if (panelBlocked(req, res)) return undefined
       if (!opts.skipHostCheck && adminHostBlocked(req, res)) return undefined // DNS rebinding 防护（含 GET）
       if (csrfBlocked(req, res)) return undefined
-      if (req.method === 'GET' && writeLike.test(path)) {
-        send(res, 405, { ok: false, message: '写操作不能用 GET，请用 POST' })
+      if (writeLike.test(path) && !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+        try { res.setHeader('Allow', 'POST') } catch {}
+        send(res, 405, { ok: false, message: '写操作只能用 POST' })
         return undefined
       }
       return handler(req, res)

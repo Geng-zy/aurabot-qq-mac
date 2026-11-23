@@ -342,7 +342,7 @@ test('账号离线只记 warn，不走聊天通知或发送 QQ 消息', { timeou
   const { apply } = await import('../src/host.js')
   const app = apply(fake.ctx)
   await app.ready
-  assert.equal((await fake.call('/onebot/reconnect')).json().ok, true)
+  assert.equal((await fake.call('/onebot/reconnect', {})).json().ok, true)
   let notices = 0
   app.hub.onNotice = async () => { notices++ }
   const sentBefore = mock.calls.filter((c) => c.action === 'send_private_msg' || c.action === 'send_group_msg').length

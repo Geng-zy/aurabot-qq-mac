@@ -98,7 +98,7 @@ before(async () => {
   const host = await import('../src/host.js')
   api = host.apply(fake.ctx)
   await api.ready
-  await fake.call('/onebot/reconnect')
+  await fake.call('/onebot/reconnect', {})
   await until(() => mock.connected() > 0)
 })
 
@@ -404,7 +404,7 @@ test('#3 表情：从 QQ 收藏导入（已有的跳过、不再往 QQ 里加一
 })
 
 test('#1 重新连接：等结果再回话，连上了就说连上了', async () => {
-  const r = (await fake.call('/onebot/reconnect')).json()
+  const r = (await fake.call('/onebot/reconnect', {})).json()
   assert.equal(r.ok, true, r.message)
   assert.equal(r.message, '连上了')
   assert.equal((await fake.call('/state')).json().onebot.problem, '')

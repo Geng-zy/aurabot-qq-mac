@@ -32,7 +32,7 @@ const NAME_RE = /^[A-Za-z0-9_.-]+$/
 /** 分支白名单：再拒掉 .. 与 - 开头，防 refspec/选项注入。 */
 const BRANCH_RE = /^[A-Za-z0-9._/-]+$/
 /** 云备份 zip：完整备份与仅配置备份（WebDAV 可只传后者）。 */
-const BACKUP_ZIP_RE = /^aurabot-(?:backup|config)-\d{8}-\d{4}\.zip$/
+const BACKUP_ZIP_RE = /^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/u
 
 // 测试钩子：测试注入假 spawn / fetch，不打真网络不真跑 git（对齐测试钩子模式）；splitMax 调小测分卷
 export const pushHooks = { spawn: null, fetch: null, splitMax: null }

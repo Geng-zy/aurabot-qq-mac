@@ -16,6 +16,14 @@ import { dataDir, dshHome } from './store.js'
  * 恢复一份带着它们的备份时整套一起换，不让新旧两代混在一起。
  */
 const MEMORY_FILES = ['memory.sqlite', 'memory.sqlite-wal', 'memory.sqlite-shm', 'memories.json', 'memory-json-fallback.json']
+
+/** 新格式带秒/毫秒和随机后缀，避免同一分钟覆盖；仍兼容旧的 YYYYMMDD-HHmm。 */
+const BACKUP_NAME_RE = /^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/u
+/** 文件名里的创建时刻；旧格式只有分钟，新格式到毫秒。 */
+function backupStamp(name) {
+  const m = /^aurabot-(?:backup|config)-(\d{8})-(\d{4,6})(?:-(\d{1,3}))?/.exec(String(name))
+  return m ? m[1] + m[2].padEnd(6, '0') + String(m[3] || '0').padStart(3, '0') : ''
+}
 /**
  * 心智核心的数据目录（相对数据目录）。目录里的文件不直接拷：库由 captureMind 给一份完整的，
  * 快照和 WAL 不带。恢复时库连同 WAL 一起换，不然旧 WAL 会接到新库上把它弄坏。
@@ -219,8 +227,8 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
   await mkdir(root, { recursive: true })
   const data = dataBoundary(root)
   checkPath(data, 'backups', { directory: true, create: true })
-  const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 13)
-  const name = `aurabot-${configOnly ? 'config' : 'backup'}-${stamp}.zip`
+  const stamp = now.toISOString().replace(/[-:]/g, '').replace('T', '-').replace('.', '-').slice(0, 19)
+  const name = `aurabot-${configOnly ? 'config' : 'backup'}-${stamp}-${randomUUID().slice(0, 8)}.zip`
   const finalRel = 'backups/' + name
   const tmpRel = finalRel + '.' + randomUUID() + '.tmp'
   const final = checkPath(data, finalRel).path
@@ -732,8 +740,8 @@ export function pendingRestore() {
 export function pruneLocalBackups(keep = KEEP_BACKUPS) {
   const dir = backupsDir()
   let names = []
-  try { names = readdirSync(dir).filter((n) => /^aurabot-(?:backup|config)-\d{8}-\d{4}\.zip$/.test(n)) } catch { return 0 }
-  const files = names.map((name) => ({ name, at: statSync(join(dir, name)).mtimeMs })).sort((a, b) => b.at - a.at || b.name.localeCompare(a.name))
+  try { names = readdirSync(dir).filter((n) => BACKUP_NAME_RE.test(n)) } catch { return 0 }
+  const files = names.map((name) => ({ name, at: statSync(join(dir, name)).mtimeMs, stamp: backupStamp(name) })).sort((a, b) => b.stamp.localeCompare(a.stamp) || b.at - a.at || b.name.localeCompare(a.name))
   let removed = 0
   for (const { name } of files.slice(Math.max(0, Math.max(1, Number(keep) || KEEP_BACKUPS)))) {
     try { rmSync(join(dir, name), { force: true }); removed++ } catch {}
@@ -758,8 +766,8 @@ export function listBackups() {
   try {
     return readdirSync(backupsDir()).filter((n) => n.endsWith('.zip') && n !== 'incoming.zip').map((name) => {
       const st = statSync(join(backupsDir(), name))
-      return { name, bytes: st.size, at: st.mtimeMs }
-    }).sort((a, b) => b.at - a.at)
+      return { name, bytes: st.size, at: st.mtimeMs, createdAt: backupStamp(name) }
+    }).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.at - a.at || b.name.localeCompare(a.name))
   } catch (error) { return [] }
 }
 
@@ -767,7 +775,7 @@ export function listBackups() {
 export function stageReceivedBackup(buf, name = 'incoming.zip') {
   return withRestoreStage(async () => {
     if (!Buffer.isBuffer(buf) || !buf.length || buf.length > MAX_ZIP) throw new Error('备份文件大小无效')
-    if (name !== 'incoming.zip' && !/^aurabot-(?:backup|config)-\d{8}-\d{4}\.zip$/u.test(name)) {
+    if (name !== 'incoming.zip' && !BACKUP_NAME_RE.test(name)) {
       throw new Error('备份文件名不对')
     }
     await mkdir(dataDir(), { recursive: true })

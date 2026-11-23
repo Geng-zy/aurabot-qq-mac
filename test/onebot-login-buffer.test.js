@@ -60,7 +60,7 @@ before(async () => {
   host.apply(fake.ctx)
 
   // 全新启动：第一轮连接就在核对。注意 reconnect 要等核对通过才返回，所以先不 await
-  const reconnect = fake.call('/onebot/reconnect').catch(() => null)
+  const reconnect = fake.call('/onebot/reconnect', {}).catch(() => null)
   const started = await until(() => mock.calls.some((c) => c.action === 'get_login_info'))
   assert.ok(started, '连接后应该发起登录核对')
   seen.loginCall = mock.calls.filter((c) => c.action === 'get_login_info').at(-1)
@@ -106,7 +106,7 @@ test('从网关好友历史补收断线时的私聊，实时重投和重启都�
   const media = { ...priv('带图片的历史'), message_id: 420005, message: [{ type: 'image', data: { file: 'image' } }] }
   mock.state.history = [other, missed, old, command, media, missed]
 
-  assert.equal((await fake.call('/onebot/reconnect')).json().ok, true)
+  assert.equal((await fake.call('/onebot/reconnect', {})).json().ok, true)
   assert.ok(await until(() => turnCount() === 1), '断线时只在历史里出现的私聊应进入 DSH')
   assert.ok(await until(() => sends().length >= 2), '补收的私聊应收到回复')
   mock.push(missed)
@@ -121,7 +121,7 @@ test('从网关好友历史补收断线时的私聊，实时重投和重启都�
   fake = createFakeDsh({ brain: async () => '重启后也收到啦' })
   host.apply(fake.ctx)
   mock.state.history = [missed, { ...priv('重启间隙的新私聊'), message_id: 420007 }]
-  assert.equal((await fake.call('/onebot/reconnect')).json().ok, true)
+  assert.equal((await fake.call('/onebot/reconnect', {})).json().ok, true)
   assert.ok(await until(() => fake.turns.some((turn) => turn.userText.includes('重启间隙的新私聊'))))
   assert.equal(fake.turns.length, 1, '重启后的短窗口只补收新消息')
 })
@@ -137,7 +137,7 @@ test('白名单好友和群聊也能补收，群聊仍按原规则决定是否�
   assert.equal(settings.json().ok, true)
   mock.state.history = [outside, ambient, group, friend]
   mock.calls.length = 0
-  assert.equal((await fake.call('/onebot/reconnect')).json().ok, true)
+  assert.equal((await fake.call('/onebot/reconnect', {})).json().ok, true)
   assert.ok(await until(() => fake.turns.some((turn) => turn.userText.includes('好友断线消息'))))
   assert.ok(await until(() => fake.turns.some((turn) => turn.userText.includes('群里断线艾特'))))
   assert.ok(mock.calls.some(({ action, params }) => action === 'get_friend_msg_history' && params.user_id === Number(FRIEND)))

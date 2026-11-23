@@ -3315,13 +3315,14 @@ body[data-ds-dark-theme] .ab-root{
       const [q, setQ] = useState('')
       const [hits, setHits] = useState([])
       const [hasMore, setHasMore] = useState(false)
+      const [submittedQ, setSubmittedQ] = useState('')
       const [renaming, setRenaming] = useState(null)
       const [folderFilter, setFolderFilter] = useState('')
       const [note, setNote] = useState({ title: '', content: '', scope: 'all' })
       const load = () => get('/knowledge/list').then((r) => setList(r.list || [])).catch(() => setList([]))
       useEffect(() => { void load() }, [])
       const mark = (text) => {
-        const needle = String(q || '').trim()
+        const needle = String(submittedQ || q || '').trim()
         if (!needle) return text
         const safe = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         return String(text || '').split(new RegExp('(' + safe + ')', 'ig')).map((part, i) => part.toLowerCase() === needle.toLowerCase() ? h('mark', { key: i }, part) : part)
@@ -3333,8 +3334,9 @@ body[data-ds-dark-theme] .ab-root{
       }
       const importScope = (text) => {
         const m = /^---\s*\n([\s\S]*?)\n---/u.exec(String(text || ''))
-        const line = m && m[1].split(/\r?\n/).find((x) => /^\s*scope\s*:/i.test(x))
-        return line ? line.replace(/^\s*scope\s*:\s*/i, '').trim() : (note.scope || 'all')
+        const line = m && m[1].split(/\r?\n/).find((x) => /^\s*(scope|visibility)\s*:/i.test(x))
+        if (!line) return note.scope || 'all'
+        return line.replace(/^\s*(scope|visibility)\s*:\s*/i, '').trim().replace(/^['"]|['"]$/g, '')
       }
       const importFile = async (e) => {
         const file = e.target.files?.[0]
@@ -3348,9 +3350,11 @@ body[data-ds-dark-theme] .ab-root{
         e.target.value = ''
       }
       const search = async (reset = true) => {
-        if (!q.trim()) { setHits([]); setHasMore(false); return }
+        const needle = reset ? q.trim() : submittedQ.trim()
+        if (!needle) { setHits([]); setHasMore(false); return }
+        if (reset) setSubmittedQ(needle)
         const offset = reset ? 0 : hits.length
-        const r = await get('/knowledge/search?q=' + encodeURIComponent(q.trim()) + '&limit=30&offset=' + offset)
+        const r = await get('/knowledge/search?q=' + encodeURIComponent(needle) + '&limit=30&offset=' + offset)
         const next = r.list || []
         setHits(reset ? next : [...hits, ...next])
         setHasMore(Boolean(r.hasMore))
@@ -4590,7 +4594,7 @@ body[data-ds-dark-theme] .ab-root{
         "function save(patch){return rpc('save',{patch:patch})}",
         "function toast(text,kind){post('toast',{text:text,kind:kind})}",
         "function reload(){post('reload')}",
-        "function setSettings(patch){draft=Object.assign({},draft,patch||{});render()}",
+        "function setSettings(patch){draft=Object.assign({},draft,patch||{});post('draft',{patch:patch||{}});render()}",
         "function h(type,props){var children=[];for(var i=2;i<arguments.length;i++)children.push(arguments[i]);return{type:type,props:props||{},children:children}}",
         "function flatten(v,out){if(Array.isArray(v)){v.forEach(function(x){flatten(x,out)})}else if(v!==null&&v!==undefined&&v!==false&&v!==true){out.push(v)}return out}",
         "function mount(v,parent){if(v===null||v===undefined||v===false||v===true)return;if(Array.isArray(v)){v.forEach(function(x){mount(x,parent)});return}if(typeof v==='string'||typeof v==='number'){parent.appendChild(document.createTextNode(String(v)));return}if(typeof v.type==='function'){mount(v.type(Object.assign({},v.props,{children:flatten(v.children,[]).concat(flatten(v.props.children,[]))})),parent);return}var tag=v.type==='Fragment'?'div':String(v.type);var el=document.createElement(tag);var p=v.props||{};Object.keys(p).forEach(function(k){var val=p[k];if(k==='children'||val===null||val===undefined)return;if(k==='className'){el.className=val;return}if(k==='style'&&typeof val==='object'){Object.assign(el.style,val);return}if(k==='value'||k==='checked'||k==='selected'||k==='disabled'||k==='placeholder'||k==='type'||k==='title'){el[k]=val;return}if(k.slice(0,2)==='on'&&typeof val==='function'){var ev=k.slice(2).toLowerCase();el.addEventListener(ev,function(e){if(k==='onChange'&&(e.target.type==='checkbox'||e.target.type==='radio')){val(e.target.checked)}else{val(e)}});return}if(k==='html'){el.innerHTML=val;return}try{el.setAttribute(k,val)}catch(e){}});flatten(v.children,[]).concat(flatten(p.children,[])).forEach(function(c){mount(c,el)});parent.appendChild(el)}",
@@ -4645,7 +4649,8 @@ body[data-ds-dark-theme] .ab-root{
               else if (type === 'save') result = await post('/save', { ext: { [m.id]: payload.patch } })
             } catch (error) { result = { ok: false, message: String(error.message || error) } }
             frame.current.contentWindow.postMessage({ token, type: 'rpc-result', id: data.payload.id, result }, '*')
-          } else if (data.type === 'toast') toast?.(data.payload?.text || '', data.payload?.kind || 'ok')
+          } else if (data.type === 'draft') setSettings?.(data.payload?.patch || {})
+          else if (data.type === 'toast') toast?.(data.payload?.text || '', data.payload?.kind || 'ok')
           else if (data.type === 'height') setHeight(Math.max(80, Math.min(2000, Number(data.payload?.height) || 160)))
           else if (data.type === 'reload') reload?.()
           else if (data.type === 'error') setErr(data.payload?.message || 'panel.js 出错')
@@ -4927,10 +4932,14 @@ body[data-ds-dark-theme] .ab-root{
       const [lastImageError, setLastImageError] = useState(null)
       useEffect(() => { get('/image/status').then((r) => setLastImageError(r.lastError || null)).catch(() => {}) }, [])
       const testImage = async () => {
-        if (!confirm('会真的调用当前生图服务画一张测试图，可能消耗额度。继续？')) return
+        if (!confirm('会先保存当前生图设置，再调用当前服务画一张测试图，可能消耗额度。继续？')) return
         setTestingImage(true); setImageTest(null)
-        try { const r = await post('/image/test'); setImageTest(r.ok ? { ok: true, image: r.image, message: r.message } : { ok: false, message: r.message || '试画失败' }) }
-        catch (e) { setImageTest({ ok: false, message: e.message }) } finally { setTestingImage(false) }
+        try {
+          const saved = await post('/save', { imageGen: draft.imageGen })
+          if (!saved.ok) { setImageTest({ ok: false, message: saved.message || '保存生图设置失败' }); return }
+          const r = await post('/image/test')
+          setImageTest(r.ok ? { ok: true, image: r.image, message: r.message } : { ok: false, message: r.message || '试画失败' })
+        } catch (e) { setImageTest({ ok: false, message: e.message }) } finally { setTestingImage(false) }
       }
       const c = draft.imageGen
       const custom = c.custom || {}
@@ -4938,7 +4947,8 @@ body[data-ds-dark-theme] .ab-root{
         if (c.provider === 'local' || c.provider === 'codex') return true
         if (c.provider === 'custom') return Boolean(custom.url)
         if (c.provider === 'comfyui') return Boolean(c.comfy?.workflow && c.comfy?.baseUrl)
-        return Boolean(c.baseUrl || ['seedream', 'xai', 'gemini', 'sensenova'].includes(c.provider))
+        const needsKey = ['openai', 'seedream', 'xai', 'gemini', 'sensenova'].includes(c.provider)
+        return Boolean(c.baseUrl || ['seedream', 'xai', 'gemini', 'sensenova'].includes(c.provider)) && (!needsKey || c.apiKey || c.apiKeySet)
       })()
       const isCustom = c.provider === 'custom'
       const isCodex = c.provider === 'codex'

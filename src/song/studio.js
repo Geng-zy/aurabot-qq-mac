@@ -297,7 +297,7 @@ export function listVoices(modelsDir) {
       if (!m.toLowerCase().endsWith('.index')) return false
       const stem = m.slice(0, -6).toLowerCase()
       const idl = id.toLowerCase()
-      return stem === idl || stem.startsWith(idl + '.') || stem.endsWith('_' + idl) || stem.endsWith(idl)
+      return stem === idl || stem.startsWith(idl + '.') || stem.endsWith('_' + idl)
     })
     // 音色档案（音域 + 音色参照，voice_profile.py 生成）：<音色>.profile.json，有它才自动定调、挪八度、校正音色
     const prof = join(modelsDir, id + '.profile.json')

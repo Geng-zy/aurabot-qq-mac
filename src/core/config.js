@@ -798,6 +798,16 @@ export function mergeFromPanel(current, incoming) {
       return { ...item, apiKey: item.apiKey === null ? '' : item.apiKey || (sameEndpoint ? old.apiKey : '') }
     })
   }
+  // 主生图密钥跟实际服务端点绑定：换 provider / 地址时不能默默继承旧 Key。
+  if (isObj(incoming?.imageGen)) {
+    const before = current?.imageGen || {}
+    const after = incoming.imageGen
+    const oldProvider = String(before.provider || 'openai')
+    const newProvider = String(after.provider || oldProvider)
+    const oldBase = String(before.baseUrl || '').trim().replace(/\/+$/, '')
+    const newBase = String(after.baseUrl ?? before.baseUrl ?? '').trim().replace(/\/+$/, '')
+    if (after.apiKey !== null && !after.apiKey && (oldProvider !== newProvider || oldBase !== newBase)) next.imageGen.apiKey = ''
+  }
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''
   if (incoming?.group?.overrides) next.group.overrides = incoming.group.overrides

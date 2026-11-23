@@ -339,6 +339,7 @@ export async function httpSynth(text, c) {
   let buf = Buffer.from(await r.arrayBuffer())
   if (buf.length > 30 * 1024 * 1024) throw new Error('语音服务返回的音频太大')
   const ctype = String(r.headers.get('content-type') || '')
+  if (/text\/html|text\/plain/i.test(ctype)) throw new Error('语音服务返回了网页而不是音频')
   const looksJson = ctype.includes('json') || buf[0] === 0x7b
   if (looksJson) {
     let parsed = null

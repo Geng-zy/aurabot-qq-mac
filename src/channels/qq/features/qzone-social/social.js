@@ -60,8 +60,16 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
 
   const self = () => String(hub.selfId || getConfig().botQQ)
   const owner = () => getConfig().ownerName || '管理员'
-  // QQ 空间的可见范围未知时宁可标私密；明确公开（is_private=false）才允许跨会话想起。
-  const privatePost = (x) => Boolean(x && (x.is_private === true || [4, 16, 64, 128].includes(Number(x.ugc_right))))
+  // QQ 空间：明确公开（is_private=false 或 ugc_right=1）才算公开；其余和未知一律按私密。
+  const hasVisibility = (x) => Boolean(x && (x.is_private === true || x.is_private === false || Number.isFinite(Number(x.ugc_right))))
+  const privatePost = (x) => {
+    if (!x) return true
+    if (x.is_private === true) return true
+    if (x.is_private === false) return false
+    const right = Number(x.ugc_right)
+    if (Number.isFinite(right)) return right !== 1
+    return true
+  }
 
   async function write(prompt) {
     const out = await hub.runSystemTurn('qzone-social', 'QQ · 空间互动', `【空间互动，不是聊天，这一轮不会发到聊天里】\n${prompt}\n\n只输出评论正文本身，一两句、口语、不超过 40 个字，别加引号和前缀；不想评就只回 [沉默]。`, { timeoutMs: 120000 })
@@ -157,8 +165,10 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
       let content = ''
       let images = 0
       let existing = []
+      let detail = null
       try {
         const d = await onebot.call('get_qzone_msg_detail', { tid: f.key, target_uin: Number(f.uin), num: 10 }, { timeoutMs: 20000 })
+        detail = d
         content = String(d?.content || '')
         existing = summarizeComments(d?.comments, { selfId: self(), ownerQQ: getConfig().ownerQQ, ownerName: owner(), max: 8 })
       } catch (error) {
@@ -176,7 +186,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         (existing.length ? `下面已经有这些评论：\n${existing.join('\n')}\n\n` : '') +
         `想评论的话，结合说说内容${existing.length ? '和下面大家在聊的（别重复别人说过的话，可以接大家的梗）' : ''}，用你的口气评一句（像朋友之间随手评论那样）。`)
       if (!text || !(await sendComment(f.key, text, f.uin))) continue
-      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(f), tags: ['空间'] })
+      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(hasVisibility(detail) ? detail : f), tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++
     }
