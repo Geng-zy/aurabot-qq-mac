@@ -34,7 +34,11 @@ def total_size(opener, url):
 
 def fetch(opener, url, part, want, can_switch):
     have = os.path.getsize(part) if os.path.exists(part) else 0
-    if want and have >= want:
+    if want and have > want:
+        # 旧分片比目标还大，不能只看到长度就提交；从头重新下载。
+        os.remove(part)
+        have = 0
+    if want and have == want:
         return True
     headers = {'User-Agent': 'aurabot'}
     if have:
@@ -54,7 +58,7 @@ def fetch(opener, url, part, want, can_switch):
                     raise IOError('续传区间长度不对：头 %d 字节，区间 %d-%d' % (header_len, start, end))
                 want = total
         elif not want and header_len:
-            want = header_len
+            want = have + header_len if have else header_len
         # 服务器不支持续传就从头来
         mode = 'ab' if have and r.status == 206 else 'wb'
         if mode == 'wb':
@@ -78,9 +82,9 @@ def fetch(opener, url, part, want, can_switch):
                     if can_switch and window_bytes / (now - window_start) < SLOW_BPS:
                         raise TooSlow('%.0f KB/s' % (window_bytes / (now - window_start) / 1024))
                     window_start, window_bytes = now, 0
-    if want and have < want:
-        raise IOError('下载不完整：%d/%d 字节' % (have, want))
-    return not want or have >= want
+    if want and have != want:
+        raise IOError('下载长度不对：%d/%d 字节' % (have, want))
+    return True
 
 
 def sha256_of(path):

@@ -3365,17 +3365,24 @@ body[data-ds-dark-theme] .ab-root{
         const files = [...(e.target.files || [])].filter((f) => /\.(md|txt)$/i.test(f.name))
         if (!files.length) { toast('文件夹里没有 .md / .txt', 'err'); return }
         const previews = []
-        for (const file of files) {
-          try { previews.push(`${file.name} → ${importScope(await file.text()) || '（空值，会被拒绝）'}`) } catch {}
-        }
-        if (!confirm(`将导入 ${files.length} 份文件\n\n${previews.join('\n')}\n\n确认写入？`)) { e.target.value = ''; return }
-        let ok = 0
-        const failed = []
+        const ready = []
+        const preFailed = []
         for (const file of files) {
           try {
-            const folder = String(file.webkitRelativePath || file.name).split('/').slice(0, -1).join('/')
             const text = await file.text()
-            const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope: importScope(text), folder })
+            const scope = importScope(text)
+            if (!scope) { preFailed.push(`${file.name}: scope 为空`); continue }
+            ready.push({ file, text, scope })
+            previews.push(`${file.name} → ${scope}`)
+          } catch (error) { preFailed.push(`${file.name}: ${error.message}`) }
+        }
+        if (!confirm(`将导入 ${ready.length} 份文件${preFailed.length ? `，另有 ${preFailed.length} 份读取/范围为空的不会提交` : ''}\n\n${previews.join('\n')}${preFailed.length ? '\n\n不会提交：\n' + preFailed.join('\n') : ''}\n\n确认写入？`)) { e.target.value = ''; return }
+        let ok = 0
+        const failed = [...preFailed]
+        for (const { file, text, scope } of ready) {
+          try {
+            const folder = String(file.webkitRelativePath || file.name).split('/').slice(0, -1).join('/')
+            const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope, folder })
             if (r.ok) ok++
             else failed.push(`${file.name}: ${r.message || '失败'}`)
           } catch (error) { failed.push(`${file.name}: ${error.message}`) }

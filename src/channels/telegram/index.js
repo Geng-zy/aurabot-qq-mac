@@ -12,6 +12,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   let state = 'stopped'
   let me = null
   let offset = 0
+  let offsetIdentity = ''
   let startedAt = 0
   let running = false
   let controller = null
@@ -149,6 +150,9 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         const meInfo = await call('getMe', {}, { signal: ctl.signal })
         if (generation !== gen || !running) { ctl.abort(); return }
         me = meInfo; lastError = ''
+        // 换 Bot Token / API 地址后，旧 offset 属于另一个 Bot，必须从新 Bot 的第一条更新开始。
+        const identity = base() + '|' + String(me.id || '')
+        if (identity !== offsetIdentity) { offset = 0; offsetIdentity = identity }
         setState('connected')
         log.info?.(`Telegram 已连接：@${me.username || me.id}`)
         polling = pollLoop(ctl, gen)

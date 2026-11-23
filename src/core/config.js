@@ -821,6 +821,13 @@ export function mergeFromPanel(current, incoming) {
     const after = endpoint(next.voice?.asrApi)
     if (before !== after && !String(incoming.voice.asrApi.apiKey || '').trim()) next.voice.asrApi.apiKey = ''
   }
+  // Breeze 登录密码跟站点 + 邮箱绑定；换账号不继承旧密码。
+  if (isObj(incoming?.voice?.breeze)) {
+    const before = current?.voice?.breeze || {}
+    const after = next.voice?.breeze || {}
+    const same = String(before.siteUrl || '').replace(/\/+$/, '') === String(after.siteUrl || '').replace(/\/+$/, '') && String(before.email || '').toLowerCase() === String(after.email || '').toLowerCase()
+    if (!same && !String(incoming.voice.breeze.password || '').trim()) next.voice.breeze.password = ''
+  }
   // Breeze 云端 Key 跟 API 地址绑定；换站点地址不继承旧 Key。
   if (isObj(incoming?.voice?.breeze)) {
     const endpoint = (v) => String(v?.url || 'https://api.breeze.blue').trim().replace(/\/+$/, '')

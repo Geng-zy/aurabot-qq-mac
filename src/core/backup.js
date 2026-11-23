@@ -19,6 +19,12 @@ const MEMORY_FILES = ['memory.sqlite', 'memory.sqlite-wal', 'memory.sqlite-shm',
 
 /** 新格式带秒/毫秒和随机后缀，避免同一分钟覆盖；仍兼容旧的 YYYYMMDD-HHmm。 */
 const BACKUP_NAME_RE = /^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/u
+/** 配置文件和运行时一样接受 UTF-8 BOM，但根节点必须是对象。 */
+function parseConfigObject(text) {
+  const v = JSON.parse(String(text || '').replace(/^\uFEFF/, ''))
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('配置根节点不是对象')
+  return v
+}
 /** 文件名里的创建时刻；旧格式只有分钟，新格式到毫秒。 */
 function backupStamp(name) {
   const m = /^aurabot-(?:backup|config)-(\d{8})-(\d{4,6})(?:-(\d{1,3}))?/.exec(String(name))
@@ -493,7 +499,7 @@ async function stageBackup(path, received) {
     if (!head) throw new Error('这不是 Aurabot 的备份文件')
     if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')
     const configEntry = entries.find((entry) => entry.name === 'data/config.json')
-    try { const v = JSON.parse((await readEntry(fh, configEntry)).toString('utf8')); if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(); } catch { throw new Error('备份里的 config.json 损坏或根节点不是对象') }
+    try { parseConfigObject((await readEntry(fh, configEntry)).toString('utf8')) } catch { throw new Error('备份里的 config.json 损坏或根节点不是对象') }
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('这个备份的格式认不出来，先更新插件')
     const { createdAt, version, dataDir: oldData, home, workspaceDir, platform, market = [], sessions = 0 } = manifest
@@ -781,7 +787,7 @@ export async function inspectBackup(name) {
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('备份清单格式认不出来')
     const configEntry = entries.find((entry) => entry.name === 'data/config.json')
-    try { const v = JSON.parse((await readEntry(fh, configEntry)).toString('utf8')); if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(); } catch { throw new Error('备份里的 config.json 损坏或根节点不是对象') }
+    try { parseConfigObject((await readEntry(fh, configEntry)).toString('utf8')) } catch { throw new Error('备份里的 config.json 损坏或根节点不是对象') }
     let bytes = 0
     for (const entry of entries) {
       if (entry === head) continue
