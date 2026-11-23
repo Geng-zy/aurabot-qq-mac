@@ -318,13 +318,11 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
     await fh.write(Buffer.concat([central, end]))
     await fh.close()
     if (checkPath(data, tmpRel).key !== tempKey) throw unsafePath(tmpRel)
+    // 先在临时文件上验完，再原子发布；中断不会留下未经校验的正式 ZIP。
+    try { await inspectBackupFile(tmp, name) }
+    catch (error) { throw new Error('备份验证失败，没有发布这次文件：' + error.message) }
     checkPath(data, finalRel)
     await rename(tmp, final)
-    try { await inspectBackup(name) }
-    catch (error) {
-      try { rmSync(final, { force: true }) } catch {}
-      throw new Error('备份验证失败，没有保留这次文件：' + error.message)
-    }
     const pruned = pruneLocalBackups()
     return { file: final, name, files: entries.length - 1, bytes, skipped: skippedFiles, market, sessions, configOnly: Boolean(configOnly), pruned }
   } catch (error) {
@@ -692,7 +690,8 @@ export function applyPendingRestore(now = Date.now()) {
       // 最后移走待恢复标记，之后的清理失败不改变已提交的恢复结果。
       move(data, { rel: pendingRel, key: pending.key }, data, job + '/committed.json')
     })
-    if (sessions) removeChecked(data, '.restore-sessions', true)
+    // 目标工作区不存在时保留会话暂存，别静默丢掉待迁移的会话。
+    if (sessions?.target) removeChecked(data, '.restore-sessions', true)
     removeChecked(data, '.restore', true)
     prunePreRestore()
     return files.length
@@ -775,11 +774,9 @@ export function prunePreRestore(keep = KEEP_PRE_RESTORE) {
   return removed
 }
 
-/** 只读校验一份本机备份：目录、CRC、清单和可恢复文件数，不改动 .restore。 */
-export async function inspectBackup(name) {
-  const file = String(name || '')
-  if (!BACKUP_NAME_RE.test(file)) throw new Error('备份文件名不对')
-  const full = join(backupsDir(), file)
+/** 只读校验任意一个候选 zip；发布前用在临时文件上。 */
+async function inspectBackupFile(full, label) {
+  const file = String(label || full)
   const fh = await open(full, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0))
   try {
     const st = await fh.stat({ bigint: true })
@@ -812,6 +809,13 @@ export async function inspectBackup(name) {
       verified: true,
     }
   } finally { await fh.close() }
+}
+
+/** 只读校验一份本机备份：目录、CRC、清单和可恢复文件数，不改动 .restore。 */
+export async function inspectBackup(name) {
+  const file = String(name || '')
+  if (!BACKUP_NAME_RE.test(file)) throw new Error('备份文件名不对')
+  return inspectBackupFile(join(backupsDir(), file), file)
 }
 
 export function listBackups() {

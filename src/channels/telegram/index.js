@@ -110,7 +110,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     if (!msg) return true
     if (signal?.aborted || (current && !current())) return false
     // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
-    if (Number(msg.date) && Number(msg.date) < startedAt - 2) return
+    if (Number(msg.date) && Number(msg.date) < startedAt - 2) return true // 明确丢弃的旧消息也要确认游标
     const parsed = await normalize(msg, signal)
     if (signal?.aborted || (current && !current())) return false
     if (parsed) emit({ type: 'message', msg: parsed })

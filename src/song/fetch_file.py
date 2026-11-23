@@ -52,13 +52,14 @@ def fetch(opener, url, part, want, can_switch):
         if r.status == 206:
             cr = r.headers.get('Content-Range') or ''
             m = re.match(r'bytes\s+(\d+)-(\d+)/(\d+)', cr.strip(), re.I)
-            if m:
-                start, end, total = map(int, m.groups())
-                if start != have or end < start:
-                    raise IOError('续传区间不对：请求 %d，返回 %d-%d' % (have, start, end))
-                if header_len and header_len != end - start + 1:
-                    raise IOError('续传区间长度不对：头 %d 字节，区间 %d-%d' % (header_len, start, end))
-                want = total
+            if not m:
+                raise IOError('206 响应缺少有效的 Content-Range')
+            start, end, total = map(int, m.groups())
+            if start != have or end < start:
+                raise IOError('续传区间不对：请求 %d，返回 %d-%d' % (have, start, end))
+            if header_len and header_len != end - start + 1:
+                raise IOError('续传区间长度不对：头 %d 字节，区间 %d-%d' % (header_len, start, end))
+            want = total
         elif header_len:
             want = have + header_len
         # 服务器不支持续传就从头来

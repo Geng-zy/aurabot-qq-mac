@@ -123,6 +123,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         if (!latest.enabled || !latest.qzoneSocial.enabled || !latest.qzoneSocial.replyOwn || (checkpoint && latest.dryRun)) break
         // 模型做出决定后才处理这一串。发送失败时不要把 handled 写死，下一轮还要重试。
         if (!text) {
+          if (getConfig().dryRun) continue
           for (const x of t.pending) {
             handled.add(x.id)
             remember(x.name, x.uin, `在你的说说「${String(m.content).slice(0, 30)}」下面说：${String(x.content).slice(0, 200)}`)
@@ -156,7 +157,6 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     for (const f of pickFeeds(res?.feeds, self())) {
       if (done >= budget) break
       if (seen.has(f.key)) continue
-      seen.add(f.key)
       const brief = String(f.html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
       remember(f.nickname, f.uin, '发了说说：' + brief.slice(0, 300))
       const isOwner = String(f.uin) === String(getConfig().ownerQQ)
@@ -185,7 +185,10 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
       const text = await write(`你在刷 QQ 空间，看到${isOwner ? `你的${owner()}` : `好友 ${f.nickname}`}发的说说：「${content.slice(0, 300) || '（只有图片）'}」${images ? `（配了图）` : ''}\n` +
         (existing.length ? `下面已经有这些评论：\n${existing.join('\n')}\n\n` : '') +
         `想评论的话，结合说说内容${existing.length ? '和下面大家在聊的（别重复别人说过的话，可以接大家的梗）' : ''}，用你的口气评一句（像朋友之间随手评论那样）。`)
-      if (!text || !(await sendComment(f.key, text, f.uin))) continue
+      if (!text) { if (!getConfig().dryRun) seen.add(f.key); continue }
+      const sentComment = await sendComment(f.key, text, f.uin)
+      if (!sentComment) { if (!getConfig().dryRun) seen.add(f.key); continue }
+      seen.add(f.key)
       if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(hasVisibility(detail) ? detail : f), tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++
