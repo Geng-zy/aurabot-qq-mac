@@ -214,6 +214,10 @@ test('仅配置备份：只带配置/人格，排除画作、表情、截图、�
     assert.match(b.name, /^aurabot-config-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/)
     assert.equal(b.configOnly, true)
     assert.equal(b.files, 3, '只打包 config、人格和轻量聊天流水')
+    const checked = await api.inspectBackup(b.name)
+    assert.equal(checked.verified, true)
+    assert.equal(checked.files, 3)
+    assert.equal(checked.configOnly, true)
   } finally {
     process.env.AURABOT_DATA_DIR = prev
     rmSync(dir, { recursive: true, force: true })

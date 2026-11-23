@@ -41,7 +41,7 @@ import { createCommunity } from './core/community.js'
 import { createApprovalRelay } from './security/approval.js'
 import { createNoticeRelay, normalizeWorkspace } from './features/notice.js'
 import { createHerVoice } from './features/her-voice.js'
-import { applyPendingRestore, cancelRestore, createBackup, listBackups, pendingModules, pendingRestore, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
+import { applyPendingRestore, cancelRestore, createBackup, inspectBackup, listBackups, pendingModules, pendingRestore, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
@@ -1271,6 +1271,10 @@ export function apply(ctx) {
     return run(req)
   }
   route('/backup/state', async () => ({ ok: true, job: backupJob, list: listBackups(), pending: pendingRestore(), modules: pendingModules(), dir: dataDir('backups') }))
+  route('/backup/verify', async (req) => {
+    try { return { ok: true, ...(await inspectBackup(String(query(req).name || ''))) } }
+    catch (error) { return { ok: false, message: error.message } }
+  })
   route('/backup/create', backupAction(async () => {
     if (backupJob?.running) return { ok: false, message: '上一个备份还在打包' }
     backupJob = { running: true, done: 0, total: 0 }

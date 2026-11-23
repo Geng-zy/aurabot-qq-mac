@@ -762,6 +762,42 @@ export function prunePreRestore(keep = KEEP_PRE_RESTORE) {
   return removed
 }
 
+/** 只读校验一份本机备份：目录、CRC、清单和可恢复文件数，不改动 .restore。 */
+export async function inspectBackup(name) {
+  const file = String(name || '')
+  if (!BACKUP_NAME_RE.test(file)) throw new Error('备份文件名不对')
+  const full = join(backupsDir(), file)
+  const fh = await open(full, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0))
+  try {
+    const st = await fh.stat({ bigint: true })
+    if (!st.isFile() || st.size > BigInt(MAX_ZIP)) throw new Error('不是有效的备份文件')
+    const entries = await readEntries(fh, Number(st.size))
+    const head = entries.find((entry) => entry.name === MANIFEST)
+    if (!head) throw new Error('这不是 Aurabot 的备份文件')
+    const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
+    if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('备份清单格式认不出来')
+    let bytes = 0
+    for (const entry of entries) {
+      if (entry === head) continue
+      await readEntry(fh, entry)
+      bytes += entry.size
+    }
+    return {
+      name: file,
+      createdAt: manifest.createdAt || '',
+      version: manifest.version || '',
+      configOnly: manifest.configOnly === true,
+      platform: manifest.platform || '',
+      files: entries.length - 1,
+      bytes,
+      sessions: Number(manifest.sessions) || 0,
+      market: Array.isArray(manifest.market) ? manifest.market : [],
+      skipped: Array.isArray(manifest.skipped) ? manifest.skipped : [],
+      verified: true,
+    }
+  } finally { await fh.close() }
+}
+
 export function listBackups() {
   try {
     return readdirSync(backupsDir()).filter((n) => n.endsWith('.zip') && n !== 'incoming.zip').map((name) => {

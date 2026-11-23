@@ -11,7 +11,7 @@ import { createCodexAuth } from './codex-auth.js'
 import { createCodexImage } from './codex-image.js'
 import { mimeOf } from '../core/image-info.js'
 import { imageToolBlock } from '../core/img.js'
-import { imageSizeFor, normalizeRequestedSize } from './image-shape.js'
+import { fitSizeForProvider, imageSizeFor, normalizeRequestedSize } from './image-shape.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 export { imageToolBlock }
 
@@ -172,7 +172,8 @@ export function createImageGen({ getConfig, log, local, localImage, fetchImpl, c
     const config = getConfig().imageGen
     const requestedSize = size == null || size === '' ? '' : normalizeRequestedSize(size)
     if (size != null && size !== '' && !requestedSize) throw new Error('图片尺寸格式不对，应为 1024x1024 或 2048x2048 这类格式')
-    const c = withPreset({ ...config, size: requestedSize || imageSizeFor(shape, config) })
+    const wantedSize = requestedSize || imageSizeFor(shape, config)
+    const c = withPreset({ ...config, size: fitSizeForProvider(config.provider, wantedSize, config) })
     if (image != null && (!Buffer.isBuffer(image) || !String(mimeOf(image)).startsWith('image/'))) throw new Error('参考图不是可用的图片')
     if (image && c.img2img === false) throw new Error('参考图功能已关闭')
     const full = [c.stylePrompt, prompt].filter(Boolean).join('，')

@@ -5150,6 +5150,7 @@ body[data-ds-dark-theme] .ab-root{
       const [over, setOver] = useState(false)
       const [remoteFiles, setRemoteFiles] = useState(null)
       const [remoteBusy, setRemoteBusy] = useState(false)
+      const [checks, setChecks] = useState({})
       const fileRef = useRef(null)
       const load = () => get('/backup/state').then(setS)
       useEffect(() => { load() }, [])
@@ -5181,7 +5182,21 @@ body[data-ds-dark-theme] .ab-root{
         try { after(await call('/backup/remote/restore', { name })) } finally { setBusy(false) }
       }
       const size = (n) => (n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB')
+      const verify = async (name) => {
+        setChecks((old) => ({ ...old, [name]: { busy: true } }))
+        const r = await call('/backup/verify', { name })
+        setChecks((old) => ({ ...old, [name]: r }))
+        toast(r.ok ? '备份校验通过' : (r.message || '校验失败'), r.ok ? 'ok' : 'err')
+      }
       const job = s && s.job
+      const backupRows = s?.list?.length ? h('div', { style: { marginTop: 10 } }, s.list.slice(0, 8).map((b) => {
+        const c = checks[b.name] || {}
+        return h('div', { key: b.name, className: 'ab-small', style: { marginTop: 4 } },
+          h('div', null, b.name + ' · ' + size(b.bytes) + (b.createdAt ? ' · ' + String(b.createdAt).replace(/^(\d{4})(\d{2})(\d{2})-(\d{6}).*$/, '$1-$2-$3 $4') : '')),
+          h('div', { className: 'ab-flex', style: { gap: 6, marginTop: 2 } },
+            h(Btn, { small: true, disabled: c.busy, onClick: () => verify(b.name) }, c.busy ? '校验中…' : '验证'),
+            c.ok ? h('span', { className: 'ab-muted' }, `✓ ${c.files} 个文件 · ${c.configOnly ? '仅配置' : '完整'} · ${c.version || '版本未知'}${c.sessions ? ' · ' + c.sessions + ' 个会话' : ''}`) : c.message ? h('span', { style: { color: 'var(--ab-err)' } }, c.message) : null))
+      })) : null
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '备份', desc: '把配置、记忆、人设、表情、模块和ta的数据打成一个文件，放到新电脑上恢复。' },
           h('div', { className: 'ab-note warn', style: { marginBottom: 10 } }, '备份文件里有账号凭证和聊天记录，别发给别人，也别传到公开的地方。'),
@@ -5191,7 +5206,7 @@ body[data-ds-dark-theme] .ab-root{
           job && job.error ? h('div', { className: 'ab-note err', style: { marginTop: 10 } }, '备份失败：' + job.error) : null,
           job && job.result ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 10 } }, '刚生成：' + job.result.name + '，' + job.result.files + ' 个文件' + (job.result.skipped.length ? '；有 ' + job.result.skipped.length + ' 个文件没能带上：' + job.result.skipped.slice(0, 5).join('、') : '')) : null,
           s?.ok === false ? h('div', { className: 'ab-note err', role: 'status' }, s.message || '读不到备份状态') : null,
-          s?.list?.length ? h('div', { style: { marginTop: 10 } }, s.list.slice(0, 8).map((b) => h('div', { key: b.name, className: 'ab-small' }, b.name + ' · ' + size(b.bytes) + (b.createdAt ? ' · ' + String(b.createdAt).replace(/^(\d{4})(\d{2})(\d{2})-(\d{6}).*$/, '$1-$2-$3 $4') : '')))) : null),
+          backupRows),
         h(RemoteBackup, { toast }),
         h(Card, { fold: 'backup-restore', title: '从备份恢复', desc: '在新电脑上先装好 DSH 和 Aurabot，再把备份拖进来。重启 DSH 后自动换上设置和数据、重新安装模块库里的模块、放回 QQ 会话，原来的文件留在 backups 文件夹。' },
           s && s.modules && s.modules.length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 8 } }, '还没装回来的模块：' + s.modules.join('、') + '（下次启动再试）') : null,
