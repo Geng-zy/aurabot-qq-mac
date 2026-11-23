@@ -34,8 +34,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Install dev tooling
+        run: npm install --ignore-scripts --no-audit --no-fund
       - name: Syntax check
         run: npm run check
+      - name: Independent lint
+        run: npm run lint
       - name: Pack smoke
         run: npm pack --dry-run
       - name: Run tests

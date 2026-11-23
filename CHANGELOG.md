@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.19
+
+- 增加独立 oxlint：no-undef 为 error、no-unused-vars 为 warning；先覆盖 src 和 client。
+- CI 安装 oxlint，运行语法检查、独立 lint、npm pack smoke 和测试；同时跑 Ubuntu 与 macOS runner。
+- 回归：393 个语法文件、226 个 lint 文件、1559 个测试，串行全量通过。
+
 ## 1.5.18
 
 - 知识库导入前显示受众预览，导入保留文件自带 scope。
