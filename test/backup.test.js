@@ -411,7 +411,7 @@ test('LA-19 上传和命名下载拒绝链接，正常归档仍可缓存和暂�
   } finally { unlinkSync(incoming) }
   assert.equal((await api.stageReceivedBackup(bytes)).ok, true)
   assert.deepEqual(readFileSync(incoming), bytes)
-  assert.equal((await api.stageReceivedBackup(bytes, archive.name)).ok, true)
+  assert.equal((await api.stageReceivedBackup(bytes, archive.name.replace(/-[a-z0-9]{8}\.zip$/, '-abcdef.zip'))).ok, true)
   assert.deepEqual(readFileSync(archive.file), bytes)
   assert.equal(api.pendingRestore().files, 1)
 })

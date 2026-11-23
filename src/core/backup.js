@@ -828,6 +828,8 @@ export function stageReceivedBackup(buf, name = 'incoming.zip') {
       } finally { await file.close() }
       const source = verifyFile(data, { rel: temporary, key })
       if (checkPath(data, rel).key !== target.key) throw unsafePath(rel)
+      // 同名不同内容不覆盖已有备份：先把新包留在私有临时文件里，确认没有占用再提交。
+      if (target.info) throw new Error('已经有同名备份，不会覆盖：' + name)
       renameSync(source.path, target.path)
       const published = checkPath(data, rel)
       if (!published.info || !sameRenamedFile(source.info, published.info)) throw unsafePath(rel)

@@ -63,7 +63,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     }
   }
 
-  async function normalize(msg) {
+  async function normalize(msg, signal) {
     if (!msg?.chat) return null
     const kind = msg.chat.type === 'private' ? 'private' : 'group'
     const chatId = chatIdOf(PLATFORM, kind, String(msg.chat.id))
@@ -72,11 +72,12 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     let images = []
     if (photo?.file_id) {
       try {
-        const info = await call('getFile', { file_id: photo.file_id }, { timeoutMs: 15000 })
+        const info = await call('getFile', { file_id: photo.file_id }, { signal, timeoutMs: 15000 })
         const path = String(info?.file_path || '')
         if (path) {
           const fileUrl = `${String(cfg().apiBase || 'https://api.telegram.org').replace(/\/+$/, '')}/file/bot${token()}/${path}`
-          const r = await fetchImpl(fileUrl, { signal: AbortSignal.timeout(20000) })
+          signal?.throwIfAborted?.()
+          const r = await fetchImpl(fileUrl, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000) })
           if (r.ok) {
             const buf = Buffer.from(await r.arrayBuffer())
             if (buf.length && buf.length <= 20 * 1024 * 1024) {
@@ -102,14 +103,14 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     }
   }
 
-  async function dispatchUpdate(update) {
+  async function dispatchUpdate(update, { signal, current } = {}) {
     // 编辑事件只更新平台上下文，不触发新一轮回复；否则对方改一个字她就回一遍。
     const msg = update?.message
-    if (!msg) return
+    if (!msg || signal?.aborted || (current && !current())) return
     // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
     if (Number(msg.date) && Number(msg.date) < startedAt - 2) return
-    const parsed = await normalize(msg)
-    if (parsed) emit({ type: 'message', msg: parsed })
+    const parsed = await normalize(msg, signal)
+    if (parsed && !signal?.aborted && (!current || current())) emit({ type: 'message', msg: parsed })
   }
 
   async function pollLoop(ctl, gen) {
@@ -120,7 +121,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         for (const update of updates || []) {
           if (!current()) break
           offset = Math.max(offset, Number(update.update_id) + 1)
-          await dispatchUpdate(update)
+          await dispatchUpdate(update, { signal: ctl.signal, current })
         }
       } catch (error) {
         if (!current()) break

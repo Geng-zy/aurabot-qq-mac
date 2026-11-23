@@ -291,14 +291,25 @@ export function pathsOf(root) {
 export function listVoices(modelsDir) {
   let names = []
   try { names = readdirSync(modelsDir) } catch (error) { return [] }
-  return names.filter((n) => n.toLowerCase().endsWith('.pth')).sort().map((n) => {
-    const id = n.slice(0, -4)
-    const idx = names.find((m) => {
+  const pths = names.filter((n) => n.toLowerCase().endsWith('.pth')).sort()
+  const ids = pths.map((n) => n.slice(0, -4))
+  const indexFor = (id) => {
+    const idl = id.toLowerCase()
+    const hits = names.filter((m) => {
       if (!m.toLowerCase().endsWith('.index')) return false
       const stem = m.slice(0, -6).toLowerCase()
-      const idl = id.toLowerCase()
       return stem === idl || stem.startsWith(idl + '.') || stem.endsWith('_' + idl)
     })
+    // 多个音色都能认领同一个索引时不猜；只有唯一归属才绑定。
+    const owners = hits.filter((m) => {
+      const stem = m.slice(0, -6).toLowerCase()
+      return ids.filter((other) => stem === other.toLowerCase() || stem.startsWith(other.toLowerCase() + '.') || stem.endsWith('_' + other.toLowerCase())).length === 1
+    })
+    return owners[0] || ''
+  }
+  return pths.map((n) => {
+    const id = n.slice(0, -4)
+    const idx = indexFor(id)
     // 音色档案（音域 + 音色参照，voice_profile.py 生成）：<音色>.profile.json，有它才自动定调、挪八度、校正音色
     const prof = join(modelsDir, id + '.profile.json')
     return { id, pth: join(modelsDir, n), index: idx ? join(modelsDir, idx) : '', profile: existsSync(prof) ? prof : '' }
