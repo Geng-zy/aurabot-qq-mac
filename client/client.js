@@ -3333,7 +3333,8 @@ body[data-ds-dark-theme] .ab-root{
         setOpen({ path, text: r.ok ? r.text : (r.message || '读取失败') })
       }
       const importScope = (text) => {
-        const m = /^---\s*\n([\s\S]*?)\n---/u.exec(String(text || ''))
+        const clean = String(text || '').replace(/^\uFEFF/, '').replace(/^\s*?(?=---\s*\n)/u, '')
+        const m = /^---\s*\n([\s\S]*?)\n---/u.exec(clean)
         const line = m && m[1].split(/\r?\n/).find((x) => /^\s*(scope|visibility)\s*:/i.test(x))
         if (!line) return note.scope || 'all'
         return line.replace(/^\s*(scope|visibility)\s*:\s*/i, '').trim().replace(/^['"]|['"]$/g, '')

@@ -39,7 +39,8 @@ function safePath(rel) {
 }
 
 function declaredScope(text) {
-  const m = /^---\s*\n([\s\S]*?)\n---/u.exec(String(text || ''))
+  const clean = String(text || '').replace(/^\uFEFF/, '').replace(/^\s*?(?=---\s*\n)/u, '')
+  const m = /^---\s*\n([\s\S]*?)\n---/u.exec(clean)
   if (!m) return null
   const line = m[1].split(/\r?\n/).find((x) => /^\s*(scope|visibility)\s*:/i.test(x))
   return line ? line.replace(/^\s*(scope|visibility)\s*:\s*/i, '').trim().replace(/^['"]|['"]$/g, '') : null

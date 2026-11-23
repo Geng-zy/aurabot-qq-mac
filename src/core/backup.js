@@ -613,11 +613,10 @@ function runRestoreMoves(run) {
 }
 
 function finalConfig(data, file, info, root, workspaceDir) {
-  const original = readFileSync(verifyFile(data, file).path, 'utf8')
+  const original = readFileSync(verifyFile(data, file).path, 'utf8').replace(/^\uFEFF/, '')
   const esc = (s) => JSON.stringify(s).slice(1, -1)
   const adjusted = info.dataDir && info.dataDir !== root ? original.replaceAll(esc(info.dataDir), esc(root)) : original
-  const parsed = JSON.parse(adjusted)
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('备份配置格式无效')
+  const parsed = parseConfigObject(adjusted)
   // Restoring an archive must not restore an earlier owner's authorization revision.
   const revoked = Object.hasOwn(parsed, 'ownerAuthorization')
   if (revoked) delete parsed.ownerAuthorization

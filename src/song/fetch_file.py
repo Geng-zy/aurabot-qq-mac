@@ -34,18 +34,20 @@ def total_size(opener, url):
 
 def fetch(opener, url, part, want, can_switch):
     have = os.path.getsize(part) if os.path.exists(part) else 0
-    if want and have > want:
-        # 旧分片比目标还大，不能只看到长度就提交；从头重新下载。
+    if want and have >= want:
+        # 旧分片达到或超过目标，无法确认内容；统一从头重新下载。
         os.remove(part)
         have = 0
-    if want and have == want:
-        return True
     headers = {'User-Agent': 'aurabot'}
     if have:
         headers['Range'] = 'bytes=%d-' % have
     req = urllib.request.Request(url, headers=headers)
     with opener.open(req, timeout=STALL) as r:
         # HEAD 不可用时，GET 自己的 Content-Length / Content-Range 也能判断是否截断。
+        # 服务器忽略 Range 返回 200：这是完整文件，必须覆盖旧分片，不能把旧长度加进总长。
+        mode = 'ab' if have and r.status == 206 else 'wb'
+        if mode == 'wb':
+            have = 0
         header_len = int(r.headers.get('Content-Length') or 0)
         if r.status == 206:
             cr = r.headers.get('Content-Range') or ''
@@ -57,12 +59,9 @@ def fetch(opener, url, part, want, can_switch):
                 if header_len and header_len != end - start + 1:
                     raise IOError('续传区间长度不对：头 %d 字节，区间 %d-%d' % (header_len, start, end))
                 want = total
-        elif not want and header_len:
-            want = have + header_len if have else header_len
+        elif header_len:
+            want = have + header_len
         # 服务器不支持续传就从头来
-        mode = 'ab' if have and r.status == 206 else 'wb'
-        if mode == 'wb':
-            have = 0
         last_print = 0
         window_start, window_bytes = time.time(), 0
         with open(part, mode) as f:

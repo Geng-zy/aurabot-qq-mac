@@ -87,7 +87,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     if (!cfg.enabled || !cfg.qzoneSocial.enabled || cfg.debug) return false
     if (cfg.dryRun) {
       log.info(`试运行：本来要在空间评论（${targetUin || '自己'} / ${tid}）：${content}`)
-      return true
+      return false // 试运行不算已交付，不能标记 handled 或消耗当天额度
     }
     if (hub.containsProtectedText?.('system:qzone-social', content) || await hub.checkOutgoingPrivacy?.('system:qzone-social', content)) return false
     const latest = getConfig()
@@ -218,7 +218,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
       log.warn('逛空间出错：', error.message)
       return { ok: false, message: error.message }
     } finally {
-      save(s)
+      try { save(s) } catch (error) { log.warn?.('空间状态保存失败：', error.message) }
       busy = false
     }
   }

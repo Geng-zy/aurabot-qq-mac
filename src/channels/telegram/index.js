@@ -107,11 +107,14 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   async function dispatchUpdate(update, { signal, current } = {}) {
     // 编辑事件只更新平台上下文，不触发新一轮回复；否则对方改一个字她就回一遍。
     const msg = update?.message
-    if (!msg || signal?.aborted || (current && !current())) return
+    if (!msg) return true
+    if (signal?.aborted || (current && !current())) return false
     // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
     if (Number(msg.date) && Number(msg.date) < startedAt - 2) return
     const parsed = await normalize(msg, signal)
-    if (parsed && !signal?.aborted && (!current || current())) emit({ type: 'message', msg: parsed })
+    if (signal?.aborted || (current && !current())) return false
+    if (parsed) emit({ type: 'message', msg: parsed })
+    return true
   }
 
   async function pollLoop(ctl, gen) {
@@ -121,8 +124,8 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         const updates = await call('getUpdates', { offset, timeout: 25, allowed_updates: ['message', 'edited_message'] }, { signal: ctl.signal, timeoutMs: 35000 })
         for (const update of updates || []) {
           if (!current()) break
-          offset = Math.max(offset, Number(update.update_id) + 1)
-          await dispatchUpdate(update, { signal: ctl.signal, current })
+          const delivered = await dispatchUpdate(update, { signal: ctl.signal, current })
+          if (delivered) offset = Math.max(offset, Number(update.update_id) + 1)
         }
       } catch (error) {
         if (!current()) break
