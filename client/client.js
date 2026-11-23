@@ -3422,6 +3422,7 @@ body[data-ds-dark-theme] .ab-root{
           hasMore ? h('div', { style: { marginTop: 8 } }, h(Btn, { small: true, onClick: () => search(false) }, '加载更多')) : null,
         ),
         h(Card, { title: '写一篇笔记', desc: '写进 knowledge/notes，之后可以检索。scope 控制哪些会话能读。' },
+          h('div', { className: 'ab-note', style: { marginBottom: 8 } }, `导入范围预览：${note.scope || 'all'}（文件自带 scope 优先；导入前可在下面修改）`),
           h(Row, { label: '标题' }, h('input', { className: 'ab-input wide', value: note.title, placeholder: '例如：九群设定', onChange: (e) => setNote({ ...note, title: e.target.value }) })),
           h(Row, { label: 'scope' }, h('input', { className: 'ab-input wide', value: note.scope, placeholder: 'all / private / group / qq:group:9', onChange: (e) => setNote({ ...note, scope: e.target.value }) })),
           h(Row, { label: '正文' }, h('textarea', { className: 'ab-input wide', rows: 5, value: note.content, placeholder: 'Markdown 正文', onChange: (e) => setNote({ ...note, content: e.target.value }) })),
@@ -4933,6 +4934,12 @@ body[data-ds-dark-theme] .ab-root{
       }
       const c = draft.imageGen
       const custom = c.custom || {}
+      const readyNow = (() => {
+        if (c.provider === 'local' || c.provider === 'codex') return true
+        if (c.provider === 'custom') return Boolean(custom.url)
+        if (c.provider === 'comfyui') return Boolean(c.comfy?.workflow && c.comfy?.baseUrl)
+        return Boolean(c.baseUrl || ['seedream', 'xai', 'gemini', 'sensenova'].includes(c.provider))
+      })()
       const isCustom = c.provider === 'custom'
       const isCodex = c.provider === 'codex'
       const isLocal = c.provider === 'local'
@@ -5008,7 +5015,8 @@ body[data-ds-dark-theme] .ab-root{
           h(Row, { label: '允许参考图改画', hint: '默认开启，只接受当前聊天收到的图、引用图或图库文件名；Codex 订阅暂不支持' }, f.sw('imageGen.img2img')),
           h(Row, { label: '让ta画完自己看一眼', hint: '开着才把画好的图传给ta看（模型不支持看图时自动不传）；关掉就只回一句「画好了」，不传图' }, f.sw('imageGen.seeOwn')),
           h(Row, { label: '连通性测试', hint: '会真的调用当前生图服务画一张 512×512 测试图，可能消耗额度' },
-            h(Btn, { small: true, disabled: testingImage, onClick: testImage }, testingImage ? '试画中…' : '试画一张'),
+            h(Btn, { small: true, disabled: testingImage || !readyNow, onClick: testImage }, testingImage ? '试画中…' : '试画一张'),
+            h('span', { className: readyNow ? 'ab-badge' : 'ab-muted ab-small' }, readyNow ? '配置就绪' : '还缺端点配置'),
             imageTest ? h('span', { className: 'ab-muted ab-small' }, imageTest.message || (imageTest.ok ? '成功' : '失败')) : null),
           imageTest?.image ? h('img', { src: 'data:image/png;base64,' + imageTest.image, alt: '生图测试结果', style: { maxWidth: 220, borderRadius: 8, marginTop: 8 } }) : null,
           lastImageError ? h('div', { className: 'ab-note', style: { marginTop: 8 } },
