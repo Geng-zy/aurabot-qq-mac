@@ -924,7 +924,7 @@ export function apply(ctx) {
   const normEndpoint = (v) => String(v || '').trim().replace(/\/+$/, '')
   const savedEndpoint = {
     imageGen: () => normEndpoint(cfg.imageGen?.provider === 'custom' ? cfg.imageGen?.custom?.url : cfg.imageGen?.baseUrl),
-    asr: () => normEndpoint(cfg.voice?.asrApi?.baseUrl),
+    asr: () => normEndpoint(cfg.voice?.asrApi?.baseUrl || ({ siliconflow: 'https://api.siliconflow.cn/v1', openai: 'https://api.openai.com/v1' })[cfg.voice?.asrApi?.provider]),
     mind: () => mind ? normEndpoint(mind.mind.setting('memory.embedUrl')) : '',
   }
   route('/provider-models', async (req) => {
@@ -932,6 +932,7 @@ export function apply(ctx) {
     const from = String(b.keyFrom || '')
     let baseUrl = String(b.baseUrl || '').trim()
     if (!baseUrl && from === 'mind' && mind) baseUrl = String(mind.mind.setting('memory.embedUrl') || '')
+    if (!baseUrl && from === 'asr') baseUrl = savedEndpoint.asr()
     // 已保存的 Key 只用于它实际绑定的端点；草稿里换了地址就不继承。
     const sameEndpoint = from && baseUrl && normEndpoint(baseUrl) === savedEndpoint[from]?.()
     const savedKey = sameEndpoint ? String(SAVED_KEYS[from]?.() || '') : ''

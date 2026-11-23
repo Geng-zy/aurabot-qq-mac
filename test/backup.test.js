@@ -256,14 +256,14 @@ test('整机和配置备份仅排除已知的生活推进旧暂存，保留正�
     for (const rel of [...excluded, ...kept]) {
       const file = join(dir, rel)
       mkdirSync(dirname(file), { recursive: true })
-      writeFileSync(file, rel)
+      writeFileSync(file, rel === 'config.json' ? '{"ownerQQ":"1"}' : rel)
     }
     for (const configOnly of [false, true]) {
       const archive = await api.createBackup({ configOnly })
       assert.equal(archive.files, kept.length)
       assert.equal((await api.stageRestore(archive.file)).ok, true)
       for (const rel of excluded) assert.equal(existsSync(join(dir, '.restore', rel)), false, rel)
-      for (const rel of kept) assert.equal(readFileSync(join(dir, '.restore', rel), 'utf8'), rel)
+      for (const rel of kept) assert.equal(readFileSync(join(dir, '.restore', rel), 'utf8'), rel === 'config.json' ? '{"ownerQQ":"1"}' : rel)
     }
   } finally {
     process.env.AURABOT_DATA_DIR = previous

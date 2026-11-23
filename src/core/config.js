@@ -809,6 +809,18 @@ export function mergeFromPanel(current, incoming) {
     const newBase = endpointOf({ ...before, ...after, provider: newProvider, custom: { ...(before.custom || {}), ...(after.custom || {}) }, comfy: { ...(before.comfy || {}), ...(after.comfy || {}) } })
     if (after.apiKey !== null && !after.apiKey && (oldProvider !== newProvider || oldBase !== newBase)) next.imageGen.apiKey = ''
   }
+  // ASR Key 也跟实际识别端点绑定（内置 provider 的空地址用预设地址）。
+  if (isObj(incoming?.voice?.asrApi)) {
+    const preset = { siliconflow: 'https://api.siliconflow.cn/v1', openai: 'https://api.openai.com/v1' }
+    const endpoint = (v) => {
+      const provider = String(v?.provider || '')
+      const base = String(v?.baseUrl || preset[provider] || '').trim().replace(/\/+$/, '').replace(/\/audio\/(?:speech|transcriptions)\/?$/i, '')
+      return provider + '|' + base
+    }
+    const before = endpoint(current?.voice?.asrApi)
+    const after = endpoint(next.voice?.asrApi)
+    if (before !== after && !String(incoming.voice.asrApi.apiKey || '').trim()) next.voice.asrApi.apiKey = ''
+  }
   // 联动密钥只由插件生成，面板不能改
   next.bridge.token = current.bridge?.token || ''
   if (incoming?.group?.overrides) next.group.overrides = incoming.group.overrides

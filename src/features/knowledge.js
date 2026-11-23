@@ -45,9 +45,11 @@ function declaredScope(text) {
   return line ? line.replace(/^\s*(scope|visibility)\s*:\s*/i, '').trim().replace(/^['"]|['"]$/g, '') : null
 }
 function scopeOf(text) {
-  return declaredScope(text) || 'all'
+  const declared = declaredScope(text)
+  return declared === null ? 'all' : declared
 }
 function scopeAllows(scope, chatId) {
+  if (scope === '') return false // 显式空范围不是公开，拒绝跨会话读取
   if (!scope || scope === 'all') return true
   const id = String(chatId || '')
   if (scope === id) return true

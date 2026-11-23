@@ -3365,7 +3365,7 @@ body[data-ds-dark-theme] .ab-root{
         const files = [...(e.target.files || [])].filter((f) => /\.(md|txt)$/i.test(f.name))
         if (!files.length) { toast('文件夹里没有 .md / .txt', 'err'); return }
         const previews = []
-        for (const file of files.slice(0, 30)) {
+        for (const file of files) {
           try { previews.push(`${file.name} → ${importScope(await file.text()) || '（空值，会被拒绝）'}`) } catch {}
         }
         if (!confirm(`将导入 ${files.length} 份文件\n\n${previews.slice(0, 8).join('\n')}${previews.length > 8 ? '\n…' : ''}\n\n确认写入？`)) { e.target.value = ''; return }

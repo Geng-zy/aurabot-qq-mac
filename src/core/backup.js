@@ -492,6 +492,8 @@ async function stageBackup(path, received) {
     const head = entries.find((entry) => entry.name === MANIFEST)
     if (!head) throw new Error('这不是 Aurabot 的备份文件')
     if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')
+    const configEntry = entries.find((entry) => entry.name === 'data/config.json')
+    try { JSON.parse((await readEntry(fh, configEntry)).toString('utf8')) } catch { throw new Error('备份里的 config.json 损坏') }
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('这个备份的格式认不出来，先更新插件')
     const { createdAt, version, dataDir: oldData, home, workspaceDir, platform, market = [], sessions = 0 } = manifest
@@ -778,6 +780,8 @@ export async function inspectBackup(name) {
     if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')
     const manifest = JSON.parse((await readEntry(fh, head)).toString('utf8'))
     if (manifest.schema !== SCHEMA || manifest.app !== 'aurabot') throw new Error('备份清单格式认不出来')
+    const configEntry = entries.find((entry) => entry.name === 'data/config.json')
+    try { JSON.parse((await readEntry(fh, configEntry)).toString('utf8')) } catch { throw new Error('备份里的 config.json 损坏') }
     let bytes = 0
     for (const entry of entries) {
       if (entry === head) continue
@@ -832,7 +836,16 @@ export function stageReceivedBackup(buf, name = 'incoming.zip') {
       if (checkPath(data, rel).key !== target.key) throw unsafePath(rel)
       // 同名不同内容不覆盖已有备份：先把新包留在私有临时文件里，确认没有占用再提交。
       if (target.info) {
-        if (name !== 'incoming.zip') throw new Error('已经有同名备份，不会覆盖：' + name)
+        if (name !== 'incoming.zip') {
+          // WebDAV 取消后重试：字节完全一致时复用已存在的归档，不再覆盖。
+          let same = false
+          try { same = readFileSync(target.path).equals(buf) } catch {}
+          if (!same) throw new Error('已经有同名备份，不会覆盖：' + name)
+          const existing = verifyFile(data, { rel, key: target.key })
+          const staged = await stageBackup(existing.path, { data, rel, key: existing.key })
+          pruneLocalBackups()
+          return staged
+        }
         removeChecked(data, rel) // incoming.zip 是本次上传缓存，允许用新包替换；用户命名的备份不覆盖
       }
       renameSync(source.path, target.path)

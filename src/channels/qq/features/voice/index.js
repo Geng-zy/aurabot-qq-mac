@@ -8,7 +8,7 @@ import { breezeBalance, breezeClaim, breezeSession, autoClaimOnce, breezeVoices 
 import { createSongVoice } from '../../../../voice/rvc.js'
 import { toMono16k } from '../../../../voice/wav.js'
 import { localAudioFile } from '../../../../local/local.js'
-import { asrConfigured, transcribeAudio } from '../../../../voice/asr.js'
+import { asrConfigured, asrSettings, transcribeAudio } from '../../../../voice/asr.js'
 import { mergeFromPanel, normalize } from '../../../../core/config.js'
 import { segmentsOf } from '../../convert.js'
 
@@ -38,7 +38,14 @@ export default {
     function voiceFromBody(body) {
       const saved = api.config()
       if (!body || !body.voice || typeof body.voice !== 'object') return saved.voice
-      try { return normalize(mergeFromPanel(saved, { voice: body.voice })).voice } catch (error) { return saved.voice }
+      try {
+        const merged = normalize(mergeFromPanel(saved, { voice: body.voice }))
+        const before = asrSettings(saved.voice)
+        const after = asrSettings(merged.voice)
+        // ASR Key 跟实际识别端点绑定：换了 provider/地址且本次没填新 Key 时不继承。
+        if (before && after && before.baseUrl !== after.baseUrl && !String(body.voice.asrApi?.apiKey || '').trim()) merged.voice.asrApi.apiKey = ''
+        return merged.voice
+      } catch (error) { return saved.voice }
     }
 
     // 语音条变声：如果面板里选了「翻唱里导入的音色」，TTS 后再用 RVC 换成她的声音。
