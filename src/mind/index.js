@@ -519,10 +519,16 @@ export function createMind(opts) {
     const prev = store.get(forgottenKey(pid), null)
     // deleteEpisode 会级联删掉由这些经历派生的「知道的事」；恢复时也要把派生条目放回去。
     const derived = []
-    for (const e of eps) {
-      for (const row of store.prep("SELECT * FROM episodes WHERE instr(json, ?) > 0").all(JSON.stringify(e.id))) {
-        if (eps.some((x) => x.id === row.id) || derived.some((x) => x.id === row.id)) continue
+    const seen = new Set(eps.map((e) => e.id))
+    const queue = [...seen]
+    // 多跳收齐派生记忆：经历 → 日回顾 → 周总结 → 语义结论。
+    while (queue.length) {
+      const id = queue.shift()
+      for (const row of store.prep("SELECT * FROM episodes WHERE instr(json, ?) > 0").all(JSON.stringify(id))) {
+        if (seen.has(row.id)) continue
+        seen.add(row.id)
         derived.push(row)
+        queue.push(row.id)
       }
     }
     const bundle = {
@@ -572,6 +578,10 @@ export function createMind(opts) {
     const pid = canon(id)
     const b = store.get(forgottenKey(pid), null)
     if (!b) return null
+    if (now() - b.at > FORGET_KEEP_DAYS * 86400000) {
+      store.del(forgottenKey(pid))
+      return null
+    }
     store.tx(() => {
       for (const r of b.episodes) {
         putRow('episodes', r)
@@ -579,7 +589,11 @@ export function createMind(opts) {
         writeDeletion(r.id, 'episode', false)
       }
       for (const r of b.perception) putRow('perception', r)
-      for (const r of b.derived || []) putRow('episodes', r)
+      for (const r of b.derived || []) {
+        putRow('episodes', r)
+        store.prep("DELETE FROM deletions WHERE id = ? AND kind = 'episode'").run(r.id)
+        writeDeletion(r.id, 'episode', false)
+      }
       // 联想连线：两头的事都还在才连
       const has = store.prep('SELECT 1 FROM episodes WHERE id = ?')
       for (const l of b.links || []) if (has.get(l.a) && has.get(l.b)) putRow('links', l)
@@ -792,6 +806,9 @@ export function createMind(opts) {
       recovered,
     }
   }
+
+  // 启动时主动清掉过期的恢复区，不能只在打开面板列表时才清理。
+  try { forgottenList() } catch (error) { log?.debug?.('恢复区过期清理失败：', error.message) }
 
   return {
     // 设置
