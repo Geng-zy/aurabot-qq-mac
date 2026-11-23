@@ -97,8 +97,14 @@ export function createMemory(deps) {
   const { ownerPrivate, shareSourceAllowed, hasSecretScope, audienceRevision, touchAudience, visibleIn, visibleForRecall, visibleForAudience, sourceVisible, originalLines, visibleOriginalLines, sourceDay, memorySummary, protectedText, sharedText, sharesIn, restrictedShareText } = visibility
 
   function save(e) {
+    let oldGist = ''
+    try { oldGist = store.prep('SELECT gist FROM episodes WHERE id = ?').get(String(e.id))?.gist || '' } catch {}
     store.prep('UPDATE episodes SET gist = ?, detail = ?, strength = ?, stability = ?, last_recall = ?, status = ?, json = ? WHERE id = ?')
       .run(e.gist, e.detail ?? null, e.strength, e.stability, e.last_recall ?? null, e.status, JSON.stringify(e.data || {}), e.id)
+    // 文字改了，旧语义向量必须失效；下一轮按新文字重算。
+    if (oldGist !== String(e.gist || '') && oldGist) {
+      try { vectors.remove(e.id); queueJob('embed', e.id) } catch (error) { log.debug('记忆改写后向量失效失败：', error.message) }
+    }
   }
   /** 此刻记得多少：从最后一次想起（没有就从发生时）算起。 */
   function rOf(e, at = now()) {

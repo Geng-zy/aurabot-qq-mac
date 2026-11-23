@@ -113,14 +113,21 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         await checkpoint?.()
         const latest = getConfig()
         if (!latest.enabled || !latest.qzoneSocial.enabled || !latest.qzoneSocial.replyOwn || (checkpoint && latest.dryRun)) break
-        // 模型做出决定后才处理这一串。预算用尽时保留未看的评论，已经处理过的也不会重来。
+        // 模型做出决定后才处理这一串。发送失败时不要把 handled 写死，下一轮还要重试。
+        if (!text) {
+          for (const x of t.pending) {
+            handled.add(x.id)
+            remember(x.name, x.uin, `在你的说说「${String(m.content).slice(0, 30)}」下面说：${String(x.content).slice(0, 200)}`)
+          }
+          s.replied[m.tid] = [...handled].slice(-200)
+          continue
+        }
+        if (!(await sendComment(m.tid, `回复 ${last.name}：${text}`))) continue
         for (const x of t.pending) {
           handled.add(x.id)
           remember(x.name, x.uin, `在你的说说「${String(m.content).slice(0, 30)}」下面说：${String(x.content).slice(0, 200)}`)
         }
         s.replied[m.tid] = [...handled].slice(-200)
-        if (!text) continue
-        if (!(await sendComment(m.tid, `回复 ${last.name}：${text}`))) continue
         if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: privatePost(m), tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
         done++

@@ -293,7 +293,12 @@ export function listVoices(modelsDir) {
   try { names = readdirSync(modelsDir) } catch (error) { return [] }
   return names.filter((n) => n.toLowerCase().endsWith('.pth')).sort().map((n) => {
     const id = n.slice(0, -4)
-    const idx = names.find((m) => m.toLowerCase().endsWith('.index') && m.toLowerCase().includes(id.toLowerCase()))
+    const idx = names.find((m) => {
+      if (!m.toLowerCase().endsWith('.index')) return false
+      const stem = m.slice(0, -6).toLowerCase()
+      const idl = id.toLowerCase()
+      return stem === idl || stem.startsWith(idl + '.') || stem.endsWith('_' + idl) || stem.endsWith(idl)
+    })
     // 音色档案（音域 + 音色参照，voice_profile.py 生成）：<音色>.profile.json，有它才自动定调、挪八度、校正音色
     const prof = join(modelsDir, id + '.profile.json')
     return { id, pth: join(modelsDir, n), index: idx ? join(modelsDir, idx) : '', profile: existsSync(prof) ? prof : '' }
@@ -962,8 +967,11 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     // v2：0.6.2 起才检查有没有人声，之前缓存的可能是只有伴奏的成品，一律不用
     // v3：面板里改了换声参数、增强流程、分离模型、音量，或者重新生成了音色档案，都要重做（以前只看音色和音高，改了设置还发旧的）
     const profileAt = voice?.profile ? (() => { try { return statSync(voice.profile).mtimeMs } catch { return 0 } })() : 0
+    const stamp = (f) => { try { const st = statSync(f); return `${st.mtimeMs}:${st.size}` } catch { return '' } }
+    const sourceStamp = stamp(song)
+    const weightStamp = [voice?.pth, voice?.index].filter(Boolean).map(stamp).join('|')
     const knobs = JSON.stringify([convertSettings(), c.separatorModel, c.vocalVolume, c.instVolume, profileAt])
-    const key = createHash('md5').update(['v3', job.songKey || song, local?.active('song') ? 'local:' + (voice?.id || '') : voice.id, pitch, c.maxVoiceSec, c.clipStart, knobs, ...(job.acapella ? ['acapella'] : []), ...(job.duet ? ['duet'] : [])].join('|')).digest('hex').slice(0, 16)
+    const key = createHash('md5').update(['v4', job.songKey || song, sourceStamp, weightStamp, local?.active('song') ? 'local:' + (voice?.id || '') : voice.id, pitch, c.maxVoiceSec, c.clipStart, knobs, ...(job.acapella ? ['acapella'] : []), ...(job.duet ? ['duet'] : [])].join('|')).digest('hex').slice(0, 16)
     const cached = join(work(), 'cache', key + '.mp3')
     if (existsSync(cached)) {
       log.info(`翻唱：「${job.title}」做过了，直接用缓存`)
