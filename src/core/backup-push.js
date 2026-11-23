@@ -303,8 +303,11 @@ async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } = {}) {
     const keep = Math.max(1, Math.round(Number(r.keep) || 10))
     const prefix = name.startsWith('aurabot-config-') ? 'aurabot-config-' : 'aurabot-backup-'
     const sorted = [...new Set([name, ...remote.filter((n) => n.startsWith(prefix))])].sort().reverse()
-    kept = Math.min(keep, sorted.length)
-    const old = sorted.slice(keep)
+    // 刚上传的这份一定保留，其余按文件名从新到旧补足 keep，再删不在集合里的。
+    const keepSet = new Set([name])
+    for (const n of sorted) { if (keepSet.size >= keep) break; keepSet.add(n) }
+    kept = keepSet.size
+    const old = sorted.filter((n) => !keepSet.has(n))
     for (const oldName of old) {
       const del = await webdavFetch(folder + encodeURIComponent(oldName), {
         method: 'DELETE', headers: { authorization: auth }, timeout: 15000, password,

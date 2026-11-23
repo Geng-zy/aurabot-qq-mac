@@ -23,6 +23,14 @@ function tally(dir) {
 }
 
 const isLink = (p) => { try { return lstatSync(p).isSymbolicLink() } catch (error) { return false } }
+function containsLink(dir) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = join(dir, e.name)
+    if (isLink(p)) return p
+    if (e.isDirectory() && containsLink(p)) return p
+  }
+  return ''
+}
 const inside = (parent, child) => { const r = relative(parent, child); return r === '' || (r !== '..' && !r.startsWith('../') && !isAbsolute(r)) }
 
 // realpath 只能解析存在的路径。先解析最近的父目录，再接上尚未创建的路径。
@@ -50,6 +58,8 @@ export function moveWorkspace(from, to) {
   if (inside(real, target) || inside(target, real)) return { ok: false, message: '新位置不能和现在的位置重叠' }
   if (existsSync(target) && (!statSync(target).isDirectory() || readdirSync(target).length)) return { ok: false, message: '新位置已经有东西了，换一个空文件夹' }
   const linked = isLink(from)
+  const badLink = containsLink(real)
+  if (badLink) return { ok: false, message: '工作区里有符号链接，搬家可能改变它指向；先移除或改成绝对链接：' + badLink }
   const hold = `${from}.moving`
   if (existsSync(hold)) return { ok: false, message: `${hold} 已存在，上次搬家可能没做完，先看看里面的东西` }
   const undoCopy = () => rmSync(target, { recursive: true, force: true })

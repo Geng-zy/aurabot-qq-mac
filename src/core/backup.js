@@ -320,6 +320,11 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
     if (checkPath(data, tmpRel).key !== tempKey) throw unsafePath(tmpRel)
     checkPath(data, finalRel)
     await rename(tmp, final)
+    try { await inspectBackup(name) }
+    catch (error) {
+      try { rmSync(final, { force: true }) } catch {}
+      throw new Error('备份验证失败，没有保留这次文件：' + error.message)
+    }
     const pruned = pruneLocalBackups()
     return { file: final, name, files: entries.length - 1, bytes, skipped: skippedFiles, market, sessions, configOnly: Boolean(configOnly), pruned }
   } catch (error) {

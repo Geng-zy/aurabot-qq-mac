@@ -18,6 +18,10 @@ export default {
     let running = false
     const lifetime = new AbortController()
     const isCurrent = () => !lifetime.signal.aborted
+    // 平台发不了文件/视频时不接任务：避免生成十几分钟后才发现发不出去。
+    const canDeliver = (chat) => {
+      try { return api.core.channels?.of?.(chat?.chatId)?.caps?.files !== false } catch { return true }
+    }
     api.onDispose?.(() => lifetime.abort(new Error('生视频模块已关闭')))
 
     async function deliver(chatId, file) {
@@ -52,7 +56,7 @@ export default {
       ? ['- 你能用 qq_generate_video 生成视频，' + (freeWill(api.config()) ? '想做就做（别人让你做，做不做你自己定）。' : '只有管理员让你做时才用。') + '生成很慢，通常要十几分钟，开始前先告诉对方要等多久；做好会自动发出来，不用再发一次。']
       : []))
 
-    api.tool(({ chat, sessionId }) => (local.active('video') && chat.kind !== 'system' ? defineTool({
+    api.tool(({ chat, sessionId }) => (local.active('video') && chat.kind !== 'system' && canDeliver(chat) ? defineTool({
       name: 'qq_generate_video',
       description: '生成一段视频，做好后自动发到当前聊天。很慢，通常要十几分钟，开始前先告诉对方要等。' + (freeWill(api.config()) ? '做不做你自己定。' : '只有管理员让你做时才用。'),
       properties: { prompt: str('视频内容描述'), seconds: str('可选：时长（秒）') },
@@ -62,6 +66,7 @@ export default {
         const text = String(prompt || '').trim()
         if (!text) return { ok: false, message: '要生成什么内容？' }
         if (!isCurrent()) return { ok: false, message: '生视频模块已关闭' }
+        if (!canDeliver(chat)) return { ok: false, message: '这个平台发不了视频' }
         if (running) return { ok: false, message: '上一段视频还在生成，等它好了再说' }
         generate(chat.chatId, { prompt: text, seconds: Number(seconds) || undefined }).catch(() => {})
         return { ok: true, message: '开始生成了，做好会自动发到这里。告诉对方要等一阵子，这一轮不用再发视频。' }
