@@ -44,6 +44,7 @@ import { createHerVoice } from './features/her-voice.js'
 import { applyPendingRestore, cancelPendingSessions, cancelRestore, createBackup, inspectBackup, listBackups, pendingModules, pendingRestore, pendingSessions, retryPendingSessions, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
+import { registerBackupRestoreRoutes } from './features/backup-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
@@ -1291,45 +1292,14 @@ export function apply(ctx) {
     if (req.method !== 'POST' || req.headers?.['x-aurabot-backup'] !== '1') return { ok: false, message: '请从面板发起操作' }
     return run(req)
   }
-  route('/backup/state', async () => ({ ok: true, job: backupJob, list: listBackups(), pending: pendingRestore(), deferredSessions: pendingSessions(), modules: pendingModules(), dir: dataDir('backups') }))
-  route('/backup/verify', async (req) => {
-    try {
-      const body = await readBody(req).catch(() => ({}))
-      return { ok: true, ...(await inspectBackup(String(body?.name || query(req).name || ''))) }
-    }
-    catch (error) { return { ok: false, message: error.message } }
+  registerBackupRestoreRoutes({
+    route, backupAction, readBody, readRaw, query, dataDir, openFolder, log,
+    getConfig, version: VERSION, workspaceDirOf, captureMind,
+    getJob: () => backupJob, setJob: (next) => { backupJob = next },
+    listBackups, pendingRestore, pendingSessions, pendingModules,
+    inspectBackup, createBackup, stageReceivedBackup, stageRestore,
+    cancelRestore, retryPendingSessions, cancelPendingSessions,
   })
-  route('/backup/create', backupAction(async () => {
-    if (backupJob?.running) return { ok: false, message: '上一个备份还在打包' }
-    backupJob = { running: true, done: 0, total: 0 }
-    createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), captureMind: captureMind(), onProgress: (p) => { backupJob = { ...backupJob, ...p } } })
-      .then((result) => { backupJob = { running: false, result }; log.info(`备份完成：${result.name}，${result.files} 个文件`) })
-      .catch((error) => { backupJob = { running: false, error: error.message }; log.error('备份失败：', error.message) })
-    return { ok: true, message: '开始打包了' }
-  }))
-  route('/backup/open', backupAction(async () => openFolder(dataDir('backups'))))
-  route('/backup/upload', backupAction(async (req) => {
-    const buf = await readRaw(req, 2 * 1024 * 1024 * 1024 - 1)
-    if (!buf.length) return { ok: false, message: '文件是空的' }
-    try { return await stageReceivedBackup(buf) } catch (error) { return { ok: false, message: error.message } }
-  }))
-  route('/backup/restore-path', backupAction(async (req) => {
-    const path = String((await readBody(req)).path || '').trim().replace(/^"|"$/g, '')
-    if (!path) return { ok: false, message: '填备份文件的完整路径' }
-    try { return await stageRestore(path) } catch (error) { return { ok: false, message: error.message } }
-  }))
-  route('/backup/cancel', backupAction(async () => {
-    try { cancelRestore(); return { ok: true, message: '取消了' } } catch (error) { return { ok: false, message: error.message } }
-  }))
-  route('/backup/sessions/retry', backupAction(async () => {
-    try {
-      const n = retryPendingSessions()
-      return n ? { ok: true, files: n, message: `补回了 ${n} 个会话` } : { ok: false, message: '工作区还没挂回，或者没有待迁入的会话' }
-    } catch (error) { return { ok: false, message: error.message } }
-  }))
-  route('/backup/sessions/cancel', backupAction(async () => {
-    try { cancelPendingSessions(); return { ok: true, message: '取消了等待中的会话恢复' } } catch (error) { return { ok: false, message: error.message } }
-  }))
   // ---------- 云备份：每天到点自动打包，并把最新备份推到 Gitee 私有仓库（走本机 git）----------
   const alive = () => { try { return !unloaded } catch { return true } }
   const nextRemoteAt = () => pushDueAt === null ? null : new Date(pushDueAt).toISOString()
