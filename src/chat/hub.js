@@ -5,8 +5,8 @@
 
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, statSync } from 'node:fs'
-import { basename, isAbsolute, join, relative, resolve } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { isAbsolute, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -38,6 +38,7 @@ import { createQqChannel } from '../channels/qq/index.js'
 import { takeInterim, reasoningOf, rescueFromThinking } from './steps.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
 import { createFileRelay } from './file-relay.js'
+import { FILE_TIMEOUT_MS, FILE_BASE64_MAX, isExternalFile, fileLabel, fileRootsOf, insideRoots, checkSendableFile } from './file-policy.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1212,43 +1213,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // 所以按本机路径发失败时，小文件会用 base64 再试一次；超时留长一点，别把大文件上传误判成失败。
   // 安全默认（#52）：功能默认关；只允许发 QQ 工作区（她平时写文件的地方）和面板里额外加的目录里的文件；
   // 单个文件有大小上限；只在管理员私聊里能触发；发了什么会写进日志。
-  const FILE_TIMEOUT_MS = 120_000
-  const FILE_BASE64_MAX = 30 * 1024 * 1024
-  const isExternalFile = (s) => /^(https?:\/\/|base64:\/\/)/i.test(s)
-  const fileLabel = (name, src) => String(name || '').trim() || basename(src.split(/[?#]/)[0]) || '文件'
-  const fileRootsOf = (cfg) => [workspaceDirOf(cfg), ...(Array.isArray(cfg?.files?.dirs) ? cfg.files.dirs : [])]
-    .filter(Boolean)
-    .map((d) => { try { return resolve(String(d)) } catch (error) { return '' } })
-    .filter(Boolean)
-  const insideRoots = (file, roots) => {
-    let p
-    try { p = resolve(file) } catch (error) { return false }
-    return roots.some((root) => {
-      const rel = relative(root, p)
-      return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))
-    })
-  }
-
-  /** 发文件、发图共用的一套检查：绝对路径、存在、是文件、在允许的目录里、不超过大小上限。 */
-  function checkSendableFile(cfg, file) {
-    const src = String(file ?? '').trim()
-    if (!src) throw new Error('要发哪个文件？')
-    const external = isExternalFile(src)
-    const maxBytes = Math.max(1, Number(cfg.files.maxMB) || 50) * 1024 * 1024
-    let size = 0
-    if (!external) {
-      if (!isAbsolute(src)) throw new Error('要发本机文件得给绝对路径')
-      if (!existsSync(src)) throw new Error(`找不到这个文件：${src}`)
-      const st = statSync(src)
-      if (!st.isFile()) throw new Error(`这不是文件：${src}`)
-      size = st.size
-      const roots = fileRootsOf(cfg)
-      if (roots.length && !insideRoots(src, roots)) throw new Error('这个文件不在允许发送的目录里（面板「聊天」页 → 发文件 可以加目录）')
-      if (size > maxBytes) throw new Error(`文件太大（${(size / 1024 / 1024).toFixed(1)} MB），上限 ${Math.round(maxBytes / 1024 / 1024)} MB`)
-    }
-    return { src, external, size, maxBytes }
-  }
-
   /** 把一个文件当文件发到 QQ（OneBot upload_private_file / upload_group_file）。file 可以是本机绝对路径、网址或 base64://。 */
   async function sendFile(chatId, file, name) {
     if (disposed) return null
@@ -1256,7 +1220,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const tgt = targetOf(chatId)
     if (!tgt) return null
     if (!cfg.files?.enabled) throw new Error('发文件没打开（面板「聊天」页 → 发文件），打开后才能发')
-    const { src, external, size, maxBytes } = checkSendableFile(cfg, file)
+    const { src, external, size, maxBytes } = checkSendableFile(cfg, file, workspaceDirOf)
     // 文件显示名也会出现在 QQ 文件卡片上：和正文一样过一遍出站清洗，避免工具文字/提示词借文件名露出。
     const label = cleanOutboundText(fileLabel(name, src), cleaningFor(chatId)).trim() || '文件'
     // 模拟测试：只记下来，不真发
