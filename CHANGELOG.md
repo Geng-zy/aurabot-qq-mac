@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.64
+
+- 心智设置读取/保存/重置/立即整理路由从 host.js 拆到 features/mind-settings-routes.js。
+- 保留向量 Key 跟端点绑定和保存/重置时清 Key 的行为。
+- 回归：409 个语法文件、lint 0 errors、心智/E2E 166 个测试通过。
+
 ## 1.5.63
 
 - 「获取可用模型」路由和端点/Key 绑定逻辑从 host.js 拆到 features/model-routes.js。

@@ -51,6 +51,7 @@ import { registerPlatformRoutes } from './features/platform-routes.js'
 import { registerPanelMiscRoutes } from './features/panel-misc-routes.js'
 import { registerSessionRoutes } from './features/session-routes.js'
 import { registerModelRoutes } from './features/model-routes.js'
+import { registerMindSettingsRoutes } from './features/mind-settings-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
@@ -814,39 +815,9 @@ export function apply(ctx) {
     return { ok, message: ok ? '已撤回分享' : '没有这个分享' }
   })
   registerModelRoutes({ route, readBody, getConfig: () => cfg, getMind: () => mind, listProviderModels })
-  route('/mind/settings', async () => {
-    if (!mind) return mindOff
-    const { GROUPS, PARAMS } = await import('./mind/params.js')
-    return { ok: true, groups: GROUPS, params: PARAMS, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
-  })
-  route('/mind/settings/save', async (req) => {
-    if (!mind) return mindOff
-    const b = await readBody(req)
-    try {
-      const beforeUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
-      const changed = mind.mind.updateSettings(b.patch || {}, 'owner')
-      const afterUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
-      if (beforeUrl !== afterUrl && getConfig().mind?.embedKey) {
-        cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg)
-      }
-      return { ok: true, changed, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
-    } catch (error) {
-      return { ok: false, message: error.message }
-    }
-  })
-  route('/mind/settings/reset', async (req) => {
-    if (!mind) return mindOff
-    const b = await readBody(req)
-    const beforeUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
-    mind.mind.resetSetting(String(b.key || ''))
-    const afterUrl = String(mind.mind.setting('memory.embedUrl') || '').replace(/\/+$/, '')
-    if (beforeUrl !== afterUrl && getConfig().mind?.embedKey) cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg)
-    return { ok: true, values: mind.mind.settings(), saved: mind.mind.savedSettings() }
-  })
-  route('/mind/sleep', async () => {
-    if (!mind) return mindOff
-    const report = await mind.mind.sleep()
-    return { ok: true, report, message: '整理完了' }
+  registerMindSettingsRoutes({
+    route, readBody, getMind: () => mind, getConfig: () => cfg,
+    clearEmbedKey: () => { cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg) },
   })
   route('/mind/now', async () => {
     if (!mind) return mindOff
