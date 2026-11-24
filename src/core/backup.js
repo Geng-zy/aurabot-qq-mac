@@ -628,8 +628,44 @@ function preparedFile(data, rel, content) {
   return { rel, key: checkPath(data, rel).key }
 }
 
+/** 只处理上次因目标外盘离线而留下的会话暂存；不重放普通配置。 */
+function resumePendingSessions() {
+  const root = dataDir()
+  if (!existsSync(root)) return 0
+  const data = dataBoundary(root)
+  const markerRel = '.restore-sessions-pending.json'
+  const marker = checkPath(data, markerRel)
+  if (!marker.info) return 0
+  let info = null
+  try { info = JSON.parse(readFileSync(marker.path, 'utf8')) } catch { return 0 }
+  if (!info?.workspaceDir) return 0
+  let target = String(info.workspaceDir)
+  if (info.home && target.toLowerCase().startsWith(String(info.home).toLowerCase())) target = homedir() + target.slice(String(info.home).length)
+  if (!existsSync(parse(target).root)) return 0
+  const userHome = homedir()
+  const dshRoot = dshHome()
+  const underRoot = (r) => target === r || target.startsWith(r + '/')
+  if (!existsSync(target) && !underRoot(userHome) && !underRoot(dshRoot)) return 0
+  mkdirSync(dshRoot, { recursive: true })
+  const home = dataBoundary(dshRoot)
+  const directory = 'sessions/' + sessionDirName(target)
+  const files = listFiles(data, '.restore-sessions')
+  if (!files.length) { removeChecked(data, markerRel); removeChecked(data, '.restore-sessions', true); return 0 }
+  mkdirSync(target, { recursive: true })
+  for (const file of files) {
+    const rel = directory + '/' + file.rel.slice('.restore-sessions/'.length)
+    checkPath(home, rel)
+    if (!checkPath(home, rel).info) move(data, file, home, rel)
+  }
+  removeChecked(data, '.restore-sessions', true)
+  removeChecked(data, markerRel)
+  return files.length
+}
+
 /** 启动时、读配置之前应用暂存备份。 */
 export function applyPendingRestore(now = Date.now()) {
+  const resumed = resumePendingSessions()
+  if (resumed || checkPath(dataBoundary(dataDir()), '.restore-sessions-pending.json').info) return resumed
   if (restoreInProgress) throw new Error('另一个备份正在暂存')
   const root = dataDir()
   if (!existsSync(root)) return 0
@@ -688,12 +724,16 @@ export function applyPendingRestore(now = Date.now()) {
         saveOriginal(modulesRel)
         move(data, modules, data, modulesRel)
       }
-      // 有会话暂时没有目标工作区时保留 pending/.restore，挂载后再启动继续。
       if (!sessionMissing) move(data, { rel: pendingRel, key: pending.key }, data, job + '/committed.json')
     })
-    // 目标工作区不存在时保留会话暂存，别静默丢掉待迁移的会话。
+    // 普通数据已经提交；目标工作区缺失时只保留会话暂存和独立标记，下次启动不再重放配置。
+    if (sessionMissing) {
+      const marker = checkPath(data, '.restore-sessions-pending.json')
+      writeFileSync(marker.path, JSON.stringify({ workspaceDir: info.workspaceDir, home: info.home, at: now }), { mode: 0o600 })
+      removeChecked(data, pendingRel)
+    }
     if (sessions?.target) removeChecked(data, '.restore-sessions', true)
-    if (!sessionMissing) removeChecked(data, '.restore', true)
+    removeChecked(data, '.restore', true) // 普通数据已提交；会话有独立暂存和标记
     prunePreRestore()
     return files.length
   } catch (error) {

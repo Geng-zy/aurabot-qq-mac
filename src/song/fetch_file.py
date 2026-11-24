@@ -53,6 +53,11 @@ def fetch(opener, url, part, want, can_switch):
     headers = {'User-Agent': 'aurabot'}
     if have:
         headers['Range'] = 'bytes=%d-' % have
+        try:
+            etag = open(part + '.etag', encoding='utf-8').read().strip()
+        except Exception:
+            etag = ''
+        if etag: headers['If-Range'] = etag
     req = urllib.request.Request(url, headers=headers)
     with opener.open(req, timeout=STALL) as r:
         # HEAD 不可用时，GET 自己的 Content-Length / Content-Range 也能判断是否截断。
@@ -77,6 +82,9 @@ def fetch(opener, url, part, want, can_switch):
         # 服务器不支持续传就从头来
         try:
             with open(source_file, 'w', encoding='utf-8') as sf: sf.write(url)
+            etag = r.headers.get('ETag')
+            if etag:
+                with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(etag)
         except OSError: pass
         last_print = 0
         window_start, window_bytes = time.time(), 0
@@ -118,28 +126,31 @@ def main():
     dest, urls = args[0], args[1:]
     socket.setdefaulttimeout(STALL)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler(urllib.request.getproxies()))
-    part = dest + '.download'
-    source_file = part + '.source'
+    part_base = dest + '.download'
     os.makedirs(os.path.dirname(dest) or '.', exist_ok=True)
-    want = 0
     last_err = None
     for rnd in range(ROUNDS):
         for url in urls:
+            part = part_base + '.' + hashlib.sha1(url.encode('utf-8')).hexdigest()[:10]
+            source_file = part + '.source'
             try:
-                if not want:
-                    want = total_size(opener, url)
+                want = total_size(opener, url)
                 # 最后一轮不再嫌慢，慢也下完
                 if fetch(opener, url, part, want, can_switch=len(urls) > 1 and rnd < ROUNDS - 1):
                     if expect:
                         got = sha256_of(part)
                         if got != expect:
                             os.remove(part)
+                            for clean in (source_file, part + '.etag'):
+                                try: os.remove(clean)
+                                except OSError: pass
                             raise ValueError('校验对不上（%s…），这个源的文件不对' % got[:12])
                     if os.path.exists(dest):
                         os.remove(dest)
                     os.replace(part, dest)
-                    try: os.remove(source_file)
-                    except OSError: pass
+                    for clean in (source_file, part + '.etag'):
+                        try: os.remove(clean)
+                        except OSError: pass
                     print('done', os.path.getsize(dest), flush=True)
                     return 0
             except Exception as e:  # 断了、卡住、太慢、地址不行：换下一个地址，已下载的部分保留
