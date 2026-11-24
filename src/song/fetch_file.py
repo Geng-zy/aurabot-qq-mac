@@ -36,15 +36,20 @@ def fetch(opener, url, part, want, can_switch):
     have = os.path.getsize(part) if os.path.exists(part) else 0
     source_file = part + '.source'
     # 分片必须来自同一个镜像/对象；换源时不能把旧前缀拼到新响应上。
+    etag_file = part + '.etag'
+    try: old_etag = open(etag_file, encoding='utf-8').read().strip()
+    except Exception: old_etag = ''
     if have:
         try:
             old_source = open(source_file, encoding='utf-8').read()
         except Exception:
             old_source = ''
-        if old_source != url:
+        # 没有可信 ETag 时不能把旧前缀续到新响应上，直接全量。
+        if old_source != url or not old_etag:
             os.remove(part)
-            try: os.remove(source_file)
-            except OSError: pass
+            for clean in (source_file, etag_file):
+                try: os.remove(clean)
+                except OSError: pass
             have = 0
     if want and have >= want:
         # 旧分片达到或超过目标，无法确认内容；统一从头重新下载。
@@ -53,11 +58,7 @@ def fetch(opener, url, part, want, can_switch):
     headers = {'User-Agent': 'aurabot'}
     if have:
         headers['Range'] = 'bytes=%d-' % have
-        try:
-            etag = open(part + '.etag', encoding='utf-8').read().strip()
-        except Exception:
-            etag = ''
-        if etag: headers['If-Range'] = etag
+        if old_etag: headers['If-Range'] = old_etag
     req = urllib.request.Request(url, headers=headers)
     with opener.open(req, timeout=STALL) as r:
         # HEAD 不可用时，GET 自己的 Content-Length / Content-Range 也能判断是否截断。
@@ -71,6 +72,9 @@ def fetch(opener, url, part, want, can_switch):
             m = re.match(r'bytes\s+(\d+)-(\d+)/(\d+)', cr.strip(), re.I)
             if not m:
                 raise IOError('206 响应缺少有效的 Content-Range')
+            new_etag = r.headers.get('ETag')
+            if old_etag and new_etag and new_etag != old_etag:
+                raise IOError('续传对象的 ETag 已变化')
             start, end, total = map(int, m.groups())
             if start != have or end < start:
                 raise IOError('续传区间不对：请求 %d，返回 %d-%d' % (have, start, end))

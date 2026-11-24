@@ -81,6 +81,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     s.history.unshift({ at: Date.now(), ...item })
     s.history = s.history.slice(0, 30)
     if (counts) s.count++ // 只有评论算进每天的上限，点赞不算
+    try { save(s) } catch (error) { log.warn?.('空间状态保存失败：', error.message) }
   }
 
   async function sendComment(tid, content, targetUin) {

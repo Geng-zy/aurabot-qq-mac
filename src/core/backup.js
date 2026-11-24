@@ -54,7 +54,7 @@ const KEEP_PRE_RESTORE = 10
  * 不进备份的东西。logs、缓存没有价值；edge-profile 是浏览器资料，登录态绑定这台电脑，
  * 带过去也用不了。模块库模块不打包，恢复后按名单重新下载。
  */
-const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache']
+const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache']
 // 仅配置备份：媒体不进包，但保留体积很小的聊天流水和当前工作区 DSH 会话
 // 旧版的截图库仍可能留在数据目录，继续排除在仅配置备份之外。
 const CONFIG_ONLY_SKIP = ['imagegen', 'stickers']
@@ -166,6 +166,7 @@ async function readBackupFile(base, entry) {
 const backupsDir = () => dataDir('backups')
 const stageDir = () => dataDir('.restore')
 const sessionStage = () => dataDir('.restore-sessions')
+const sessionMarker = () => dataDir('.restore-sessions-pending.json')
 const pendingFile = () => dataDir('.restore-pending.json')
 const modulesFile = () => dataDir('.restore-modules.json')
 const SOURCE_FILE = '.aurabot-source.json'
@@ -511,6 +512,9 @@ async function stageBackup(path, received) {
 
     await mkdir(dataDir(), { recursive: true })
     data = dataBoundary(dataDir())
+    // 新备份取代旧的延期会话；旧标记不能挡住新任务。
+    removeChecked(data, '.restore-sessions-pending.json')
+    removeChecked(data, '.restore-sessions', true)
     job = '.restore-stage-' + randomUUID() + '.tmp'
     mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
     let files = 0
@@ -652,11 +656,13 @@ function resumePendingSessions() {
   const files = listFiles(data, '.restore-sessions')
   if (!files.length) { removeChecked(data, markerRel); removeChecked(data, '.restore-sessions', true); return 0 }
   mkdirSync(target, { recursive: true })
-  for (const file of files) {
-    const rel = directory + '/' + file.rel.slice('.restore-sessions/'.length)
-    checkPath(home, rel)
-    if (!checkPath(home, rel).info) move(data, file, home, rel)
-  }
+  runRestoreMoves((move) => {
+    for (const file of files) {
+      const rel = directory + '/' + file.rel.slice('.restore-sessions/'.length)
+      checkPath(home, rel)
+      if (!checkPath(home, rel).info) move(data, file, home, rel)
+    }
+  })
   removeChecked(data, '.restore-sessions', true)
   removeChecked(data, markerRel)
   return files.length
@@ -782,6 +788,8 @@ export function cancelRestore() {
   rmSync(stageDir(), { recursive: true, force: true })
   rmSync(sessionStage(), { recursive: true, force: true })
   rmSync(pendingFile(), { force: true })
+  rmSync(sessionMarker(), { force: true })
+  rmSync(sessionStage(), { recursive: true, force: true })
   try { rmSync(join(backupsDir(), 'incoming.zip'), { force: true }) } catch {}
 }
 
