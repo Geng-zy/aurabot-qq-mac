@@ -40,6 +40,7 @@ import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../
 import { createFileRelay } from './file-relay.js'
 import { FILE_TIMEOUT_MS, fileRootsOf, insideRoots, checkSendableFile } from './file-policy.js'
 import { createFileSender } from './send-file.js'
+import { localImageBlocked } from './image-policy.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1266,19 +1267,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return result(delivered ? 'delivered' : 'unconfirmed')
   }
 
-  /** 她回复里写的本机图片：管理员私聊之外只认工作区、允许目录和插件数据目录，防止被人诱导发出电脑上的图。 */
-  function localImageBlocked(chatId, src) {
-    const cfg = getConfig()
-    const info = chatInfo(chatId)
-    const owner = String(cfg.platforms?.[info.platform]?.ownerQQ || cfg.ownerQQ || '')
-    if (info.kind === 'private' && info.id === owner) return false
-    const s = String(src ?? '').trim()
-    if (!isAbsolute(s) && !/^file:/i.test(s)) return false
-    try {
-      return !insideRoots(/^file:/i.test(s) ? fileURLToPath(s) : s, [...fileRootsOf(cfg, workspaceDirOf), dataDir()])
-    } catch (error) { return true }
-  }
-
   /**
    * 发一张图。本地绝对路径（或 file://）先试「路径直发」——网关和 NapCat 在同一台机器/共享挂载时，省掉读盘和
    * base64 膨胀（#169）。只有网关明确拒绝（路径读不到、retcode 非 0）才改用 base64；超时、断线可能已经发出去了，
@@ -1469,7 +1457,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
           if (!opts.simulate && await pokeBack(chatId)) scope.delivered.push({ kind: 'poke' })
         }
         else if (it.kind === 'image') {
-          if (localImageBlocked(chatId, it.value)) log.warn(`${chatId}：回复里的本机图片不在允许的目录里，没发`)
+          if (localImageBlocked(chatId, it.value, { getConfig, chatInfo, workspaceDirOf, dataDir })) log.warn(`${chatId}：回复里的本机图片不在允许的目录里，没发`)
           else await sendImage(chatId, it.value, replyId, userId, sendOptions)
         }
         if (scope.delivered.length + scope.queued + scope.simulated > receipts) unconfirmed--
