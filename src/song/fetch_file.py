@@ -34,6 +34,18 @@ def total_size(opener, url):
 
 def fetch(opener, url, part, want, can_switch):
     have = os.path.getsize(part) if os.path.exists(part) else 0
+    source_file = part + '.source'
+    # 分片必须来自同一个镜像/对象；换源时不能把旧前缀拼到新响应上。
+    if have:
+        try:
+            old_source = open(source_file, encoding='utf-8').read()
+        except Exception:
+            old_source = ''
+        if old_source != url:
+            os.remove(part)
+            try: os.remove(source_file)
+            except OSError: pass
+            have = 0
     if want and have >= want:
         # 旧分片达到或超过目标，无法确认内容；统一从头重新下载。
         os.remove(part)
@@ -63,6 +75,9 @@ def fetch(opener, url, part, want, can_switch):
         elif header_len:
             want = have + header_len
         # 服务器不支持续传就从头来
+        try:
+            with open(source_file, 'w', encoding='utf-8') as sf: sf.write(url)
+        except OSError: pass
         last_print = 0
         window_start, window_bytes = time.time(), 0
         with open(part, mode) as f:
@@ -104,6 +119,7 @@ def main():
     socket.setdefaulttimeout(STALL)
     opener = urllib.request.build_opener(urllib.request.ProxyHandler(urllib.request.getproxies()))
     part = dest + '.download'
+    source_file = part + '.source'
     os.makedirs(os.path.dirname(dest) or '.', exist_ok=True)
     want = 0
     last_err = None
@@ -122,6 +138,8 @@ def main():
                     if os.path.exists(dest):
                         os.remove(dest)
                     os.replace(part, dest)
+                    try: os.remove(source_file)
+                    except OSError: pass
                     print('done', os.path.getsize(dest), flush=True)
                     return 0
             except Exception as e:  # 断了、卡住、太慢、地址不行：换下一个地址，已下载的部分保留

@@ -658,6 +658,7 @@ export function applyPendingRestore(now = Date.now()) {
     if (current.info) originals.set(rel, { rel, key: current.key })
   }
   const sessions = planSessionRestore(data, info)
+  const sessionMissing = Boolean(sessions && !sessions.target)
   const configText = finalConfig(data, config.file, info, root, sessions?.target)
   const job = '.restore-apply-' + randomUUID() + '.tmp'
   mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
@@ -687,12 +688,12 @@ export function applyPendingRestore(now = Date.now()) {
         saveOriginal(modulesRel)
         move(data, modules, data, modulesRel)
       }
-      // 最后移走待恢复标记，之后的清理失败不改变已提交的恢复结果。
-      move(data, { rel: pendingRel, key: pending.key }, data, job + '/committed.json')
+      // 有会话暂时没有目标工作区时保留 pending/.restore，挂载后再启动继续。
+      if (!sessionMissing) move(data, { rel: pendingRel, key: pending.key }, data, job + '/committed.json')
     })
     // 目标工作区不存在时保留会话暂存，别静默丢掉待迁移的会话。
     if (sessions?.target) removeChecked(data, '.restore-sessions', true)
-    removeChecked(data, '.restore', true)
+    if (!sessionMissing) removeChecked(data, '.restore', true)
     prunePreRestore()
     return files.length
   } catch (error) {

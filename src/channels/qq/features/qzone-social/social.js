@@ -57,6 +57,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   const load = () => readJson(file(), () => ({ day: '', count: 0, lastRun: 0, replied: {}, seen: [], history: [] }))
   const save = (s) => writeJson(file(), s)
   let busy = false
+  let previewTask = false // 任务启动时是否试运行；中途切正式模式不能把已开始的预览发出去
 
   const self = () => String(hub.selfId || getConfig().botQQ)
   const owner = () => getConfig().ownerName || '管理员'
@@ -85,7 +86,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   async function sendComment(tid, content, targetUin) {
     const cfg = getConfig()
     if (!cfg.enabled || !cfg.qzoneSocial.enabled || cfg.debug) return false
-    if (cfg.dryRun) {
+    if (previewTask || cfg.dryRun) {
       log.info(`试运行：本来要在空间评论（${targetUin || '自己'} / ${tid}）：${content}`)
       return false // 试运行不算已交付，不能标记 handled 或消耗当天额度
     }
@@ -206,6 +207,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
       if (allowed !== true) return { ok: false, message: allowed }
     }
     busy = true
+    previewTask = cfg.dryRun
     const s = load()
     if (s.day !== dayKey()) Object.assign(s, { day: dayKey(), count: 0 })
     const repliesEnabled = scope !== 'friends' && c.replyOwn
@@ -223,6 +225,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     } finally {
       try { save(s) } catch (error) { log.warn?.('空间状态保存失败：', error.message) }
       busy = false
+      previewTask = false
     }
   }
 

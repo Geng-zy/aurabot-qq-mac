@@ -72,22 +72,26 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     const photo = Array.isArray(msg.photo) && msg.photo.length ? msg.photo.at(-1) : null
     let images = []
     if (photo?.file_id) {
-      try {
-        const info = await call('getFile', { file_id: photo.file_id }, { signal, timeoutMs: 15000 })
-        const path = String(info?.file_path || '')
-        if (path) {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const info = await call('getFile', { file_id: photo.file_id }, { signal, timeoutMs: 15000 })
+          const path = String(info?.file_path || '')
+          if (!path) throw new Error('getFile 没有返回 file_path')
           const fileUrl = `${String(cfg().apiBase || 'https://api.telegram.org').replace(/\/+$/, '')}/file/bot${token()}/${path}`
           signal?.throwIfAborted?.()
           const r = await fetchImpl(fileUrl, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000) })
-          if (r.ok) {
-            const buf = Buffer.from(await r.arrayBuffer())
-            if (buf.length && buf.length <= 20 * 1024 * 1024) {
-              images = [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') }, mediaType: String(r.headers?.get?.('content-type') || 'image/jpeg') }]
-            }
-          }
+          if (!r.ok) throw new Error(`图片下载 HTTP ${r.status}`)
+          const buf = Buffer.from(await r.arrayBuffer())
+          if (!buf.length || buf.length > 20 * 1024 * 1024) throw new Error('图片为空或过大')
+          images = [{ type: 'image', data: { file: 'base64://' + buf.toString('base64') }, mediaType: String(r.headers?.get?.('content-type') || 'image/jpeg') }]
+          break
+        } catch (error) {
+          if (signal?.aborted || attempt === 3) { log.warn?.('Telegram 图片下载失败：', error.message); break }
+          await sleep(250 * attempt)
         }
-      } catch (error) { log.warn?.('Telegram 图片下载失败：', error.message) }
+      }
     }
+    if (!text && !images.length && photo?.file_id) return null
     const entities = [...(msg.entities || []), ...(msg.caption_entities || [])].filter((e) => e?.type === 'mention' && Number.isInteger(e.offset) && Number.isInteger(e.length))
     const handles = entities.map((e) => text.slice(e.offset, e.offset + e.length).replace(/^@/, '').toLowerCase()).filter(Boolean)
     const botName = String(me?.username || '').toLowerCase()

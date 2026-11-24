@@ -162,6 +162,8 @@ async function fetchAudio(url, init, timeoutMs = 120000) {
 }
 
 function saveAudio(buf, sampleRate) {
+  const sniff = buf.subarray(0, 512).toString('utf8').trim().toLowerCase()
+  if (/^<(?:!doctype|html|head|body)/.test(sniff)) throw new Error('语音服务返回了网页而不是音频')
   const isWav = buf.toString('ascii', 0, 4) === 'RIFF'
   const isMp3 = buf.toString('ascii', 0, 3) === 'ID3' || (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0)
   const isOgg = buf.toString('ascii', 0, 4) === 'OggS'
