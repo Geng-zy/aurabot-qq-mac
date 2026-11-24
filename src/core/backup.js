@@ -661,6 +661,7 @@ function resumePendingSessions() {
   const directory = 'sessions/' + sessionDirName(target)
   const files = listFiles(data, '.restore-sessions')
   const sessionIdPath = checkPath(data, '.restore-sessions/.restore-stage-id')
+  if (sessionIdPath.info && !info.stageId) throw new Error('旧版延期标记与新版会话暂存混用；请先取消或重新导入原 ZIP')
   if (info.stageId && sessionIdPath.info && readFileSync(sessionIdPath.path, 'utf8') !== info.stageId) throw new Error('延期会话暂存与任务标记不一致；请重新导入原 ZIP')
   if (!files.length) { removeChecked(data, markerRel); removeChecked(data, '.restore-sessions', true); return 0 }
   mkdirSync(target, { recursive: true })
@@ -781,7 +782,7 @@ function planSessionRestore(data, info) {
   mkdirSync(homeRoot, { recursive: true })
   const home = dataBoundary(homeRoot)
   const directory = 'sessions/' + sessionDirName(target)
-  const files = listFiles(data, '.restore-sessions').map((file) => {
+  const files = listFiles(data, '.restore-sessions').filter((file) => !file.rel.endsWith('/.restore-stage-id')).map((file) => {
     const rel = directory + '/' + file.rel.slice('.restore-sessions/'.length)
     checkPath(home, rel)
     return { file, rel }

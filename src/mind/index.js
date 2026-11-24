@@ -83,6 +83,7 @@ export function createMind(opts) {
    */
   function updateSettings(patch, by = 'owner') {
     const saved = savedSettings()
+    const next = { ...saved }
     const excerpts = setting('memory.ownerEverydayExcerpts')
     const changed = []
     for (const [key, value] of Object.entries(patch || {})) {
@@ -90,11 +91,12 @@ export function createMind(opts) {
       if (!p) continue
       if (p.ownerOnly && by !== 'owner') throw new Error(`「${p.label}」只能由管理员设置`)
       if (key === 'identity.timezone' && !validTimeZone(value)) throw new Error('时区不认识：' + value)
-      saved[key] = clampParam(p, value)
+      next[key] = clampParam(p, value)
       changed.push(key)
-      if (key === 'identity.age') store.set('identity.ageSetAt', now())
     }
-    store.set('settings', saved)
+    // 全部校验通过后才提交，避免后面的非法项留下半个设置和一个新的年龄锚点。
+    for (const key of changed) if (key === 'identity.age') store.set('identity.ageSetAt', now())
+    store.set('settings', next)
     if (setting('memory.ownerEverydayExcerpts') !== excerpts) memory.touchAudience()
     return changed
   }

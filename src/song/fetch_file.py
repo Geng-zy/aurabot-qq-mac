@@ -98,11 +98,17 @@ def fetch(opener, url, part, want, can_switch):
                 with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(etag)
         except OSError: pass
         committed = have
+        write_part = part
+        if mode == 'wb' and have > 0:
+            # 完整 200 先写临时文件，断流时保留旧分片/ETag 供下次续传。
+            write_part = part + '.full'
+            try: os.remove(write_part)
+            except OSError: pass
         last_print = 0
         received = 0
         window_start, window_bytes = time.time(), 0
         try:
-            with open(part, mode) as f:
+            with open(write_part, mode) as f:
                 while True:
                     chunk = r.read(1 << 20)
                     if not chunk:
@@ -120,15 +126,24 @@ def fetch(opener, url, part, want, can_switch):
                             raise TooSlow('%.0f KB/s' % (window_bytes / (now - window_start) / 1024))
                         window_start, window_bytes = now, 0
         except Exception:
-            try: os.truncate(part, committed)
-            except OSError: pass
+            if write_part != part:
+                try: os.remove(write_part)
+                except OSError: pass
+            else:
+                try: os.truncate(part, committed)
+                except OSError: pass
             raise
     if range_len and received != range_len:
         try: os.truncate(part, committed)
         except OSError: pass
         raise IOError('206 正文长度不对：收到 %d，声明 %d' % (received, range_len))
     if want and have != want:
+        if write_part != part:
+            try: os.remove(write_part)
+            except OSError: pass
         raise IOError('下载长度不对：%d/%d 字节' % (have, want))
+    if write_part != part:
+        os.replace(write_part, part)
     return True
 
 

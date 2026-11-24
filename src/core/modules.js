@@ -8,7 +8,8 @@
 //
 // 接口说明给写模块的人看：src/modules/API.md（每次启动复制到数据目录 modules/ 里）。
 
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { dataDir } from './store.js'
@@ -80,10 +81,14 @@ function filesOf(dir, base = dir, out = []) {
 
 /** 模块的「版本戳」：任何文件改了、加了、删了都会变。 */
 function stampOf(dir) {
-  let t = 0
-  const files = filesOf(dir)
-  for (const f of files) { try { t = Math.max(t, statSync(join(dir, f)).mtimeMs) } catch (error) {} }
-  return Math.round(t) + files.length / 1000
+  const h = createHash('sha256')
+  for (const f of filesOf(dir).sort()) {
+    h.update(relative(dir, join(dir, f)))
+    h.update('\0')
+    try { h.update(readFileSync(join(dir, f))) } catch (error) { h.update('missing') }
+    h.update('\0')
+  }
+  return h.digest('hex')
 }
 const entryOf = (dir) => ENTRY.map((n) => join(dir, n)).find((p) => existsSync(p)) || ''
 
