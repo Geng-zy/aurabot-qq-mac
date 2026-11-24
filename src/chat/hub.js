@@ -41,6 +41,7 @@ import { FILE_TIMEOUT_MS, fileRootsOf, insideRoots, checkSendableFile } from './
 import { createFileSender } from './send-file.js'
 import { localImageBlocked } from './image-policy.js'
 import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
+import { createTextSender } from './send-text.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1084,31 +1085,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   const mention = (userId, segs = []) => (userId && !segs.some((s) => s.type === 'at' && String(s.data?.qq) === String(userId)) ? [{ type: 'at', data: { qq: String(userId) } }, { type: 'text', data: { text: ' ' } }] : [])
 
-  async function sendText(chatId, text, replyId, missed, userId, opts = {}) {
-    // 先清洗，避免调用参数或提示词里的 @ / 表情变成真正的消息段。
-    text = cleanOutboundText(text, cleaningFor(chatId))
-    if (!text.trim()) return null
-    // 文字里的 <face:名字> 换成 QQ 系统表情，和文字在同一条消息里；系统表情关着就去掉标签
-    const channel = channelOf(chatId)
-    let segs = opts.literalCode ? [{ type: 'text', data: { text } }] : channel?.textSegments ? channel.textSegments(text, Boolean(getConfig().stickers.faces && channel.caps?.faces)) : [{ type: 'text', data: { text: stripFaceTags(text) } }]
-    // 群里的 @名字 / <at:QQ号> 换成真 @（对方会收到提醒）
-    const info = chatInfo(chatId)
-    if (!opts.literalCode && info.kind === 'group' && hasMention(text)) segs = expandMentions(segs, await membersOf(info.id, info.platform), missed)
-    if (!segs.length || (segs.length === 1 && segs[0].type === 'text' && !segs[0].data.text.trim())) return null
-    const message = [...quote(replyId), ...mention(userId, segs), ...segs]
-    const note = (replyId ? '[引用] ' : '') + text.slice(0, 60)
-    // 引用/at 是“附加段”：网关拒绝过期引用或失效 @ 时整条会丢。明确失败时剥掉锚点重发正文。
-    if (!replyId && !userId) return sendSegments(chatId, message, note, opts)
-    try {
-      return await sendSegments(chatId, message, note, { ...opts, throwOnError: true })
-    } catch (error) {
-      if (!definiteFailure(chatId, error)) return null
-      const fallback = segs.filter((seg) => seg.type !== 'reply' && seg.type !== 'at')
-      if (!fallback.length) return null
-      log.warn(`引用/@ 被网关拒绝，剥掉锚点重发正文（${chatId}）：`, error.message)
-      return sendSegments(chatId, fallback, note, opts)
-    }
-  }
+  const sendText = createTextSender({
+    cleanOutboundText, cleaningFor, channelOf, getConfig, stripFaceTags,
+    chatInfo, hasMention, membersOf, expandMentions, quote, mention,
+    sendSegments, definiteFailure, log,
+  })
 
   async function sendVoice(chatId, text, replyId, userId, opts = {}) {
     text = cleanOutboundText(text, cleaningFor(chatId))
