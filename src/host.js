@@ -55,6 +55,7 @@ import { createKnowledge } from './features/knowledge.js'
 import { createMindAdapter } from './mind-adapter/index.js'
 import { createPurgeScope } from './integration/purge-scope.js'
 import { installPromptVariables } from './host/prompt-vars.js'
+import { applyPanelSave } from './host/panel-save.js'
 import { createHttpKit } from './host/http.js'
 import { installPersonaHoist } from './integration/persona-hoist.js'
 import { createLocalInstaller } from './mind-adapter/install.js'
@@ -710,27 +711,20 @@ export function apply(ctx) {
   route('/usage', async (req) => ({ ok: true, ...usageReport({ range: query(req).range || '7' }) }))
 
   route('/save', async (req) => {
-    const body = await readBody(req)
-    const before = cfg
-    setConfig(mergeFromPanel(cfg, body))
-    // 换了模型：思考强度和「能不能看图」的探测结果都得重来，不然要等 10 分钟缓存过期
-    const changedModel = before.model.provider !== cfg.model.provider || before.model.model !== cfg.model.model
-    if (changedModel) { clearReasoningCache(); clearVisionCache() }
-    if (!before.enabled && cfg.enabled) setTimeout(safe(watchdog, '看门狗'), 100)
-    if (before.enabled && !cfg.enabled) qq.stop()
-    log.info(`设置已保存｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun && !cfg.debug ? '开' : '关'}｜调试 ${cfg.debug ? '开' : '关'}`)
-    await mods.sync().catch(() => {})
-    // 一开调试就把管理员私聊的调试会话建出来，省得你还得先发条 QQ 消息才有会话说
-    let debugNote = ''
-    if (cfg.debug) {
-      try {
-        const d = await hub.ensureDebugSession()
-        debugNote = d.created ? '，调试会话已建好' : ''
-      } catch (error) {
-        log.debug('建调试会话失败：', error.message)
-      }
-    }
-    return { ...(await overview()), message: '保存好了' + debugNote }
+    const saved = await applyPanelSave({
+      body: await readBody(req),
+      getConfig: () => cfg,
+      setConfig,
+      mergeFromPanel,
+      clearReasoningCache,
+      clearVisionCache,
+      startWatchdog: () => setTimeout(safe(watchdog, '看门狗'), 100),
+      qq,
+      log,
+      mods,
+      hub,
+    })
+    return { ...(await overview()), message: saved.message }
   })
 
   // 手动把调试会话建出来（默认一开调试就自动建，这个是为了重开面板后能再确认一次）
