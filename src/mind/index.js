@@ -98,16 +98,19 @@ export function createMind(opts) {
     store.tx(() => {
       if (changed.includes('identity.age')) store.set('identity.ageSetAt', now())
       store.set('settings', next)
+      if (next['memory.ownerEverydayExcerpts'] !== excerpts) memory.touchAudience()
     })
-    if (setting('memory.ownerEverydayExcerpts') !== excerpts) memory.touchAudience()
     return changed
   }
   function resetSetting(key) {
     const saved = savedSettings()
     const previous = setting(key)
     delete saved[key]
-    store.set('settings', saved)
-    if (key === 'memory.ownerEverydayExcerpts' && setting(key) !== previous) memory.touchAudience()
+    const next = resolveSettings(saved)
+    store.tx(() => {
+      store.set('settings', saved)
+      if (key === 'memory.ownerEverydayExcerpts' && next[key] !== previous) memory.touchAudience()
+    })
   }
 
   const tz = () => setting('identity.timezone')

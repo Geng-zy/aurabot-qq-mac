@@ -54,7 +54,7 @@ const KEEP_PRE_RESTORE = 10
  * 不进备份的东西。logs、缓存没有价值；edge-profile 是浏览器资料，登录态绑定这台电脑，
  * 带过去也用不了。模块库模块不打包，恢复后按名单重新下载。
  */
-const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-stage-id', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache']
+const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-stage-id', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache', '.aurabot-cache']
 // 仅配置备份：媒体不进包，但保留体积很小的聊天流水和当前工作区 DSH 会话
 // 旧版的截图库仍可能留在数据目录，继续排除在仅配置备份之外。
 const CONFIG_ONLY_SKIP = ['imagegen', 'stickers']
@@ -716,7 +716,8 @@ export function applyPendingRestore(now = Date.now()) {
     if (current.info) originals.set(rel, { rel, key: current.key })
   }
   const sessions = planSessionRestore(data, info)
-  const stagedSessions = listFiles(data, '.restore-sessions').filter((file) => !file.rel.endsWith('/.restore-stage-id'))
+  const stagedDir = checkPath(data, '.restore-sessions', { directory: true })
+  const stagedSessions = stagedDir.info ? listFiles(data, '.restore-sessions').filter((file) => !file.rel.endsWith('/.restore-stage-id')) : []
   const sessionMissing = Boolean(sessions && !sessions.target && stagedSessions.length)
   const configText = finalConfig(data, config.file, info, root, sessions?.target)
   const job = '.restore-apply-' + randomUUID() + '.tmp'

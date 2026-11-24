@@ -96,7 +96,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
     const root = join(u.dir, SNAP)
     const snap = join(root, String(stamp).replace('.', '-'))
     const complete = join(snap, '.complete')
-    if (!existsSync(complete)) {
+    if (!existsSync(complete) || stampOf(snap) !== stamp) {
       const tmp = join(root, '.tmp-' + randomUUID())
       try {
         for (const f of filesOf(u.dir)) {
@@ -105,6 +105,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
           copyFileSync(join(u.dir, f), target)
           if (statSync(target).size !== statSync(join(u.dir, f)).size) throw new Error('快照复制不完整：' + f)
         }
+        if (stampOf(tmp) !== stamp) throw new Error('快照内容在复制期间发生变化')
         writeFileSync(join(tmp, '.complete'), 'ok')
         rmSync(snap, { recursive: true, force: true })
         renameSync(tmp, snap)

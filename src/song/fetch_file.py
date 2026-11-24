@@ -96,9 +96,7 @@ def fetch(opener, url, part, want, can_switch):
         try:
             with open(source_file, 'w', encoding='utf-8') as sf: sf.write(url)
             new_etag = r.headers.get('ETag') or ''
-            if new_etag:
-                with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(new_etag)
-        except OSError: pass
+        except OSError: new_etag = ''
         committed = have
         write_part = part
         if mode == 'wb' and old_have > 0:
@@ -132,8 +130,14 @@ def fetch(opener, url, part, want, can_switch):
                 try: os.remove(write_part)
                 except OSError: pass
             else:
-                try: os.truncate(part, committed)
-                except OSError: pass
+                # 首次完整下载的连续前缀保留；已确认 ETag 时下次可 Range 续传。
+                if old_have > 0:
+                    try: os.truncate(part, committed)
+                    except OSError: pass
+                elif new_etag:
+                    try:
+                        with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(new_etag)
+                    except OSError: pass
             raise
     if range_len and received != range_len:
         try: os.truncate(part, committed)
@@ -144,11 +148,15 @@ def fetch(opener, url, part, want, can_switch):
             try: os.remove(write_part)
             except OSError: pass
         raise IOError('下载长度不对：%d/%d 字节' % (have, want))
-    if not new_etag:
-        try: os.remove(part + '.etag')
-        except OSError: pass
     if write_part != part:
         os.replace(write_part, part)
+    if new_etag:
+        try:
+            with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(new_etag)
+        except OSError: pass
+    else:
+        try: os.remove(part + '.etag')
+        except OSError: pass
     return True
 
 
