@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.51
+
+- 平台状态、QQ 诊断/重连/登录测试路由从 host.js 拆到 features/platform-routes.js。
+- 保留 /platforms 与 /onebot 旧入口，发送测试和通道启停仍留在宿主。
+- 回归：397 个语法文件、lint 0 errors、备份/E2E 127 个测试通过。
+
 ## 1.5.50
 
 - 知识库面板路由从 host.js 拆到 features/knowledge-routes.js。

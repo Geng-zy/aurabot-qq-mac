@@ -47,6 +47,7 @@ import { createBridge } from './core/bridge.js'
 import { registerBackupRestoreRoutes } from './features/backup-routes.js'
 import { registerBackupCloudRoutes } from './features/backup-cloud-routes.js'
 import { registerKnowledgeRoutes } from './features/knowledge-routes.js'
+import { registerPlatformRoutes } from './features/platform-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
@@ -790,23 +791,7 @@ export function apply(ctx) {
     log.info('首次使用向导完成')
     return { ...(await overview()), message: '设置完成，大肥鱼可以上线啦' }
   })
-  // 通用平台入口；QQ 的旧 onebot 路由保留。
-  route('/platforms', async () => ({ ok: true, list: channels.status() }))
-  route('/platforms/qq/diagnose', async () => qq.diagnose())
-  route('/platforms/qq/reconnect', async () => qq.reconnect())
-  // 一键诊断：顺着 OrbStack → SnowLuma 容器 → 端口 → 连上 → 登录的号 → 在线 一项项看
-  route('/onebot/diagnose', async () => qq.diagnose())
-  route('/onebot/reconnect', async () => qq.reconnect())
-  route('/onebot/test', async () => {
-    try {
-      const info = await onebot.call('get_login_info', {}, { timeoutMs: 8000 })
-      const uin = String(info?.user_id ?? '')
-      const botQQ = String(cfg.platforms?.qq?.botQQ || cfg.botQQ || '')
-      return { ok: uin === botQQ, message: uin === botQQ ? `连上了：${info.nickname}（${uin}）` : `连上的是 ${uin}，不是机器人号 ${botQQ}！`, info }
-    } catch (error) {
-      return { ok: false, message: error.message }
-    }
-  })
+  registerPlatformRoutes({ route, channels, qq, onebot, getConfig })
   route('/test-send', async (req) => {
     if (req.method !== 'POST') return { ok: false, message: '请从面板发起发送测试' }
     if (!cfg.enabled) return { ok: false, message: '先打开总开关' }
