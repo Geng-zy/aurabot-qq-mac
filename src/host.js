@@ -50,6 +50,7 @@ import { registerKnowledgeRoutes } from './features/knowledge-routes.js'
 import { registerPlatformRoutes } from './features/platform-routes.js'
 import { registerPanelMiscRoutes } from './features/panel-misc-routes.js'
 import { registerSessionRoutes } from './features/session-routes.js'
+import { registerModelRoutes } from './features/model-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
@@ -812,31 +813,7 @@ export function apply(ctx) {
     if (ok) mind.invalidateMemory()
     return { ok, message: ok ? '已撤回分享' : '没有这个分享' }
   })
-  // 「获取可用模型」：面板填好地址和 Key 后问服务有哪些模型。Key 留空 = 用已经保存的那个（面板不回显已保存的 Key）
-  const SAVED_KEYS = { imageGen: () => cfg.imageGen?.apiKey, asr: () => cfg.voice?.asrApi?.apiKey, mind: () => cfg.mind?.embedKey }
-  const normEndpoint = (v) => String(v || '').trim().replace(/\/+$/, '')
-  const normAsr = (v) => normEndpoint(v).replace(/\/audio\/(?:speech|transcriptions)$/i, '')
-  const savedEndpoint = {
-    imageGen: () => normEndpoint(cfg.imageGen?.provider === 'custom' ? cfg.imageGen?.custom?.url : cfg.imageGen?.baseUrl),
-    asr: () => normAsr(cfg.voice?.asrApi?.baseUrl || ({ siliconflow: 'https://api.siliconflow.cn/v1', openai: 'https://api.openai.com/v1' })[cfg.voice?.asrApi?.provider]),
-    mind: () => mind ? normEndpoint(mind.mind.setting('memory.embedUrl')) : '',
-  }
-  route('/provider-models', async (req) => {
-    const b = await readBody(req)
-    const from = String(b.keyFrom || '')
-    let baseUrl = String(b.baseUrl || '').trim()
-    if (from === 'asr') baseUrl = normAsr(baseUrl)
-    if (!baseUrl && from === 'mind' && mind) baseUrl = String(mind.mind.setting('memory.embedUrl') || '')
-    if (!baseUrl && from === 'asr') baseUrl = savedEndpoint.asr()
-    // 已保存的 Key 只用于它实际绑定的端点；草稿里换了地址就不继承。
-    const sameEndpoint = from && baseUrl && normEndpoint(baseUrl) === savedEndpoint[from]?.()
-    const savedKey = sameEndpoint ? String(SAVED_KEYS[from]?.() || '') : ''
-    try {
-      return await listProviderModels({ baseUrl, apiKey: String(b.apiKey || '').trim() || savedKey, kind: String(b.kind || '') })
-    } catch (error) {
-      return { ok: false, message: error.message }
-    }
-  })
+  registerModelRoutes({ route, readBody, getConfig: () => cfg, getMind: () => mind, listProviderModels })
   route('/mind/settings', async () => {
     if (!mind) return mindOff
     const { GROUPS, PARAMS } = await import('./mind/params.js')
