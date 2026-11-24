@@ -1330,7 +1330,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     const s = String(src ?? '').trim()
     if (!isAbsolute(s) && !/^file:/i.test(s)) return false
     try {
-      return !insideRoots(/^file:/i.test(s) ? fileURLToPath(s) : s, [...fileRootsOf(cfg), dataDir()])
+      return !insideRoots(/^file:/i.test(s) ? fileURLToPath(s) : s, [...fileRootsOf(cfg, workspaceDirOf), dataDir()])
     } catch (error) { return true }
   }
 
@@ -3865,7 +3865,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     sendFile,
     sendSticker,
     sendImage,
-    checkSendableFile,
+    checkSendableFile: (cfg, file) => checkSendableFile(cfg, file, workspaceDirOf),
     sendSegments,
     pushToSession,
     receiveOwnerMessage,
