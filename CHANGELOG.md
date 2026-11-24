@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.50
+
+- 知识库面板路由从 host.js 拆到 features/knowledge-routes.js。
+- 保留列表、读取、搜索、重命名、删除、新建和范围修改的 URL/行为。
+- 回归：396 个语法文件、lint 0 errors、知识库/E2E 110 个测试通过。
+
 ## 1.5.49
 
 - 云备份面板路由从 host.js 拆到 features/backup-cloud-routes.js。
