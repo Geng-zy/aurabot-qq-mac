@@ -123,12 +123,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH `0.2.2-rc.3` or newer. QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.5.46.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.5.47.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.46.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.5.47.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

@@ -41,7 +41,7 @@ import { createCommunity } from './core/community.js'
 import { createApprovalRelay } from './security/approval.js'
 import { createNoticeRelay, normalizeWorkspace } from './features/notice.js'
 import { createHerVoice } from './features/her-voice.js'
-import { applyPendingRestore, cancelRestore, createBackup, inspectBackup, listBackups, pendingModules, pendingRestore, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
+import { applyPendingRestore, cancelPendingSessions, cancelRestore, createBackup, inspectBackup, listBackups, pendingModules, pendingRestore, pendingSessions, retryPendingSessions, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
@@ -1291,7 +1291,7 @@ export function apply(ctx) {
     if (req.method !== 'POST' || req.headers?.['x-aurabot-backup'] !== '1') return { ok: false, message: '请从面板发起操作' }
     return run(req)
   }
-  route('/backup/state', async () => ({ ok: true, job: backupJob, list: listBackups(), pending: pendingRestore(), modules: pendingModules(), dir: dataDir('backups') }))
+  route('/backup/state', async () => ({ ok: true, job: backupJob, list: listBackups(), pending: pendingRestore(), deferredSessions: pendingSessions(), modules: pendingModules(), dir: dataDir('backups') }))
   route('/backup/verify', async (req) => {
     try {
       const body = await readBody(req).catch(() => ({}))
@@ -1320,6 +1320,15 @@ export function apply(ctx) {
   }))
   route('/backup/cancel', backupAction(async () => {
     try { cancelRestore(); return { ok: true, message: '取消了' } } catch (error) { return { ok: false, message: error.message } }
+  }))
+  route('/backup/sessions/retry', backupAction(async () => {
+    try {
+      const n = retryPendingSessions()
+      return n ? { ok: true, files: n, message: `补回了 ${n} 个会话` } : { ok: false, message: '工作区还没挂回，或者没有待迁入的会话' }
+    } catch (error) { return { ok: false, message: error.message } }
+  }))
+  route('/backup/sessions/cancel', backupAction(async () => {
+    try { cancelPendingSessions(); return { ok: true, message: '取消了等待中的会话恢复' } } catch (error) { return { ok: false, message: error.message } }
   }))
   // ---------- 云备份：每天到点自动打包，并把最新备份推到 Gitee 私有仓库（走本机 git）----------
   const alive = () => { try { return !unloaded } catch { return true } }

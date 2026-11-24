@@ -816,6 +816,31 @@ export function pendingRestore() {
   try { return JSON.parse(readFileSync(pendingFile(), 'utf8')) } catch (error) { return null }
 }
 
+/** 面板显示：外盘暂时不在时留下的待迁入会话。 */
+export function pendingSessions() {
+  let info = null
+  try { info = JSON.parse(readFileSync(sessionMarker(), 'utf8')) } catch { return null }
+  if (!info || typeof info !== 'object') return null
+  const dir = checkPath(dataBoundary(dataDir()), '.restore-sessions', { directory: true })
+  const files = dir.info ? listFiles(dataBoundary(dataDir()), '.restore-sessions').filter((file) => !file.rel.endsWith('/.restore-stage-id')) : []
+  let target = String(info.workspaceDir || '')
+  if (info.home && target.toLowerCase().startsWith(String(info.home).toLowerCase())) target = homedir() + target.slice(String(info.home).length)
+  return { target, remaining: files.length, at: info.at || 0 }
+}
+
+/** 面板「继续恢复」：外盘已挂回时只迁入剩余会话。 */
+export function retryPendingSessions() {
+  if (restoreInProgress) throw new Error('另一个备份正在暂存')
+  return resumePendingSessions()
+}
+
+/** 面板「取消等待」：只清延期会话，不动已提交的普通数据。 */
+export function cancelPendingSessions() {
+  if (restoreInProgress) throw new Error('另一个备份正在暂存')
+  rmSync(sessionMarker(), { force: true })
+  rmSync(sessionStage(), { recursive: true, force: true })
+}
+
 /** 本机备份只留最近 10 份，按修改时间从新到旧；上传中的 incoming.zip 不动。 */
 export function pruneLocalBackups(keep = KEEP_BACKUPS) {
   const dir = backupsDir()
