@@ -716,7 +716,8 @@ export function applyPendingRestore(now = Date.now()) {
     if (current.info) originals.set(rel, { rel, key: current.key })
   }
   const sessions = planSessionRestore(data, info)
-  const sessionMissing = Boolean(sessions && !sessions.target)
+  const stagedSessions = listFiles(data, '.restore-sessions').filter((file) => !file.rel.endsWith('/.restore-stage-id'))
+  const sessionMissing = Boolean(sessions && !sessions.target && stagedSessions.length)
   const configText = finalConfig(data, config.file, info, root, sessions?.target)
   const job = '.restore-apply-' + randomUUID() + '.tmp'
   mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
@@ -754,7 +755,7 @@ export function applyPendingRestore(now = Date.now()) {
       writeFileSync(marker.path, JSON.stringify({ workspaceDir: info.workspaceDir, home: info.home, stageId: info.stageId || '', at: now }), { mode: 0o600 })
       removeChecked(data, pendingRel)
     }
-    if (sessions?.target) removeChecked(data, '.restore-sessions', true)
+    if (sessions?.target || !stagedSessions.length) removeChecked(data, '.restore-sessions', true)
     removeChecked(data, '.restore', true) // 普通数据已提交；会话有独立暂存和标记
     removeChecked(data, '.restore-stage-id')
     prunePreRestore()

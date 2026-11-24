@@ -61,13 +61,14 @@ def fetch(opener, url, part, want, can_switch):
         if old_etag: headers['If-Range'] = old_etag
     req = urllib.request.Request(url, headers=headers)
     with opener.open(req, timeout=STALL) as r:
+        if r.status not in (200, 206):
+            raise IOError('HTTP %d：不是可下载的 200/206 响应' % r.status)
         # HEAD 不可用时，GET 自己的 Content-Length / Content-Range 也能判断是否截断。
         # 服务器忽略 Range 返回 200：这是完整文件，必须覆盖旧分片，不能把旧长度加进总长。
+        old_have = have
         mode = 'ab' if have and r.status == 206 else 'wb'
         if mode == 'wb':
             have = 0
-            try: os.remove(part + '.etag')
-            except OSError: pass
         header_len = int(r.headers.get('Content-Length') or 0)
         range_len = 0
         if r.status == 206:
@@ -91,15 +92,16 @@ def fetch(opener, url, part, want, can_switch):
         elif header_len:
             want = have + header_len
         # 服务器不支持续传就从头来
+        new_etag = ''
         try:
             with open(source_file, 'w', encoding='utf-8') as sf: sf.write(url)
-            etag = r.headers.get('ETag')
-            if etag:
-                with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(etag)
+            new_etag = r.headers.get('ETag') or ''
+            if new_etag:
+                with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(new_etag)
         except OSError: pass
         committed = have
         write_part = part
-        if mode == 'wb' and have > 0:
+        if mode == 'wb' and old_have > 0:
             # 完整 200 先写临时文件，断流时保留旧分片/ETag 供下次续传。
             write_part = part + '.full'
             try: os.remove(write_part)
@@ -142,6 +144,9 @@ def fetch(opener, url, part, want, can_switch):
             try: os.remove(write_part)
             except OSError: pass
         raise IOError('下载长度不对：%d/%d 字节' % (have, want))
+    if not new_etag:
+        try: os.remove(part + '.etag')
+        except OSError: pass
     if write_part != part:
         os.replace(write_part, part)
     return True

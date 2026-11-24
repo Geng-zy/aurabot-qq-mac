@@ -94,9 +94,11 @@ export function createMind(opts) {
       next[key] = clampParam(p, value)
       changed.push(key)
     }
-    // 全部校验通过后才提交，避免后面的非法项留下半个设置和一个新的年龄锚点。
-    for (const key of changed) if (key === 'identity.age') store.set('identity.ageSetAt', now())
-    store.set('settings', next)
+    // 全部校验通过后才提交，设置和年龄锚点在同一个事务里。
+    store.tx(() => {
+      if (changed.includes('identity.age')) store.set('identity.ageSetAt', now())
+      store.set('settings', next)
+    })
     if (setting('memory.ownerEverydayExcerpts') !== excerpts) memory.touchAudience()
     return changed
   }

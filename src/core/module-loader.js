@@ -1,6 +1,7 @@
 // 模块生命周期：启动、停止、热重载、同步和卸载。
 // 只依赖 state 与组合根传进来的依赖，不直接碰面板/注册表实现。
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { dirname, join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { registerSecretField } from './config.js'
@@ -94,10 +95,22 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
     const stamp = stampOf(u.dir)
     const root = join(u.dir, SNAP)
     const snap = join(root, String(stamp).replace('.', '-'))
-    if (!existsSync(snap)) {
-      for (const f of filesOf(u.dir)) {
-        mkdirSync(dirname(join(snap, f)), { recursive: true })
-        copyFileSync(join(u.dir, f), join(snap, f))
+    const complete = join(snap, '.complete')
+    if (!existsSync(complete)) {
+      const tmp = join(root, '.tmp-' + randomUUID())
+      try {
+        for (const f of filesOf(u.dir)) {
+          const target = join(tmp, f)
+          mkdirSync(dirname(target), { recursive: true })
+          copyFileSync(join(u.dir, f), target)
+          if (statSync(target).size !== statSync(join(u.dir, f)).size) throw new Error('快照复制不完整：' + f)
+        }
+        writeFileSync(join(tmp, '.complete'), 'ok')
+        rmSync(snap, { recursive: true, force: true })
+        renameSync(tmp, snap)
+      } catch (error) {
+        rmSync(tmp, { recursive: true, force: true })
+        throw error
       }
     }
     // 旧快照删掉（加载过的代码已经在内存里，删文件不影响）
