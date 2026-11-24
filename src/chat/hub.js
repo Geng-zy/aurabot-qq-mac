@@ -38,7 +38,8 @@ import { createQqChannel } from '../channels/qq/index.js'
 import { takeInterim, reasoningOf, rescueFromThinking } from './steps.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
 import { createFileRelay } from './file-relay.js'
-import { FILE_TIMEOUT_MS, FILE_BASE64_MAX, isExternalFile, fileLabel, fileRootsOf, insideRoots, checkSendableFile } from './file-policy.js'
+import { FILE_TIMEOUT_MS, fileRootsOf, insideRoots, checkSendableFile } from './file-policy.js'
+import { createFileSender } from './send-file.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1213,76 +1214,20 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // 所以按本机路径发失败时，小文件会用 base64 再试一次；超时留长一点，别把大文件上传误判成失败。
   // 安全默认（#52）：功能默认关；只允许发 QQ 工作区（她平时写文件的地方）和面板里额外加的目录里的文件；
   // 单个文件有大小上限；只在管理员私聊里能触发；发了什么会写进日志。
-  /** 把一个文件当文件发到 QQ（OneBot upload_private_file / upload_group_file）。file 可以是本机绝对路径、网址或 base64://。 */
-  async function sendFile(chatId, file, name) {
-    if (disposed) return null
-    const cfg = getConfig()
-    const tgt = targetOf(chatId)
-    if (!tgt) return null
-    if (!cfg.files?.enabled) throw new Error('发文件没打开（面板「聊天」页 → 发文件），打开后才能发')
-    const { src, external, size, maxBytes } = checkSendableFile(cfg, file, workspaceDirOf)
-    // 文件显示名也会出现在 QQ 文件卡片上：和正文一样过一遍出站清洗，避免工具文字/提示词借文件名露出。
-    const label = cleanOutboundText(fileLabel(name, src), cleaningFor(chatId)).trim() || '文件'
-    // 模拟测试：只记下来，不真发
-    const cap = captureStore.getStore()
-    if (cap) {
-      cap.push({ chatId, note: `[文件] ${label}`, message: [{ type: 'file', data: { file: src, name: label } }] })
-      return { message_id: 'sim-' + cap.length, simulated: true }
-    }
-    if (cfg.debug) { log.info(`调试（没真发）→ ${chatId}：[文件] ${label}`); return null }
-    if (!cfg.enabled) { log.info(`总开关关着，没发 → ${chatId}：[文件] ${label}`); return null }
-    if (cfg.dryRun) { log.info(`试运行（没真发）→ ${chatId}：[文件] ${label}`); return null }
-    const channel = channelOf(chatId)
-    if (!channel?.sendFile || !channel.caps?.files) throw new Error('这个平台发不了文件')
-    const srcLabel = external ? (src.startsWith('base64://') ? 'base64' : '外部地址') : size < 1024 ? size + ' B' : Math.round(size / 1024) + ' KB'
-    // 「按路径直发」关着（默认）：网关在 Docker 里读不到本机路径，不先按路径试一次，
-    // 直接走 base64 / 下载口——按路径试必定失败，结果不确定时还不能重发，文件就丢了。
-    const byPath = external || cfg.files?.imageByPath !== false
-    let first = null
-    if (byPath) {
-      try {
-        const r = await channel.sendFile(chatId, { file: src, name: label }, { timeoutMs: FILE_TIMEOUT_MS })
-        if (disposed) return null
-        bump('sent')
-        log.info(`${chatId}：发文件「${label}」（${srcLabel}）`)
-        return r
-      } catch (error) {
-        if (disposed) return null
-        // 只有明确失败时才回落：超时或断线可能已经发出，再发会重复。
-        if (external || !definiteFailure(chatId, error)) {
-          bump('errors')
-          log.warn(`${chatId}：发文件「${label}」失败${definiteFailure(chatId, error) ? '' : '，发送结果不确定，不再重发'}：`, error.message)
-          throw new Error(`发文件失败：${error.message}`)
-        }
-        first = error
-      }
-    }
-    const firstWhy = first?.message || '网关读不到本机路径（「按路径直发」关着）'
-    // 网关看不到本机路径。小文件：直接把内容塞给网关；大文件（base64 太大）：开下载口让网关来取
-    const viaRelay = size > Math.min(FILE_BASE64_MAX, maxBytes)
-    if (viaRelay && cfg.files?.relay === false) {
-      bump('errors')
-      const why = firstWhy
-      log.warn(`${chatId}：发文件「${label}」失败：${why}；文件超过 ${FILE_BASE64_MAX / 1024 / 1024} MB，且「大文件下载口」关着`)
-      throw new Error(`发文件失败：${why}`)
-    }
-    let url = ''
-    try {
-      const file = viaRelay ? (url = await fileRelay.offer(src, label)) : 'base64://' + readFileSync(src).toString('base64')
-      const r = await channel.sendFile(chatId, { file, name: label }, { timeoutMs: FILE_TIMEOUT_MS })
-      if (disposed) return null
-      bump('sent')
-      log.info(`${chatId}：发文件「${label}」（${srcLabel}，${first ? '网关看不到本机路径，改走' : '走'}${viaRelay ? '本机下载口' : ' base64'}）`)
-      return r
-    } catch (error2) {
-      if (disposed) return null
-      bump('errors')
-      log.warn(`${chatId}：发文件「${label}」失败：`, error2.message || firstWhy)
-      throw new Error(`发文件失败：${error2.message || firstWhy}`)
-    } finally {
-      if (url) fileRelay.revoke(url)
-    }
-  }
+  const sendFile = createFileSender({
+    isDisposed: () => disposed,
+    getConfig,
+    targetOf,
+    channelOf,
+    definiteFailure,
+    cleanOutboundText,
+    cleaningFor,
+    captureStore,
+    fileRelay,
+    bump,
+    log,
+    workspaceDirOf,
+  })
 
   async function sendSticker(chatId, query, replyId, userId, opts = {}) {
     const result = (status) => opts.detailed ? status : status === 'delivered' || status === 'simulated'
