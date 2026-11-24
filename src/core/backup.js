@@ -54,11 +54,11 @@ const KEEP_PRE_RESTORE = 10
  * 不进备份的东西。logs、缓存没有价值；edge-profile 是浏览器资料，登录态绑定这台电脑，
  * 带过去也用不了。模块库模块不打包，恢复后按名单重新下载。
  */
-const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-stage-id', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache', '.aurabot-cache']
+const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-stage-id', '.restore-publish.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache', '.aurabot-cache']
 // 仅配置备份：媒体不进包，但保留体积很小的聊天流水和当前工作区 DSH 会话
 // 旧版的截图库仍可能留在数据目录，继续排除在仅配置备份之外。
 const CONFIG_ONLY_SKIP = ['imagegen', 'stickers']
-const skipped = (rel) => SKIP.some((s) => rel === s || rel.startsWith(s + '/')) || rel.split('/').includes('node_modules') || rel.endsWith('.tmp') || rel === 'memory.sqlite-shm' || rel.startsWith('memory.sqlite.migrating')
+const skipped = (rel) => SKIP.some((s) => rel === s || rel.startsWith(s + '/')) || rel.split('/').includes('node_modules') || rel.endsWith('.tmp') || rel === 'memory.sqlite-shm' || rel.startsWith('memory.sqlite.migrating') || rel.startsWith('.restore-stage-')
 
 // 旧版生活推进的暂存可能仍在数据目录。只在导出时排除，历史归档仍可导入。
 const LIFE_UUID = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}'
@@ -483,12 +483,64 @@ function publishStage(data, job) {
     current: checkPath(data, rel, { directory }),
     incoming: checkPath(data, job + '/' + name, { directory }),
   }))
-  runRestoreMoves((move) => {
-    for (const { rel, name, directory, current, incoming } of plan) {
-      if (current.info) move(data, { rel, key: current.key }, data, job + '/old-' + name, directory)
-      if (incoming.info) move(data, { rel: job + '/' + name, key: incoming.key }, data, rel, directory)
+  const journal = { job, phase: 'prepared', at: Date.now(), steps: plan.map(({ rel, name, directory, current }) => ({ rel, name, directory, hadCurrent: Boolean(current.info) })) }
+  writeFileSync(checkPath(data, '.restore-publish.json').path, JSON.stringify(journal), { mode: 0o600 })
+  try {
+    runRestoreMoves((move) => {
+      for (const { rel, name, directory, current, incoming } of plan) {
+        if (current.info) move(data, { rel, key: current.key }, data, job + '/old-' + name, directory)
+        if (incoming.info) move(data, { rel: job + '/' + name, key: incoming.key }, data, rel, directory)
+      }
+    })
+    journal.phase = 'published'
+    writeFileSync(checkPath(data, '.restore-publish.json').path, JSON.stringify(journal), { mode: 0o600 })
+    removeChecked(data, '.restore-publish.json')
+  } catch (error) {
+    // 进程内 runRestoreMoves 已经回滚；清掉日志，避免下次启动重复回滚已恢复的旧目录。
+    try { removeChecked(data, '.restore-publish.json') } catch {}
+    throw error
+  }
+}
+
+/** 启动/取消/新导入前，把上次中断的发布回滚到旧版本；已发布成功的只清理旧目录。 */
+function recoverPublish(data) {
+  const journalPath = checkPath(data, '.restore-publish.json')
+  if (!journalPath.info) return
+  let journal = null
+  try { journal = JSON.parse(readFileSync(journalPath.path, 'utf8')) } catch { removeChecked(data, '.restore-publish.json'); return }
+  const job = String(journal?.job || '')
+  if (!job || !/^\.restore-stage-[a-f0-9-]+\.tmp$/.test(job)) { removeChecked(data, '.restore-publish.json'); return }
+  if (journal.phase === 'published') {
+    removeChecked(data, job, true)
+    removeChecked(data, '.restore-publish.json')
+    return
+  }
+  const stepped = []
+  for (const step of [...(journal.steps || [])].reverse()) {
+    const rel = String(step.rel || '')
+    const name = String(step.name || '')
+    if (!rel || !name) continue
+    const directory = Boolean(step.directory)
+    try {
+      const current = checkPath(data, rel, { directory })
+      const old = checkPath(data, job + '/old-' + name, { directory })
+      if (current.info && old.info) {
+        removeChecked(data, rel, directory)
+        moveChecked(dataBoundary(dataDir()), { rel: job + '/old-' + name, key: old.key }, data, rel, directory)
+        stepped.push(rel)
+      } else if (!current.info && old.info) {
+        moveChecked(dataBoundary(dataDir()), { rel: job + '/old-' + name, key: old.key }, data, rel, directory)
+        stepped.push(rel)
+      } else if (!step.hadCurrent && current.info) {
+        removeChecked(data, rel, directory)
+        stepped.push(rel)
+      }
+    } catch (error) {
+      throw Object.assign(new Error('上次恢复发布中断，回滚失败：' + rel + '；' + error.message), { code: 'RESTORE_ROLLBACK_FAILED' })
     }
-  })
+  }
+  removeChecked(data, job, true)
+  removeChecked(data, '.restore-publish.json')
 }
 
 async function stageBackup(path, received) {
@@ -515,6 +567,7 @@ async function stageBackup(path, received) {
 
     await mkdir(dataDir(), { recursive: true })
     data = dataBoundary(dataDir())
+    recoverPublish(data)
     job = '.restore-stage-' + randomUUID() + '.tmp'
     mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
     const stageId = randomUUID()
@@ -679,6 +732,7 @@ function resumePendingSessions() {
 
 /** 启动时、读配置之前应用暂存备份。 */
 export function applyPendingRestore(now = Date.now()) {
+  if (existsSync(dataDir())) recoverPublish(dataBoundary(dataDir()))
   const resumed = resumePendingSessions()
   if (resumed || checkPath(dataBoundary(dataDir()), '.restore-sessions-pending.json').info) return resumed
   if (restoreInProgress) throw new Error('另一个备份正在暂存')
@@ -803,6 +857,7 @@ export function setPendingModules(list) {
 }
 
 export function cancelRestore() {
+  try { if (existsSync(dataDir())) recoverPublish(dataBoundary(dataDir())) } catch {}
   if (restoreInProgress) throw new Error('另一个备份正在暂存')
   rmSync(stageDir(), { recursive: true, force: true })
   rmSync(sessionStage(), { recursive: true, force: true })
