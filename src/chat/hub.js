@@ -43,6 +43,7 @@ import { localImageBlocked } from './image-policy.js'
 import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
 import { createTextSender } from './send-text.js'
 import { createStickerSender } from './send-sticker.js'
+import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1092,65 +1093,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     sendSegments, definiteFailure, log,
   })
 
-  async function sendVoice(chatId, text, replyId, userId, opts = {}) {
-    text = cleanOutboundText(text, cleaningFor(chatId))
-    if (!text.trim()) return false
-    if (channelOf(chatId)?.caps?.voice === false) return Boolean(await sendText(chatId, text, replyId, undefined, userId, opts))
-    const revision = audienceRevision(chatId)
-    const scope = outputScope.getStore()
-    if (!(scope?.chatId === chatId && scope.checkedText?.has(text)) && await mind?.checkOutgoingPrivacy?.(chatId, text)) return false
-    const originalIsCurrent = opts.isCurrent
-    const isCurrent = () => audienceRevision(chatId) === revision && (originalIsCurrent?.() ?? true)
-    if (!isCurrent()) return false
-    opts = { ...opts, isCurrent }
-    let b64, engine, extras, transcript, voiceDuration = 0
-    try {
-      // 表情标签 / emoji 不念出来：TTS 只念能说的字（用户反馈：发语音时「呲牙」被读出来）
-      const split = splitSpeakable(text)
-      extras = split.extras
-      transcript = split.spoken
-      if (!split.spoken) throw new Error('这条语音里只有表情/符号，没有能念的字')
-      const voice = await tts.speak(split.spoken)
-      engine = voice.engine
-      b64 = readFileSync(voice.file).toString('base64')
-      voiceDuration = audioDurationSec(voice.file, getConfig)
-    } catch (error) {
-      log.warn('语音没合成出来，改发文字：', error.message)
-      await sendText(chatId, text, replyId, undefined, userId, opts)
-      return false
-    }
-    // QQ 客户端不支持「引用 / @ + 语音」同一条消息：语音条一律单独成条（issue #103）。
-    if (replyId || userId) log.debug(`语音条不能带引用/@（QQ 限制），单独发：${chatId}`)
-    try {
-      const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64, ...(voiceDuration ? { duration: voiceDuration } : {}) } }], `[语音·${engine}] ${transcript.slice(0, 120)}`, { ...opts, transcript, throwOnError: true, timeoutMs: FILE_TIMEOUT_MS })
-      if (r || getConfig().dryRun || !getConfig().enabled) {
-        // 表情不念出来，但要补上：语音条发完再单独发一条文字里的表情（用户反馈：希望表情和语音分开发）
-        if (extras && getConfig().voice.emojiSeparate !== false) {
-          // 补发是额外的一条：失败只记日志，不算这一轮发失败（不然语音明明发出去了也会被当成没发）
-          try {
-            const sent = await sendText(chatId, extras, undefined, undefined, undefined, { ...opts, quiet: true })
-            log.debug(sent ? `语音后面补发了一条表情：${chatId}` : '表情没补发出去（不影响语音条）')
-          } catch (error) {
-            log.debug('表情没补发出去：', error.message)
-          }
-        }
-        return true
-      }
-      const message = '语音没有发送'
-      log.warn(message)
-      failStore.getStore()?.push(message)
-      return false
-    } catch (error) {
-      if (definiteFailure(chatId, error)) {
-        log.warn('语音没发出去，改发文字：', error.message)
-        await sendText(chatId, text, replyId, undefined, userId, opts)
-      } else {
-        log.warn('语音发送结果不确定，不再改发文字：', error.message)
-        failStore.getStore()?.push(error.message)
-      }
-      return false
-    }
-  }
+  const sendVoice = createVoiceSender({
+    cleanOutboundText, cleaningFor, channelOf, getConfig, audienceRevision, outputScope,
+    mind, tts, sendText, sendSegments, log, failStore, definiteFailure,
+  })
 
   /** 戳回去：私聊戳对方，群里戳最近戳她的人（没人戳过就戳这一段最后说话的人）。 */
   async function pokeBack(chatId) {
