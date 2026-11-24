@@ -7,7 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ownerAuthorizationRevision } from '../core/config.js'
@@ -41,6 +40,7 @@ import { createFileRelay } from './file-relay.js'
 import { FILE_TIMEOUT_MS, fileRootsOf, insideRoots, checkSendableFile } from './file-policy.js'
 import { createFileSender } from './send-file.js'
 import { localImageBlocked } from './image-policy.js'
+import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1110,18 +1110,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
   }
 
-  /** OneBot 的 record 段需要时长；base64 音频没有元数据时补一个。失败就不填，让网关自己判断。 */
-  function audioDurationSec(file) {
-    const ffmpeg = findFfmpeg(getConfig().local?.ffmpegPath || '')
-    if (!ffmpeg || !file) return 0
-    try {
-      const r = spawnSync(ffmpeg, ['-hide_banner', '-i', file], { encoding: 'utf8', timeout: 5000 })
-      const m = String(r.stderr || '').match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)
-      if (!m) return 0
-      return Math.max(1, Math.round(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])))
-    } catch (error) { return 0 }
-  }
-
   async function sendVoice(chatId, text, replyId, userId, opts = {}) {
     text = cleanOutboundText(text, cleaningFor(chatId))
     if (!text.trim()) return false
@@ -1143,7 +1131,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const voice = await tts.speak(split.spoken)
       engine = voice.engine
       b64 = readFileSync(voice.file).toString('base64')
-      voiceDuration = audioDurationSec(voice.file)
+      voiceDuration = audioDurationSec(voice.file, getConfig)
     } catch (error) {
       log.warn('语音没合成出来，改发文字：', error.message)
       await sendText(chatId, text, replyId, undefined, userId, opts)
@@ -1200,16 +1188,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
   }
 
-  /** 把一个音频文件当语音条发出去（翻唱用）。 */
-  async function sendVoiceFile(chatId, file, note, opts) {
-    if (disposed) return null
-    if (channelOf(chatId)?.caps?.voice === false) throw new Error('这个平台不支持语音')
-    const b64 = readFileSync(file).toString('base64')
-    const duration = audioDurationSec(file)
-    const r = await sendSegments(chatId, [{ type: 'record', data: { file: 'base64://' + b64, ...(duration ? { duration } : {}) } }], note || '[语音]', opts)
-    if (!r && getConfig().enabled && !getConfig().dryRun) throw new Error('网关没接受这条语音')
-    return r
-  }
+  const sendVoiceFile = createVoiceFileSender({ isDisposed: () => disposed, channelOf, getConfig, sendSegments, durationOf: (file) => audioDurationSec(file, getConfig) })
 
   // 发文件：网关可能和插件不在同一台机器上（Docker / 远程 OneBot），它看不到本机路径，
   // 所以按本机路径发失败时，小文件会用 base64 再试一次；超时留长一点，别把大文件上传误判成失败。
