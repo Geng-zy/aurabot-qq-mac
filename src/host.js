@@ -45,6 +45,7 @@ import { applyPendingRestore, cancelPendingSessions, cancelRestore, createBackup
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
 import { registerBackupRestoreRoutes } from './features/backup-routes.js'
+import { registerBackupCloudRoutes } from './features/backup-cloud-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
@@ -1303,30 +1304,6 @@ export function apply(ctx) {
   // ---------- 云备份：每天到点自动打包，并把最新备份推到 Gitee 私有仓库（走本机 git）----------
   const alive = () => { try { return !unloaded } catch { return true } }
   const nextRemoteAt = () => pushDueAt === null ? null : new Date(pushDueAt).toISOString()
-  const remoteView = (r = cfg.backup?.remote || {}) => ({
-    enabled: !!r.enabled,
-    provider: r.provider === 'webdav' ? 'webdav' : 'gitee',
-    owner: r.owner,
-    repo: r.repo,
-    branch: r.branch,
-    time: r.time,
-    keep: r.keep,
-    autoCreate: r.autoCreate !== false,
-    forceOverwrite: !!r.forceOverwrite,
-    hasToken: Boolean(r.token),
-    webdav: { url: r.webdav?.url || '', username: r.webdav?.username || '', hasPassword: Boolean(r.webdav?.password), configOnly: r.webdav?.configOnly === true },
-  })
-  route('/backup/remote/state', async () => ({ ok: true, remote: remoteView(), job: pushJob, nextAt: nextRemoteAt() }))
-  route('/backup/remote/config', backupAction(async (req) => {
-    const patch = { ...(await readBody(req)) }
-    if (!patch.token) delete patch.token // 令牌留空 = 沿用旧值，别把配好的抹掉
-    if (patch.webdav && !patch.webdav.password) delete patch.webdav.password // WebDAV 密码同理
-    setConfig(mergeFromPanel(cfg, { backup: { remote: patch } })) // setConfig 里会重排定时器
-    const r = cfg.backup.remote
-    const where = r.provider === 'webdav' ? (r.webdav?.url || 'WebDAV') : `${r.owner}/${r.repo}`
-    log.info(`云备份设置已更新｜${r.enabled ? `每天 ${r.time} 推 ${where}，留 ${r.keep} 份` : '关'}`)
-    return { ok: true, message: '存好了', remote: remoteView() }
-  }))
   const doPush = async (pack) => {
     if (pushJob?.running) return { ok: false, message: '上一次推送还没跑完' }
     if (backupJob?.running) return { ok: false, message: '正在打包，等这轮打包完再推' }
@@ -1352,26 +1329,11 @@ export function apply(ctx) {
     return pushJob.ok ? { ok: true, message: pushJob.result.message || '备份已推送' }
       : { ok: false, message: '推送失败：' + pushJob.error }
   }
-  route('/backup/push', backupAction(async () => doPush(false)))
-  route('/backup/remote/list', backupAction(async () => {
-    const r = getConfig().backup?.remote || {}
-    if (r.provider !== 'webdav') return { ok: false, message: '先把云备份方式切到 WebDAV' }
-    try { return await listWebdavBackups(r) } catch (error) { return { ok: false, message: error.message } }
-  }))
-  route('/backup/remote/restore', backupAction(async (req) => {
-    const r = getConfig().backup?.remote || {}
-    if (r.provider !== 'webdav') return { ok: false, message: '先把云备份方式切到 WebDAV' }
-    const name = String((await readBody(req)).name || '')
-    if (!/^aurabot-(?:backup|config)-\d{8}-\d{4,6}(?:-\d{1,3})?(?:-[a-z0-9]{6,})?\.zip$/u.test(name)) return { ok: false, message: '备份文件名不对' }
-    try {
-      const got = await downloadWebdavBackup(r, name)
-      const result = await stageReceivedBackup(got.buffer, name)
-      log.info(`已从 WebDAV 拉回备份：${name}（${got.buffer.length} 字节）`)
-      return result
-    } catch (error) {
-      return { ok: false, message: error.message }
-    }
-  }))
+  registerBackupCloudRoutes({
+    route, backupAction, readBody, getConfig, setConfig, mergeFromPanel, log,
+    getPushJob: () => pushJob, nextAt: nextRemoteAt, doPush,
+    listWebdavBackups, downloadWebdavBackup, stageReceivedBackup,
+  })
   const scheduleRemoteBackup = (retryMs = 0) => {
     if (pushTimer) { clearTimeout(pushTimer); pushTimer = null }
     pushDueAt = null

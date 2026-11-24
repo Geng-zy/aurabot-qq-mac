@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.49
+
+- 云备份面板路由从 host.js 拆到 features/backup-cloud-routes.js。
+- 保留设置、状态、列表、WebDAV 拉回和手动推送的 URL/行为；推送任务与每日定时器仍在宿主。
+- 回归：395 个语法文件、lint 0 errors、备份/E2E 147 个测试通过。
+
 ## 1.5.48
 
 - 本机备份恢复路由从 host.js 拆到 features/backup-routes.js，URL 与请求头校验保持不变。
