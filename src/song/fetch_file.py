@@ -66,6 +66,8 @@ def fetch(opener, url, part, want, can_switch):
         mode = 'ab' if have and r.status == 206 else 'wb'
         if mode == 'wb':
             have = 0
+            try: os.remove(part + '.etag')
+            except OSError: pass
         header_len = int(r.headers.get('Content-Length') or 0)
         if r.status == 206:
             cr = r.headers.get('Content-Range') or ''
@@ -74,6 +76,9 @@ def fetch(opener, url, part, want, can_switch):
                 raise IOError('206 响应缺少有效的 Content-Range')
             new_etag = r.headers.get('ETag')
             if old_etag and new_etag and new_etag != old_etag:
+                os.remove(part)
+                try: os.remove(part + '.etag')
+                except OSError: pass
                 raise IOError('续传对象的 ETag 已变化')
             start, end, total = map(int, m.groups())
             if start != have or end < start:

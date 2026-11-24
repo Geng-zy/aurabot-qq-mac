@@ -380,8 +380,9 @@ async function readEntries(fh, size) {
     const key = process.platform === 'win32' ? name.toLowerCase() : name
     const session = name.startsWith('dsh-sessions/')
     const rel = name.slice(session ? 13 : 5)
+    const legacySessionMarker = name === '.restore-sessions-pending.json'
     if (names.has(key) || !safeName(name)
-        || (name !== MANIFEST && (!session && (!name.startsWith('data/') || skipped(rel))))) throw unsafePath(name)
+        || (name !== MANIFEST && !legacySessionMarker && (!session && (!name.startsWith('data/') || skipped(rel))))) throw unsafePath(name)
     names.add(key)
     expanded += length
     if ((flags & ~0x0808) || (method !== 0 && method !== 8)
@@ -475,6 +476,7 @@ function publishStage(data, job) {
     ['.restore', 'data', true],
     ['.restore-sessions', 'sessions', true],
     ['.restore-pending.json', 'pending.json', false],
+    ['.restore-sessions-pending.json', 'sessions-marker', false],
   ].map(([rel, name, directory]) => ({
     rel, name, directory,
     current: checkPath(data, rel, { directory }),
@@ -512,14 +514,11 @@ async function stageBackup(path, received) {
 
     await mkdir(dataDir(), { recursive: true })
     data = dataBoundary(dataDir())
-    // 新备份取代旧的延期会话；旧标记不能挡住新任务。
-    removeChecked(data, '.restore-sessions-pending.json')
-    removeChecked(data, '.restore-sessions', true)
     job = '.restore-stage-' + randomUUID() + '.tmp'
     mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
     let files = 0
     for (const entry of entries) {
-      if (entry === head) continue
+      if (entry === head || entry.name === '.restore-sessions-pending.json') continue
       const session = entry.name.startsWith('dsh-sessions/')
       const rel = job + '/' + (session ? 'sessions/' : 'data/') + entry.name.slice(session ? 13 : 5)
       checkPath(data, rel.slice(0, rel.lastIndexOf('/')), { directory: true, create: true })

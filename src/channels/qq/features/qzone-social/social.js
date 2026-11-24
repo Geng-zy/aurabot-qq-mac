@@ -191,6 +191,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
       const sentComment = await sendComment(f.key, text, f.uin)
       if (!sentComment) { if (!getConfig().dryRun) seen.add(f.key); continue }
       seen.add(f.key)
+      s.seen = [...seen].slice(-300)
       if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(hasVisibility(detail) ? detail : f), tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
       done++

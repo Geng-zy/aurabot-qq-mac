@@ -2,6 +2,14 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.40
+
+- 新会话暂存在新 ZIP 完整解包并通过 publishStage 后才原子替换，解包失败不再删除旧任务。
+- 旧包里的 .restore-sessions-pending.json 兼容跳过，不因历史标记拒收整个 ZIP。
+- 下载覆盖分片时清理旧 ETag；ETag 变化时删除分片并回退全量。
+- 好友空间评论成功后立即把 seen 与历史/计数一起落盘，失败重试不重复首条。
+- 回归：393 个语法文件、lint 0 errors、备份/Telegram 相关 40 个测试通过。
+
 ## 1.5.39
 
 - 会话续恢复改用 runRestoreMoves，外盘挂回后不再 ReferenceError。
