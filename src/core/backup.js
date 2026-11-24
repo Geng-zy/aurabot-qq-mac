@@ -6,7 +6,7 @@
 import { randomUUID } from 'node:crypto'
 import { open, mkdir, readdir, rename, rm } from 'node:fs/promises'
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { crc32, deflateRawSync, inflateRawSync } from 'node:zlib'
+import { crc32, createInflateRaw, deflateRawSync, inflateRawSync } from 'node:zlib'
 import { homedir } from 'node:os'
 import { join, parse, relative } from 'node:path'
 import { dataDir, dshHome } from './store.js'
@@ -415,6 +415,33 @@ async function readEntries(fh, size) {
     }
   }
   return entries
+}
+
+/** 校验大条目时边解压边算 CRC，不把 96MiB 媒体整块留在内存。 */
+async function verifyEntryStreaming(fh, entry) {
+  const invalid = () => new Error('备份文件校验失败：' + entry.name)
+  if (entry.method === 0) {
+    await readEntry(fh, entry, { writeFile: async () => {} })
+    return
+  }
+  const inflater = createInflateRaw({ maxOutputLength: Math.max(entry.size, 1) })
+  let size = 0
+  let checksum = 0
+  let failure = null
+  inflater.on('data', (chunk) => { size += chunk.length; checksum = crc32(chunk, checksum) })
+  inflater.on('error', (error) => { failure = error })
+  for (let offset = 0; offset < entry.packed;) {
+    const part = await readExact(fh, Math.min(1024 * 1024, entry.packed - offset), entry.start + offset)
+    offset += part.length
+    if (!inflater.write(part)) await new Promise((resolve) => inflater.once('drain', resolve))
+  }
+  await new Promise((resolve, reject) => {
+    inflater.once('end', resolve)
+    inflater.once('error', reject)
+    inflater.end()
+  })
+  if (failure) throw invalid()
+  if (size !== entry.size || checksum !== entry.crc) throw invalid()
 }
 
 async function readEntry(fh, entry, output) {
@@ -940,7 +967,8 @@ async function inspectBackupFile(full, label) {
     let bytes = 0
     for (const entry of entries) {
       if (entry === head) continue
-      await readEntry(fh, entry)
+      if (entry.size > 8 * 1024 * 1024) await verifyEntryStreaming(fh, entry)
+      else await readEntry(fh, entry)
       bytes += entry.size
     }
     return {
