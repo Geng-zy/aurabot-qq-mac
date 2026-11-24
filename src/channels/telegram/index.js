@@ -40,6 +40,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data || data.ok !== true) throw new Error(data?.description || `Telegram ${method} 失败：HTTP ${res.status}（返回不是 Bot API JSON）`)
+      if (data.result === undefined || data.result === null) throw new Error(`Telegram ${method} 失败：返回缺少 result`)
       return data.result
     } finally {
       clearTimeout(timer)
@@ -57,6 +58,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       const res = await fetchImpl(`${base()}/${method}`, { method: 'POST', body: form, signal: ctl.signal })
       const data = await res.json().catch(() => null)
       if (!res.ok || !data || data.ok !== true) throw new Error(data?.description || `Telegram ${method} 失败：HTTP ${res.status}（返回不是 Bot API JSON）`)
+      if (data.result === undefined || data.result === null) throw new Error(`Telegram ${method} 失败：返回缺少 result`)
       return data.result
     } finally {
       clearTimeout(timer)

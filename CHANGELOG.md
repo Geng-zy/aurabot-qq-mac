@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.66
+
+- Telegram Bot API 的 ok:true 响应必须有 result，空 result 不再被当成发送成功。
+- 宿主配置保存时每个平台只执行一个动作（stop/restart/start），避免一次保存重复 getMe/连接。
+- 回归：410 个语法文件、lint 0 errors、Telegram/E2E 111 个测试通过。
+
 ## 1.5.65
 
 - 修复 1.5.64 拆分时漏掉 registerModelRoutes 调用导致的 /provider-models 404。

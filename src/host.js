@@ -108,24 +108,27 @@ export function apply(ctx) {
     // 改机器人号后旧连接的核对结果立刻失效，必须重新核对才能处理消息或完成向导。
     const beforeQq = before.platforms?.qq || {}
     const afterQq = cfg.platforms?.qq || {}
-    if (before.botQQ !== cfg.botQQ) {
+    const turnedOff = before.enabled && !cfg.enabled
+    const turnedOn = !before.enabled && cfg.enabled
+    // 每个平台只执行一个动作：stop / restart / start，避免一次保存既 start 又 restart。
+    if (turnedOff) qq.stop()
+    else if (before.botQQ !== cfg.botQQ) {
       qq.resetAccount()
       if (qq.state() === 'connected') qq.restart()
     } else if (['enabled', 'wsUrl', 'httpUrl', 'wsToken', 'httpToken'].some((k) => beforeQq[k] !== afterQq[k])) {
-      // 改地址、令牌或启停也要换连接；只改白名单/权限时不动现有连接。
       if (afterQq.enabled === false) qq.stop()
       else if (qq.state() !== 'stopped') qq.restart()
-    }
-    if (before.enabled !== cfg.enabled && cfg.enabled) qq.start()
+    } else if (turnedOn) qq.start()
     const beforeTg = before.platforms?.telegram || {}
     const afterTg = cfg.platforms?.telegram || {}
     const tgChanged = ['enabled', 'token', 'apiBase'].some((k) => beforeTg[k] !== afterTg[k])
     const tg = channels.get('telegram')
-    if (before.enabled && !cfg.enabled) tg?.stop()
-    else if (!before.enabled && cfg.enabled && afterTg.enabled && afterTg.token) tg?.start().catch((error) => log.warn('Telegram 启动失败：', error.message))
-    if (tgChanged) {
+    if (turnedOff) tg?.stop()
+    else if (tgChanged) {
       if (!afterTg.enabled || !afterTg.token) tg?.stop()
       else tg?.restart().catch((error) => log.warn('Telegram 重启失败：', error.message))
+    } else if (turnedOn && afterTg.enabled && afterTg.token) {
+      tg?.start().catch((error) => log.warn('Telegram 启动失败：', error.message))
     }
     if (bridge && before.bridge.dshTools !== cfg.bridge.dshTools) bridge.refresh()
     // 管理员在面板里改了「ta怎么称呼你」：以管理员改的为准（她自己改过的叫法被盖掉，记一个版本）
