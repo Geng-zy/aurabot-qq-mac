@@ -42,6 +42,7 @@ import { createFileSender } from './send-file.js'
 import { localImageBlocked } from './image-policy.js'
 import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
 import { createTextSender } from './send-text.js'
+import { createStickerSender } from './send-sticker.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
 import { createToolScope, isGuestSafeTool } from './tool-scope.js'
@@ -1190,42 +1191,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     workspaceDirOf,
   })
 
-  async function sendSticker(chatId, query, replyId, userId, opts = {}) {
-    const result = (status) => opts.detailed ? status : status === 'delivered' || status === 'simulated'
-    const channel = channelOf(chatId)
-    const native = channel?.caps?.stickers !== false
-    if (!native && channel?.caps?.images === false) return result('disabled')
-    // 面板里把表情包关了：回复里的 <sticker:…>、工具、扩展模块要发的一律不发（#31）
-    if (!getConfig().stickers.enabled) {
-      log.debug(`表情包关着，「${typeof query === 'object' ? query?.name || '' : query}」不发`)
-      return result('disabled')
-    }
-    const item = query && typeof query === 'object' ? query : stickers.match(query)
-    if (!item) {
-      log.debug(`没找到「${query}」这张表情，跳过`)
-      return result('missing')
-    }
-    // 商城表情（mface）是 QQ 的格式，别的平台没有对应能力：跳过，不把 QQ 表情硬塞过去。
-    // 本地图片/GIF 没有 market 元数据，仍可按普通图片降级发送。
-    if (!native && item.market) return result('disabled')
-    const seg = stickers.segmentFor(item)
-    if (!seg) return result('missing')
-    let delivered = false
-    const r = await sendSegments(chatId, [...quote(replyId), ...mention(userId), seg], `[表情] ${item.name || item.md5.slice(0, 8)}`, {
-      ...opts,
-      ...(native ? { sticker: { item, segment: seg } } : {}),
-      onReceipt(confirmed) {
-        delivered = confirmed.some(({ kind }) => kind === 'sticker' || (!native && kind === 'image'))
-        if (delivered) {
-          stickers.markUsed?.(item.md5)
-          bump(native ? 'stickers' : 'sent')
-        }
-      },
-    })
-    if (r?.simulated) return result('simulated')
-    if (r?.queued) return result('queued')
-    return result(delivered ? 'delivered' : 'unconfirmed')
-  }
+  const sendSticker = createStickerSender({ channelOf, getConfig, stickers, sendSegments, quote, mention, bump })
 
   /**
    * 发一张图。本地绝对路径（或 file://）先试「路径直发」——网关和 NapCat 在同一台机器/共享挂载时，省掉读盘和
