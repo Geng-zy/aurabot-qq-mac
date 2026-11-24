@@ -87,6 +87,9 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   async function sendComment(tid, content, targetUin) {
     const cfg = getConfig()
     if (!cfg.enabled || !cfg.qzoneSocial.enabled || cfg.debug) return false
+    // 草稿生成期间关闭分项开关也要在最终发送前复查。
+    if (targetUin && !cfg.qzoneSocial.commentFriends) return false
+    if (!targetUin && !cfg.qzoneSocial.replyOwn) return false
     if (previewTask || cfg.dryRun) {
       log.info(`试运行：本来要在空间评论（${targetUin || '自己'} / ${tid}）：${content}`)
       return false // 试运行不算已交付，不能标记 handled 或消耗当天额度
@@ -139,8 +142,8 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
           remember(x.name, x.uin, `在你的说说「${String(m.content).slice(0, 30)}」下面说：${String(x.content).slice(0, 200)}`)
         }
         s.replied[m.tid] = [...handled].slice(-200)
-        if (!getConfig().dryRun) mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: privatePost(m), tags: ['空间'], importance: 0.35 })
         record(s, { kind: 'reply', who: last.name, post: String(m.content).slice(0, 30), text })
+        if (!getConfig().dryRun) { try { mind?.experience?.({ text: `在空间回复了${last.name}的评论：${text}`, about: String(last.uin), secret: privatePost(m), tags: ['空间'], importance: 0.35 }) } catch (error) { log.warn?.('空间回复写入心智失败：', error.message) } }
         done++
       }
     }
@@ -192,8 +195,8 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
       if (!sentComment) { if (!getConfig().dryRun) seen.add(f.key); continue }
       seen.add(f.key)
       s.seen = [...seen].slice(-300)
-      if (!getConfig().dryRun) mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(hasVisibility(detail) ? detail : f), tags: ['空间'] })
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })
+      if (!getConfig().dryRun) { try { mind?.experience?.({ text: `在空间评论了${isOwner ? owner() : f.nickname}的说说「${content.slice(0, 24)}」：${text}`, about: String(f.uin), secret: privatePost(hasVisibility(detail) ? detail : f), tags: ['空间'] }) } catch (error) { log.warn?.('空间评论写入心智失败：', error.message) } }
       done++
     }
     s.seen = [...seen].slice(-300)

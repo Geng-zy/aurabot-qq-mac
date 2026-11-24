@@ -113,6 +113,7 @@ test('从网关好友历史补收断线时的私聊，实时重投和重启都�
   mock.push({ ...missed, message_id: 420006 })
   assert.ok(await until(() => turnCount() === 2), '同样文字换了消息编号，视为新的一条')
   assert.equal(fake.turns.length, 3, '历史中的其他人、旧消息、命令和媒体都没有进入 DSH')
+  await until(() => { try { return readFileSync(join(dataDir, 'qq-inbox.json'), 'utf8').includes('420001') } catch { return false } })
   const stored = readFileSync(join(dataDir, 'qq-inbox.json'), 'utf8')
   assert.ok(stored.includes('420001'))
   assert.ok(!stored.includes('离线时发的文字'))

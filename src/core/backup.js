@@ -54,7 +54,7 @@ const KEEP_PRE_RESTORE = 10
  * 不进备份的东西。logs、缓存没有价值；edge-profile 是浏览器资料，登录态绑定这台电脑，
  * 带过去也用不了。模块库模块不打包，恢复后按名单重新下载。
  */
-const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache']
+const SKIP = ['backups', '.restore', '.restore-sessions', '.restore-pending.json', '.restore-sessions-pending.json', '.restore-stage-id', '.restore-modules.json', 'logs', 'tmp', 'voice-cache', 'voice-rvc', 'archive-cache']
 // 仅配置备份：媒体不进包，但保留体积很小的聊天流水和当前工作区 DSH 会话
 // 旧版的截图库仍可能留在数据目录，继续排除在仅配置备份之外。
 const CONFIG_ONLY_SKIP = ['imagegen', 'stickers']
@@ -380,7 +380,7 @@ async function readEntries(fh, size) {
     const key = process.platform === 'win32' ? name.toLowerCase() : name
     const session = name.startsWith('dsh-sessions/')
     const rel = name.slice(session ? 13 : 5)
-    const legacySessionMarker = name === '.restore-sessions-pending.json'
+    const legacySessionMarker = name === '.restore-sessions-pending.json' || name === 'data/.restore-sessions-pending.json'
     if (names.has(key) || !safeName(name)
         || (name !== MANIFEST && !legacySessionMarker && (!session && (!name.startsWith('data/') || skipped(rel))))) throw unsafePath(name)
     names.add(key)
@@ -477,6 +477,7 @@ function publishStage(data, job) {
     ['.restore-sessions', 'sessions', true],
     ['.restore-pending.json', 'pending.json', false],
     ['.restore-sessions-pending.json', 'sessions-marker', false],
+    ['.restore-stage-id', 'stage-id', false],
   ].map(([rel, name, directory]) => ({
     rel, name, directory,
     current: checkPath(data, rel, { directory }),
@@ -516,9 +517,11 @@ async function stageBackup(path, received) {
     data = dataBoundary(dataDir())
     job = '.restore-stage-' + randomUUID() + '.tmp'
     mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
+    const stageId = randomUUID()
+    writeFileSync(checkPath(data, job + '/stage-id').path, stageId, { mode: 0o600 })
     let files = 0
     for (const entry of entries) {
-      if (entry === head || entry.name === '.restore-sessions-pending.json') continue
+      if (entry === head || entry.name === '.restore-sessions-pending.json' || entry.name === 'data/.restore-sessions-pending.json') continue
       const session = entry.name.startsWith('dsh-sessions/')
       const rel = job + '/' + (session ? 'sessions/' : 'data/') + entry.name.slice(session ? 13 : 5)
       checkPath(data, rel.slice(0, rel.lastIndexOf('/')), { directory: true, create: true })
@@ -534,7 +537,7 @@ async function stageBackup(path, received) {
     const pending = job + '/pending.json'
     const { file, key } = await openCheckedOutput(data, pending)
     try {
-      await file.writeFile(JSON.stringify({ at: Date.now(), files, createdAt, version, dataDir: oldData, home, workspaceDir, platform, market, sessions }, null, 2))
+      await file.writeFile(JSON.stringify({ at: Date.now(), files, createdAt, version, dataDir: oldData, home, workspaceDir, platform, market, sessions, stageId }, null, 2))
     } finally { await file.close() }
     verifyFile(data, { rel: pending, key })
     publishStage(data, job)
@@ -679,6 +682,11 @@ export function applyPendingRestore(now = Date.now()) {
   const pending = checkPath(data, pendingRel)
   if (!pending.info) return 0
   const info = JSON.parse(readFileSync(pending.path, 'utf8'))
+  const stageIdPath = checkPath(data, '.restore-stage-id')
+  if (stageIdPath.info && info.stageId) {
+    const actual = readFileSync(stageIdPath.path, 'utf8')
+    if (actual !== info.stageId) throw new Error('恢复暂存来自不同备份任务，已拒绝混用；请重新导入原 ZIP')
+  }
   const keep = 'backups/pre-restore-' + now
   const files = listFiles(data, '.restore').map((file) => ({ file, rel: file.rel.slice('.restore/'.length) }))
   const config = files.find(({ rel }) => rel === 'config.json')
@@ -739,6 +747,7 @@ export function applyPendingRestore(now = Date.now()) {
     }
     if (sessions?.target) removeChecked(data, '.restore-sessions', true)
     removeChecked(data, '.restore', true) // 普通数据已提交；会话有独立暂存和标记
+    removeChecked(data, '.restore-stage-id')
     prunePreRestore()
     return files.length
   } catch (error) {

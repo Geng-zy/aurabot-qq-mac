@@ -69,6 +69,7 @@ def fetch(opener, url, part, want, can_switch):
             try: os.remove(part + '.etag')
             except OSError: pass
         header_len = int(r.headers.get('Content-Length') or 0)
+        range_len = 0
         if r.status == 206:
             cr = r.headers.get('Content-Range') or ''
             m = re.match(r'bytes\s+(\d+)-(\d+)/(\d+)', cr.strip(), re.I)
@@ -86,6 +87,7 @@ def fetch(opener, url, part, want, can_switch):
             if header_len and header_len != end - start + 1:
                 raise IOError('续传区间长度不对：头 %d 字节，区间 %d-%d' % (header_len, start, end))
             want = total
+            range_len = end - start + 1
         elif header_len:
             want = have + header_len
         # 服务器不支持续传就从头来
@@ -96,6 +98,7 @@ def fetch(opener, url, part, want, can_switch):
                 with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(etag)
         except OSError: pass
         last_print = 0
+        received = 0
         window_start, window_bytes = time.time(), 0
         with open(part, mode) as f:
             while True:
@@ -104,6 +107,7 @@ def fetch(opener, url, part, want, can_switch):
                     break
                 f.write(chunk)
                 have += len(chunk)
+                received += len(chunk)
                 window_bytes += len(chunk)
                 now = time.time()
                 if now - last_print > 2:
@@ -114,6 +118,12 @@ def fetch(opener, url, part, want, can_switch):
                     if can_switch and window_bytes / (now - window_start) < SLOW_BPS:
                         raise TooSlow('%.0f KB/s' % (window_bytes / (now - window_start) / 1024))
                     window_start, window_bytes = now, 0
+    if range_len and received != range_len:
+        try: os.remove(part)
+        except OSError: pass
+        try: os.remove(part + '.etag')
+        except OSError: pass
+        raise IOError('206 正文长度不对：收到 %d，声明 %d' % (received, range_len))
     if want and have != want:
         raise IOError('下载长度不对：%d/%d 字节' % (have, want))
     return True
