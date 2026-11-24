@@ -97,6 +97,8 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
     if (hub.containsProtectedText?.('system:qzone-social', content) || await hub.checkOutgoingPrivacy?.('system:qzone-social', content)) return false
     const latest = getConfig()
     if (!latest.enabled || !latest.qzoneSocial.enabled || latest.debug || latest.dryRun) return false
+    if (targetUin && !latest.qzoneSocial.commentFriends) return false
+    if (!targetUin && !latest.qzoneSocial.replyOwn) return false
     await onebot.call('comment_qzone', { tid, content, ...(targetUin ? { target_uin: Number(targetUin) } : {}) }, { timeoutMs: 30000 })
     log.info(`空间评论（${targetUin || '自己的说说'}）：${content}`)
     return true
@@ -192,7 +194,7 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         `想评论的话，结合说说内容${existing.length ? '和下面大家在聊的（别重复别人说过的话，可以接大家的梗）' : ''}，用你的口气评一句（像朋友之间随手评论那样）。`)
       if (!text) { if (!getConfig().dryRun) seen.add(f.key); continue }
       const sentComment = await sendComment(f.key, text, f.uin)
-      if (!sentComment) { if (!getConfig().dryRun) seen.add(f.key); continue }
+      if (!sentComment) continue // 开关被关/隐私阻止都留到下次，不标记已看
       seen.add(f.key)
       s.seen = [...seen].slice(-300)
       record(s, { kind: 'comment', who: f.nickname, post: content.slice(0, 30), text })

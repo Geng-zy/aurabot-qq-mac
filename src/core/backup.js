@@ -518,6 +518,10 @@ async function stageBackup(path, received) {
     job = '.restore-stage-' + randomUUID() + '.tmp'
     mkdirSync(checkPath(data, job, { directory: true }).path, { mode: 0o700 })
     const stageId = randomUUID()
+    mkdirSync(checkPath(data, job + '/data', { directory: true, create: true }).path, { recursive: true })
+    mkdirSync(checkPath(data, job + '/sessions', { directory: true, create: true }).path, { recursive: true })
+    writeFileSync(checkPath(data, job + '/data/.restore-stage-id').path, stageId, { mode: 0o600 })
+    writeFileSync(checkPath(data, job + '/sessions/.restore-stage-id').path, stageId, { mode: 0o600 })
     writeFileSync(checkPath(data, job + '/stage-id').path, stageId, { mode: 0o600 })
     let files = 0
     for (const entry of entries) {
@@ -656,6 +660,8 @@ function resumePendingSessions() {
   const home = dataBoundary(dshRoot)
   const directory = 'sessions/' + sessionDirName(target)
   const files = listFiles(data, '.restore-sessions')
+  const sessionIdPath = checkPath(data, '.restore-sessions/.restore-stage-id')
+  if (info.stageId && sessionIdPath.info && readFileSync(sessionIdPath.path, 'utf8') !== info.stageId) throw new Error('延期会话暂存与任务标记不一致；请重新导入原 ZIP')
   if (!files.length) { removeChecked(data, markerRel); removeChecked(data, '.restore-sessions', true); return 0 }
   mkdirSync(target, { recursive: true })
   runRestoreMoves((move) => {
@@ -682,13 +688,15 @@ export function applyPendingRestore(now = Date.now()) {
   const pending = checkPath(data, pendingRel)
   if (!pending.info) return 0
   const info = JSON.parse(readFileSync(pending.path, 'utf8'))
-  const stageIdPath = checkPath(data, '.restore-stage-id')
-  if (stageIdPath.info && info.stageId) {
-    const actual = readFileSync(stageIdPath.path, 'utf8')
-    if (actual !== info.stageId) throw new Error('恢复暂存来自不同备份任务，已拒绝混用；请重新导入原 ZIP')
+  const checkStage = (rel) => {
+    const p = checkPath(data, rel)
+    if (!p.info || !info.stageId) return
+    if (readFileSync(p.path, 'utf8') !== info.stageId) throw new Error('恢复暂存来自不同备份任务，已拒绝混用；请重新导入原 ZIP')
   }
+  checkStage('.restore/.restore-stage-id')
+  checkStage('.restore-sessions/.restore-stage-id')
   const keep = 'backups/pre-restore-' + now
-  const files = listFiles(data, '.restore').map((file) => ({ file, rel: file.rel.slice('.restore/'.length) }))
+  const files = listFiles(data, '.restore').filter((file) => !file.rel.endsWith('/.restore-stage-id')).map((file) => ({ file, rel: file.rel.slice('.restore/'.length) }))
   const config = files.find(({ rel }) => rel === 'config.json')
   if (!config) throw unsafePath('config.json')
   const restoreMemory = files.some(({ rel }) => rel === 'memory.sqlite' || rel === 'memories.json')
@@ -742,7 +750,7 @@ export function applyPendingRestore(now = Date.now()) {
     // 普通数据已经提交；目标工作区缺失时只保留会话暂存和独立标记，下次启动不再重放配置。
     if (sessionMissing) {
       const marker = checkPath(data, '.restore-sessions-pending.json')
-      writeFileSync(marker.path, JSON.stringify({ workspaceDir: info.workspaceDir, home: info.home, at: now }), { mode: 0o600 })
+      writeFileSync(marker.path, JSON.stringify({ workspaceDir: info.workspaceDir, home: info.home, stageId: info.stageId || '', at: now }), { mode: 0o600 })
       removeChecked(data, pendingRel)
     }
     if (sessions?.target) removeChecked(data, '.restore-sessions', true)

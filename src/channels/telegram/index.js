@@ -38,8 +38,8 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify(params), signal: ctl.signal,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || data.ok === false) throw new Error(data.description || `Telegram ${method} 失败：HTTP ${res.status}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data || data.ok !== true) throw new Error(data?.description || `Telegram ${method} 失败：HTTP ${res.status}（返回不是 Bot API JSON）`)
       return data.result
     } finally {
       clearTimeout(timer)
@@ -55,8 +55,8 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     signal?.addEventListener('abort', abort, { once: true })
     try {
       const res = await fetchImpl(`${base()}/${method}`, { method: 'POST', body: form, signal: ctl.signal })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || data.ok === false) throw new Error(data.description || `Telegram ${method} 失败：HTTP ${res.status}`)
+      const data = await res.json().catch(() => null)
+      if (!res.ok || !data || data.ok !== true) throw new Error(data?.description || `Telegram ${method} 失败：HTTP ${res.status}（返回不是 Bot API JSON）`)
       return data.result
     } finally {
       clearTimeout(timer)

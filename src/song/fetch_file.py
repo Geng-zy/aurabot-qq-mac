@@ -97,31 +97,34 @@ def fetch(opener, url, part, want, can_switch):
             if etag:
                 with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(etag)
         except OSError: pass
+        committed = have
         last_print = 0
         received = 0
         window_start, window_bytes = time.time(), 0
-        with open(part, mode) as f:
-            while True:
-                chunk = r.read(1 << 20)
-                if not chunk:
-                    break
-                f.write(chunk)
-                have += len(chunk)
-                received += len(chunk)
-                window_bytes += len(chunk)
-                now = time.time()
-                if now - last_print > 2:
-                    print('progress', have, want, flush=True)
-                    last_print = now
-                # 一段时间内平均速度太慢：还有别的地址可试就换
-                if now - window_start >= SLOW_SECS:
-                    if can_switch and window_bytes / (now - window_start) < SLOW_BPS:
-                        raise TooSlow('%.0f KB/s' % (window_bytes / (now - window_start) / 1024))
-                    window_start, window_bytes = now, 0
+        try:
+            with open(part, mode) as f:
+                while True:
+                    chunk = r.read(1 << 20)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    have += len(chunk)
+                    received += len(chunk)
+                    window_bytes += len(chunk)
+                    now = time.time()
+                    if now - last_print > 2:
+                        print('progress', have, want, flush=True)
+                        last_print = now
+                    if now - window_start >= SLOW_SECS:
+                        if can_switch and window_bytes / (now - window_start) < SLOW_BPS:
+                            raise TooSlow('%.0f KB/s' % (window_bytes / (now - window_start) / 1024))
+                        window_start, window_bytes = now, 0
+        except Exception:
+            try: os.truncate(part, committed)
+            except OSError: pass
+            raise
     if range_len and received != range_len:
-        try: os.remove(part)
-        except OSError: pass
-        try: os.remove(part + '.etag')
+        try: os.truncate(part, committed)
         except OSError: pass
         raise IOError('206 正文长度不对：收到 %d，声明 %d' % (received, range_len))
     if want and have != want:
