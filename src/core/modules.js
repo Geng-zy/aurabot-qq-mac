@@ -83,6 +83,7 @@ function filesOf(dir, base = dir, out = []) {
 function stampOf(dir) {
   const h = createHash('sha256')
   for (const f of filesOf(dir).sort()) {
+    if (f === '.complete') continue
     h.update(relative(dir, join(dir, f)))
     h.update('\0')
     try { h.update(readFileSync(join(dir, f))) } catch (error) { h.update('missing') }

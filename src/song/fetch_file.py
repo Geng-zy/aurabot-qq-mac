@@ -147,8 +147,15 @@ def fetch(opener, url, part, want, can_switch):
         if write_part != part:
             try: os.remove(write_part)
             except OSError: pass
+        elif old_have == 0 and new_etag:
+            try:
+                with open(part + '.etag', 'w', encoding='utf-8') as ef: ef.write(new_etag)
+            except OSError: pass
         raise IOError('下载长度不对：%d/%d 字节' % (have, want))
     if write_part != part:
+        # 先让旧标签失效，再替换字节；两步之间退出只会触发全量验证。
+        try: os.remove(part + '.etag')
+        except OSError: pass
         os.replace(write_part, part)
     if new_etag:
         try:
