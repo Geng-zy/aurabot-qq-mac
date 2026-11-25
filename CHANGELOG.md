@@ -2,6 +2,13 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.94
+
+- onMessage 主体从 hub.js 拆到 chat/on-message.js。
+- 补齐 lastPoker/lastSpeaker/pokeAt 三个未声明的映射，避免戳一戳和群话题路径上的隐式全局。
+- 保留命令、白名单、偷表情、群接话、语音、图片、引用和会话投递。
+- hub.js 2942 行；回归：433 个语法文件、lint 0 errors、E2E 人格 109 个测试通过。
+
 ## 1.5.93
 
 - 会话事件处理主体从 hub.js 拆到 chat/session-events.js。
