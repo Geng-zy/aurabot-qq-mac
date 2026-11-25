@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.3
+
+- client 再拆 47 个共享 UI 组件/子页到 client/parts：Card、Btn、Select、Range、各设置块、日记/心情/心智小页等。
+- client.template.js 2222 → 1102 行；页面片段累计 98 个。
+- 回归：面板/安全/浏览器/关于/client 构建 27 个测试通过。
+
 ## 1.6.2
 
 - client 导航定义（NAV_GROUPS / TABS / visibleTabs）拆到 client/parts/navigation.js。
