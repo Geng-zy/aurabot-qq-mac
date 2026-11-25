@@ -9,15 +9,15 @@
 //
 // ⚠ 安全默认：总开关关、试运行开。不手动打开，一句都不会真的发到 QQ。
 
-import { readFileSync, existsSync, writeFileSync, unlinkSync, statSync, mkdirSync } from 'node:fs'
-import { join, dirname, relative } from 'node:path'
+import { readFileSync, statSync, mkdirSync } from 'node:fs'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { loadConfig, saveConfig, publicConfig, mergeFromPanel, ownerAuthorizationRevision } from './core/config.js'
 import { createLogger } from './core/logger.js'
 import { registerSecret } from './core/redact.js'
-import { LEGACY_PLATFORM, normChat, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
+import { LEGACY_PLATFORM, parseChat, parsePerson, sameChat, shortRef } from './channels/index.js'
 import { createChannelManager } from './channels/manager.js'
 import { createPlatformChannels } from './channels/registry.js'
 import { QQ_FEATURES } from './channels/qq/features/index.js'
@@ -250,7 +250,7 @@ export function apply(ctx) {
           const model = m.id || m.model
           out.push({ provider, model, name: m.name || model, reasoning: await modelReasoning(ctx, provider, model), vision: await modelVision(ctx, provider, model) })
         }
-      } catch (error) {}
+      } catch {}
     }
     if (out.length) modelCache = out
     return out
@@ -405,7 +405,7 @@ export function apply(ctx) {
         try { return Boolean(hub?.chatOfSession?.(agent?.session?.id)) } catch (error) { return false }
       },
     })
-    return () => { try { if (typeof off === 'function') off() } catch (error) { /* ignore */ } }
+    return () => { try { if (typeof off === 'function') off() } catch { /* ignore */ } }
   }, 'aurabot: 宿主维护插件提示词边界')
 
   // 宿主维护插件会把注入排到最前面；在模型请求出口把人设块搬回最前。
@@ -417,11 +417,11 @@ export function apply(ctx) {
         try { return Boolean(options?.sessionId && hub?.chatOfSession?.(options.sessionId)) } catch (error) { return false }
       },
     })
-    return () => { try { if (typeof off === 'function') off() } catch (error) { /* ignore */ } }
+    return () => { try { if (typeof off === 'function') off() } catch { /* ignore */ } }
   }, 'aurabot: 人设前置')
 
   // ---------- 面板接口的小工具 ----------
-  const { send, readBody, readRaw, query, answer, isLoopbackAddr, panelBlocked, adminHostBlocked, csrfBlocked } = createHttpKit({
+  const { send, readBody, readRaw, query, answer, panelBlocked, adminHostBlocked, csrfBlocked } = createHttpKit({
     getConfig,
     log,
     prefix: PREFIX,
@@ -450,7 +450,7 @@ export function apply(ctx) {
     path: PREFIX, // DSH 按「路径 = 前缀 或 以 前缀/ 开头」匹配，前缀本身不带结尾的 /
     handler: (req, res) => answer(res, () => {
       let path = ''
-      try { path = new URL(req.url, 'http://x').pathname } catch (error) {}
+      try { path = new URL(req.url, 'http://x').pathname } catch {}
       // 【复审 2·P1-2】模块 prefix 路由也过 CSRF：实测本机 socket + 恶意 Origin 能跨站打
       // POST /aurabot/api/<模块>/run、/ext/<模块>/run 等无 token 的模块路由。
       // 模块路由有自己的 Host 闸与鉴权，但同样缺跨站防护；外部模块客户端不带 Origin，
@@ -526,12 +526,12 @@ export function apply(ctx) {
   ctx.effect(() => {
     let off = null
     try { off = ctx.on('approval/request', (request, next) => approvalRelay.onRequest(request, next)) } catch (error) { log.debug('挂审批应答失败：', error.message) }
-    return () => { try { if (typeof off === 'function') off() } catch (error) {} }
+    return () => { try { if (typeof off === 'function') off() } catch {} }
   }, 'aurabot: QQ 审批')
   ctx.effect(() => {
     let off = null
     try { off = ctx.on('tools/pre-execute', (exec, next) => dangerGuard.preExecute(exec, next)) } catch (error) { log.debug('挂危险命令确认失败：', error.message) }
-    return () => { try { if (typeof off === 'function') off() } catch (error) {} }
+    return () => { try { if (typeof off === 'function') off() } catch {} }
   }, 'aurabot: 危险命令确认')
 
   let unloaded = false
@@ -607,7 +607,7 @@ export function apply(ctx) {
         if (approvalRelay.askedRecently()) return
       }
       let title = ''
-      try { title = String(session?.title || '').trim() } catch (error) {}
+      try { title = String(session?.title || '').trim() } catch {}
       if (!title) title = String(session?.id || '').slice(-8) // 会话事件里常常没带标题：用 id 后 8 位兜底
       const queued = noticeRelay.announce('approval', { id, sessionId: session?.id, title, tool: d.toolName, reason: d.reason })
       log.info(`审批上报：${d.toolName || '?'}（会话 ${String(session?.id || '').slice(-8) || '?'}）→ ${queued ? '已入队' : (noticeRelay.enabled('approval', session?.id) ? '重复/已在队列' : '被开关挡掉')}`)
@@ -625,10 +625,10 @@ export function apply(ctx) {
         // 她自己在 QQ 聊天会话里问的，那边会话本身就会发出去，不用再报
         if (hub?.chatOfSession?.(sid)) return
         let qs = []
-        try { qs = JSON.parse(String(d.arguments || '{}')).questions || [] } catch (error) {}
+        try { qs = JSON.parse(String(d.arguments || '{}')).questions || [] } catch {}
         if (!Array.isArray(qs) || !qs.length) return
         let title = ''
-        try { title = String(session?.title || '').trim() } catch (error) {}
+        try { title = String(session?.title || '').trim() } catch {}
         if (!title) title = sid.slice(-8)
         const queued = noticeRelay.announce('question', { id: `q:${sid}:${d.callId}`, sessionId: sid, title, questions: qs })
         log.info(`提问上报：${qs.length} 个问题（${title}）→ ${queued ? '已入队' : (noticeRelay.enabled('question', sid) ? '重复/已在队列' : '被开关挡掉')}`)
@@ -652,10 +652,10 @@ export function apply(ctx) {
       // 审批请求顺手通知到管理员私聊（只通知，不代答）
       if (event && event.type === 'approval/asked') notifyApproval(session, event)
       // 你已经点过了：还在缓冲里的那条撤掉，别等你点完才提醒
-      if (event && event.type === 'approval/decided') { try { noticeRelay.cancel(String(event.data?.id || '')) } catch (error) {} }
+      if (event && event.type === 'approval/decided') { try { noticeRelay.cancel(String(event.data?.id || '')) } catch {} }
       if (event && (event.type === 'tool/call' || event.type === 'tool/result')) noticeQuestion(session, event)
     })
-    return () => { try { if (typeof off === 'function') off() } catch (error) {} }
+    return () => { try { if (typeof off === 'function') off() } catch {} }
   }, 'aurabot: 盯会话')
 
   // ---------- 启动 / 看门狗 ----------
@@ -684,7 +684,7 @@ export function apply(ctx) {
     }
     tasks.dispose()
     hub.dispose()
-    try { Promise.resolve(mind?.close()).catch((error) => log.debug('心智关闭出错：', error.message)) } catch (error) {}
+    try { Promise.resolve(mind?.close()).catch((error) => log.debug('心智关闭出错：', error.message)) } catch {}
     bridge.dispose()
     mods.dispose()
   }, 'aurabot: 收尾')
@@ -714,7 +714,6 @@ export function apply(ctx) {
   registerSessionRoutes({ route, getConfig, backgroundText, hub })
   // 人格
   // ---------- 心智核心（面板「心情与记忆」「人物」「心智设置」） ----------
-  const mindOff = { ok: false, message: '心智核心没起来，看日志里的原因' }
   registerMindMemoryRoutes({ route, readBody, query, getMind: () => mind })
   registerModelRoutes({ route, readBody, getConfig: () => cfg, getMind: () => mind, listProviderModels, listModels, clearReasoningCache, clearVisionCache, askModel, ctx })
   registerMindSettingsRoutes({
