@@ -48,6 +48,7 @@ import { createOnDelivered } from './on-delivered.js'
 import { createReplyJournal } from './reply-journal.js'
 import { createQuoteResolver } from './quote.js'
 import { inlineLabel, indentBody, quoteWho, quoteBody, quoteWhen, quoteInline } from './quote-format.js'
+import { createReferenceTools } from './reference.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -1577,39 +1578,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const quotedInfo = createQuoteResolver({ channelOf, getConfig, selfId, log })
   const quoteCache = quotedInfo.cache
 
-  const senderLabel = (chatId, uid) => isOwner(getConfig(), uid, chatId) ? '管理员本人' : '其他人'
-  /** 引用里的图片 / 表情包：最多 take 张转成附件；模型看不了图时 pushToSession 会换成文字。 */
-  async function quoteImages(q, take = 2) {
-    if (!q?.ok || take <= 0) return []
-    const segs = [...q.images, ...q.stickers].slice(0, take)
-    if (!segs.length) return []
-    const got = await imagesOf({ chatId: q.chatId, stickers: [], images: segs })
-    return got.map((x, i) => ({ type: 'image', data: x.data, mediaType: x.mediaType, name: `quote-${q.uid || 'x'}-${i + 1}` }))
-  }
-
-  /** 生图复用收到的媒体段和引用缓存，不接受工具传来的路径、URL 或任意消息 ID。 */
-  async function referenceImage(chat, source = 'last', { replyId } = {}) {
-    if (disposed) throw disposedError()
-    let seg
-    if (source === 'quote') {
-      const now = Date.now()
-      const q = replyId === undefined
-        ? [...quoteCache.values()].findLast((item) => item.chatId === chat.chatId && item.ok && item.at <= now && now - item.at < 30 * 60_000)
-        : await quotedInfo(replyId, chat)
-      seg = q?.images.at(-1) || q?.stickers.at(-1)
-    } else {
-      seg = recentMedia.get(chat.chatId).at(-1)?.seg
-    }
-    if (!seg) throw new Error(source === 'quote' ? '当前聊天没有可用的引用图片，请引用带图的消息再试' : '当前聊天最近半小时没有收到图片，请先发一张图')
-    return segmentBytes(seg, channelOf(chat.chatId), { maxBytes: MAX_IMAGE_BYTES, allowLocal: false })
-  }
-
-  async function repliedToBot(replyId, msg) {
-    if (!replyId) return false
-    if (sentIds.has(`${parseChat(msg.chatId)?.platform}:${replyId}`)) return true
-    const q = await quotedInfo(replyId, msg)
-    return Boolean(q && q.ok && q.isBot)
-  }
+  const { senderLabel, quoteImages, referenceImage, repliedToBot } = createReferenceTools({
+    isDisposed: () => disposed, disposedError, getConfig, isOwner, quotedInfo, quoteCache, imagesOf,
+    recentMedia, segmentBytes, channelOf, maxImageBytes: MAX_IMAGE_BYTES, sentIds, parseChat,
+  })
 
   /** QQ 语音是 silk：让网关转成 wav，再统一成 16kHz 单声道 PCM16。 */
   async function recordWav(rec, suppliedWav, chatId) {
