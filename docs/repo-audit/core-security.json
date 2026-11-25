@@ -1,0 +1,275 @@
+[
+  {
+    "path": "src/core/backup-push.js",
+    "area": "core",
+    "owner": "core-data",
+    "verdict": "split",
+    "evidence": "469 行（>300）；内部依赖 2 个（./store.js:21、./backup.js:22）；被 src/host.js:45 引用；被 test/backup-push.test.js（20 test）、test/backup-webdav.test.js、test/e2e.test.js、test/system-processes.test.js 覆盖；导出 6 个。拆因：单文件承担 4 件事——Gitee git 推送（gitEnv 60、pushBackup 337）、WebDAV 列举与下载（listWebdavBackups 249、downloadWebdavBackup 256）、保留淘汰计划（prunePlan 73）、输出令牌脱敏（redact 50）"
+  },
+  {
+    "path": "src/core/backup.js",
+    "area": "core",
+    "owner": "core-data",
+    "verdict": "split",
+    "evidence": "1059 行（>300）；内部依赖 1 个（./store.js:12）；被 src/host.js:44、src/core/backup-push.js:22 引用；被 test/backup.test.js（18 test）、test/backup-restart.test.js（1 test）覆盖；导出 17 个。拆因：手写 zip 写入（localHeader 192、centralHeader 208、createBackup 232）+ zip 读取与流式校验（readEntries 350、verifyEntryStreaming 421、readEntry 447）+ .restore 发布事务与回滚（withRestoreStage 469、publishStage 501、recoverPublish 533）+ 启动时恢复与待恢复会话（resumePendingSessions 722、applyPendingRestore 761）+ 保留策略（pruneLocalBackups 927、prunePreRestore 940）"
+  },
+  {
+    "path": "src/core/bridge.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keepDoc",
+    "evidence": "220 行；内部依赖 4 个（../tools/tools.js:11、../chat/reply.js:12、../chat/access.js:13、../channels/index.js:14）；仅被 src/host.js:46 引用；无测试直接 import，只有 ensureToken/resetToken 经 host 路由被 test/csrf-publicbase.test.js（/bridge/token 403 分支）和 test/modules.test.js（令牌重置）覆盖，ops/service/dispose/refresh 无测试。补文档理由：ctx.provide('aurabot') 服务面（91-100 行）、3 个 aurabot_* 全局工具（109-131）、/aurabot/api/open/* 鉴权（169-191）没有契约文档，docs/FEATURES-AND-IMPLEMENTATION.md 只有一句概述；同时这里集中了 3 处 core→chat/channels 反向依赖"
+  },
+  {
+    "path": "src/core/changelog.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "keep",
+    "evidence": "8 行；0 内部依赖、0 外部依赖；被 src/host.js:35 引用，并经 host.js:710 注入 src/features/panel-misc-routes.js:45（版本说明路由）使用；被 test/pure.test.js:336-340 覆盖（命中/未命中/未知版本返回空串）；全仓 grep 'changelogSection' 只有本文件定义与 3 处调用，无重复实现"
+  },
+  {
+    "path": "src/core/community.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "split",
+    "evidence": "328 行（>300）；内部依赖 2 个（./store.js:15、./modules.js:16）；被 src/host.js:40 引用；被 test/community.test.js（16 test）覆盖；导出 7 个。拆因：两个职责——自带 zip 解包 readZip(71-111) 与 模块库索引/下载/安装/更新/卸载（createCommunity 113-328）；readZip 是第二份实现：grep 'readZip' 得到 src/core/zip.js:19（返回数组、支持 want 过滤）与本文件 71（返回 Map、校验 CRC、限解压总量），中央目录解析逻辑各写一遍"
+  },
+  {
+    "path": "src/core/config.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "split",
+    "evidence": "844 行（>300）；内部依赖 5 个（./store.js:4、../chat/group-policy.js:5、../chat/access.js:6、../chat/chat-model.js:7、../channels/qq/features/diary/qzone-audience.js:8）；被 60 个文件引用（src 6：src/host.js:17、src/chat/hub.js:11、src/channels/qq/inbox.js:1、src/channels/qq/features/voice/index.js:12、src/core/module-loader.js:7、src/modules/imagegen/index.js:17；test 54 个含 test/pure.test.js、test/backup.test.js）；导出 10 个。拆因：默认值表 DEFAULTS(10-263，254 行) + 归一化与旧值迁移 normalize(323-682，360 行) + 密钥登记与对外脱敏（SECRETS 683、registerSecretField 683）+ 读写与面板视图（loadConfig 699、saveConfig 734、publicConfig 746、mergeFromPanel 780）四件事混在一个文件；4 处 core→chat/channels 反向依赖也全集中在这 4 行 import"
+  },
+  {
+    "path": "src/core/image-info.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "59 行；0 内部依赖；被 15 个 src 文件引用（src/chat/images.js:3、src/features/stickers.js:8、src/local/local.js:11、src/core/img.js:7、src/core/media.js:6 等）；被 test/pure.test.js、test/qq-file.test.js 覆盖；导出 4 个纯函数（stickerSizeOk/imageSize/gifFrames/mimeOf）"
+  },
+  {
+    "path": "src/core/img.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "128 行；内部依赖 1 个（./image-info.js:7）；被 9 个 src 文件引用（src/chat/images.js:4、src/song/studio.js:16、src/features/imagegen.js:13、src/core/media.js:5 等）；被 test/module-media-api.test.js:6、test/imagegen-blocks.test.js 覆盖；导出 5 个（findFfmpeg/findSharp/shrinkWithSharp/shrinkImage/imageToolBlock）"
+  },
+  {
+    "path": "src/core/llm.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "236 行；内部依赖 2 个（./text.js:4、./usage.js:5）；被 5 个 src 文件引用（src/host.js:28、src/chat/hub.js:25、src/features/stickers.js:9、src/modules/imagegen/index.js:8、src/channels/qq/features/profile/qq-profile.js:3）；测试 4 个（test/llm.test.js、test/vision-capability.test.js、test/usage-accounting.test.js、test/fixes-1.2.0.test.js）；导出 9 个"
+  },
+  {
+    "path": "src/core/logger.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "keepDoc",
+    "evidence": "76 行；内部依赖 2 个（./store.js:5、./redact.js:6）；仅被 src/host.js:18 引用（host.js:92 实例化）；grep 'createLogger' test/ 为 0 命中，无测试。补文档：面板日志视图依赖的 recent(limit, filter) 语义（59-63 行，按 level 序号过滤 + area 精确匹配 + 环形上限 500）、日志文件按天落盘与 retainDays=14 清理（18-28、40）都没有文字说明"
+  },
+  {
+    "path": "src/core/media.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "25 行；内部依赖 5 个（./store.js:4、./img.js:5、./image-info.js:6、../voice/wav.js:7、../features/stickers.js:8）；被 src/host.js:30 引用；被 test/module-media-api.test.js:7 覆盖；6 个返回键里 mimeOf/parseWav/toMono16k 是直接 re-export，自有行为只有 avatar/sticker/ffmpegPath。保留理由：它是模块侧唯一不暴露全局数据目录与素材绝对路径的媒体读入口；文件里 ../features/stickers.js 那 1 处 core→feature 反向依赖随 B5/B8 一并处理"
+  },
+  {
+    "path": "src/core/models-list.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "60 行；0 内部依赖；被 src/host.js:31 引用；被 test/models-list.test.js 覆盖；导出 3 个（MODEL_KINDS/checkBase/listModels）；文件头 2-3 行写明它与 DSH 聊天模型列表不是一回事，边界清楚"
+  },
+  {
+    "path": "src/core/module-api.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keep",
+    "evidence": "175 行；内部依赖 2 个（./store.js:3、./module-code.js:4）；仅被 src/core/modules.js:19 引用；无直接测试文件，经 test/module-lifecycle.test.js（14 test）与 test/modules.test.js（25 test）走 modules.js 的公开面覆盖。createModuleApi 收 15 项依赖。接口即文档：src/modules/API.md（410 行）第 95-198 节逐条描述 makeApi 暴露的 api.* 面；4 处 late-binding（note/isDisposed/exportsOf/cleanup）是本文件与 modules.js 的真实耦合面"
+  },
+  {
+    "path": "src/core/module-code.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keep",
+    "evidence": "128 行；0 内部依赖（纯函数：rewriteImports/scopeCoreForModule/lazyProxy/deepMerge）；被 src/core/modules.js:22（再导出）、src/core/module-api.js:4、src/core/module-registry.js:5 引用。覆盖情况：scopeCoreForModule 由 test/subagent-delegation.test.js:169 直接覆盖（#177 原型链掐断断言，184 行），rewriteImports 经 src/core/module-registry.js:119 fork 由 test/modules.test.js 的「复制内置模块」用例间接覆盖，lazyProxy 无测试（仅 src/core/module-api.js:68 api.lazy 使用）。deepMerge 与 src/core/config.js:264 的第二份实现并存，去重时以本文件为基座"
+  },
+  {
+    "path": "src/core/module-loader.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keepDoc",
+    "evidence": "264 行；内部依赖 1 个（./config.js:7 registerSecretField）；仅被 src/core/modules.js:21 引用；无直接测试文件，热重载与竞态语义经 test/module-lifecycle.test.js（14 test，含「导入途中关闭模块、开启安全模式或停止模块」）和 test/modules.test.js（25 test，热重载/安全模式/替换内置）覆盖。补文档：createModuleLoader 收 28 项依赖袋（第 9 行），revisions/generation/userSeen 的失效顺序（stop 72-86、start 16-50、syncPass 189-229）没有契约文档，只剩 docs/P2-MIGRATION.md 第 1 节记录的「试拆到第 1 步出现 404 竞态、整体回退」"
+  },
+  {
+    "path": "src/core/module-panel.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keep",
+    "evidence": "134 行；0 运行时 import（第 7 行只有 JSDoc 类型引用 ./module-state.js）；仅被 src/core/modules.js:18 引用；经 test/modules.test.js、test/module-panel-route.test.js 覆盖 emit/claim/filter/buildTools/handle 与面板源码加载；路由形状 /aurabot/api/ext/<id>/... 与 panel.js 的加载规则写在 src/modules/API.md「面板」节"
+  },
+  {
+    "path": "src/core/module-registry.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keepDoc",
+    "evidence": "162 行；内部依赖 1 个（./module-code.js:5 rewriteImports）；仅被 src/core/modules.js:20 引用；无直接测试文件，status() 的字段被 test/subagent-delegation.test.js 与 test/removed-legacy-paths.test.js 间接断言，模块列表/创建/复制经 test/modules.test.js 覆盖。补文档：status() 返回 31 个字段（id … startedAt，40-84 行）没有字段表，module.json 的 capabilities 读取规则（11-25 行）与 fork 时的 import 改写规则（109-130 行）也没有文字说明"
+  },
+  {
+    "path": "src/core/module-state.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keep",
+    "evidence": "13 行；0 内部依赖；被 src/core/modules.js:17 引用，并被 src/core/module-panel.js 的 JSDoc 类型引用；无直接测试（不改变 state 结构即无行为）。保留理由：它是打断 api/registry/loader/panel 四个工厂循环 import 的最小共享容器，删除测试过不了——删掉后 6 个 Map 必须回到 modules.js 或各工厂互相 import。实际内容为 6 个 Map（live/errors/routes/listeners/revisions/userSeen）+ generation 计数；docs/P2-MIGRATION.md 第 1 节把 live/errors/routes/listeners/revisions/generation/userSeen/syncing 并列为 8 项共享状态，其中 syncing 实际是 module-loader.js:13 的局部变量，state 里只有 6 个 Map + generation"
+  },
+  {
+    "path": "src/core/modules.js",
+    "area": "core",
+    "owner": "core-modules",
+    "verdict": "keep",
+    "evidence": "199 行（docs/P2-MIGRATION.md:9 记的 186 行已过时）；内部依赖 8 个（store、tools/tools、module-state、module-panel、module-api、module-registry、module-loader、module-code）；被 src/host.js:39、src/core/community.js:16、test/module-lifecycle.test.js:8 引用；测试 4 个文件（module-lifecycle 14 test、modules 25 test、community 16 test、subagent-delegation）。深层接口成立：createModules 收 7 项、返回 30 个键（boot/sync/reload/stop/dispose/status/create/fork/promptFor/panelSource/use/has/running/generation/capabilitiesOf/emit/claim/filter/filterSync/buildTools/listen/contextFor/rules/commands/dshTools/builtinOff/handle/hasRoute/routeAccess/dir），generation 只在 start(31)、startSync(59)、stop(77) 三处自增，唯一出口 src/host.js:381 toolsGeneration，实际比较点在 src/chat/mount.js:62（工具闭包过期即重挂）"
+  },
+  {
+    "path": "src/core/net.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "234 行；0 内部依赖（只用 node:dns/node:net/node:fs）；被 14 个 src 文件引用（src/chat/hub.js:18、src/features/imagegen.js:8、src/song/studio.js:4、src/channels/qq/features/actions.js:1 等）；被 test/security.test.js 覆盖 SSRF/协议/大小限制分支；导出 9 个"
+  },
+  {
+    "path": "src/core/offpeak.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "keep",
+    "evidence": "105 行；0 内部依赖；被 src/core/usage.js:11、src/host.js:36 引用；被 test/offpeak.test.js 覆盖峰谷边界（含节假日集合）；导出 5 个（beijingDayKey/isPeak 等纯计算）"
+  },
+  {
+    "path": "src/core/python.js",
+    "area": "core",
+    "owner": "core-data",
+    "verdict": "keep",
+    "evidence": "197 行；内部依赖 1 个（./zip.js:12 readZip）；被 4 个 src 文件引用（src/features/local-image.js:8、src/song/studio.js:14、src/mind-adapter/install.js:16、src/voice/tts.js:84 动态 import）；被 test/macos.test.js:17、test/song.test.js:19 覆盖；导出 15 个（uv 安装、镜像选择、解压等）"
+  },
+  {
+    "path": "src/core/redact.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "keep",
+    "evidence": "29 行；0 内部依赖；被 5 个文件引用（src/host.js:19、src/host/http.js:7、src/chat/hub.js:24、src/chat/chat-log.js:6、src/core/logger.js:6）；被 test/pure.test.js:10 覆盖；导出 2 个（registerSecret/redact）"
+  },
+  {
+    "path": "src/core/store.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "keep",
+    "evidence": "52 行；0 内部依赖；被 34 个 src 文件引用（src/host.js:32、src/core/config.js:4、src/chat/hub.js:12、src/persona/personas.js:8 等）；被 test/chat-log.test.js:8 直接引用，另有 test/diary-media.test.js、test/qzone.test.js 依赖其数据目录隔离；导出 6 个（dshHome/dataDir/ensureDir/readJson/readJsonStrict/writeJson）"
+  },
+  {
+    "path": "src/core/tasks.js",
+    "area": "core",
+    "owner": "core-runtime",
+    "verdict": "keep",
+    "evidence": "137 行；内部依赖 3 个（./store.js:2、../channels/ids.js:3、../tools/tools.js:4）；被 src/host.js:33 引用；被 test/creative-tasks.test.js:7、test/song.test.js:8 覆盖；导出 1 个工厂 createTasks。1 处 core→channels 反向依赖（../channels/ids.js 本身 0 import，是可下移的纯函数）"
+  },
+  {
+    "path": "src/core/text.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "keep",
+    "evidence": "13 行；0 内部依赖；被 6 个文件引用（src/chat/hub.js:29、src/core/llm.js:4、src/host/prompt-vars.js:7、src/channels/qq/features/diary/sources.js:8 等）；被 test/text.test.js:3 覆盖 #151 代理字符截断；导出 3 个（cleanText/clipText/cleanContent）"
+  },
+  {
+    "path": "src/core/usage.js",
+    "area": "core",
+    "owner": "core-base",
+    "verdict": "split",
+    "evidence": "407 行（>300）；内部依赖 2 个（./store.js:10、./offpeak.js:11）；被 src/host.js:34、src/chat/hub.js:70、src/core/llm.js:5 引用；被 test/usage.test.js（15 test）、test/usage-accounting.test.js 覆盖；导出 11 个。拆因：三层职责同文件——定价表与单价（DEFAULT_PRICING 27、priceOf 109）、记账落盘与初始化（initUsage 297、recordUsage 332）、聚合报表与成本（moduleOf 185、costOf 202、usageReport 369）"
+  },
+  {
+    "path": "src/core/workspace-move.js",
+    "area": "core",
+    "owner": "core-data",
+    "verdict": "keep",
+    "evidence": "99 行；0 内部依赖；被 src/host.js:25 引用；被 test/workspace-move.test.js 覆盖（复制校验、符号链接拦截、失败回滚）；导出 2 个（realWorkspace/moveWorkspace）"
+  },
+  {
+    "path": "src/core/zip.js",
+    "area": "core",
+    "owner": "core-data",
+    "verdict": "keep",
+    "evidence": "53 行；0 内部依赖；被 src/core/python.js:12、src/song/studio.js:13 引用；无直接测试，经 test/song.test.js（读模型 zip）与 test/macos.test.js（解压 uv 包）间接覆盖；导出 1 个 readZip。去重基线：grep 'readZip' 显示 src/core/community.js:71 是第二份独立实现（返回 Map、校验 CRC），合并方向是 community.js 改用本文件"
+  },
+  {
+    "path": "src/integration/README.md",
+    "area": "integration",
+    "owner": "integration",
+    "verdict": "keep",
+    "evidence": "54 行；0 import（文档类，仓库事实表把 src/ 前缀记为 source 才需要结论）；描述 integration 三文件的边界（22-30 行表）、契约（36-46 行）与测试命令（48-53 行）；与代码一致——AURABOT_PERSONA_PRESETS 4 个预设对应 cordis.patch.yml 里 4 处 AURABOT:PERSONA 标记，test/integration-architecture.test.js:34-44 断言该数量"
+  },
+  {
+    "path": "src/integration/host-tools.js",
+    "area": "integration",
+    "owner": "integration",
+    "verdict": "keepDoc",
+    "evidence": "52 行；0 内部依赖；被 src/integration/purge-scope.js:13、src/chat/tool-scope.js:10 引用；无直接测试，经 test/tool-scope.test.js（3 test）、test/purge-scope.test.js（10 test）、test/purge-scope-integration.test.js、test/group-owner-tools.test.js 间接覆盖。补文档（宿主假设分级）：① agent.ctx.tools.view(agent).restrictableNames 未在 dsh-tools/README.md 的公开面里出现（公开面是 get/definitions/schemas/executable）；② 探测分支靠正则解析英文报错 /known global tools?\\s*[:：]\\s*(.+)$/，对应 DSH 0.2.2-rc.3 的 dsh-tools/lib/index.js:466 单条写死文案，改词即失效；③ 稳定契约只有 purge_ 前缀（REFACTOR-PLAN 1.1 第 3 条）"
+  },
+  {
+    "path": "src/integration/persona-hoist.js",
+    "area": "integration",
+    "owner": "integration",
+    "verdict": "keepDoc",
+    "evidence": "154 行；0 内部依赖；仅被 src/host.js:78 引用；被 test/persona-hoist.test.js（6 test）覆盖 split/hoist/rewrite，test/integration-architecture.test.js 断言 4 处标记。补文档（宿主假设）：包装对象是 llm.adapters（DSH 0.2.2-rc.3 里为 dsh-llm/lib/index.js:1917 的私有字段 Map）与每个 adapter 的 prepareCall(provider, model, signal)/stream(options)（同文件 1854、2334、2428 行），并对 deep-frozen 请求做浅拷贝重建；dsh-llm/README.md 第 12、109 行写明请求 deep-frozen「adapters read them and never rewrite them」，这套做法与宿主设计相反，须进 docs/repo-audit/host-compat.json"
+  },
+  {
+    "path": "src/integration/purge-scope.js",
+    "area": "integration",
+    "owner": "integration",
+    "verdict": "keepDoc",
+    "evidence": "129 行；内部依赖 1 个（./host-tools.js:13）；被 src/host.js:73、src/chat/hub.js:75、src/host/prompt-vars.js:9 引用；被 test/purge-scope.test.js（10 test）、test/purge-scope-integration.test.js（1 test）、test/integration-architecture.test.js 覆盖；导出 13 个。补文档（宿主契约分级）：ctx.on('system-prompt/assemble', …, {global:true}) 与 waterfall 位置参数 (assembly, context, next) 在 rc.3 成立（dsh-system-prompt/lib/index.js:401，context.agent 由 dsh-agent/lib/index.js:409 提供，{global:true} 是 cordis 支持的监听选项）；易碎的是 ① context.agent 未出现在 assemble 的 JSDoc（只写 scope/toolSet），② session.header.agentPreset 只是创建时的预设值——dsh-agent-preset-registry/lib/types/session.js:4-13 明说重建要读 agentPreset 投影而不是 header，运行中切过预设会读到旧值，③ decorateAssembly 塞的 order 字段宿主不认（assemble 产出的 section 只有 name/text/interpolate，见 dsh-system-prompt/lib/index.js:389-395），执行约束实际靠 patch 的 dsh-purge 前缀保留规则生效（同文件 402-408）"
+  },
+  {
+    "path": "src/persona/personas.js",
+    "area": "persona",
+    "owner": "persona",
+    "verdict": "keep",
+    "evidence": "167 行；内部依赖 2 个（../core/store.js:8、../channels/qq/faces.js:9）；被 src/host.js:38、src/host/prompt-vars.js:8、src/mind/self/index.js:9 引用；测试 11 个文件（test/personas.test.js、test/faces.test.js、test/freedom.test.js、test/pure.test.js、test/output-guard.test.js 等）；导出 9 个。1 处 persona→channels 反向依赖（faces.js 只提供 FACE_EXAMPLES 常量）需随 B5 下移"
+  },
+  {
+    "path": "src/security/approval.js",
+    "area": "security",
+    "owner": "security",
+    "verdict": "keep",
+    "evidence": "111 行；0 内部依赖；仅被 src/host.js:41 引用；被 test/approval-relay.test.js、test/her-voice.test.js、test/security-channel-conflict.test.js 覆盖（排队一次问一条、超时按 unavailable、网页先答收掉 QQ 问题、dispose 结清队列）；导出 1 个工厂，返回 6 个方法"
+  },
+  {
+    "path": "src/security/danger-rules.js",
+    "area": "security",
+    "owner": "security",
+    "verdict": "split",
+    "evidence": "413 行（>300）；0 内部依赖（纯函数，不碰 QQ 与配置）；仅被 src/security/danger.js:4 引用（第 6 行再 re-export isDangerousCommand）；无直接测试文件，经 test/danger-rules.test.js（9 test，从 danger.js 引入）覆盖；导出 1 个。拆因：文件里是两件事——纯 shell 解析器（TOKEN_RE 70、splitSegments 92、commandIndex 130、commandSubs 207、skipFlags 253、scanMentions 265、stripHereStrings 332）与危险规则表（EXEC_RULES 32、MENTION_WORDS 51、AURABOT_MODULES_* 59-62、PARTED_READ_ONLY/WRITE 67-68）；拆开后解析器可单独单测，规则表可独立审阅"
+  },
+  {
+    "path": "src/security/danger.js",
+    "area": "security",
+    "owner": "security",
+    "verdict": "keep",
+    "evidence": "159 行；内部依赖 2 个（../chat/access.js:3 isOwner、./danger-rules.js:4）；仅被 src/host.js:68 引用；被 4 个测试覆盖（test/danger-rules.test.js 9 test、test/danger-guard.test.js、test/long-tasks.test.js、test/security-channel-conflict.test.js）；导出 2 个（safeOwnedSession/createDangerGuard）。1 处 security→chat 反向依赖：../chat/access.js 自身只 import 0 依赖的 channels/ids.js，属可下移的纯策略模块"
+  },
+  {
+    "path": "src/security/leak-guard.js",
+    "area": "security",
+    "owner": "security",
+    "verdict": "keep",
+    "evidence": "204 行；0 内部依赖（只用 node:async_hooks 的 AsyncLocalStorage）；被 src/chat/hub.js:22、src/chat/hub.js:35、src/chat/reply.js:12、src/host/prompt-vars.js:6 引用；被 test/leak-guard.test.js、test/output-guard.test.js 覆盖；导出 9 个（normalizeForMatch/withPromptCapture/currentPromptSources/captureSystemPrompt/contextInjectionRanges/memoryPromptRanges/promptFingerprint/promptTextRanges/PROMPT_MATCH_LENGTH）"
+  },
+  {
+    "path": "src/tools/tools.js",
+    "area": "tools",
+    "owner": "core-tools",
+    "verdict": "keep",
+    "evidence": "36 行；0 内部依赖；被 16 个 src 文件引用（src/channels/qq/features/ 7 处、src/modules/ 4 处、src/core/modules.js:16、src/core/bridge.js:11、src/core/tasks.js:4、src/mind-adapter/index.js:19、src/mind-adapter/inspection.js:3）；被 test/imagegen-blocks.test.js 覆盖产出形状（parameters/output.render）；导出 4 个（defineTool/str/int/bool）。文件头 1-4 行写明为什么不直接 re-export DSH 的 defineTool，删除测试过不了：删掉后 16 个调用点各写一遍 JSON Schema 适配与错误包装"
+  }
+]

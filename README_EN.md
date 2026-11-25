@@ -9,7 +9,7 @@
 A DeepSeek Harness plugin for Apple-silicon Macs · multi-platform adapters · OneBot v11
 
 [![Release](https://img.shields.io/github/v/release/Geng-zy/aurabot-qq-mac?style=flat-square&label=release)](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-1560%20passing-brightgreen?style=flat-square)](#development)
+[![Tests](https://img.shields.io/badge/tests-1572%20passing-brightgreen?style=flat-square)](#development)
 [![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-2e7763?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-QQ%20%7C%20Telegram-588b78?style=flat-square)](#platforms)
@@ -41,7 +41,21 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.5.11 highlights
+## 1.6.31 highlights
+
+### Voice notes actually send now
+
+- QQ requires a `duration` on every `record` segment. The old code only probed it with ffmpeg, so on a machine without ffmpeg the segment carried no duration and the gateway rejected it with `Input does not contain a known duration`. AuraBot now parses WAV / MP3 / OGG / M4A itself and falls back to ffmpeg only for unknown containers.
+- When `say` fails it still leaves a header-only WAV (exactly 4096 bytes with zero samples), which the old size check accepted: the bot sent a silent voice note. We now check the `say` / `afconvert` exit codes and require real audio, otherwise the reply goes out as text.
+
+### Refactor baseline
+
+- Full repository inventory and audit rules: [REPO-INVENTORY](docs/REPO-INVENTORY.md), [refactor plan](docs/REFACTOR-PLAN.md). Every first-party source file carries an owner, a verdict and checkable evidence.
+- Host compatibility is pinned to **DSH Desktop `0.2.2-rc.3` + dsh-purge `1.7.20`**; see [HOST-COMPAT](docs/HOST-COMPAT.md).
+
+Per-version changes: [CHANGELOG](CHANGELOG.md).
+
+## Capability notes
 
 ### One fish, one mind
 
@@ -120,15 +134,15 @@ local
 
 ## Install
 
-**Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH `0.2.2-rc.3` or newer. QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
+**Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.30.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.31.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.30.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.31.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -167,8 +181,17 @@ npm run check
 Current regression:
 
 ```text
-393 files syntax-checked
-1560 tests passing
+558 files syntax-checked
+1572 tests passing, 0 failing, 0 skipped
+oxlint: 0 error / 165 warning
+```
+
+Use the host's own toolchain when the repo has no binaries installed:
+
+```bash
+export PATH="$PWD/.dsh/tools/bin:$PATH"
+dsh-node --test --test-concurrency=1 --test-timeout=120000 "test/**/*.test.js"
+oxlint src client
 ```
 
 Offline mind replay:

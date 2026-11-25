@@ -3,11 +3,19 @@
 import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { findFfmpeg } from '../core/img.js'
+import { durationFromFile } from '../voice/duration.js'
 
-/** OneBot 的 record 段需要时长；base64 音频没有元数据时补一个。失败就不填。 */
+/**
+ * OneBot 的 record 段需要时长；不带的话网关会以
+ * `Input does not contain a known duration` 直接拒收。
+ * 先自己解容器（WAV/MP3/OGG/M4A），没装 ffmpeg 也能算；认不出才回落 ffmpeg。
+ */
 export function audioDurationSec(file, getConfig) {
+  if (!file) return 0
+  const own = durationFromFile(file)
+  if (own > 0) return Math.max(1, Math.round(own))
   const ffmpeg = findFfmpeg(getConfig().local?.ffmpegPath || '')
-  if (!ffmpeg || !file) return 0
+  if (!ffmpeg) return 0
   try {
     const r = spawnSync(ffmpeg, ['-hide_banner', '-i', file], { encoding: 'utf8', timeout: 5000 })
     const m = String(r.stderr || '').match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)

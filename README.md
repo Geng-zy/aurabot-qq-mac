@@ -9,7 +9,7 @@
 DeepSeek Harness 插件 · Apple 芯片 Mac · 多平台适配器 · OneBot v11
 
 [![Release](https://img.shields.io/github/v/release/Geng-zy/aurabot-qq-mac?style=flat-square&label=release)](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest)
-[![Tests](https://img.shields.io/badge/tests-1560%20passing-brightgreen?style=flat-square)](#开发与测试)
+[![Tests](https://img.shields.io/badge/tests-1572%20passing-brightgreen?style=flat-square)](#开发与测试)
 [![Node](https://img.shields.io/badge/node-%E2%89%A524-339933?style=flat-square&logo=node.js&logoColor=white)](package.json)
 [![License](https://img.shields.io/badge/license-MIT-2e7763?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platforms-QQ%20%7C%20Telegram-588b78?style=flat-square)](#平台)
@@ -43,7 +43,21 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.5.11 更新
+## 1.6.31 更新
+
+### 语音条修好了
+
+- 以前发不出去：QQ 的 `record` 段必须带时长，旧实现只靠 ffmpeg 探时长，机器上没装 ffmpeg 就一直不带，网关一律以 `Input does not contain a known duration` 拒收。现在插件自己解析 WAV / MP3 / OGG / M4A，不依赖 ffmpeg，认不出才回落 ffmpeg。
+- `say` 失败时会留下 0 采样的空 WAV（正好 4096 字节），旧的大小校验放过了它，等于发一条没声音的语音。现在检查 `say` / `afconvert` 退出码，并要求合成结果真有音频，否则改发文字。
+
+### 重构基线
+
+- 新增全仓清单与审计口径：[REPO-INVENTORY](docs/REPO-INVENTORY.md)、[重构总纲](docs/REFACTOR-PLAN.md)，每个自有源文件都有归属、结论和验证依据。
+- 宿主兼容收敛为 **DSH Desktop `0.2.2-rc.3` + dsh-purge `1.7.20`**，判定记录见 [HOST-COMPAT](docs/HOST-COMPAT.md)。
+
+逐版变更见 [CHANGELOG](CHANGELOG.md)。
+
+## 能力细节
 
 ### 同一只鱼
 
@@ -122,15 +136,15 @@ local
 
 ## 快速安装
 
-**需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH `0.2.2-rc.3` 或更新版本。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
+**需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.30.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.31.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.30.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.31.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -207,15 +221,26 @@ docs/                      设计、手册、迁移与审计
 需要 Node.js ≥ 24.0.0。
 
 ```bash
-npm test
-npm run check
+npm test          # node --test，离线：fake DSH + mock OneBot + 临时目录
+npm run check     # 全仓语法检查
+npm run lint      # oxlint src client
+npm run build:client   # 改过 client/parts 后重新生成 client/client.js
 ```
 
-当前回归：
+当前回归（实测）：
 
 ```text
-393 个文件语法检查通过
-1560 个测试通过
+558 个文件语法检查通过
+1572 个测试通过，0 失败，0 跳过
+oxlint 0 error / 165 warning
+```
+
+仓库不自带 Node 与 oxlint 的二进制时，用宿主自带的那份：
+
+```bash
+export PATH="$PWD/.dsh/tools/bin:$PATH"
+dsh-node --test --test-concurrency=1 --test-timeout=120000 "test/**/*.test.js"
+oxlint src client
 ```
 
 也提供离线心智回放：

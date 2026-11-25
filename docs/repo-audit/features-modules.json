@@ -1,0 +1,282 @@
+[
+  {
+    "path": "src/features/appearance.js",
+    "area": "feature",
+    "owner": "feature-appearance",
+    "verdict": "keep",
+    "evidence": "96 行、4 个内部依赖（node:fs、node:crypto、node:path、core/image-info.js:8 的 mimeOf）。1 处 import：src/modules/imagegen/index.js:6（createAppearance、DESCRIBE_SYSTEM、MAX_APPEARANCE 三个全用），另被 src/modules/imagegen/index.js:26 的 files 快照清单声明。测试：test/appearance.test.js；文档：docs/HANDOFF.md、docs/SESSION-HANDOFF.md 列出。面板侧 client/parts/appearanceCard.js 只走 /image/appearance* 路由（src/modules/imagegen/index.js:90-104），不 import 本文件。导出 3 个：createAppearance 工厂（第 17 行）、MAX_APPEARANCE 常量（第 10 行）、DESCRIBE_SYSTEM 提示词（第 96 行）。职责单一：外貌图存取、主图与描述、回收站。"
+  },
+  {
+    "path": "src/features/avatar-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "50 行、2 个内部依赖（node:fs:3、node:path:4）。唯一 importer src/host.js:61（import）+ host.js:842（registerAvatarRoutes 调用块）。测试：test/ 下 0 处 import 本文件；5 条端点中 4 条经 test/e2e.test.js:1278-1284 用 fake.call 覆盖（/avatar、/avatar/upload、/avatar/reset、/avatar/sync-qq），/panel/sea（第 19 行）只被 client/client.js:5193 与 client/parts/styles.js:458 当背景图 URL 引用。文档：docs/ 下 0 处提及。分层违规（REFACTOR-PLAN:32 panel 不该直接改文件）：6 处 fs 调用（第 11、16、22、31、37、42 行）+ 第 44 行 onebot.call('set_qq_avatar') 直连平台。并入新建 src/panel/core.js：签名 3 行 + 文件头 2 行 = 省 5 行，host.js:842 调用块 3 行并入单次 registerPanelRoutes；fs 与 onebot 两段下沉到 features/avatar.js。"
+  },
+  {
+    "path": "src/features/backup-cloud-routes.js",
+    "area": "panel",
+    "owner": "panel-backup",
+    "verdict": "merge",
+    "evidence": "66 行、0 个内部依赖。唯一 importer src/host.js:48（import）+ host.js:791（调用块 791-818，共 28 行依赖清单、15 个注入参数）。测试：/backup/remote/state、/backup/remote/config、/backup/push 由 test/e2e.test.js 与 test/system-processes.test.js 用 fake.call 覆盖；/backup/remote/list（第 46 行）、/backup/remote/restore（第 52 行）在 test/、docs/ 下 0 处引用。文档：docs/ 下 0 处提及本文件或这 5 条路径。导出 2 个：remoteView 纯视图映射（第 6-25 行，把 token 折成 hasToken）、registerBackupCloudRoutes。2 处 catch（第 49、63 行）与 src/host/http.js:60-67 的 answer() 逐字节相同。并入新建 src/panel/backup.js：签名 4 行 + 文件头 3 行（2 行注释 + 空行）+ 2 行冗余 catch = 省 9 行；host.js:791-818 的 28 行收敛成 1 个 backup 组依赖对象。"
+  },
+  {
+    "path": "src/features/backup-routes.js",
+    "area": "panel",
+    "owner": "panel-backup",
+    "verdict": "merge",
+    "evidence": "71 行、0 个内部依赖。唯一 importer src/host.js:47（import）+ host.js:755（调用块 755-790，36 行依赖清单、19 个注入参数，为 21 个路由文件里最多）。9 条端点：/backup/state 与 /backup/create 由 test/system-processes.test.js 用 fake.call 覆盖；/backup/verify（第 22 行）、/backup/open（第 43 行）、/backup/upload（第 45 行）、/backup/restore-path（第 51 行）、/backup/cancel（第 57 行）、/backup/sessions/retry（第 61 行）、/backup/sessions/cancel（第 68 行）在 test/、docs/ 下 0 处引用。文档：docs/ 下 0 处提及。真实逻辑只有第 29-41 行的 createBackup 进度任务编排（getJob/setJob 三段回调），其余是 1 行转发。并入新建 src/panel/backup.js：签名 8 行 + 文件头 3 行 = 省 11 行；host.js:755-790 的 36 行收敛成 1 个 backup 组依赖对象。"
+  },
+  {
+    "path": "src/features/bridge-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "20 行、0 个内部依赖。唯一 importer src/host.js:65（import）+ host.js:834（单行调用）。8 条端点：/bridge/token 由 test/modules.test.js、test/panel-access-gate.test.js、test/csrf-publicbase.test.js 用 fake.call 覆盖；/open/info、/open/send、/open/think、/open/call、/open/events 由 test/modules.test.js、test/csrf-publicbase.test.js 覆盖。存活契约：第 9-14 行的 open() 包装是 21 个文件里唯一使用 {skipHostCheck:true} 的组（对应 src/host.js:438 的 Host 闸旁路）与唯一自带 Bearer 鉴权的组（bridge.authorized）。死路由（全仓 grep 0 引用）：/bridge/token/reset（第 5 行）、/bridge/examples（第 6 行），在 src/、test/、client/、docs/ 四处均无调用方。并入新建 src/panel/core.js：签名 1 行 + 文件头 2 行 + 2 条死路由 2 行 = 省 5 行；{skipHostCheck:true} 与 Bearer 鉴权必须在 kit 里保留为显式选项并有测试锁定。"
+  },
+  {
+    "path": "src/features/codex-auth.js",
+    "area": "feature",
+    "owner": "feature-codex",
+    "verdict": "split",
+    "evidence": "353 行（>300）、6 个内部依赖（node:crypto、node:fs、node:path、node:http、node:child_process、core/store.js 的 dataDir/readJson）。1 处静态 import：src/features/imagegen.js:10；另被 src/modules/imagegen/index.js:26 的 files 快照清单声明。测试：test/codex-image.test.js:14 直接 import 7 个导出（createCodexAuth、createPkce、buildAuthUrl、parseAuthInput、accountIdOf、emailOf、decodeJwt、openInBrowser）；test/codex-auth-lifecycle.test.js 覆盖刷新与登出。两个职责：纯函数层 87 行（第 30-116 行：PKCE、URL 构造、JWT 解码、账号/邮箱提取、输入解析、开浏览器；0 状态、可单测）+ 有状态 OAuth 流 236 行（createCodexAuth 第 118-353 行：本地 http 回调服务、postToken、exchange、startLogin、completeLogin、ensureAccess 刷新）。拆成 codex-auth.js（纯函数，约 100 行）+ codex-auth-flow.js（createCodexAuth，约 250 行），后者带 createServerImpl 注入点（第 118 行）可独立测。"
+  },
+  {
+    "path": "src/features/codex-image.js",
+    "area": "feature",
+    "owner": "feature-codex",
+    "verdict": "keep",
+    "evidence": "83 行、3 个内部依赖（node:crypto:2、core/net.js:3 的 fetchImage/withTimeoutSignal、features/image-shape.js:4 的 pickShape）。1 处 import：src/features/imagegen.js:11，另被 src/modules/imagegen/index.js:26 声明。直接测试 0 处（test/codex-image.test.js:14 只 import codex-auth.js 与 imagegen.js），覆盖来自 test/codex-image.test.js:146-165：配置 provider='codex' 后调用 gen.generate，断言请求 URL 为 https://chatgpt.com/backend-api/codex/images/generations 与 x-codex-image-turn-id 请求头——这两项只在 codex-image.js 里拼装。职责单一：Codex 订阅图像请求构造与响应取图。"
+  },
+  {
+    "path": "src/features/debug-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "19 行、0 个内部依赖。唯一 importer src/host.js:58（import）+ host.js:735（单行调用）。2 条端点：/debug/say（第 15 行）由 test/e2e.test.js 与 test/system-processes.test.js 用 fake.call 覆盖；/groups/titles（第 5 行）在 test/、docs/ 下 0 处引用（client 侧 2 处调用）。分层证据：第 7 行 hub.groupName、第 9 行 hub.titleFilter.titlesIn、第 10 行 hub.titleFilter.clear()、第 17 行 hub.debugSay——panel 直接调 chat 层，且 titleFilter.clear() 是写在 GET 也能触发的路由里（/groups/titles 不在 src/host.js:432 的 writeLike 白名单内）。并入新建 src/panel/core.js：签名 1 行 + 文件头 2 行 = 省 3 行；hub 调用需经 feature 中转。"
+  },
+  {
+    "path": "src/features/faces-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "26 行、0 个内部依赖（第 3-18 行是 14 条内置 emoji 常量 REACT_EMOJIS）。唯一 importer src/host.js:64（import）+ host.js:832（单行调用）。1 条端点 /panel/faces：由 test/e2e.test.js:1135 用 fake.call 覆盖，client 侧 2 处引用。文档：docs/ 下 0 处提及。并入新建 src/panel/core.js：签名 1 行 + 文件头 2 行 = 省 3 行；14 条 emoji 常量（16 行）应移到 feature 侧内容表，panel 只做取值与拼装。"
+  },
+  {
+    "path": "src/features/her-voice.js",
+    "area": "feature",
+    "owner": "feature-her-voice",
+    "verdict": "keep",
+    "evidence": "78 行、0 个内部依赖（8 个依赖全注入：ownerChatId、busy、pushNote、ask、persona、context、send、log）。1 处 import：src/host.js:43（createHerVoice），装配在 src/host.js:512；src/security/approval.js:12 只在注释里指向它，不是 import。测试：test/her-voice.test.js。导出 1 个工厂（第 24 行）+ 内部合并窗口与排队逻辑。删除测试：删掉后 src/host.js:512 与 src/security/approval.js 的调用方各要复制一份 compose/去重逻辑，判 keep。"
+  },
+  {
+    "path": "src/features/image-shape.js",
+    "area": "feature",
+    "owner": "feature-imagegen",
+    "verdict": "keep",
+    "evidence": "52 行、0 个内部依赖（纯尺寸表 + 纯函数，无 IO）。3 处 import：src/features/codex-image.js:4、src/features/imagegen.js:14、src/modules/imagegen/index.js:12。测试：test/imagegen-shape.test.js。导出 8 个：SHAPE_SIZE、SIZE_OPTIONS、normalizeRequestedSize、pickShape、imageSizeFor、PROVIDER_SIZES、sizesForProvider、fitSizeForProvider。删除测试：删掉后 3 个调用点各自复制第 2-11 行与第 30-36 行共 40 行尺寸数据，判 keep。"
+  },
+  {
+    "path": "src/features/imagegen.js",
+    "area": "feature",
+    "owner": "feature-imagegen",
+    "verdict": "split",
+    "evidence": "489 行（>300）、10 个内部依赖（node:fs:6、node:crypto:7、core/net.js:8、core/image-info.js:12、core/img.js:13、core/store.js:15、features/paintings.js:9、features/codex-auth.js:10、features/codex-image.js:11、features/image-shape.js:14）。1 处 import：src/modules/imagegen/index.js:9，并被其第 26 行 files 声明。测试 9 个文件引用本文件（test/imagegen.test.js、test/codex-image.test.js、test/imagegen-img2img.test.js、test/imagegen-blocks.test.js、test/imagegen-shape.test.js、test/appearance.test.js、test/local.test.js、test/fixes-1.2.0.test.js、test/codex-auth-lifecycle.test.js）。职责 ≥3：模板/JSON 工具与 findImage（第 19-95 行）、6 个提供方适配器（xAI 编辑 276-292、OpenAI 兼容 293-333、ComfyUI 334-402、Gemini 403-425、自定义 426-472、Codex 委托）、工具消息形状（drawToolMessage 第 473 行、drawResultBlocks 第 483 行）。拆成 imagegen/index.js（createImageGen 调度 + 公共工具）+ imagegen/providers.js（5 个适配器）+ imagegen/tool-blocks.js（2 个形状函数）。"
+  },
+  {
+    "path": "src/features/knowledge-routes.js",
+    "area": "panel",
+    "owner": "panel-content",
+    "verdict": "merge",
+    "evidence": "44 行、0 个内部依赖。唯一 importer src/host.js:49（import）+ host.js:708（单行调用）。7 条端点：/knowledge/list、read、rename、delete、note、scope 由 test/system-processes.test.js 用 fake.call 覆盖；/knowledge/search（第 12 行）在 test/、docs/ 下 0 处 call()。重复样板（可逐行核对）：4 处逐字节相同的 let b = {} + try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }（第 21-22、27-28、33-34、39-40 行，共 8 行），外加 4 处手写 POST 守卫（第 20、26、32、38 行）。并入新建 src/panel/content.js：签名 1 行 + 文件头 2 行 + 4 个守卫块 8 行 = 省 11 行（改由 kit 的 body()/post() 提供）。"
+  },
+  {
+    "path": "src/features/knowledge.js",
+    "area": "feature",
+    "owner": "feature-knowledge",
+    "verdict": "keep",
+    "evidence": "157 行、3 个内部依赖（node:fs:2、node:path:3、core/store.js:4 的 dataDir）。2 处 import：src/host.js:71（createKnowledge，装配在 host.js:430）、src/mind-adapter/tools.js:2（她查知识库的工具）。测试：test/knowledge.test.js。面板侧 client/parts/knowledge.js 只走 /knowledge/* 路由，不 import 本文件。职责单一：知识库文件的读写/搜索/范围（公开与私密）。删除测试：删掉后 src/host.js 与 src/mind-adapter/tools.js 各要复制 157 行路径校验与搜索逻辑，判 keep。"
+  },
+  {
+    "path": "src/features/local-image.js",
+    "area": "feature",
+    "owner": "feature-imagegen",
+    "verdict": "keep",
+    "evidence": "195 行、8 个内部依赖（node:child_process:2、node:fs:3、node:fs/promises:4、node:os:5、node:path:6、node:crypto:7、core/python.js:8、core/image-info.js:9）。1 处 import：src/modules/imagegen/index.js:18，实例化在 src/modules/imagegen/index.js:29。测试：test/local-image.test.js（第 38 行断言调用参数含 processor/chat_template.jinja）；文档：docs/FEATURES-AND-IMPLEMENTATION.md:43。职责单一：本地 Python 生图环境（uv 安装、模型目录、进程调用、状态聚合）。"
+  },
+  {
+    "path": "src/features/local-routes.js",
+    "area": "panel",
+    "owner": "panel-content",
+    "verdict": "merge",
+    "evidence": "35 行、0 个内部依赖。唯一 importer src/host.js:59（import）+ host.js:823（调用块 823-827，10 个注入参数含 localAudioFile/localImageBuffer）。5 条端点（/local/status、/local/template、/local/trust、/local/open、/local/test）在 test/、docs/ 下 0 处 call()，client 侧每条 2 处调用。分层证据：/local/trust（第 10-17 行）在 panel 里直接拼 local.hashes 后 setConfig；/local/test（第 19-34 行）在 panel 里直接调 local.call('tts'/'image') 并读 localAudioFile/localImageBuffer。并入新建 src/panel/content.js：签名 1 行 + 文件头 2 行 = 省 3 行；trust/test 两条应下沉为 features 侧的 local-probe 服务。"
+  },
+  {
+    "path": "src/features/mind-live-routes.js",
+    "area": "panel",
+    "owner": "panel-mind",
+    "verdict": "merge",
+    "evidence": "73 行、0 个内部依赖。唯一 importer src/host.js:66（import）+ host.js:724（单行调用）。5 条端点：/mind/now 由 test/e2e.test.js:346、371、376 用 fake.call 覆盖（断言 body.hunger、body.lastMeal.food）；/mind/inner（第 54 行）、/mind/feed（第 33 行）、/mind/wake（第 41 行）、/mind/sleepnow（第 48 行）在 test/ 下 0 处 call()（test/mind-inner.test.js 直接测内核，不走路由）。分层证据：第 67-68 行读 mind 内核私有 _store（outreach、grants），绕过公开接口。空守卫 11 行（第 5 行常量 + 第 8-9、35-36、43-44、50-51、56-57 行的 const mind = getMind() / if (!mind) return mindOff）。并入新建 src/panel/mind-people.js：签名 1 行 + 文件头 2 行 = 省 3 行，11 行空守卫由 kit 的 mindRoute 包装吸收。"
+  },
+  {
+    "path": "src/features/mind-memory-routes.js",
+    "area": "panel",
+    "owner": "panel-mind",
+    "verdict": "merge",
+    "evidence": "97 行、1 个内部依赖（channels/index.js:3 的 LEGACY_PLATFORM/normChat/parseChat——panel 直接依赖 channels 层）。唯一 importer src/host.js:55（import）+ host.js:717（单行调用）。9 条端点：/mind/state、/mind/memories、/mind/memory/delete、/mind/memory/boost 由 test/e2e.test.js 用 fake.call 覆盖（第 2233-2234 行）；/mind/vectors（第 23 行）、/mind/memory/related（第 46 行）、/mind/memory/private（第 67 行）、/mind/memory/share（第 76 行）、/mind/memory/share/revoke（第 88 行）在 test/ 下 0 处 call()。分层证据：第 16-17 行读私有 _store（sleep.lastReport、dreams.log）。空守卫 17 行。并入新建 src/panel/mind-people.js：签名 1 行 + 文件头 2 行 = 省 3 行，17 行空守卫由 kit 吸收，channels 依赖改走 feature 侧的会话身份解析。"
+  },
+  {
+    "path": "src/features/mind-people-routes.js",
+    "area": "panel",
+    "owner": "panel-mind",
+    "verdict": "merge",
+    "evidence": "104 行、0 个内部依赖。唯一 importer src/host.js:67（import）+ host.js:725（调用块 725-728，10 个注入参数）。15 条端点（21 个文件里第二多）：/mind/people 与 /mind/people/edit 由 test/e2e.test.js:2251 用 fake.call 覆盖；其余 13 条在 test/ 下 0 处 call()。死路由（全仓 grep 0 引用）：/mind/local/test（第 48-56 行，共 9 行），src/、test/、client/、docs/ 四处均无调用方。空守卫 23 行（5 个 mind 文件里最多）。并入新建 src/panel/mind-people.js：签名 3 行 + 文件头 2 行 + 死路由 9 行 = 省 14 行，23 行空守卫由 kit 吸收。"
+  },
+  {
+    "path": "src/features/mind-self-routes.js",
+    "area": "panel",
+    "owner": "panel-mind",
+    "verdict": "merge",
+    "evidence": "124 行、0 个内部依赖。唯一 importer src/host.js:56（import）+ host.js:729（单行调用）。11 条端点：/mind/self（第 6 行）、/mind/self/change、/mind/self/restore、/mind/traits/confirm 由 test/e2e.test.js:2258-2262 用 fake.call 覆盖；/mind/self/goal/drop、/mind/version/pin、/mind/version/list、/mind/version/compare、/mind/version/delete、/mind/traits/infer、/mind/traits/alerts/read 在 test/ 下 0 处 call()。空守卫 23 行 + 2 行与 src/host/http.js:60-67 逐字节相同的 catch（第 59、96 行）。第 10-13 行 ver() 是人格/自我/性格/习惯四类版本的统一映射。并入新建 src/panel/mind-self.js（与 mind-settings-routes 同组，合计 170 行）：签名 1 行 + 文件头 2 行 + 2 行冗余 catch = 省 5 行。"
+  },
+  {
+    "path": "src/features/mind-settings-routes.js",
+    "area": "panel",
+    "owner": "panel-mind",
+    "verdict": "merge",
+    "evidence": "46 行、0 个内部依赖（第 10 行动态 import('../mind/params.js') 取 GROUPS/PARAMS）。唯一 importer src/host.js:54（import）+ host.js:719（调用块 719-723）。4 条端点：/mind/settings、/mind/settings/save、/mind/settings/reset 由 test/e2e.test.js 用 fake.call 覆盖；/mind/sleep（第 40 行）在 test/ 下 0 处 call()。空守卫 9 行（第 4 行常量 + 第 8-9、15-16、30-31、41-42 行）+ 2 行与 answer() 逐字节相同的 catch（第 25 行）。第 5 行 norm() 与第 19-22 行『向量端点变了就清 Key』是真实业务规则。并入新建 src/panel/mind-self.js：签名 1 行 + 文件头 2 行 + 2 行冗余 catch = 省 5 行。"
+  },
+  {
+    "path": "src/features/model-routes.js",
+    "area": "panel",
+    "owner": "panel-model",
+    "verdict": "keepDoc",
+    "evidence": "58 行、0 个内部依赖。唯一 importer src/host.js:53（import）+ host.js:718（单行调用，12 个注入参数）。3 条端点：/models 由 test/chat-model.test.js 用 fake.call 覆盖；/provider-models 由 test/e2e.test.js 覆盖；/model/ping（第 30 行）在 test/、docs/ 下 0 处 call()。真实逻辑在第 11-19 行 savedEndpoints() 端点归一化与第 49-51 行 sameEndpoint 判定（草稿换地址就不继承已存 Key），是安全相关的凭据作用域规则。文档：docs/ 下 0 处提及 /models、/provider-models、/model/ping 的返回字段。契约欠缺可核对：/models 返回 { ok, list[] }、/model/ping 返回 { ok, ms, text }、/provider-models 透传 listProviderModels 的形状，均无文字说明 → 保留并补这三条路径的返回字段契约文档。"
+  },
+  {
+    "path": "src/features/module-routes.js",
+    "area": "panel",
+    "owner": "panel-module",
+    "verdict": "keepDoc",
+    "evidence": "126 行、2 个内部依赖（node:fs:3、node:path:4）。唯一 importer src/host.js:60（import）+ host.js:828（调用块 828-831）。15 条端点（最多）：/modules、/modules/reload、/modules/create、/modules/fork、/modules/simulate、/modules/tools、/modules/tool、/modules/panel 由 test/modules.test.js 用 fake.call 覆盖（第 201-209 行为 create 与模板），/modules 另被 test/e2e.test.js 覆盖；/modules/community（第 10 行）、/modules/tutorial（第 13 行）、/modules/community/progress（第 16 行）、/modules/community/install（第 17 行）、/modules/community/remove（第 23 行）、/modules/prompt（第 45 行）、/modules/open（第 46 行）在 test/ 下 0 处 call()。分层证据：第 14 行 readFileSync 直读 docs/MODULE-TUTORIAL.md；第 81、97、117 行 hub.capture、第 87 行 hub.sendText、第 116 行 hub.simulateTurn——panel 直连 chat 层的模拟链路。文档：docs/ 下 0 处提及这 15 条路径 → 保留并补 15 条端点契约文档，把第 57-119 行的模拟链路（63 行）下沉到 features/module-simulate.js。"
+  },
+  {
+    "path": "src/features/notice-routes.js",
+    "area": "panel",
+    "owner": "panel-content",
+    "verdict": "merge",
+    "evidence": "43 行、0 个内部依赖。唯一 importer src/host.js:62（import）+ host.js:819（调用块 819-822）。4 条端点：/notice/state 与 /notice/toggle 由 test/system-processes.test.js 用 fake.call 覆盖；/chat/secretary（第 38 行）、/chat/secretary/export（第 42 行）在 test/、docs/ 下 0 处 call()（/chat/secretary 只被 client/client.js:1648 调用）。分层证据：/notice/toggle（第 20-36 行）在 panel 里 structuredClone 配置再 setConfig，按工作区写 per-workspace 开关。并入新建 src/panel/content.js：签名 1 行 + 文件头 2 行 = 省 3 行；/chat/secretary* 两条属 chat 域，应与 /notice/* 分开归并。"
+  },
+  {
+    "path": "src/features/notice.js",
+    "area": "feature",
+    "owner": "feature-notice",
+    "verdict": "keep",
+    "evidence": "122 行、0 个内部依赖（getConfig、workspaceOf、compose、log 全注入，另 windowMs/maxItems/retryMax/retryDelayMs 有默认值）。1 处 import：src/host.js（createNoticeRelay 装配）。测试：test/notice.test.js、test/notices.test.js；文档：docs/FEATURES-AND-IMPLEMENTATION.md。导出 2 个：normalizeWorkspace 路径归一（第 13 行）+ createNoticeRelay 上报中继（第 26 行，窗口合并 8 秒、最多 8 条、重试 2 次）。删除测试：删掉后 src/host.js 与 /notice/* 路由各要复制整套窗口/重试状态机，判 keep。"
+  },
+  {
+    "path": "src/features/paintings.js",
+    "area": "feature",
+    "owner": "feature-paintings",
+    "verdict": "keep",
+    "evidence": "185 行、5 个内部依赖（node:fs:6、node:child_process:7、node:path:8、core/store.js:9、core/image-info.js:10）。5 处 import：src/features/imagegen.js:9、src/modules/imagegen/index.js:10、src/channels/qq/features/stickers-qq.js、src/channels/qq/features/profile/index.js、src/channels/qq/features/diary/diary-image.js。测试 4 个：test/paintings.test.js、test/diary-image.test.js、test/imagegen-img2img.test.js、test/e2e.test.js。导出 10 个：savePainting、safeName、metaOf、listPaintings、paintingPath、rememberPainting、recentPaintings、resolvePainting、removePainting、openPaintFolder（第 20-173 行）。跨 3 层被复用（feature、modules、channels），删除测试不通过，判 keep。"
+  },
+  {
+    "path": "src/features/panel-core-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "40 行、0 个内部依赖。唯一 importer src/host.js:63（import）+ host.js:701（调用块 701-707，16 个注入参数，其中 11 个原样转交 applyPanelSave）。5 条端点：/state 由 5 个测试文件用 fake.call 覆盖（test/modules.test.js、test/onebot-login-buffer.test.js、test/e2e.test.js、test/csrf-publicbase.test.js、test/backup-restart.test.js）；/save 由 6 个（含 test/chat-model.test.js、test/system-processes.test.js）；/setup/done 由 test/issue34-setup.test.js；/debug/session（第 27 行）在 test/ 下 0 处 call()。真实逻辑只有第 10-25 行把 11 个回调打包给 applyPanelSave 与第 31-39 行首次向导校验。并入新建 src/panel/core.js：签名 4 行 + 文件头 2 行 = 省 6 行；/state 与 /save 是面板最大契约面（client 8 处/9 处调用），合并后必须保留返回字段（config、usage、avatar.custom、sessions、moduleOff）。"
+  },
+  {
+    "path": "src/features/panel-misc-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "53 行、2 个内部依赖（node:fs:4、node:path:5）。唯一 importer src/host.js:51（import）+ host.js:709（调用块 709-712）。5 条端点：/logs 由 test/panel-access-gate.test.js 与 test/session-mode.test.js 覆盖；/changelog 由 test/pure.test.js；/commands（第 16 行）、/access/chat-names（第 18 行）、/workspace/move（第 48 行）在 test/ 下 0 处 call()。分层证据：第 24 行 panel 直接 onebot.call('get_friend_list'/'get_group_list')、第 21-25 行用 qq.ready() 与 botQQ 做二次核对、第 44 行 readFileSync 直读 CHANGELOG.md。并入新建 src/panel/core.js：签名 4 行 + 文件头 3 行 = 省 7 行；onebot 直调与 botQQ 竞态核对（第 25 行）需原样保留语义（防重连换号后写错名字表）。"
+  },
+  {
+    "path": "src/features/persona-routes.js",
+    "area": "panel",
+    "owner": "panel-content",
+    "verdict": "merge",
+    "evidence": "58 行、0 个内部依赖。唯一 importer src/host.js:57（import）+ host.js:730（调用块 730-734，11 个注入参数）。6 条端点：/personas 由 test/e2e.test.js 用 fake.call 覆盖；/persona/save 与 /persona/use 由 test/e2e.test.js 覆盖；/persona/get（第 8 行）、/persona/delete（第 18 行）、/persona/polish（第 34 行）在 test/ 下 0 处 call()。第 39-49 行是 11 行润色提示词（system + ask 模板拼接），属 panel 内的提示词资产。并入新建 src/panel/content.js：签名 4 行 + 文件头 2 行 = 省 6 行；第 34-57 行的润色逻辑（24 行）应下沉到 src/persona/。"
+  },
+  {
+    "path": "src/features/platform-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "21 行、0 个内部依赖。唯一 importer src/host.js:50（import）+ host.js:713（单行调用）。6 条端点：/onebot/reconnect 由 7 个测试文件用 fake.call 覆盖（test/sl-gaps.test.js、test/modules.test.js、test/issue34-setup.test.js、test/onebot-login-buffer.test.js、test/e2e.test.js、test/h01-cross-read.test.js、test/chat-model.test.js）；/onebot/test（第 10 行）被 client 3 处调用；/onebot/diagnose 被 client 2 处调用。死路由（全仓 grep 0 调用方）：/platforms（第 4 行）、/platforms/qq/diagnose（第 5 行）、/platforms/qq/reconnect（第 6 行）——/platforms 只在 docs/EXTERNAL-ACCEPTANCE.md:7 与 docs/SESSION-HANDOFF.md:1187 作为人工验收动作被提到，client/test 无调用。逐字节重复：第 5 行 qq.diagnose() 与第 8 行相同、第 6 行 qq.reconnect() 与第 9 行相同。并入新建 src/panel/core.js：签名 1 行 + 文件头 2 行 + 3 条死路由 3 行 = 省 6 行（21 行 → 12 行处理逻辑）。"
+  },
+  {
+    "path": "src/features/session-routes.js",
+    "area": "panel",
+    "owner": "panel-core",
+    "verdict": "merge",
+    "evidence": "25 行、0 个内部依赖。唯一 importer src/host.js:52（import）+ host.js:714（单行调用）。2 条端点：/test-send 由 test/system-processes.test.js 用 fake.call 覆盖（第 5 行有手写 POST 守卫，第 6-11 行 5 个前置条件校验）；/sessions/reset 由 test/e2e.test.js:1296-1300 覆盖（第 17 行 hub.resetSessions）。分层证据：/sessions/reset 直接调 chat 层 hub，/test-send 直接调 backgroundText。并入新建 src/panel/core.js：签名 1 行 + 文件头 2 行 = 省 3 行。"
+  },
+  {
+    "path": "src/features/sticker-hash.js",
+    "area": "feature",
+    "owner": "feature-stickers",
+    "verdict": "merge",
+    "evidence": "42 行、1 个内部依赖（core/img.js:2 的 findSharp）。1 处 import：src/features/stickers.js:10（dHash、dHashDistance、toWebP 三个全用）。测试：test/ 下 0 处引用这三个名字（grep dHash|dHashDistance|toWebP 在 test/ 命中 0）。文档：docs/ 下 0 处提及。文件边界只服务 1 个调用方、3 个纯函数无状态 → 并入 src/features/stickers/library.js（stickers.js 拆分出的纯库层，与 matchSticker/pickForReply 同层）：省 4 行（文件头 1 行 + 空行 2 行 + 与 stickers.js 重复的 sharp 引入 1 行），并少一层只服务单一调用方的边界。"
+  },
+  {
+    "path": "src/features/stickers.js",
+    "area": "feature",
+    "owner": "feature-stickers",
+    "verdict": "split",
+    "evidence": "460 行（>300）、7 个内部依赖（node:crypto:4、node:fs:5、node:path:6、core/store.js:7、core/image-info.js:8、core/llm.js:9、features/sticker-hash.js:10）。4 处 import：src/core/media.js:8、src/modules/stickers/index.js:5、src/channels/qq/features/diary/sources.js:6、src/channels/qq/features/diary/diary-image.js:5；另被 src/modules/stickers/index.js:18 的 files 清单声明。测试 4 个：test/stickers.test.js、test/sticker-pick.test.js、test/sticker-record.test.js、test/featurestest（test/features.test.js）。职责 ≥2：纯库层 71 行（loadLibrary、stickerPath、matchSticker、pickForReply、pickEvict，第 16-86 行，无 IO 副作用、可纯测）+ 采集存储 374 行（createStickerStore，第 87-460 行：caption 视觉起名 107、nearDuplicate 148、collectInner 161、addFromBufferInner 227、trim 262、remove 284、removeMany 298、captionLibrary 390）。拆成 stickers/library.js（纯库 + 吸收 sticker-hash.js）+ stickers/store.js（采集、去重、限额、QQ 同步）。"
+  },
+  {
+    "path": "src/modules/_template/index.mjs",
+    "area": "modules",
+    "owner": "modules-template",
+    "verdict": "keep",
+    "evidence": "57 行、0 个静态内部依赖（内含 __ID__/__NAME__/__TOOL__ 三个占位符）。静态 import 0 处；动态引用 src/core/module-registry.js:103 readFileSync(join(BUILTIN_DIR,'_template','index.mjs'))，第 104 行替换占位符后写入用户模块目录。测试：test/modules.test.js:201-209「新建模块：从模板建，能直接跑」经 /modules/create 触发模板并断言 tools=['my_ext_keywords']（占位符替换生效）。文档：docs/MODULE-TUTORIAL.md:9。删除测试：删掉后 /modules/create 直接失败，判 keep。"
+  },
+  {
+    "path": "src/modules/index.js",
+    "area": "modules",
+    "owner": "modules-index",
+    "verdict": "keep",
+    "evidence": "8 行、4 个内部依赖（./stickers/index.js:3、./imagegen/index.js:4、./song/index.js:5、./video/index.js:6）、1 个导出 BUILTINS（第 8 行）。唯一 importer src/host.js:70；文档 docs/FEATURES-AND-IMPLEMENTATION.md:58 把本文件作为『内置清单』链接。删除测试：并回 src/host.js 只是把 4 行 import 与 1 行数组搬到组合根、复杂度不减少，而 B1 的目标是 host.js 只留装配 → 判 keep，作为内置模块清单的单一事实源。"
+  },
+  {
+    "path": "src/modules/imagegen/index.js",
+    "area": "modules",
+    "owner": "modules-imagegen",
+    "verdict": "split",
+    "evidence": "326 行（>300）、16 个内部依赖（features/appearance.js:6、features/imagegen.js:9、features/paintings.js:10、features/image-shape.js:12、features/local-image.js:18、core/img.js:7、core/llm.js:8、core/store.js:13、core/image-info.js:15、core/config.js:17、chat/access.js:16、mind/motivation/index.js:14、tools/tools.js:11、node:fs:3、node:os:4、node:path:5）。3 个测试直接 import 它：test/imagegen-shape.test.js:9、test/codex-auth-lifecycle.test.js:9、test/imagegen-img2img.test.js:12；文档：docs/FEATURES-AND-IMPLEMENTATION.md:43、:45，docs/HANDOFF.md:26。23 个 api.route 集中在第 40-136 行（Codex 登录 6 条 40-48、状态与本地生图 9 条 56-79、外貌与画廊 8 条 90-136），第 160-326 行是 api.tool 注册与创作任务回执。拆成 imagegen/panel-routes.js（23 条路由，约 100 行）+ imagegen/index.js（工具与创作任务，约 190 行）。"
+  },
+  {
+    "path": "src/modules/song/index.js",
+    "area": "modules",
+    "owner": "modules-song",
+    "verdict": "keep",
+    "evidence": "173 行、5 个内部依赖。加载方：src/modules/index.js:5（内置清单相对 import）；测试：test/song.test.js:285、294 动态 import 取 failFacts、cleanFailLine 两个导出，test/song.test.js 另覆盖 9 条 api.route 中的安装与语音条目；文档 docs/FEATURES-AND-IMPLEMENTATION.md:43。9 个 api.route 在第 109-135 行、1 个 api.tool。跨层依赖（下一批收窄）：api.core.herVoice（第 129 行附近）与 api.core.tasks/taskRequesters。删除测试：删掉后翻唱注册、任务回执与失败原因格式化要各复制一遍，判 keep。"
+  },
+  {
+    "path": "src/modules/stickers/index.js",
+    "area": "modules",
+    "owner": "modules-stickers",
+    "verdict": "keep",
+    "evidence": "149 行、7 个内部依赖（features/stickers.js:5、tools/tools.js:6、core/net.js:7、chat/access.js:8、channels/ids.js:9、channels/qq/features/stickers-qq.js:10、node:fs:4）。加载方 src/modules/index.js:3；测试 test/recent-media.test.js:9 直接 import 模块默认导出；文档 docs/FEATURES-AND-IMPLEMENTATION.md:43。10 个 api.route 全在第 114-143 行且全部带 { access: 'panel' }。跨层依赖（下一批收窄）：第 9 行直接 import channels/qq/features/stickers-qq.js、第 8 行 import chat/access.js——内置模块绕过 core 直连 channels 与 chat。"
+  },
+  {
+    "path": "src/modules/video/index.js",
+    "area": "modules",
+    "owner": "modules-video",
+    "verdict": "keep",
+    "evidence": "76 行、3 个内部依赖（node:url:4、tools/tools.js:6、chat/access.js:7）。加载方 src/modules/index.js:6；测试 test/video.test.js:3 直接 import video 与 videoFile，覆盖 videoFile 归一（第 8 行）与工具行为；文档 docs/FEATURES-AND-IMPLEMENTATION.md:43。职责单一：调本地 video 脚本、后台生成后投递。跨层依赖：第 7 行 import chat/access.js（ownerOrFree、freeWill）。"
+  },
+  {
+    "path": "src/modules/aurabot.d.ts",
+    "area": "modules",
+    "owner": "modules-types",
+    "verdict": "keepDoc",
+    "evidence": "338 行、0 个内部依赖、102 条成员声明。静态 import 0 处；运行时被 src/core/modules.js:35（const TYPES = 'aurabot.d.ts'）与 src/core/module-registry.js:92 readFileSync 读走，每次启动 installDocs 复制到数据目录。测试：test/ 下 0 处引用本文件（test/module-copy.test.js:26 读的是 src/modules/API.md，不是本文件），类型声明不参与运行时断言。文档：docs/DESIGN.md:17、:31。契约漂移（可逐行核对）：第 298 行声明 core.modules、第 301 行声明 core.setConfig，而 src/core/module-code.js:83 的 hidden 集合（modules、mindFor、setConfig）已把两者从 api.core 上藏掉；模块实际在用的 api.core.tasks 与 api.core.taskRequesters（src/modules/imagegen/index.js、src/modules/song/index.js）、api.core.herVoice（src/modules/song/index.js）在第 284-303 行的 core 声明里没有。→ 保留并同步类型声明与 src/core/module-api.js 的真实面；api.core 是黑名单代理，src/host.js:486 的 core.bridge 与 :501 的 core.dangerGuard 在 createModules 之后加入、对模块自动可见，这一点必须写进说明。"
+  }
+]

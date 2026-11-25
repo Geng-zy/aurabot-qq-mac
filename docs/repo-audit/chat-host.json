@@ -1,0 +1,408 @@
+[
+  {
+    "path": "src/host.js",
+    "area": "host",
+    "owner": "host",
+    "verdict": "split",
+    "evidence": "855 行（>300）；src 内 0 个文件 import 它（DSH 按 package.json main 加载的插件入口），被 14 个测试 import（test/e2e.test.js:184 host.apply、test/panel-access-gate.test.js、test/system-processes.test.js、test/modules.test.js 等）；内部依赖 63 个（core/、channels/、chat/、features/*-routes.js、host/*）。单文件 6 类职责：配置与密钥登记（L114-173）、平台通道接线（L182-235）、心智适配器装配（L284-343）、createHub 注入 25 项（L344-408）、21 处 register*Routes（L701-834）、云备份定时与看门狗（L766-820、L662-672）。B1『host.js 只留装配』未达成。"
+  },
+  {
+    "path": "src/host/http.js",
+    "area": "host",
+    "owner": "host-http",
+    "verdict": "keep",
+    "evidence": "211 行；唯一 importer src/host.js（L77 import、L424 调用 createHttpKit）；内部依赖 1 个（src/core/redact.js）；0 个直接测试，但 test/panel-access-gate.test.js:64-117 与 test/csrf-publicbase.test.js:58-138 经 src/host.js 入口断言 403，覆盖 panelBlocked/adminHostBlocked/csrfBlocked 三条闸；docs/OVERLAP-AUDIT.md:45 记录『保留本机/Host/CSRF 闸』的结论。"
+  },
+  {
+    "path": "src/host/overview.js",
+    "area": "host",
+    "owner": "host-panel",
+    "verdict": "keepDoc",
+    "evidence": "52 行；唯一 importer src/host.js（L693 createOverview）；内部依赖 0、注入依赖 21 个；0 个直接测试；对外是面板 /state 的返回字段契约（本文件 L12-50 的 ok/config/onebot/channels/stats/mood/sessions/modules 等），docs/HOST-COMPAT.md 只记文件位置、没有字段清单。"
+  },
+  {
+    "path": "src/host/panel-save.js",
+    "area": "host",
+    "owner": "host-panel",
+    "verdict": "keepDoc",
+    "evidence": "27 行；唯一 importer src/host.js（L703 传给 registerPanelCoreRoutes）；内部依赖 0、注入依赖 10 个；0 个直接测试；承载保存面板设置的副作用顺序（setConfig→清模型缓存 L11-12→startWatchdog L13→qq.stop L14→mods.sync L16→ensureDebugSession L18-25），docs/ 无该顺序的说明。"
+  },
+  {
+    "path": "src/host/prompt-vars.js",
+    "area": "host",
+    "owner": "host-prompt",
+    "verdict": "keep",
+    "evidence": "94 行；唯一 importer src/host.js（L74 import、L165 调用）；内部依赖 4 个（security/leak-guard、core/text、persona/personas、integration/purge-scope）；test/integration-architecture.test.js:52-54 断言本文件的 variable('aurabot_identity_lock') 与 IDENTITY_LOCK_TEXT；cordis.patch.yml 的 4 个预设引用其 {{aurabot_persona}}/{{aurabot_rules_*}} 变量。"
+  },
+  {
+    "path": "src/chat/access.js",
+    "area": "chat",
+    "owner": "chat-access",
+    "verdict": "keep",
+    "evidence": "147 行；15 个 src 文件 import（src/chat/hub.js、src/core/config.js、src/mind-adapter/index.js、src/security/danger.js，以及 src/channels/qq/features/{contacts,profile,qq-api,qq-tools,stickers-qq}.js）；5 个直接测试（test/pure.test.js:8、test/freedom.test.js、test/platform-config.test.js、test/group-owner-tools.test.js、test/long-tasks.test.js）；内部依赖 1 个（src/channels/ids.js）。反向依赖事实：channels 侧 5 个文件 import 本文件，与目标分层方向相反。"
+  },
+  {
+    "path": "src/chat/agent-resolve.js",
+    "area": "chat",
+    "owner": "chat-session",
+    "verdict": "keep",
+    "evidence": "148 行；唯一 importer src/chat/hub.js（L1356）；内部依赖 0、注入依赖 27 个；0 个直接测试，回合状态经 test/system-turn-recovery.test.js、test/mind-rotate-encode.test.js 间接覆盖；docs/SESSION-HANDOFF.md:415 记『会话解析/交接/agentFor』。"
+  },
+  {
+    "path": "src/chat/attention.js",
+    "area": "chat",
+    "owner": "chat-attention",
+    "verdict": "split",
+    "evidence": "218 行；唯一 importer src/chat/hub.js（L1329）；注入依赖 38 个；0 个直接测试（test/e2e.test.js、test/hub-lifecycle.test.js 经 test/helpers/qq-in.js:3 的 hub.onMessage 走到 enqueue/flush）。三块互不相关：合并窗口 enqueue（L2-28）、群聊秘书 LLM 否决并写 dataDir('secretary-stats.json')（L40-87）、单一注意力排队与保留重试（L89-217，含 L191 的 retainSessionMessages 会话退避重存）。"
+  },
+  {
+    "path": "src/chat/chat-log.js",
+    "area": "chat",
+    "owner": "chat-log",
+    "verdict": "keep",
+    "evidence": "126 行；importer 2（src/chat/hub.js L372、test/chat-log.test.js）；内部依赖 5 个（core/store、core/redact、channels/index、chat/access、chat/reply）；test/chat-log.test.js 直接覆盖 logChat/canReadChatLog/prune/resetPruneForTest。"
+  },
+  {
+    "path": "src/chat/chat-model.js",
+    "area": "chat",
+    "owner": "chat-model",
+    "verdict": "keep",
+    "evidence": "65 行；importer 3（src/chat/hub.js、src/core/config.js、test/chat-model.test.js）；内部依赖 0；test/chat-model.test.js 直接覆盖 normalizeChatModels/resolveChatModel；docs/DESIGN.md:16 记录 cfg.chatModels 的四个键与优先级（privateDefault/groupDefault/privates/groups）。"
+  },
+  {
+    "path": "src/chat/commands.js",
+    "area": "chat",
+    "owner": "chat-commands",
+    "verdict": "keep",
+    "evidence": "224 行；importer 3（src/host.js L37、test/commands.test.js、test/song.test.js）；内部依赖 1 个（core/store）；2 个直接测试。含解析+别名（L9-38）、16 个 case 的执行（L100-223，runCommand 的 case 计数 16）、静音状态落盘 createMutes（L70-94）三块；未超 300 行、接口 5 个导出，本轮保留。死导出：helpText 除本文件外 0 引用（grep -rn helpText src/ test/ scripts/ → 仅 src/chat/commands.js）。"
+  },
+  {
+    "path": "src/chat/deliver-turn.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "136 行；唯一 importer src/chat/hub.js（L1295）；内部依赖 0、注入依赖 34 个；0 个直接测试，经 hub.deliver 被 6 个测试覆盖（test/interim-deliver.test.js:52/60/68/75、test/send-fallback.test.js、test/output-guard.test.js、test/chat-final-reply.test.js）；docs/SESSION-HANDOFF.md:416 记『一轮回复投递』。"
+  },
+  {
+    "path": "src/chat/file-policy.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keepDoc",
+    "evidence": "44 行；4 个 src 文件 import（src/chat/hub.js L37、src/chat/image-policy.js:5、src/chat/send-file.js:5、src/chat/send-voice.js:6）；内部依赖 0；0 个直接测试；导出 7 个，其中 isExternalFile（L10）除本文件外 0 引用（grep -rn isExternalFile src/ test/ scripts/ → 仅 src/chat/file-policy.js）。"
+  },
+  {
+    "path": "src/chat/file-relay.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keep",
+    "evidence": "110 行；importer 2（src/chat/hub.js L317、test/file-relay.test.js）；内部依赖 0、注入依赖 3 个；test/file-relay.test.js 直接覆盖 offer/revoke/close 与 127.0.0.1 监听；docs/SESSION-HANDOFF.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 记录大文件下载口用途。"
+  },
+  {
+    "path": "src/chat/group-context.js",
+    "area": "chat",
+    "owner": "chat-group",
+    "verdict": "keep",
+    "evidence": "163 行；唯一 importer src/chat/hub.js（L1323）；内部依赖 0、注入依赖 23 个；0 个直接测试，test/system-session-backoff.test.js:326 断言 groupPrompt 的 fed 标记行为；docs/SESSION-HANDOFF.md:413 记『群聊上下文/群图』。"
+  },
+  {
+    "path": "src/chat/group-policy.js",
+    "area": "chat",
+    "owner": "chat-group",
+    "verdict": "keep",
+    "evidence": "145 行；importer 6（src/chat/hub.js L15、src/core/config.js、test/pure.test.js、test/group-identity.test.js、test/fixes-1.2.0.test.js、test/sl-gaps.test.js）；内部依赖 0；4 个直接测试覆盖 decideGroupReply/policyFor/topicRelevance/inQuietHours/engagedHint；纯函数。"
+  },
+  {
+    "path": "src/chat/group-roles.js",
+    "area": "chat",
+    "owner": "chat-group",
+    "verdict": "keep",
+    "evidence": "57 行；importer 2（src/host.js L235、test/system-processes.test.js）；内部依赖 0、注入依赖 3 个；1 个直接测试。分层问题：L29 直接调 OneBot action get_group_member_info（chat 层出现平台私有调用），需由 channels 侧能力封装。"
+  },
+  {
+    "path": "src/chat/html-fragments.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "203 行；importer 2（src/chat/reply.js:13、test/html-fragments.test.js）；内部依赖 0；test/html-fragments.test.js 直接覆盖 fenceRanges/stripLineTags/stripHtmlFragments/cuts 坐标映射。"
+  },
+  {
+    "path": "src/chat/hub.js",
+    "area": "chat",
+    "owner": "chat",
+    "verdict": "split",
+    "evidence": "1471 行（>300）；importer 22（src/host.js:24 + 21 个测试，如 test/hub-lifecycle.test.js、test/e2e.test.js、test/system-session-backoff.test.js）；内部依赖 64 个；返回对象 72 个键（L1380-1470）；44 个 new Map() + 15 个 new Set() 共享状态。仍持有 6 类职责：会话映射与读盘（L150-192）、外部事件入口与 QQ 兼容壳（L196-261、L339-352）、单轮守卫与释放（L538-603）、提示词注入装配（L752-902）、后台/子智能体回合（L936-1203）、dispose 逐表清理（L1211-1254，一处列 30 张表）。"
+  },
+  {
+    "path": "src/chat/image-policy.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "merge",
+    "evidence": "17 行；唯一 importer 是 src/chat/deliver-turn.js:118（经 src/chat/hub.js:1298 注入）；导出 1 个 localImageBlocked；内部依赖 1 个（chat/file-policy.js 的 insideRoots/fileRootsOf）。grep -rn localImageBlocked src/ test/ → 3 处：定义 L7、hub.js:1298 注入、deliver-turn.js:118 调用；0 个直接 import，行为由 test/send-fallback.test.js:100『群里回复写本机图片：允许目录外的不发』在投递层断言。删除后只剩 8 行判断，需并入同域的 src/chat/file-policy.js。另 L10 重写了 src/chat/access.js:7-14 的平台 owner 解析（4 处重复之一）。"
+  },
+  {
+    "path": "src/chat/images.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "40 行；唯一 importer src/chat/hub.js（L510）；内部依赖 2 个（core/image-info、core/img）、注入依赖 7 个；0 个直接测试（grep -rn imagesOf test/ → 0 命中）；docs/SESSION-HANDOFF.md:426 记『图片下载/缩小/动图说明』。"
+  },
+  {
+    "path": "src/chat/mentions.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "94 行；importer 2（src/chat/hub.js L28、test/mentions.test.js）；内部依赖 0；test/mentions.test.js 直接覆盖 expandMentions/hasMention；死导出 2 个：memberNames、resolveMember 除本文件外 0 引用（grep -rn memberNames src/ test/ scripts/ → 仅 src/chat/mentions.js）。"
+  },
+  {
+    "path": "src/chat/model-target.js",
+    "area": "chat",
+    "owner": "chat-model",
+    "verdict": "keep",
+    "evidence": "52 行；唯一 importer src/chat/hub.js（L1352）；内部依赖 0、注入依赖 9 个；0 个直接测试，模型选择经 test/chat-model.test.js 与 test/vision-capability.test.js 间接覆盖；docs/SESSION-HANDOFF.md:423 记『目标模型解析』。"
+  },
+  {
+    "path": "src/chat/mount.js",
+    "area": "chat",
+    "owner": "chat-session",
+    "verdict": "split",
+    "evidence": "189 行；唯一 importer src/chat/hub.js（L1363）；注入依赖 40 个；0 个直接测试，但 test/integration-architecture.test.js:12-18 断言本文件含 purgeScope.toolNames(agent) 与 toolScope.restrictGuest(agent)。两块互不相关：调试会话创建与开场白（L3-37，写 sessions.json 的 debugSeeded）与工具/上下文挂载（L40-185，含 4 种 restrict/guard 与慢工具包装 L90-118）。"
+  },
+  {
+    "path": "src/chat/notify-events.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "62 行；唯一 importer src/chat/hub.js（L1290）；内部依赖 0、注入依赖 13 个；0 个直接测试，经 test/e2e.test.js 的戳一戳/通知路径间接覆盖；docs/SESSION-HANDOFF.md:421 记『通知/戳一戳』。L14-16 重写了 src/chat/access.js:7-19 的 owner 与白名单解析（重复实现之一）。"
+  },
+  {
+    "path": "src/chat/on-delivered.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "23 行；唯一 importer src/chat/hub.js（L387）；内部依赖 0、注入依赖 8 个；0 个直接测试；test/hub-lifecycle.test.js:115 的假网关返回 message_id，回执路径经 sendSegments→onDelivered 执行，未单独断言；docs/SESSION-HANDOFF.md:429 记『回执记账』。"
+  },
+  {
+    "path": "src/chat/on-message.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "split",
+    "evidence": "320 行（>300）；唯一 importer src/chat/hub.js（L1275）；注入依赖 61 个；0 个直接测试，经 test/helpers/qq-in.js:3 的 hub.onMessage 被 12 个测试驱动（test/hub-lifecycle.test.js、test/sl-gaps.test.js、test/sticker-pick.test.js 等）。文件内 5 块职责：头衔过滤与偷表情（L12-42）、群缓冲/语音转写/心智感知（L47-92）、管理员命令与静音/厌恶闸（L94-143）、群聊回不回决策（L164-245）、内容拼装与入队（L266-306）。"
+  },
+  {
+    "path": "src/chat/output-guard.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "90 行；importer 3（src/chat/hub.js L16、src/chat/reply.js:14、test/chat-final-reply.test.js）；内部依赖 0；test/chat-final-reply.test.js 与 test/output-guard.test.js 直接覆盖 guardReply/extractReply/codeFences；docs/SESSION-HANDOFF.md 记录提示词标记约定。"
+  },
+  {
+    "path": "src/chat/privileged-tools.js",
+    "area": "chat",
+    "owner": "chat-access",
+    "verdict": "keepDoc",
+    "evidence": "14 行；唯一 importer src/chat/hub.js（L74）；内部依赖 0；0 个直接测试，仅经 test/group-owner-tools.test.js 的群管路径间接覆盖；死导出 1 个：PRIVILEGED_QQ_TOOLS 除本文件外 0 引用（grep -rn PRIVILEGED_QQ_TOOLS src/ test/ scripts/ → 仅 src/chat/privileged-tools.js）。"
+  },
+  {
+    "path": "src/chat/quote-format.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "37 行；唯一 importer src/chat/hub.js（L47）；内部依赖 0；0 个直接测试，经 test/sl-gaps.test.js 的引用消息路径间接覆盖；docs/SESSION-HANDOFF.md:427 记『引用文字格式』。死导出 2 个：quoteBody、quoteWhen 除本文件外 0 引用（grep -rn quoteWhen src/ test/ scripts/ → 仅 src/chat/quote-format.js）。"
+  },
+  {
+    "path": "src/chat/quote.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "49 行；唯一 importer src/chat/hub.js（L498）；内部依赖 0、注入依赖 4 个；0 个直接测试（grep -rn quotedInfo test/ → 0 命中）；docs/SESSION-HANDOFF.md:430 记『引用解析』；L47 把 cache 挂在函数对象上供 hub 复用（hub.js:499）。"
+  },
+  {
+    "path": "src/chat/recent-media.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "61 行；唯一 importer src/chat/hub.js（L184）；内部依赖 1 个（core/store）、注入依赖 2 个；0 个直接测试，经 test/recent-media.test.js 间接覆盖；docs/OVERLAP-AUDIT.md:44 记录『保留短期引用缓存』的结论。"
+  },
+  {
+    "path": "src/chat/reference.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "41 行；唯一 importer src/chat/hub.js（L501）；内部依赖 0、注入依赖 13 个；0 个直接 import，行为由 test/imagegen-img2img.test.js:210-265 断言（hub.referenceImage 的 quote/recent 两条来源与两条报错文案）；docs/SESSION-HANDOFF.md:425 记『引用图片/最近媒体』。"
+  },
+  {
+    "path": "src/chat/reply-journal.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "30 行；唯一 importer src/chat/hub.js（L447）；内部依赖 0、注入依赖 13 个；0 个直接测试，test/interim-log.test.js:79-95 断言 recordReply→logChat 写出的 chatlog 文本；docs/SESSION-HANDOFF.md:428 记『回复流水』。"
+  },
+  {
+    "path": "src/chat/reply-style.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keep",
+    "evidence": "28 行；importer 3（src/chat/hub.js L14、src/mind-adapter/index.js、test/pure.test.js）；内部依赖 0；test/pure.test.js:4 直接覆盖 isFoodTopic/polishChatProse；纯函数。"
+  },
+  {
+    "path": "src/chat/reply.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "split",
+    "evidence": "586 行（>300）；importer 19（src/chat/{hub,chat-log}.js、src/core/bridge.js、src/mind-adapter/index.js、src/channels/qq/features/{qq-api,qq-tools,diary/qzone,qzone-social/social}.js + 11 个测试）；内部依赖 3 个；11 个直接测试（test/reply.test.js、test/dsml-leak.test.js、test/html-fragments.test.js、test/leak-guard.test.js 等）。16 个导出扛 5 类职责：Markdown/内部标记清洗（L19-118）、工具调用文本剥离（L186-295）、出站清洗与分段封顶（L307-396）、parseReply 拆气泡（L399-510）、流水与回执叙述（L517-561）。docs/SESSION-HANDOFF.md 未记其接口。"
+  },
+  {
+    "path": "src/chat/run-subagent-turn.js",
+    "area": "chat",
+    "owner": "chat-turn",
+    "verdict": "keep",
+    "evidence": "97 行；唯一 importer src/chat/hub.js（L1305）；内部依赖 0、注入依赖 10 个；0 个直接测试，经 test/subagent-delegation.test.js 间接覆盖；docs/SESSION-HANDOFF.md:417 记『子代理回合』，docs/HOST-COMPAT.md:34-35 记录 stopReason/消息块两个宿主符号。"
+  },
+  {
+    "path": "src/chat/run-system-turn.js",
+    "area": "chat",
+    "owner": "chat-turn",
+    "verdict": "keep",
+    "evidence": "74 行；唯一 importer src/chat/hub.js（L1310）；内部依赖 0、注入依赖 22 个；0 个直接测试，经 test/system-turn-recovery.test.js、test/system-session-backoff.test.js 间接覆盖；docs/SESSION-HANDOFF.md:420 记『系统回合』。文件尾部 L69-73 是孤立的注释段（描述的函数在 hub.js L990-1009），无对应代码。"
+  },
+  {
+    "path": "src/chat/send-file.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keepDoc",
+    "evidence": "76 行；唯一 importer src/chat/hub.js（L421）；内部依赖 1 个（chat/file-policy.js）、注入依赖 12 个；0 个直接测试，经 test/qq-tools-file.test.js、test/send-fallback.test.js 间接覆盖；docs/SESSION-HANDOFF.md:437 只在『更早还拆过』名单里出现、无职责说明。"
+  },
+  {
+    "path": "src/chat/send-image.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keepDoc",
+    "evidence": "46 行；唯一 importer src/chat/hub.js（L443）；内部依赖 0、注入依赖 9 个；0 个直接测试，经 test/send-fallback.test.js、test/output-guard.test.js 间接覆盖；L24-29 的『明确失败才回落 base64』与 send-text.js:29-34、send-file.js:44-50、send-voice.js:58-63 是同一种写法的 4 份拷贝。"
+  },
+  {
+    "path": "src/chat/send-segments.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keep",
+    "evidence": "79 行；唯一 importer src/chat/hub.js（L393）；内部依赖 0、注入依赖 19 个；0 个直接测试，经 test/send-fallback.test.js、test/output-guard.test.js、test/interim-deliver.test.js 间接覆盖；docs/SESSION-HANDOFF.md:419 记『消息段最终出口』。L13/L24 两次 cleanOutboundSegments、L31 再次调 mind.checkOutgoingPrivacy，与 send-voice.js:18、deliver-turn.js:74 重复。"
+  },
+  {
+    "path": "src/chat/send-sticker.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keepDoc",
+    "evidence": "33 行；唯一 importer src/chat/hub.js（L436）；内部依赖 0、注入依赖 7 个；0 个直接测试，经 test/sticker-pick.test.js、test/sticker-owner.test.js 间接覆盖；docs/SESSION-HANDOFF.md:437 只在『更早还拆过』名单里出现、无职责说明。"
+  },
+  {
+    "path": "src/chat/send-text.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keepDoc",
+    "evidence": "37 行；唯一 importer src/chat/hub.js（L404）；内部依赖 0、注入依赖 14 个；0 个直接测试，经 test/send-fallback.test.js、test/chat-final-reply.test.js 间接覆盖；L10 与 deliver-turn.js:9/22、send-segments.js:13/24 对同一段文字重复清洗。"
+  },
+  {
+    "path": "src/chat/send-voice.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keepDoc",
+    "evidence": "68 行；唯一 importer src/chat/hub.js（L410）；内部依赖 3 个（chat/tags、chat/voice-file、chat/file-policy）、注入依赖 13 个；0 个直接测试，经 test/send-fallback.test.js:40/59/74/91 的语音失败回落四条用例间接覆盖；L18 自查 checkOutgoingPrivacy，与 send-segments.js:31 重复。"
+  },
+  {
+    "path": "src/chat/session-backoff.js",
+    "area": "chat",
+    "owner": "chat-session",
+    "verdict": "keep",
+    "evidence": "3 行；importer 2（src/chat/hub.js L69、test/system-session-backoff.test.js）；内部依赖 0；1 个直接测试。是错误码 AURABOT_SESSION_BACKOFF 的唯一出处：hub.js、attention.js、session-recovery.js 三处都靠它判断，删除会把常量复制成 3 份。"
+  },
+  {
+    "path": "src/chat/session-create.js",
+    "area": "chat",
+    "owner": "chat-session",
+    "verdict": "keepDoc",
+    "evidence": "81 行；唯一 importer src/chat/hub.js（L1344）；内部依赖 0、注入依赖 22 个；0 个直接测试，经 test/system-session-backoff.test.js、test/hub-lifecycle.test.js 间接覆盖；docs/SESSION-HANDOFF.md 的 4.2 拆分清单未收录本文件、无职责说明。"
+  },
+  {
+    "path": "src/chat/session-events.js",
+    "area": "chat",
+    "owner": "chat-turn",
+    "verdict": "split",
+    "evidence": "230 行；唯一 importer src/chat/hub.js（L1265）；注入依赖 43 个；0 个直接测试，经 hub.onSessionEvent 被 10 个测试驱动（test/hub-lifecycle.test.js、test/output-guard.test.js、test/turn-timeout.test.js 等）。三块职责混在一个 reducer：token 用量记账与模块归属（L54-72）、chat.everyStep 中间段投递（L92-112）、turn/end 终稿投递/重写/恢复/后台轮次（L115-226，含 6 条 return 分支）。"
+  },
+  {
+    "path": "src/chat/session-recovery.js",
+    "area": "chat",
+    "owner": "chat-session",
+    "verdict": "keepDoc",
+    "evidence": "96 行；唯一 importer src/chat/hub.js（L1375）；内部依赖 0、注入依赖 12 个；0 个直接测试，经 test/system-session-backoff.test.js 与 test/backup-restart.test.js 间接覆盖；docs/SESSION-HANDOFF.md 的 4.2 清单未收录本文件。L11-15 的 backoffError 与 hub.js:936-941 的 systemFailed 构成两套并行退避（hub.js:171-173 三套梯度常量）。"
+  },
+  {
+    "path": "src/chat/steps.js",
+    "area": "chat",
+    "owner": "chat-turn",
+    "verdict": "keep",
+    "evidence": "63 行；importer 2（src/chat/hub.js L34、test/steps.test.js）；内部依赖 0；test/steps.test.js 直接覆盖 takeInterim/reasoningOf/rescueFromThinking；纯函数。"
+  },
+  {
+    "path": "src/chat/sticker-stash.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keepDoc",
+    "evidence": "67 行；唯一 importer src/chat/hub.js（L186）；内部依赖 1 个（core/store）、注入依赖 3 个；0 个直接测试，经 test/sticker-pick.test.js 间接覆盖；死导出 1 个：STICKER_STASH_TTL 除本文件外 0 引用（grep -rn STICKER_STASH_TTL src/ test/ scripts/ → 仅 src/chat/sticker-stash.js）。"
+  },
+  {
+    "path": "src/chat/tags.js",
+    "area": "chat",
+    "owner": "chat-output",
+    "verdict": "keepDoc",
+    "evidence": "33 行；importer 3（src/chat/hub.js L27、src/chat/send-voice.js:4、src/channels/qq/faces.js:5）；内部依赖 0；0 个直接测试。分层问题：src/channels/qq/faces.js 反向 import 本文件（channels→chat），本文件的 QQ 标签语义需落到可共享的格式层。"
+  },
+  {
+    "path": "src/chat/title-filter.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "85 行；importer 2（src/chat/hub.js L261、test/title-filter.test.js）；内部依赖 0、注入依赖 4 个；test/title-filter.test.js 直接覆盖 shouldIgnore/titlesIn。分层问题：L34/L71 直接调 OneBot action get_group_member_info/get_group_member_list，L49-53 还要求 OneBot 原始事件字段（group_id/user_id/sender.title）。"
+  },
+  {
+    "path": "src/chat/tool-scope.js",
+    "area": "chat",
+    "owner": "chat-access",
+    "verdict": "keep",
+    "evidence": "77 行；importer 2（src/chat/hub.js L140、test/tool-scope.test.js）；内部依赖 1 个（integration/host-tools.js）、注入依赖 1 个；test/tool-scope.test.js 直接覆盖 restrictGuest/applyGate/releaseAgent/closeAll，另 test/group-owner-tools.test.js、test/integration-architecture.test.js:16 断言这条接缝。"
+  },
+  {
+    "path": "src/chat/transcribe.js",
+    "area": "chat",
+    "owner": "chat-ingest",
+    "verdict": "keep",
+    "evidence": "87 行；唯一 importer src/chat/hub.js（L506）；内部依赖 0、注入依赖 8 个；0 个直接测试（test/voice-asr.test.js 覆盖的是 src/voice/asr.js，本文件无断言）；docs/SESSION-HANDOFF.md:418 记『语音转写』。"
+  },
+  {
+    "path": "src/chat/turn-helpers.js",
+    "area": "chat",
+    "owner": "chat-turn",
+    "verdict": "keep",
+    "evidence": "53 行；唯一 importer src/chat/hub.js（L1317）；内部依赖 0、注入依赖 16 个；0 个直接测试，test/turn-timeout.test.js 覆盖轮次兜底、test/system-processes.test.js:71 对 hub.sendBackground 打桩；docs/SESSION-HANDOFF.md:422 记『戳回去/静默/后台发送』。"
+  },
+  {
+    "path": "src/chat/turn-state.js",
+    "area": "chat",
+    "owner": "chat-turn",
+    "verdict": "keep",
+    "evidence": "139 行；唯一 importer src/chat/hub.js（L1256）；内部依赖 0、注入依赖 36 个；0 个直接测试，经 test/turn-timeout.test.js、test/system-turn-recovery.test.js、test/chat-final-reply.test.js 间接覆盖；docs/SESSION-HANDOFF.md:414 记『回合状态/回复重写』。L46-48/L63-66 手工 AbortSignal.timeout+Promise.race 与 run-subagent-turn.js:29-37、attention.js:73、transcribe.js:30 重复同一写法。"
+  },
+  {
+    "path": "src/chat/voice-file.js",
+    "area": "chat",
+    "owner": "chat-transport",
+    "verdict": "keep",
+    "evidence": "37 行；importer 2（src/chat/hub.js L415、src/chat/send-voice.js:5）；内部依赖 2 个（core/img.js、voice/duration.js）、注入依赖 5 个；test/audio-duration.test.js 直接覆盖 audioDurationSec；工作区有未提交改动（git status: M src/chat/voice-file.js，v1.6.31 语音修复）。"
+  },
+  {
+    "path": "src/chat/workspace.js",
+    "area": "chat",
+    "owner": "chat-session",
+    "verdict": "keep",
+    "evidence": "46 行；唯一 importer src/chat/hub.js（L1339）；内部依赖 0、注入依赖 12 个；0 个直接测试，test/system-session-backoff.test.js 覆盖工作区挂载失败与退避（ensureWorkspace/workspacePathOf）；docs/SESSION-HANDOFF.md:424 记『工作区/平台/标题』。L37 重写了 src/chat/access.js:7-14 的平台 owner 解析（重复实现之一）。"
+  }
+]

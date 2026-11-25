@@ -2,15 +2,15 @@
 
 结论先说：**P2 的“模块内核迁 DSH 插件系统 / client.js 整体迁 DSH client-ui”不能作为一次低风险改动直接落地。** 这轮完成了可行性与风险审计，只提交了不改变行为的安全清理；大迁移需要单独排期。
 
-## 1. modules.js（900 行）
+## 1. modules.js（起点 900 行，现在 199 行）
 
 `createModules` 是一个大闭包，`live / errors / routes / listeners / revisions / generation / userSeen / syncing` 被 registry、loader、module-api、panel 四组职责共享。直接按函数切文件会破坏热重载和 `generation` 失效语义。
 
-已完成（1.5.10 beta）：`module-state.js` / `module-code.js` / `module-panel.js` / `module-api.js` / `module-registry.js` / `module-loader.js`，`modules.js` 从 900 行降到 186 行，只保留组合根。
+已完成（1.5.10 beta）：`module-state.js` / `module-code.js` / `module-panel.js` / `module-api.js` / `module-registry.js` / `module-loader.js`，`modules.js` 从 900 行降到 199 行（本次审计实测），只保留组合根。
 
 原计划顺序：
 
-1. 抽 `state.js`：只放 8 个 Map 和 `generation`，0 行为变化；
+1. 抽 `state.js`：只放 6 个 Map 和 `generation`（`syncing` 是 loader 的局部变量，不在 state 里），0 行为变化；
 2. 抽 `panel.js`：`handle / panelSource / inside / emit / claim / filter`；
 3. 抽 `module-api.js`：`makeApi / scopeCoreForModule / lazyProxy`；
 4. 最后拆 `registry.js`（定义、扫描、status、create/fork）与 `loader.js`（start/stop/sync/reload）。
@@ -48,7 +48,7 @@ node scripts/check-syntax.mjs
 node --test "test/**/*.test.js"
 ```
 
-当前：546 个文件语法通过，1562 个测试通过，0 失败。
+当前（2026-11-26 复核）：558 个文件语法通过，1572 个测试通过，0 失败。
 
 ## 6. 真实环境核验（2026-11-17）
 

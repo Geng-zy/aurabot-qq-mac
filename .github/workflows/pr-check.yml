@@ -4,11 +4,9 @@ on:
   pull_request:
     branches:
       - main
-      - beta/v1.5.10
   push:
     branches:
       - main
-      - beta/v1.5.10
     tags:
       - 'v*'
   workflow_dispatch:
@@ -42,6 +40,12 @@ jobs:
         run: npm run check
       - name: Independent lint
         run: npm run lint
+      - name: Client build is in sync
+        run: |
+          npm run build:client
+          git diff --exit-code -- client/client.js
+      - name: Inventory has no unreviewed files
+        run: node scripts/repo-inventory.mjs --write
       - name: Pack artifact
         run: npm pack --silent
       - name: Verify npm pack layout

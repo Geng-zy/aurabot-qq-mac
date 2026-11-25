@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.31
+
+- 修语音条发不出去：QQ 的 record 段必须带 duration。以前只靠 ffmpeg 探时长，机器上没装 ffmpeg 时就一直不带，网关一律以 `Input does not contain a known duration` 拒收（Mac mini 实测 25 次全失败，语音从没成功过）。现在自带 WAV / MP3 / OGG / M4A 容器解析，不依赖 ffmpeg，认不出才回落 ffmpeg。
+- 修空语音条：`say` 失败时仍会留下只有文件头的 AIFF，转出的 WAV 是 0 采样（正好 4096 字节），旧的大小校验放过了它，等于发一条没声音的语音。现在检查 `say` / `afconvert` 退出码，并要求合成结果真有音频，否则改发文字。
+- 实测：带上 duration 走真实 OneBot 网关发送返回 `retcode 0`；解析出的时长与 macOS `afinfo` 一致（6.540 对 6.540125）。
+- 回归：全量 1572 个测试通过（新增 10 个音频时长/空音频用例）。
+- 新增全仓清单与审计口径：[REPO-INVENTORY](docs/REPO-INVENTORY.md) 覆盖 627 个文件（含未提交新文件），每个文件有归属、结论与可核对证据；口径见 [REFACTOR-PLAN](docs/REFACTOR-PLAN.md)，由 `scripts/repo-inventory.mjs` 生成、`test/repo-inventory.test.js` 守住不漂移。
+- 新增 [HOST-COMPAT](docs/HOST-COMPAT.md)：逐条核对插件用到的宿主符号在 DSH `0.2.2-rc.3` 里是否存在，结论是**没有仅服务 rc.5 的代码**；purge 1.7.20 判定同批记录。
+- README / README_EN 与实测对齐：版本 1.6.31、测试 1572、语法 558 文件、宿主要求改为 DSH `0.2.2-rc.3`（不再是「或更新版本」）；1.5.11 的旧版本小节改成能力细节。
+- CI：去掉已删除分支 `beta/v1.5.10` 的触发，补 client 构建漂移检查与全仓清单闸门；`.gitignore` 补 `*.tgz`。
+- 文档纠错：HANDOFF / MODULE-TUTORIAL 的 Node 版本统一到 24；P2-MIGRATION 的 modules.js 行数与 state Map 数量按实测更正。
+
 ## 1.6.30
 
 - 最终审计：发布包 432 个条目全部在 package/ 下，没有日志、会话、配置或备份混入。

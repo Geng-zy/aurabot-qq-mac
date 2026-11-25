@@ -1,0 +1,163 @@
+[
+  {
+    "path": "src/voice/duration.js",
+    "area": "voice",
+    "owner": "media-voice",
+    "verdict": "keep",
+    "evidence": "196 行；被 src/chat/voice-file.js（audioDurationSec 首选）与 src/voice/tts.js（isZeroSampleWav）import，2 处生产调用；test/audio-duration.test.js 10 个用例覆盖 WAV/MP3/OGG/M4A 与 0 采样判定；接口只有 durationFromFile/isZeroSampleWav 两个导出，深模块。"
+  },
+  {
+    "path": "test/audio-duration.test.js",
+    "area": "test",
+    "owner": "test-voice",
+    "verdict": "keep",
+    "evidence": "125 行，10 个用例；覆盖 src/voice/duration.js 与 src/chat/voice-file.js 的 audioDurationSec；用 buildWav 与手工帧头构造 fixtures，不依赖 ffmpeg 与真实音频。"
+  },
+  {
+    "path": "test/repo-inventory.test.js",
+    "area": "test",
+    "owner": "test-tooling",
+    "verdict": "keep",
+    "evidence": "84 行，3 个用例；读 docs/repo-audit/*.json + git ls-files，锁住「每个文件有结论、结论不指向幽灵文件、verdict/owner/证据合法」；是全仓清单的机械闸门。"
+  },
+  {
+    "path": "docs/REFACTOR-PLAN.md",
+    "area": "doc",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "133 行；定义目标分层（host/core/channels/chat/panel/feature/mind/mind-adapter/media/modules/security/integration/client/tooling/test）、verdict 口径与 B0-B10 批次表；被 docs/HOST-COMPAT.md 与 docs/REPO-INVENTORY.md 引用。"
+  },
+  {
+    "path": "docs/HOST-COMPAT.md",
+    "area": "doc",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "71 行；逐条列出插件用到的宿主符号（5 个事件、6 个服务、stopReason 等）与 rc.3 安装目录里的证据文件，结论「无 rc.5 专属代码」；核对命令可复跑。"
+  },
+  {
+    "path": "docs/REPO-INVENTORY.md",
+    "area": "doc",
+    "owner": "docs",
+    "verdict": "keepGenerated",
+    "evidence": "626 行生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。"
+  },
+  {
+    "path": "docs/SESSION-HANDOFF.md",
+    "area": "doc",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "1308 行交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。"
+  },
+  {
+    "path": "client/README.md",
+    "area": "doc",
+    "owner": "client",
+    "verdict": "keep",
+    "evidence": "15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。"
+  },
+  {
+    "path": "src/mind/README.md",
+    "area": "doc",
+    "owner": "mind",
+    "verdict": "keep",
+    "evidence": "78 行；心智核心的领域说明（身体/情绪/关系/记忆/人格/自我/动机/内心），与 src/mind/index.js 的 6 个导出对应。"
+  },
+  {
+    "path": "src/modules/API.md",
+    "area": "doc",
+    "owner": "modules",
+    "verdict": "keep",
+    "evidence": "410 行；模块 API 契约文档，对应 src/core/module-api.js 的 API_VERSION 与 api 能力面；被 docs/MODULE-TUTORIAL.md 引用。"
+  },
+  {
+    "path": "personas/dafeiyu.md",
+    "area": "config",
+    "owner": "persona",
+    "verdict": "keep",
+    "evidence": "79 行默认人格卡；由 src/persona/personas.js 的 seedPersonas 写入数据目录，cordis.patch.yml 的 {{aurabot_persona}} 变量取它。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-relationships.png",
+    "area": "asset",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 与 README_EN.md 的 <img> 直接引用（关系页截图），删了 README 会出现坏图。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-search.png",
+    "area": "asset",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md / README_EN.md 的功能搜索截图引用；同样属于 README 资源。"
+  },
+  {
+    "path": "docs/repo-audit/channels.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 channels.json。"
+  },
+  {
+    "path": "docs/repo-audit/chat-host.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 chat-host.json。"
+  },
+  {
+    "path": "docs/repo-audit/client.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。"
+  },
+  {
+    "path": "docs/repo-audit/core-security.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。"
+  },
+  {
+    "path": "docs/repo-audit/features-modules.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。"
+  },
+  {
+    "path": "docs/repo-audit/media-adapters.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。"
+  },
+  {
+    "path": "docs/repo-audit/mind.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。"
+  },
+  {
+    "path": "docs/repo-audit/tests-scripts-config.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。"
+  },
+  {
+    "path": "docs/repo-audit/batch0-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "本批新增文件的审计补充（duration.js、三个新测试、四份新文档、八份审计数据），22 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  },
+  {
+    "path": "docs/ACCEPTANCE-LOG.md",
+    "area": "doc",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。"
+  }
+]

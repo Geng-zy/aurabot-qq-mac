@@ -1,6 +1,6 @@
 {
   "name": "dsh-aurabot-qq",
-  "version": "1.6.30",
+  "version": "1.6.31",
   "description": "Aurabot for macOS：aureth-labs/dsh-aurabot-qq 的 macOS（Apple 芯片）分叉 —— DeepSeek Harness 的 QQ 机器人插件「大肥鱼」（经 OneBot v11 接 QQ）",
   "license": "MIT",
   "private": true,
@@ -67,7 +67,11 @@
     "docs/DESIGN.md",
     "docs/PURGE-COMPAT.md",
     "docs/OVERLAP-AUDIT.md",
-    "docs/P2-MIGRATION.md"
+    "docs/P2-MIGRATION.md",
+    "docs/REPO-INVENTORY.md",
+    "docs/REFACTOR-PLAN.md",
+    "docs/HOST-COMPAT.md",
+    "docs/SESSION-HANDOFF.md"
   ],
   "repository": {
     "type": "git",

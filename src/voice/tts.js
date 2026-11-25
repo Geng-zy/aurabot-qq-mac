@@ -6,6 +6,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync, rmSync } from 'node:fs'
 import { buildWav } from './wav.js'
+import { isZeroSampleWav } from './duration.js'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -141,9 +142,12 @@ async function macSynth(text) {
   if (macVoice === null) macVoice = pickMacVoice((await run('say', ['-v', '?'], { timeoutMs: 15000 })).out)
   const voice = macVoice
   const r = await run('say', [...(voice ? ['-v', voice] : []), '-o', aiff, '-f', '-'], { timeoutMs: 60000, input: text })
+  // say 失败时照样会留下一个只有文件头的 AIFF，只查 existsSync 会漏掉，必须看退出码
+  if (r.code !== 0) throw new Error('macOS 语音失败（退出码 ' + r.code + '）：' + r.err.slice(-200))
   if (!existsSync(aiff)) throw new Error('macOS 语音失败：' + r.err.slice(-200))
   const c = await run('afconvert', ['-f', 'WAVE', '-d', 'LEI16@24000', aiff, file], { timeoutMs: 60000 })
   try { unlinkSync(aiff) } catch {}
+  if (c.code !== 0) throw new Error('macOS 语音转换失败（退出码 ' + c.code + '）：' + (c.err || r.err).slice(-200))
   if (!existsSync(file) || statSync(file).size < 1000) throw new Error('macOS 语音转换失败：' + (c.err || r.err).slice(-200))
   return file
 }
@@ -358,6 +362,18 @@ export async function httpSynth(text, c) {
   return saveAudio(buf, c.sampleRate || 24000)
 }
 
+/**
+ * 合成结果必须真有音频。
+ * `say` 失败时照样会留下只有文件头的 AIFF，转出来的 WAV 是 0 采样（正好 4096 字节），
+ * 光看文件大小过得去，发到 QQ 却是一条没声音的语音条。这里直接判失败，交给调用方改发文字。
+ * @returns {string} 原样返回 file，方便链式写
+ */
+export function ensureAudible(file) {
+  if (!isZeroSampleWav(file)) return file
+  try { unlinkSync(file) } catch {}
+  throw new Error('合成的语音是空的（say 只写了个文件头，没有采样）')
+}
+
 /** 说话语音的后处理：目前原样返回（RVC 换音色只用在翻唱上，语音条直接用 TTS 的声音）。 */
 export const voiceConverters = []
 
@@ -372,14 +388,14 @@ export async function textToSpeech(text, opt = {}, log) {
   const local = { cosyvoice: cosyvoiceSynth, gptsovits: gptsovitsSynth, http: httpSynth, breeze: breezeSynth }[opt.engine]
   if (local) {
     try {
-      file = await local(clean, opt[opt.engine] || {})
+      file = ensureAudible(await local(clean, opt[opt.engine] || {}))
       engine = opt.engine
     } catch (error) {
       log?.warn(`${opt.engine} 失败：${error.message} → 改用${SYSTEM_VOICE}`)
     }
   } else if (opt.engine !== 'system' && edgeInstalled()) {
     try {
-      file = await edgeSynth(clean, opt.voice || 'zh-CN-XiaoyiNeural', opt.rate, opt.pitch)
+      file = ensureAudible(await edgeSynth(clean, opt.voice || 'zh-CN-XiaoyiNeural', opt.rate, opt.pitch))
       engine = 'edge'
     } catch (error) {
       log?.warn(error.message, '→ 改用' + SYSTEM_VOICE)
@@ -387,7 +403,7 @@ export async function textToSpeech(text, opt = {}, log) {
   }
   if (!file) {
     // 系统自带语音兜底：macOS 的 say
-    file = await macSynth(clean)
+    file = ensureAudible(await macSynth(clean))
     engine = 'system'
   }
   for (const conv of voiceConverters) {

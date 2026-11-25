@@ -1,0 +1,415 @@
+[
+  {
+    "path": "src/local/local.js",
+    "area": "local",
+    "owner": "local-router",
+    "verdict": "keep",
+    "evidence": "177 行；被 src/host.js:26、src/features/imagegen.js:187（动态 import）、src/channels/qq/features/voice/index.js:10、src/song/studio.js:880（动态 import）import，4 个层级直连、无门面；test/local.test.js、test/video.test.js、test/imagegen-img2img.test.js 覆盖；内部依赖 3 个（core/store.js、core/net.js、core/image-info.js）+ templates 目录常量。职责：SLOTS 5 槽位（17-23 行）、模板投放（147-154 行）、超时/竞态包装（100-144 行）、返回值归一（toImageBuffer 26-52 行、localAudioFile 57-61 行）。缺陷事实：approved() 定义在 82-94 行，全仓 0 调用点（grep approved\\\\( 仅 82 行定义），call() 不做哈希校验，status() 第 169 行把 approved 硬编码为 true，因此 config.local.hashes 与 .trusted.json 仅由 /local/trust 路由写入、运行时不再比对。"
+  },
+  {
+    "path": "src/local/templates/README-本地接口.md",
+    "area": "local",
+    "owner": "local-templates",
+    "verdict": "keepDoc",
+    "evidence": "56 行；0 代码 import，被 src/local/local.js:14 的 README 常量引用、template() 在 149 行 copyFileSync 到数据目录 local/，是用户脚本唯一契约文档；0 测试（test/ 无引用）。文档缺口：表格 6-11 行只列 tts/image/song-convert/asr，缺 video.mjs 行（SLOTS 第 22 行有 video 槽位）；21 行超时清单不含生视频 20 分钟与 videoTimeoutMin 配置项；signal 只在 image.mjs 段落（30 行）说明，tts/asr/song-convert/video 四个槽位 local.js 同样注入 signal 但文档未写。"
+  },
+  {
+    "path": "src/local/templates/asr.mjs",
+    "area": "local",
+    "owner": "local-templates",
+    "verdict": "keep",
+    "evidence": "21 行；0 静态 import，由 src/local/local.js:21 SLOTS.asr.file 指向、template('asr') 复制到数据目录后按 mtime 动态 import（local.js:112）；test/ 无直接引用，消费方 src/chat/transcribe.js:44 取返回值并兼容字符串与 {text} 两种形状（同文件 46 行 String(typeof r === 'string' ? r : r?.text || '')），与文档 43-45 行一致；0 内部依赖。"
+  },
+  {
+    "path": "src/local/templates/image.mjs",
+    "area": "local",
+    "owner": "local-templates",
+    "verdict": "keep",
+    "evidence": "32 行；0 静态 import，由 src/local/local.js:19 SLOTS.image.file 指向并复制；test/imagegen-img2img.test.js 覆盖参考图分支（20 个 test 块，含 supportsImage 声明与 img2img）；契约一致：local.js:114 校验 mod.supportsImage !== true 时抛「这个生图服务不支持参考图」，返回 {base64} 由 local.js:38-42 解码，与文档 29-34 行逐项对齐（参数含 signal、outDir、image 纯 base64）；0 内部依赖。"
+  },
+  {
+    "path": "src/local/templates/song-convert.mjs",
+    "area": "local",
+    "owner": "local-templates",
+    "verdict": "keep",
+    "evidence": "35 行；0 静态 import，由 src/local/local.js:20 SLOTS.song.file 指向；调用方 src/song/studio.js:882 传 input/output/pitch/duet/voice/voiceFile/indexFile，返回值经 fileOf（studio.js:883）取路径，与文档 36-40 行一致；template 脚本自身不读 outDir/signal（local.js 仍注入），中断只能由 local.js 的 Promise.race 生效；test/song.test.js 覆盖 studio 侧调用编排，模板文件本身 0 测试；0 内部依赖。"
+  },
+  {
+    "path": "src/local/templates/tts.mjs",
+    "area": "local",
+    "owner": "local-templates",
+    "verdict": "keep",
+    "evidence": "35 行；0 静态 import，由 src/local/local.js:18 SLOTS.tts.file 指向；消费链 src/channels/qq/features/voice/index.js:30 与 src/features/local-routes.js:23 都传 readResult: localAudioFile（local.js:57-61 校验文件可读），与文档 25-27 行的「路径或 {file}」一致；模板用自带 AbortSignal.timeout(60000) 而非注入的 signal，与 SLOTS.tts.timeoutMs=60000 数值相同、取消路径不同；0 内部依赖。"
+  },
+  {
+    "path": "src/local/templates/video.mjs",
+    "area": "local",
+    "owner": "local-templates",
+    "verdict": "keepDoc",
+    "evidence": "19 行；0 静态 import，由 src/local/local.js:22 SLOTS.video.file 指向，src/modules/video/index.js:44 经 local.call('video', args, { signal }) 调用并按 videoFile 取路径；模板 18 行固定 throw（未接任何服务），即 shipped 状态永远失败；0 测试引用模板；README-本地接口.md 表格 6-11 行缺 video 行、21 行超时清单未含 20 分钟默认与 videoTimeoutMin，判 keepDoc：补齐接入示例与文档，不删（SLOTS、面板路由 local-routes.js:7 的槽位白名单都含 video）。"
+  },
+  {
+    "path": "src/mind-adapter/body.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-body",
+    "verdict": "keep",
+    "evidence": "45 行；仅被 src/mind-adapter/index.js:244 import（facade 内），经 index 暴露 bodyTick 被 test/mind-adapter.test.js 覆盖；内部依赖 0 个，注入依赖 12 个；职责单一（身体 tick：睡眠/醒来补消息/吃东西，含 checkPromises、dailySnapshot、missOwner 回调）。"
+  },
+  {
+    "path": "src/mind-adapter/context-text.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-context",
+    "verdict": "keep",
+    "evidence": "54 行；仅被 src/mind-adapter/index.js:53 import，并在 55 行原样 re-export 5 个符号；test/mind-adapter.test.js 直接断言 segmentsText；内部依赖 1 个（mind/local/runner.js 的 hasLocalModel，用在 localModelPaths 28-29 行）；纯常量与纯函数（looksLikeRule / LOCAL_DEFAULT / localModelPaths / EFFORT / segmentsText），不碰 SQLite、不碰 DSH。"
+  },
+  {
+    "path": "src/mind-adapter/context.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-context",
+    "verdict": "keep",
+    "evidence": "105 行；仅被 src/mind-adapter/index.js:49 import；carryOver 被 test/mind-adapter.test.js、test/mind-rotate-encode.test.js 覆盖，contextFor 被 test/mind-adapter.test.js、test/mind-body-emotion.test.js、test/mind-personality.test.js、test/mind-share.test.js 等 8 个文件覆盖；内部依赖 0 个、注入依赖 16 个；74 行经 getTurnContext().workingOf(chatId) 读 turn-context 的本轮工作区，是两文件唯一耦合点。"
+  },
+  {
+    "path": "src/mind-adapter/embedding.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-memory",
+    "verdict": "keep",
+    "evidence": "43 行；仅被 src/mind-adapter/index.js:42 import；embeddingStatus 经 index 被 test/mind-reembed.test.js、test/mind-system-context.test.js 覆盖；内部依赖 0 个、注入依赖 7 个（含 createHash、createEmbedClient、createRerankClient 由 index.js:113 注入）；职责单一：远端 OpenAI 兼容向量/精排后端选择与状态。"
+  },
+  {
+    "path": "src/mind-adapter/encoding.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-memory",
+    "verdict": "keep",
+    "evidence": "28 行；仅被 src/mind-adapter/index.js:34 import；encodeChat 被 test/mind-rotate-encode.test.js 覆盖，encodeTick 被 test/mind-adapter.test.js、test/mind-personality.test.js 覆盖；内部依赖 0 个、注入依赖 6 个；全文件 28 行、单一职责（聊天停下来/换会话时把未记录的经历写入 mem）。"
+  },
+  {
+    "path": "src/mind-adapter/feeding.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-perception",
+    "verdict": "keepDoc",
+    "evidence": "42 行；非死代码：被 src/mind-adapter/index.js:27 import（acceptsFood 在 145 行注入 perception、naturalFoodOffer 在 279 行注入 feel）；grep -r 'acceptsFood|naturalFoodOffer' test/ 命中 0 个测试文件，覆盖面只经 test/mind-body-emotion.test.js 的 feed 路径间接存在；内部依赖 0 个，5 个正则常量 + 3 个纯函数，是纯词法判定、无 IO，因此缺单测属文档/测试缺口而非删除候选。"
+  },
+  {
+    "path": "src/mind-adapter/feel.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-perception",
+    "verdict": "keep",
+    "evidence": "100 行；仅被 src/mind-adapter/index.js:38 import；feed/feel/confirmReplyFeed 经 index 被 test/e2e.test.js、test/mind-body-emotion.test.js、test/mind-conversation.test.js、test/mind-inner.test.js 等 10 个文件覆盖；内部依赖 0 个、注入依赖 15 个；notRemembered 在该文件出现 5 次（7 个文件共 27 处，是待收敛的重复判定之一）。"
+  },
+  {
+    "path": "src/mind-adapter/ids.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-core",
+    "verdict": "merge",
+    "evidence": "17 行；被 src/mind-adapter/index.js:20 与 src/mind-adapter/migrate.js:9 import（2 个调用方，均在 mind-adapter 内）；windowOf/personOf 在 3 行是 channels/ids.js 的纯别名 export，personIn（6-11 行）、deliveryChat（14-17 行）各 6 行薄封装；test/mind-adapter.test.js 只命中 windowOf 一个符号；按删除测试：删掉它后调用方直接 import ../channels/ids.js 并各自复制 6 行，复杂度不增，故判 merge 进 src/channels/ids.js（id 规范化与渠道引用解析同源）。"
+  },
+  {
+    "path": "src/mind-adapter/index.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-core",
+    "verdict": "split",
+    "evidence": "309 行（>300），31 条 './' 内部 import（覆盖 30 个兄弟文件，唯独不 import install.js），返回对象 71 个键，被 src/host.js 与 20 个测试文件 import（freedom、mind-adapter、mind-assoc、mind-body-emotion、mind-encode-busy、mind-features、mind-followup、mind-forget、mind-graph、mind-inner、mind-migrate、mind-owner-call、mind-period、mind-personality、mind-reembed、mind-rerank、mind-rotate-encode、mind-share、mind-system-context、turn-timeout）。两职责证据：装配（30 个 create* 调用 + 依赖注入）+ 内联实现（93-103 行 askWithTimeout 120 秒超时包装、173-182 行 effortFor/chatEffort/endTurn/invalidateMemory 转发、299-307 行 selfPrompt/protectedText/sharedText/shareIdsForChat/canReadShares/isPrivateHistoryWindow/audienceRevision/restrictedShareText 共 8 个 mem 视图直通）。拆分方向：把 8 个 mem 视图与 askWithTimeout 抽成 view 模块，留下装配。"
+  },
+  {
+    "path": "src/mind-adapter/inner.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-inner",
+    "verdict": "keep",
+    "evidence": "122 行；仅被 src/mind-adapter/index.js:33 import；innerTick 被 test/mind-inner.test.js 覆盖、runAction 被 test/mind-adapter.test.js 与 test/mind-inner.test.js 覆盖、actionBudget 被 test/mind-adapter.test.js 覆盖；内部依赖 2 个（node:async_hooks、mind/budget.js）、注入依赖 8 个；职责单一（走神/想事/后台预算）。"
+  },
+  {
+    "path": "src/mind-adapter/inspection.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-tools",
+    "verdict": "keep",
+    "evidence": "76 行；仅被 src/mind-adapter/index.js:28 import（inspectionTools 在 189 行交给 createMindTools）；两个工具 mind_relationship、mind_check_self 均被 test/mind-adapter.test.js 断言；内部依赖 3 个（channels/ids.js、mind/place.js、tools/tools.js）；可见性判定（26 行 noMemory/isPrivateHistoryWindow）与 tools.js 的工具表分离，职责清晰。"
+  },
+  {
+    "path": "src/mind-adapter/install.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-install",
+    "verdict": "keep",
+    "evidence": "145 行；被 src/host.js 直接 import（绕过 facade）与 test/mind-local-install.test.js 覆盖（createLocalInstaller、LOCAL_STACK 直接断言）；内部依赖 3 个（mind-adapter/index.js 取 LOCAL_DEFAULT、mind/local/runner.js 的 hasLocalModel、core/python.js 的 PY_VERSION/ensurePinnedUv/uvBaseEnv），注入依赖 6 个。数据契约（改动需迁移+回滚）：磁盘布局 ~/Aurabot/mind/{env,models,downloads,uv-cache,hf-home} + 共享 bin/python（core/python.js sharedUvDir/sharedPythonDir，54-64 行 paths()）；版本号 python=3.13.18 来自 core/python.js:15 PY_VERSION、包版本由同目录 local-requirements.txt 钉死（22 行 LOCAL_STACK.requirements、144 行 pinned() 返回原文）；步骤名 LOCAL_STEPS 5 项（24 行）与面板进度绑定；官方 18GB 权重经 renameSync 进 trashDir 不删除（129-133 行）；幂等判据 = checkPython('import mlx_lm') + hasLocalModel，两者同时成立即跳过下载与转换（96-100 行）。"
+  },
+  {
+    "path": "src/mind-adapter/lifecycle.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-core",
+    "verdict": "keep",
+    "evidence": "54 行；仅被 src/mind-adapter/index.js:37 import；start/close 经 index 被 6 个以上测试文件间接调用（.start( 命中 mind-migrate、mind-personality 等，.close( 命中 32 个测试文件），迁移/快照/人格同步在启动序列里；内部依赖 0 个、注入依赖 20 个；47 行给 drain 5 秒上限、49 行 localEmbedding.close?.() 保证 worker 线程回收。"
+  },
+  {
+    "path": "src/mind-adapter/local-embedding-worker.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-memory",
+    "verdict": "keep",
+    "evidence": "113 行；静态 import 0 个（inventory 记 0 引用），但不是死代码：grep -r 'local-embedding-worker' 全仓唯一命中 src/mind-adapter/local-embedding.js:28 的 new Worker(new URL('./local-embedding-worker.js', import.meta.url), { workerData: { assetsDir } })，是 Worker 入口而非 import 边；0 测试直接引用；内部依赖 4 个（node:fs、node:path、node:url、node:worker_threads）；内容是 bge WordPiece 分词 + ONNX int8 推理，删掉会让离线向量 probe 通过而 embed 永久失败。"
+  },
+  {
+    "path": "src/mind-adapter/local-embedding.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-memory",
+    "verdict": "keep",
+    "evidence": "69 行；仅被 src/mind-adapter/index.js:3 import（createEmbedder 在 112 行用 models/ 目录实例化）；test/mind-system-context.test.js 覆盖 localEmbedding 配置分支，worker 本体 0 测试；内部依赖 3 个（node:fs、node:path、node:worker_threads）；接口 3 个方法 probe/embed/close，6 行 REQUIRED 清单（6 行）决定「插件包缺少离线向量模型或运行时」的降级文案；close() 由 lifecycle.js:49 调用。"
+  },
+  {
+    "path": "src/mind-adapter/local-requirements.txt",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-install",
+    "verdict": "keep",
+    "evidence": "34 行；0 代码 import，被 src/mind-adapter/install.js:22（LOCAL_STACK.requirements 拼绝对路径）与 116 行（uv pip install -r）读取、144 行 pinned() 原样返回给面板；0 测试；属数据契约：包版本在此钉死，install.js 的 MLX 环境可复现性完全依赖这份文件，改动需与 apply 迁移说明同步。"
+  },
+  {
+    "path": "src/mind-adapter/migrate.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-memory",
+    "verdict": "keep",
+    "evidence": "211 行；被 src/mind-adapter/index.js:26 import、test/mind-migrate.test.js 覆盖（memoryItemToEpisode、chatlogLineToPerception、LEGACY_TAG 直接断言）；内部依赖 1 个（./ids.js）。数据契约（改动需迁移+回滚）：旧数据只读——memory.sqlite 与 modules-data/history-vault/vault.sqlite 全部 DatabaseSync readOnly:true（20-24 行）；导入账本 = store 键 'import.' + LEGACY_TAG，标签常量 'aurabot-legacy-v1'（11 行），二次启动由 mind.importDone 跳过、无旧数据也写空批次（205-208 行）；id 前缀 aurabot:mem: / aurabot:diary: / aurabot:day:<chatId>:<day> / aurabot:log:<t>:<sha1前10> / aurabot:vault:<id> 是 INSERT OR IGNORE 去重键（mind/index.js:384-433 消费）；history-vault 与 chatlog 去重规则为同窗口 60 秒且文本包含（176 行）。"
+  },
+  {
+    "path": "src/mind-adapter/module-api.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-modules",
+    "verdict": "keep",
+    "evidence": "135 行；仅被 src/mind-adapter/index.js:31 import（moduleApiFactory 在 233 行实例化、203 行经闭包对外）；moduleApi 被 test/mind-adapter.test.js、test/mind-inner.test.js、test/mind-share.test.js 覆盖；内部依赖 1 个（mind/clock.js）、注入依赖 19 个；对外只有 8 个方法（experience、recall、recent、checkSpaceReplies、offer、creativeTarget、creativeIdea、share），符合「只能添经历、查记忆、交出想做的事」的边界。"
+  },
+  {
+    "path": "src/mind-adapter/offers.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-motivation",
+    "verdict": "keep",
+    "evidence": "34 行；仅被 src/mind-adapter/index.js:50 import、225 行以副作用方式调用 registerOffers；test/ 无 'registerOffers' 命中，行为经 test/mind-inner.test.js 的 runAction 与 motivation 路径间接覆盖；内部依赖 1 个（mind/motivation/index.js 的 wantsMeal/wantsOwnerChat）；内容是 reach_owner、eat 两条 declarative offer（needs/effort/cooldown/available/run），删掉后 30 行注册逻辑会原样落进 index.js，故保留。"
+  },
+  {
+    "path": "src/mind-adapter/outreach.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-outreach",
+    "verdict": "keep",
+    "evidence": "102 行；仅被 src/mind-adapter/index.js:30 import；reachOwner 被 test/e2e.test.js、test/mind-inner.test.js、test/mind-share.test.js 覆盖；内部依赖 2 个（mind/budget.js、mind/clock.js）、注入依赖 8 个；持有 pendingShares 队列与 canReachOwner 判定，是 motivation offer 的 available 钩子来源（offers.js:13）。"
+  },
+  {
+    "path": "src/mind-adapter/people.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-relations",
+    "verdict": "keep",
+    "evidence": "28 行；仅被 src/mind-adapter/index.js:44 import；forgetPerson 被 test/mind-adapter.test.js、test/mind-conversation.test.js、test/mind-encode-busy.test.js、test/mind-forget.test.js 等 8 个文件覆盖，restorePerson 被 test/mind-core.test.js、test/mind-design.test.js、test/mind-forget.test.js、test/mind-generic.test.js 等 6 个文件覆盖；内部依赖 0 个、注入依赖 6 个；216 行注入的 clearWorking 直连 turn-context。"
+  },
+  {
+    "path": "src/mind-adapter/perception.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-perception",
+    "verdict": "keep",
+    "evidence": "65 行；仅被 src/mind-adapter/index.js:43 import；perceive 被 19 个测试文件覆盖（含 test/backup.test.js、test/e2e.test.js、test/mind-adapter.test.js）、said 被 15 个测试文件覆盖、noteAddressed 被 test/mind-inner.test.js 覆盖；内部依赖 0 个、注入依赖 21 个（全仓最宽）；接口宽但职责单一（入站感知 + 出站话语），拆下去只会把 21 个依赖摊到调用点。"
+  },
+  {
+    "path": "src/mind-adapter/permission.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-permission",
+    "verdict": "keep",
+    "evidence": "61 行；仅被 src/mind-adapter/index.js:29 import；requestPermission、decide、revoke、granted 均被 test/mind-inner.test.js 覆盖，granted 另被 test/freedom.test.js 覆盖；内部依赖 0 个、注入依赖 10 个；五方法（free/granted/requestPermission/checkApproval/decide/revoke）对应权限申请-批准-撤销闭环。"
+  },
+  {
+    "path": "src/mind-adapter/privacy.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-privacy",
+    "verdict": "keepDoc",
+    "evidence": "38 行；仅被 src/mind-adapter/index.js:39 import，checkOutgoingPrivacy 在 6 处出站闸被消费：src/chat/send-segments.js:31、src/chat/send-voice.js:18、src/chat/deliver-turn.js:74、src/chat/hub.js:1389、src/channels/qq/features/qq-api/index.js:180、src/channels/qq/features/diary/qzone.js:35、src/channels/qq/features/qzone-social/social.js:97；grep -r 'checkOutgoingPrivacy' test/ 命中 0 个测试文件（隐私闸无回归）；内部依赖 0 个、注入依赖 7 个；对外暴露面最宽而测试为零，判 keepDoc 并要求 B6 补隐私回归。"
+  },
+  {
+    "path": "src/mind-adapter/reminders.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-reminders",
+    "verdict": "keep",
+    "evidence": "83 行；仅被 src/mind-adapter/index.js:35 import；checkPromises 被 test/e2e.test.js、test/mind-adapter.test.js、test/mind-features.test.js 覆盖；内部依赖 0 个、注入依赖 18 个；带投递确认语义（deliverReminder 返回 true 才算发出，见 index.js:74 的 opts 注释），失效路径落回 handleBodyEvent。"
+  },
+  {
+    "path": "src/mind-adapter/restore.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-data",
+    "verdict": "keep",
+    "evidence": "31 行；仅被 src/mind-adapter/index.js:283 import；replayDeletionsAfterRestore 被 test/mind-adapter.test.js 覆盖（同文件还断言 pre-restore 备份目录语义，与 test/backup.test.js 呼应）；内部依赖 1 个（node:sqlite 动态 import）。数据契约：目录 {legacyDir}/backups、目录名正则 ^pre-restore-\\d+$ 且必须存在 mind/mind.sqlite（10 行两个条件同时成立才处理）；读 deletions(id,kind,at) 表并交给 mem.applyDeletions（17 行）；幂等账本 = store 键 'restore.replayed'（9、26 行），改路径或表名会让恢复后已删记忆复活。"
+  },
+  {
+    "path": "src/mind-adapter/self.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-self",
+    "verdict": "keep",
+    "evidence": "82 行；仅被 src/mind-adapter/index.js:40 import；inferTraits 被 test/mind-personality.test.js 覆盖、syncPersona 被 test/mind-adapter.test.js 覆盖，changeSelf 经 tools.js 的 mind_change_self 在 test/mind-features.test.js 覆盖；内部依赖 0 个、注入依赖 7 个；含人格卡版本同步与 onSelfChange 回调（index.js:79），属对外契约面。"
+  },
+  {
+    "path": "src/mind-adapter/snapshot.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-data",
+    "verdict": "keep",
+    "evidence": "30 行；仅被 src/mind-adapter/index.js:288 import，backupFiles 经 index 交给 src/host.js:750 captureMind；dailySnapshot 被 test/mind-adapter.test.js 覆盖，备份侧由 test/backup.test.js 覆盖；内部依赖 1 个（opts.dir 拼 deletions.jsonl）。数据契约：每日快照用 mind.snapshot({ keep: memory.snapshotKeep })（11 行），去重键 store 'snapshot.lastDay'，opts.memoryDb 为真整体跳过（7 行）；backupFiles 前缀默认 'mind/'，必须同时含 mind/mind.sqlite（mind.backupBytes()）与 mind/deletions.jsonl（21-26 行，23 行注释写明缺它换机恢复会让已删记忆复活；deletions.jsonl 由 src/mind/index.js:49 定义、recordDeletion 写入）。"
+  },
+  {
+    "path": "src/mind-adapter/social-preferences.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-social",
+    "verdict": "keep",
+    "evidence": "89 行；仅被 src/mind-adapter/index.js:52 import；dislikes、ignoreChance、groupInterest、reactWish 被 test/mind-personality.test.js 覆盖，groupInterest 另被 test/mind-adapter.test.js、reactWish 另被 test/react.test.js 覆盖，wakeWords 被 8 个测试文件覆盖；内部依赖 0 个、注入依赖 9 个；156 行由 index 传入的 speakersOf Map 被 turn-context.js:34 删除（跨模块状态所有权，待收敛点）。"
+  },
+  {
+    "path": "src/mind-adapter/social.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-social",
+    "verdict": "keep",
+    "evidence": "69 行；仅被 src/mind-adapter/index.js:51 import；importLegacySocial 被 test/mind-adapter.test.js 覆盖、elsewhere 被 test/diary-archive.test.js 与 test/mind-adapter.test.js 覆盖；内部依赖 0 个、注入依赖 10 个（含 LEGACY_TAG 由 index.js:135 传入）；36-42 行读 importDone/imported 沿用 migrate.js 的账本，属迁移第二阶段的消费者。"
+  },
+  {
+    "path": "src/mind-adapter/tools.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-tools",
+    "verdict": "keep",
+    "evidence": "205 行；仅被 src/mind-adapter/index.js:32 import；经 index 的 tools() 被 16 个测试文件覆盖（含 test/contacts.test.js、test/creative-tasks.test.js、test/freedom.test.js、test/mind-adapter.test.js）；内部依赖 1 个（features/knowledge.js）、注入依赖 24 个；13 处 defineTool 生成 12 个具名工具（mind_recall、mind_recall_more、mind_remember、mind_read_day、mind_want、mind_followup_done、mind_promise_done、mind_change_self、mind_request_permission、knowledge_search、knowledge_read、knowledge_note_create），205 行未越 300 行拆分线。"
+  },
+  {
+    "path": "src/mind-adapter/turn-context.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-turn",
+    "verdict": "keep",
+    "evidence": "47 行；仅被 src/mind-adapter/index.js:47 import；beforeTurn 被 test/mind-adapter.test.js、test/mind-body-emotion.test.js、test/mind-personality.test.js、test/mind-rotate-encode.test.js 覆盖，endTurn 被 test/mind-adapter.test.js:392 覆盖；内部依赖 0 个、注入依赖 11 个。turn-* 重叠事实：38-41 行 invalidateMemory 与 44 行 clearWorking 函数体完全相同（都是 working.clear() + preparing.clear()），index.js:181-182 与 216 行分别转发这两个同义方法；13-17 行的准备竞态票（preparing Map + isCurrent）与 src/chat/turn-state.js:2-10 的 turnEpochs token + turnCurrent 是同一语义在两层的两套实现；31-36 行 endTurn 顺手删除 speakersOf，而该 Map 由 index.js:156 创建、归 social-preferences 所有。"
+  },
+  {
+    "path": "src/mind-adapter/turn-flow.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-turn",
+    "verdict": "keep",
+    "evidence": "46 行；仅被 src/mind-adapter/index.js:45 import；gate 被 src/chat/on-message.js:251 调用并由 test/mind-adapter.test.js、test/mind-body-emotion.test.js、test/mind-personality.test.js 覆盖，mustReplyOwner 被 src/chat/attention.js:15 调用并由 test/e2e.test.js、test/mind-adapter.test.js 覆盖，noteTurn 被 src/chat/session-events.js:168 调用并由 test/mind-body-emotion.test.js、test/mind-inner.test.js 覆盖，wakeUp 被 test/mind-inner.test.js 覆盖；内部依赖 0 个、注入依赖 12 个。与 turn-policy 的重叠：17-20 行 mustReplyOwner 自行判 mind.isOwner，turn-policy.js:3-8 canSeedHistory 另判 notRemembered + owner，两处是同一「这个人算不算」判定的分裂；28-43 行 noteTurn 把 body.spend、motivation.satisfy、inner.relieve 三组写入塞在一个 try 里。"
+  },
+  {
+    "path": "src/mind-adapter/turn-policy.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter-turn",
+    "verdict": "keep",
+    "evidence": "37 行；仅被 src/mind-adapter/index.js:41 import；shouldRotate 被 src/chat/agent-resolve.js:96 消费并由 test/mind-adapter.test.js:66-69、test/mind-rotate-encode.test.js 覆盖，recentUserMessages 被 src/chat/hub.js:772 消费，canSeedHistory 被 src/chat/hub.js:722 消费，attention 被 src/chat/hub.js:584 消费（读 attention.single / attention.ownerCutsQueue，见 src/mind/params.js:55-58），effects 被 src/host.js:378 的 moodEffects 消费；内部依赖 0 个、注入依赖 10 个；无会话状态、纯读取 mind.setting，与 turn-context（持有 Map）职责不重叠。"
+  },
+  {
+    "path": "src/song/fetch_file.py",
+    "area": "song",
+    "owner": "song-source",
+    "verdict": "keep",
+    "evidence": "221 行；0 import（Python），被 src/song/studio.js:45 FETCH_SCRIPT 拼绝对路径后 spawn 调用，test/modules.test.js:195 断言源码里保留 new URL('song/fetch_file.py', globalThis.aurabot.src) 的等价形式；0 测试直接执行；职责：带 sha256 校验的多源下载（备源切换 + 断点）。"
+  },
+  {
+    "path": "src/song/local_music.js",
+    "area": "song",
+    "owner": "song-source",
+    "verdict": "keep",
+    "evidence": "84 行；被 src/song/studio.js import（选曲前优先本地）、test/macos.test.js 覆盖；内部依赖 3 个（node:fs、node:path、node:os）；导出 4 个（MUSIC_DIR、norm、parseName、findLocalSong）；常量 MAX_DEPTH=3、SKIP_DIRS 5 个系统音乐目录（12 行）决定扫描边界，改这两个值改变命中率。"
+  },
+  {
+    "path": "src/song/netease.js",
+    "area": "song",
+    "owner": "song-source",
+    "verdict": "keep",
+    "evidence": "97 行；被 src/song/studio.js import、test/song.test.js 覆盖；内部依赖 1 个（node:crypto）；导出 weapi 等；weapi 是 AES-128-CBC 双层 + RSA 无填充（PRESET_KEY/IV/MODULUS/EXPONENT 四个常量 7-10 行），与网易云服务端协议绑定，属外部契约。"
+  },
+  {
+    "path": "src/song/pipeline.js",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "198 行；被 src/song/studio.js import（runPipeline），test/song-pipeline.test.js 覆盖（7 个 test 块，唯一直接 import ../src/song/pipeline.js 的测试）；内部依赖 3 个（node:fs、node:path、node:url）；导出 5 个（SCRIPT、PIPELINE_MODELS、ENHANCE_DEFAULTS、lastJson、runPipeline）；SCRIPT 表把 6 个 .py 按角色映射（17-23 行），是 pipeline/ 下脚本的唯一装配点。"
+  },
+  {
+    "path": "src/song/pipeline/dereverb_blend.py",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "38 行；0 import（Python），被 src/song/pipeline.js:17 SCRIPT.blend 拼路径、在 pipeline.js 第 103 行以 vocals_dereverb_blend.wav 输出调用；0 测试直接执行；职责单一：逐段比较去混响前后，变噪段落换回原人声。"
+  },
+  {
+    "path": "src/song/pipeline/gender_check.py",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "49 行；0 import（Python），被 src/song/pipeline.js:21 SCRIPT.gender 拼路径调用，用于「对唱」判定后才拆男女声（pipeline.js:5 注释）；0 测试直接执行；职责单一：确认真是男女对唱。"
+  },
+  {
+    "path": "src/song/pipeline/key_plan.py",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "234 行；0 import（Python），被 src/song/pipeline.js:18 SCRIPT.key 拼路径调用，输出被 octave_splice.py 消费（octave_splice.py:2-3 注释指明接缝来自 key_plan 标出的句子）；0 测试直接执行；职责：按音色档案音域定整首变调并标出需要挪八度的句子。"
+  },
+  {
+    "path": "src/song/pipeline/octave_splice.py",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "39 行；0 import（Python），被 src/song/pipeline.js:19 SCRIPT.splice 拼路径调用，入参是 key_plan 产出的句子 JSON 与各半音换声文件；0 测试直接执行；职责单一：按接缝拼接（前后各留 0.08 秒、40 毫秒淡入淡出）。"
+  },
+  {
+    "path": "src/song/pipeline/tone_match.py",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "146 行；0 import（Python），被 src/song/pipeline.js:20 SCRIPT.tone 拼路径调用，最后一行打印 JSON 由 pipeline.js:44 lastJson 解析；0 测试直接执行；无音色参照时打印 skipped（102、117 行），失败不阻断出歌。"
+  },
+  {
+    "path": "src/song/pipeline/voice_profile.py",
+    "area": "song",
+    "owner": "song-pipeline",
+    "verdict": "keep",
+    "evidence": "70 行；0 import（Python），被 src/song/pipeline.js:22 SCRIPT.profile 与 src/song/studio.js:859（importModels 时生成 <音色>.profile.json）两处调用；0 测试直接执行；产出物 <音色>.profile.json 是自动定调与音色校正的前置（studio.js:313 注释）。"
+  },
+  {
+    "path": "src/song/separator/model_bs_roformer_ep_317_sdr_12.9755.yaml",
+    "area": "song",
+    "owner": "song-source",
+    "verdict": "keep",
+    "evidence": "133 行；0 import（模型配置），被 src/song/studio.js:190 BUNDLED_SEP 指向目录、645 行 readdirSync(BUNDLED_SEP) 在目标目录缺文件时 copyFileSync 到 separatorModels；0 测试；与 studio.js:181 SEPARATOR_FILES 里同名下载项 sha256 2bfdd16c656bd9519aba757cc4f8834b7ede675eb1e00ec4772d74ae1c41af7f 同源，是断网时的兜底配置。"
+  },
+  {
+    "path": "src/song/separator_run.py",
+    "area": "song",
+    "owner": "song-source",
+    "verdict": "keep",
+    "evidence": "84 行；0 import（Python），被 src/song/studio.js:191 SEPARATOR_RUN 拼路径、208 行 separatorCommand 决策（有 extra-models.json 才用它）；test/macos.test.js:99 覆盖该分支；职责：把清单外模型登记进 audio-separator，否则直调 audio-separator。"
+  },
+  {
+    "path": "src/song/studio.js",
+    "area": "song",
+    "owner": "song-studio",
+    "verdict": "split",
+    "evidence": "1137 行（>300）、35 个 export；被 src/modules/song/index.js import、被 src/voice/tts.js:83（动态 import 只取 defaultRoot/MAC_STACK）、test/song.test.js、test/macos.test.js、test/local.test.js 覆盖；内部依赖 9 个（core/net、core/store、core/zip、core/python、core/img、song/netease、song/local_music、song/pipeline、local/local）。五段职责：安装栈与下载校验（19-148：APPLIO_REPO/APPLIO_COMMIT 固定 commit、MAC_STACK、INSTALL_STEPS、fetchFile/ensureReadable/dirSize/defaultRoot/explainInstallError）、分离模型清单与导入（155-253：LEAP_XE/EXTRA_SEPARATORS/RUBBERBAND_MAC/SEPARATOR_FILES/separatorLinks/registerExtraSeparator/importSeparator）、音色模型资产（274-395：pathsOf/listVoices/importModels/deleteVoice/pruneCache/looksLikePth）、纯参数函数（398-423：VOCAL_MIN_DB/mixArgs/rankCandidates/clipWindow）、流程编排（489-1137：createSongStudio，安装 541-761、做一首 762-1137、convertSpeech 909、面板方法表 1124 行）。voice/tts.js 只为两个安装常量而依赖整个 1137 行文件，是拆分的第一动因。"
+  },
+  {
+    "path": "src/voice/asr.js",
+    "area": "voice",
+    "owner": "media-asr",
+    "verdict": "keep",
+    "evidence": "99 行；被 src/chat/hub.js、src/chat/transcribe.js（asrConfigured/transcribeAudio）、src/channels/qq/features/voice/index.js import，test/voice-asr.test.js 覆盖（8 个 test 块）；内部依赖 0 个；导出 4 个（ASR_PRESETS、asrSettings、asrConfigured、transcribeAudio）；33 行处理用户把完整 /audio/transcriptions 贴进 baseUrl 的双路径 404。"
+  },
+  {
+    "path": "src/voice/breeze.js",
+    "area": "voice",
+    "owner": "media-breeze",
+    "verdict": "keep",
+    "evidence": "228 行；被 src/channels/qq/features/voice/index.js import（breezeVoices/breezeBalance/breezeClaim/breezeSession/autoClaimOnce），test/voice-breeze.test.js 覆盖（13 个 test 块）；内部依赖 1 个（core/store.js 的 dataDir/readJson/writeJson）；导出 10 个，其中 BREEZE_CLAIM_GAP_MS、BREEZE_DAY_MS 全仓 grep 0 消费者；职责错位事实：合成函数 breezeSynth 不在本文件而在 src/voice/tts.js:209-284，本文件只管账号/额度/会话（node:https 手发以绕过 undici 剥 origin 头）。"
+  },
+  {
+    "path": "src/voice/rvc.js",
+    "area": "voice",
+    "owner": "media-rvc",
+    "verdict": "keep",
+    "evidence": "36 行；被 src/channels/qq/features/voice/index.js:53 import 并把返回值 push 进 tts.js:378 的 voiceConverters（54 行）、卸载时 splice（57 行）；test/voice-rvc.test.js 覆盖 5 个 test 块（未选音色、翻唱模块没跑、正常变声、失败抛错）；内部依赖 0 个（getConfig/getSong/dataDir/log 全注入）；职责单一：把音频文件交给 song 模块的 convertSpeech，失败保留原声。"
+  },
+  {
+    "path": "src/voice/tts.js",
+    "area": "voice",
+    "owner": "media-tts",
+    "verdict": "split",
+    "evidence": "417 行（>300）、9 个 export；被 src/channels/qq/features/voice/index.js import，test/macos.test.js、test/voice-breeze.test.js、test/voice-http-tts.test.js 覆盖；内部依赖 5 个（voice/wav.js、voice/duration.js、core/store.js、song/studio.js、core/python.js）。四段职责：edge-tts 环境安装（82-110，与 mind-adapter/install.js 的 uv+镜像逻辑重复）、六后端合成（112-284：edge/say/cosyvoice/gptsovits/breeze/http）、通用 HTTP 模板引擎与 base64 提取（286-363，{text} 模板语义与 local/templates 的 {reqid} 占位重复）、缓存清理与变声注册表（49-60 目录清理、371-375 ensureAudible、378 voiceConverters、409-415 变声链）。刚修的两处必须保留：9 行 import { isZeroSampleWav } from './duration.js'，371-375 行 ensureAudible 对 0 采样 WAV 抛错并 unlink；146 行 say 的退出码检查（失败时 say 仍留只有头的 AIFF）。阻断项：src/voice/duration.js 是未跟踪文件（git status ?? src/voice/duration.js、git ls-files 无此行），发布包缺它会 import 失败。"
+  },
+  {
+    "path": "src/voice/wav.js",
+    "area": "voice",
+    "owner": "media-wav",
+    "verdict": "keep",
+    "evidence": "60 行；被 8 处 import：src/voice/tts.js、src/chat/hub.js、src/core/media.js、src/channels/qq/features/voice/index.js；test/features.test.js、test/module-chat-api.test.js、test/module-media-api.test.js、test/voice-asr.test.js 覆盖（另有未跟踪的 test/audio-duration.test.js 直接 import 本文件）；内部依赖 0 个；导出 3 个纯函数（parseWav/buildWav/toMono16k），只支持 PCM16 并在 17 行显式拒绝其它格式。缺陷事实：src/core/media.js 属 core 层却 import 本文件，与 REFACTOR-PLAN.md:29 的「core 不依赖上层」相反向。"
+  }
+]

@@ -1,0 +1,289 @@
+[
+  {
+    "path": "src/mind/body/index.js",
+    "area": "mind/body",
+    "owner": "mind-body",
+    "verdict": "keep",
+    "evidence": "294 行；import：mind/index.js；测试：无直接 import；test/mind-body-emotion.test.js:169-174 经 m.body.tick()/state() 断言睡眠与清醒，test/mind-adapter.test.js:171、test/e2e.test.js:2290 断言 energy/asleep；内部依赖 1（mind/clock.js）；虚拟身体：S/C 双过程困倦、时区倒时差、tick/wake/sleepNow/eat/spend、state 与 prompt 文本；内部依赖只有 clock.js（tzOffsetHours），状态只写在 kv 键 body"
+  },
+  {
+    "path": "src/mind/budget.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keep",
+    "evidence": "54 行；import：mind-adapter/inner.js、mind-adapter/outreach.js、mind/index.js、mind/memory/index.js；测试：无直接 import；test/mind-memory.test.js:255 写 budget.unlimitedDay 验无限预算分支，test/mind-inner.test.js:510 覆盖预算耗尽 code=BUDGET 的分支；内部依赖 0（无）；写 usage 表（store.js:86），charge/spent/allow/reserve 四个函数即全部接口，reserve 返回的 finish 回调与 memory.ask 的 finally 成对出现（memory/index.js:119-132）；54 行、0 内部依赖，职责单一"
+  },
+  {
+    "path": "src/mind/clock.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keep",
+    "evidence": "246 行；import：channels/qq/features/diary/qzone.js、mind-adapter/index.js、mind-adapter/module-api.js、mind-adapter/outreach.js、mind/body/index.js、mind/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/memory/visibility.js、mind/personality/index.js、mind/replay.js；测试：test/mind-core.test.js、test/mind-features.test.js、test/mind-period.test.js 直接 import；内部依赖 0（无）；14 个导出：时区校验、dayKey、parseHm/parseRange/inRange/parsePeriod、parseBirthday/isBirthday/currentAge、describeNow、zonedToEpoch、shortTime；被 src/channels/qq/features/diary/qzone.js 直接 import，属 channels 越层借用（见汇总的分层违规清单）；文件自身 0 内部依赖，纯函数，无状态"
+  },
+  {
+    "path": "src/mind/conversation.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keep",
+    "evidence": "285 行；import：mind-adapter/index.js、mind/index.js；测试：test/mind-adapter.test.js 直接 import；test/mind-conversation.test.js、test/mind-design.test.js 经 createMind().conversation 覆盖 attend/prepare/respond；内部依赖 1（mind/memory/index.js）；回合编排：attend 112-267、describeSpeechPlan/effortForScene/speechScene 84-104、invalidatePerson 269、close 278；285 行；parseJson 取自 memory/index.js:2 而非 memory/text.js，跨域耦合到 memory 装配文件（与 self/、inner/、personality/ 同款）"
+  },
+  {
+    "path": "src/mind/emotion/catalog.js",
+    "area": "mind/emotion",
+    "owner": "mind-emotion",
+    "verdict": "keep",
+    "evidence": "119 行；import：mind/emotion/index.js、mind/inner/index.js；测试：test/mind-body-emotion.test.js 直接 import ANCHOR_HOURS/EMOTIONS/emotionOf；内部依赖 0（无）；情绪清单与半衰期数据表（EMOTIONS、baseHours、emotionOf），被 emotion/index.js 与 inner/index.js 共用；119 行、0 内部依赖，纯数据 + 查表，无写入"
+  },
+  {
+    "path": "src/mind/emotion/index.js",
+    "area": "mind/emotion",
+    "owner": "mind-emotion",
+    "verdict": "split",
+    "evidence": "329 行；import：mind/index.js；测试：无直接 import；test/mind-body-emotion.test.js、test/mind-conversation.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-system-context.test.js 经 createMind().emotion 覆盖 feel/state/forgetEvent；内部依赖 1（mind/emotion/catalog.js）；写入侧 feel 66-119 / rekindle 120-130 / updateMood 131-150 / afterSleep 162、维护侧 forgetEvent 300-317 / forgetAppraisals 318、展示侧 prompt 231-265 / describe 266-291 / moodCue 208-230；329 行、内部依赖 catalog.js；建议把 prompt/describe/moodCue 下沉为 emotion/prompt.js，feel/rekindle/updateMood/forget* 与随机数用法留在原文件，情绪状态仍写 kv 键 emotion"
+  },
+  {
+    "path": "src/mind/index.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "split",
+    "evidence": "862 行；import：mind-adapter/index.js、mind/replay.js、scripts/replay-privacy.js；测试：test/mind-core.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-features.test.js、test/mind-fixes.test.js、test/mind-generic.test.js、test/mind-design.test.js、test/mind-inner.test.js、test/mind-conversation.test.js、test/mind-body-emotion.test.js、test/backup.test.js 11 个测试直接 import createMind；内部依赖 16（mind/body/index.js、mind/budget.js、mind/clock.js、mind/conversation.js、mind/emotion/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/motivation/index.js、mind/params.js、mind/personality/index.js、mind/place.js、mind/relations/index.js、mind/self/index.js、mind/self/public-style.js、mind/store.js）；对外只导出 createMind/PARAMS/GROUPS/placeOf/shortId/mindFileExists 6 个名字（package.json exports \"./mind\"），返回对象 67 个键：设置 5、身份 5、平台 id 与窗口 4、人 8（person/notePerson/listPeople/forgetPerson/setNoMemory/forgottenList/restorePerson/peopleGraph）、人格卡与版本 10、感知与 history 6、import 5、删除备份 5、子模块与提示词 14、状态与 close 5；业务实现约 690 行：设置校验 71-114、身份与年龄 118-151、人格卡版本与 prune 153-235、人员合并 linkPerson 268-303、感知与 history 310-369、importBatch 事务 384-432、删除日志 applyDeletionLog 452-479、忘掉/恢复 487-621、星图 623-646、快照 648-681；真正的装配只有 683-790 的 108 行。建议把设置、版本、导入、遗忘恢复四段下沉为 mind/ 子模块，store.tx 边界、快照命名 mind-<stamp>.sqlite 与 memory.audienceRevision 触发点保持在原位"
+  },
+  {
+    "path": "src/mind/inner/index.js",
+    "area": "mind/inner",
+    "owner": "mind-inner",
+    "verdict": "split",
+    "evidence": "371 行；import：mind/index.js；测试：test/mind-inner.test.js 直接 import overlap/parseThought/createInner；test/mind-design.test.js、test/mind-generic.test.js 经 mind.inner 覆盖；内部依赖 4（mind/clock.js、mind/emotion/catalog.js、mind/memory/index.js、mind/place.js）；意识流一步：材料装配 recentHappenings 98-136 / currentContext 137-152、提示词 SYSTEM 153-166 与 material 167-193、深想判定 needsDeep 194-344、副作用 idleTick/relieve/deferred 345-363；371 行、内部依赖 memory/index.js、emotion/catalog.js、clock.js、place.js；建议先把 needsDeep 的硬规则拆成 inner/rules.js（这是测试最容易锁住的一段），状态仍写 kv 键 inner"
+  },
+  {
+    "path": "src/mind/local/runner.js",
+    "area": "mind/local",
+    "owner": "mind-local",
+    "verdict": "keep",
+    "evidence": "177 行；import：mind-adapter/context-text.js、mind-adapter/index.js、mind-adapter/install.js；测试：test/mind-inner.test.js 直接 import createLocalModel（45、86 行注入假 spawn/fetch）；内部依赖 0（无）；本机 mlx_lm server 进程管理：hasLocalModel 11-19、check 49-57、ensure 73-123（180 秒就绪轮询）、chat 129-154、idleCheck、status；177 行、0 内部依赖、不 import 任何 mind 文件；唯一使用方是 src/mind-adapter/index.js:18、context-text.js:5、install.js:15。它不是心智域代码，归属应是 media（REFACTOR-PLAN 表格的 src/local/）；本批只记录不动，迁移时 mind-adapter 的 3 处 import 与 test/mind-inner.test.js:11 一起改"
+  },
+  {
+    "path": "src/mind/memory/curve.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "52 行；import：mind/memory/index.js、mind/memory/strengthen.js；测试：test/mind-memory.test.js 直接 import retention/levelOf；内部依赖 0（无）；FSRS-4.5 幂函数遗忘曲线与回忆加强（retention/initialStability/afterRecall/levelOf），参数 F=19/81、C=-0.5、W8/W9/W10；52 行、0 内部依赖、纯函数；被 memory/index.js 与 strengthen.js 共用"
+  },
+  {
+    "path": "src/mind/memory/deletion.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "103 行；import：mind/memory/index.js；测试：test/mind-memory.test.js 覆盖 deleteEpisode/applyDeletions，test/mind-design.test.js 与 test/mind-followup.test.js 覆盖 setPrivateOnly，test/mind-adapter.test.js 覆盖 deleteEpisode；内部依赖 0（无）；删除与重算：deleteEpisode/deleteEpisodeRaw、applyDeletions（按 deletions 表重放）、boost、setPrivateOnly；每次删除在 store.tx 内保存并调用 touchAudience（第 8、97 行）；103 行、0 内部依赖；与 deletions 表、恢复区（kv forgotten:<id>）共同构成历史数据契约，改写必须保序：先写恢复区再删行"
+  },
+  {
+    "path": "src/mind/memory/encode-batch.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "150 行；import：mind/memory/index.js；测试：无直接 import；test/mind-encode-busy.test.js、test/mind-rotate-encode.test.js、test/mind-memory.test.js 经 memory.encodeWindow/encodePending 覆盖；内部依赖 0（无）；一段聊天的编码提交：取批 9-19、拼行 22-29、模型调用与 BUDGET 透传 30-39、格式失败的降批与跳过 42-74、单事务提交 79-139（含 unchanged 复核、audienceShares 继承、public-note 另存）；150 行、0 内部依赖；encode.cursor.<window>、encode.fail.*、encode.recovery、encode.skipped 四个键在此写入，改结构前先锁 test/mind-encode-busy.test.js"
+  },
+  {
+    "path": "src/mind/memory/encode-pending.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "29 行；import：mind/memory/index.js；测试：test/mind-encode-busy.test.js、test/mind-memory.test.js 覆盖 encodePending；内部依赖 0（无）；把所有停下来的窗口扫一遍（pendingWindows 逐个 encodeWindow，最多 20 轮）并在 budget.unlimitedDay 当天补做 encode.recovery 队列；29 行、0 内部依赖；与 encoding-state.js:12-21 的 encodeThrough 各自实现「反复 encodeWindow 直到追平」的循环，语义不同（全量清扫 vs 记到指定位置），本批保留，重叠记在待办"
+  },
+  {
+    "path": "src/mind/memory/encoding-state.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "29 行；import：mind/memory/index.js；测试：无直接 import；pendingWindows 在 test/mind-fixes.test.js、test/mind-memory.test.js 中被调用，encodeThrough 无直接测试；内部依赖 0（无）；编码游标与推进：cursorOf、pendingThrough、encodeThrough（按 isCurrent 逐段推进）、pendingWindows；只读写 encode.cursor.<window> 与 perception 的 MAX(id)；29 行、0 内部依赖；encodeThrough 无测试覆盖，拆分或改写前需补一条「记到指定位置」的用例"
+  },
+  {
+    "path": "src/mind/memory/followups.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "71 行；import：mind/memory/index.js；测试：test/mind-followup.test.js 覆盖 followups/closeFollowup，test/mind-memory.test.js 覆盖 dueIntentions/completeIntention；内部依赖 0（无）；惦记别人的事与到期约定：pendingRows、dueFollowups（按 deps.care 决定问几次、隔多久）、markAsked、closeFollowup、dueIntentions、completeIntention；71 行、0 内部依赖；写回走 save()，不新增表"
+  },
+  {
+    "path": "src/mind/memory/index.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "split",
+    "evidence": "307 行；import：mind-adapter/index.js、mind/conversation.js、mind/index.js、mind/inner/index.js、mind/memory/sleep.js、mind/personality/index.js、mind/self/index.js；测试：无直接 import；4 个 mind 内部文件只从这里取 parseJson（conversation.js:2、inner/index.js:10、personality/index.js:14、self/index.js:7）；行为由 11 个 createMind 测试覆盖（同 index.js 行）；内部依赖 23（mind/budget.js、mind/clock.js、mind/memory/curve.js、mind/memory/deletion.js、mind/memory/encode-batch.js、mind/memory/encode-pending.js、mind/memory/encoding-state.js、mind/memory/followups.js、mind/memory/keywords.js、mind/memory/panel.js、mind/memory/privacy-text.js、mind/memory/recall.js、mind/memory/render.js、mind/memory/sharing.js、mind/memory/special.js、mind/memory/strengthen.js、mind/memory/text.js、mind/memory/vector-state.js、mind/memory/vectors.js、mind/memory/visibility.js、mind/memory/words.js、mind/memory/working.js、mind/place.js）；记忆装配：接入 think/embed/rerank/state 的 connect 66-75、ask 预算 115-133、embedEpisodes/embedText 136-170、jobs 队列 173-181、insert 184-201、编码三件套装配 204-249、recall/render/strengthen/followups/special/working/deletion/sharing/panel 装配 252-300，返回 59 个键（302-306）；307 行、内部依赖 23 个文件；接口过宽（59 键）。建议只把 ask、embedEpisodes/embedText、jobs 三段搬去 memory/model.js 与 memory/jobs.js，insert/save/row 的 SQL 与 store.tx 用法留在原文件；四个 parseJson 引用改指 memory/text.js 即可解开跨域耦合"
+  },
+  {
+    "path": "src/mind/memory/keywords.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "27 行；import：mind/memory/index.js；测试：无直接 import；行为经 test/mind-fixes.test.js 的 topicScore 断言覆盖；内部依赖 1（mind/memory/words.js）；线索词命中：≥3 字走 episodes_fts MATCH、短词走 LIKE ESCAPE，按 visibleForAudience 过滤后按词分量归一；27 行、内部依赖 words.js；只读查询，命中数 ≥30 时权重乘 0.25（第 18 行）是刻意的噪声抑制"
+  },
+  {
+    "path": "src/mind/memory/panel.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "72 行；import：mind/memory/index.js；测试：test/mind-memory.test.js:298-299 断言 sourceCounts/related，recallMore 由 test/mind-design.test.js、test/mind-followup.test.js、test/mind-personality.test.js 覆盖；内部依赖 0（无）；面板读模型：list、sourceCounts（按平台统计来源）、related、recallMore（一跳展开并按当前会话复核）、counts；72 行、0 内部依赖；全部只读，是最容易单独搬迁的一段"
+  },
+  {
+    "path": "src/mind/memory/privacy-text.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "43 行；import：mind/memory/index.js；测试：test/mind-design.test.js 覆盖 publicQuote 的放行/拦截；scripts/replay-privacy.js（npm run mind:privacy）是可重复的隐私回归脚本；内部依赖 0（无）；隐私判断：ordinaryTopic/privateCue/jointExperience 三张词表、privateContext 上下文指代（前后 20 分钟）、publicSourceLines 逐行核对原话、publicQuote 32-40 的最终裁决；43 行、0 内部依赖；是出站隐私的第一道闸，改词表必须有 test/mind-design.test.js 与 mind:privacy 两处证据"
+  },
+  {
+    "path": "src/mind/memory/recall.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "144 行；import：mind/memory/index.js；测试：无直接 import；memory.recall 由 test/mind-memory.test.js、test/mind-design.test.js、test/mind-assoc.test.js、test/mind-features.test.js 覆盖；内部依赖 0（无）；按线索召回：向量检索、关键词命中、身边人与时间范围、精排 rerank、联想扩散，按 levelOf 分级渲染；144 行、0 内部依赖；依赖外部注入的 embedText/vectors/rerank，无直连网络"
+  },
+  {
+    "path": "src/mind/memory/render.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "12 行；import：mind/memory/index.js；测试：无直接 import；渲染结果经 test/mind-memory.test.js 与 test/mind-design.test.js 的回忆文本断言间接触及（分支未逐一证实）；内部依赖 0（无）；按记得的清楚程度渲染：clear 给 detail、vague/tip 截断并加「一下想不全」、outdated 走「以前…后来变了」；12 行、0 内部依赖；被 recall.js 与 panel.js 共用，删掉会在两处复制同一套分档规则，删除测试不通过"
+  },
+  {
+    "path": "src/mind/memory/sharing.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "54 行；import：mind/memory/index.js；测试：test/turn-timeout.test.js:48、55、105 直接调用 memory.shareEpisode/revokeShare，test/mind-design.test.js 覆盖撤回，test/mind-share.test.js 经 adapter 的 api.mind.share 覆盖整链；内部依赖 0（无）；跨会话分享：shareEpisode（源必须是管理员私聊、非 secret）、revokeShare（写 share-revoked 删除日志）、privacyCandidates；每次变更调用 touchAudience（第 27 行）；54 行、0 内部依赖；分享与撤回都落在 episodes 的 json 里，属历史数据语义"
+  },
+  {
+    "path": "src/mind/memory/sleep.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "split",
+    "evidence": "423 行；import：mind/index.js；测试：无直接 import；test/mind-features.test.js:198、test/mind-memory.test.js、test/mind-reembed.test.js:71 调用 mind.sleep({quality})，sleeper.sleep 另见 test/mind-fixes.test.js；内部依赖 3（mind/clock.js、mind/memory/index.js、mind/personality/index.js）；一晚的整理链：encode/embed/reembed/links/replay/review/reconsolidate/recompute/soften/archive/dream 十一步（sleep/consolidateSleep 366 起），另有 review 239-300、soften 301-318、archive 319-365；423 行、内部依赖 memory/index.js、clock.js、personality/index.js；建议按步下沉为 memory/sleep/*.js，顺序、预算短路（BUDGET 记「预算用完」）与 sleep.lastAt/sleep.lastReport 两个键保持原样"
+  },
+  {
+    "path": "src/mind/memory/special.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "60 行；import：mind/memory/index.js；测试：test/mind-features.test.js 覆盖 specialDays/dueNow；内部依赖 0（无）；生日、纪念日、认识周年与到点约定的投递状态：specialDays、dueNow、setReminderDelivery；60 行、0 内部依赖；日期来源是 episodes 的 date 类型与 people.firstSeen"
+  },
+  {
+    "path": "src/mind/memory/strengthen.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "23 行；import：mind/memory/index.js；测试：test/mind-memory.test.js 覆盖 strengthen；内部依赖 1（mind/memory/curve.js）；想起后加强：afterRecall 更新 stability、hits+1、按 memory.reconsolidation 概率排 reconsolidate 任务，整体在 store.tx 内（第 7-21 行）；23 行、内部依赖 curve.js；事务边界是 History 语义的一部分，保持单一 tx"
+  },
+  {
+    "path": "src/mind/memory/text.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "30 行；import：mind/memory/index.js；测试：无直接 import；parseJson 被 memory/index.js:29 转出后由 4 个 mind 文件使用，KINDS 由 render 使用（分支未逐一证实）；内部依赖 0（无）；纯文本工具：相对日期定锚 anchorDates（引号内不动）、parseJson、KINDS 种类表、pendingLabel、relativeDayWords；30 行、0 内部依赖；应作为 memory 的共享叶子模块，被 privacy-text/visibility/render/encode-batch 共同需要"
+  },
+  {
+    "path": "src/mind/memory/vector-state.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "merge",
+    "evidence": "18 行；import：mind/memory/index.js；测试：test/mind-reembed.test.js:33 断言 staleVectorIds 顺序，staleVectorIds/vectorProgress 另见 test/mind-reembed.test.js、test/mind-system-context.test.js；内部依赖 0（无）；向量进度三函数：staleVectorIds（LEFT JOIN vectors 找未用当前模型算过的）、vectorProgress（done/total/model）、canEmbed；18 行、0 内部依赖、全部只读；与 vectors.js 同属 vectors 表读模型，建议并入 vectors.js（合并后 161 行），只搬两条 SQL，不改表结构与历史数据删除测试：唯一 importer 是 memory/index.js，把两条 SQL 搬进 vectors.js 后本文件无独立调用点。"
+  },
+  {
+    "path": "src/mind/memory/vectors.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "split",
+    "evidence": "143 行；import：mind-adapter/index.js、mind/memory/index.js；测试：test/mind-memory.test.js:272-283 直接测 createEmbedClient，test/mind-rerank.test.js:47-49 直接测 createRerankClient；内部依赖 0（无）；三件事挤在一个文件：本地向量索引 createVectorIndex 5-63（内存缓存 + unit + search/similarity）、embeddings HTTP 客户端 createEmbedClient 69-106、rerank HTTP 客户端 createRerankClient 113-143；143 行、0 内部依赖；后两个客户端的唯一调用方是 src/mind-adapter/index.js:14（取出后注入 embedding.js），属对接层。建议把两个 HTTP 客户端拆到 mind-adapter/，createVectorIndex 留在 memory/；两处测试的 import 路径同步改"
+  },
+  {
+    "path": "src/mind/memory/visibility.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keepDoc",
+    "evidence": "132 行；import：mind/memory/index.js；测试：visibleIn 由 test/mind-design.test.js、test/mind-features.test.js 覆盖，privateOnly 分支经 test/mind-followup.test.js 的 setPrivateOnly 覆盖；内部依赖 1（mind/clock.js）；隐私与可见性裁决：ownerPrivate、shareSourceAllowed、visibleIn（逐层核对 audienceShares/derivedFrom/from/promptSources）、visibleForRecall、visibleForAudience、sourceVisible、protectedText/sharedText, 以及隐私版本 memory.audienceRevision（第 17 行默认 persona-audience-v1，第 18 行 touchAudience 写成 randomUUID）；133 行、内部依赖 clock.js；「隐私版本」这个对外说法在代码里就是 kv 键 memory.audienceRevision，全仓无第二份文档写明它的取值与递增方式，建议补进 src/mind/README.md；任何改动不得让默认值从 persona-audience-v1 变化，否则历史隐私判定会整体失效"
+  },
+  {
+    "path": "src/mind/memory/words.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "46 行；import：mind-adapter/index.js、mind/memory/index.js、mind/memory/keywords.js；测试：test/mind-fixes.test.js 直接 import keywords；mind-adapter/index.js 也 import；内部依赖 0（无）；从一句话里挑线索词：Intl.Segmenter 分词 + 停用词 + 单字回退，返回 {w, weight}；46 行、0 内部依赖；被 memory/index.js、keywords.js、mind-adapter/index.js 三处使用"
+  },
+  {
+    "path": "src/mind/memory/working.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "140 行；import：mind/memory/index.js；测试：workingMemory 由 test/mind-assoc.test.js、test/mind-design.test.js、test/mind-features.test.js、test/mind-followup.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-generic.test.js 覆盖；内部依赖 0（无）；工作记忆：workingMemory（注意容量 + 精力裁剪 + 惦记与约定 + 特殊日子）、noteSaid（跟谁说过）、remember（特意记下）；140 行、0 内部依赖；只读召回 + insert，不持有自己的表"
+  },
+  {
+    "path": "src/mind/motivation/index.js",
+    "area": "mind/motivation",
+    "owner": "mind-motivation",
+    "verdict": "split",
+    "evidence": "344 行；import：mind-adapter/offers.js、mind/index.js、modules/imagegen/index.js、modules/song/index.js；测试：test/mind-fixes.test.js、test/diary-media.test.js 直接 import NEEDS/hasActionPhrase/wantsOwnerChat 等；动机状态经 mind.motivation 在 test/mind-inner.test.js、test/mind-personality.test.js 覆盖；内部依赖 0（无）；16 项基本需要的强弱与漂移 advance 118-139、具体想要 want/closeWant/satisfyWants 147-184、选择 choose 238-310（Steel 2007 的 Γ）、反馈学习 feedback 311-320、提示词 prompt 321-330；344 行、0 内部依赖；被 src/modules/imagegen/index.js 与 src/modules/song/index.js 反向 import（modules 越层，见汇总），拆分时把这两个引用一并改到门面；状态仍写 kv 键 motivation"
+  },
+  {
+    "path": "src/mind/params.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keep",
+    "evidence": "218 行；import：features/mind-settings-routes.js、mind-adapter/index.js、mind/index.js；测试：test/mind-core.test.js、test/panel-mind.test.js 直接 import；内部依赖 0（无）；全部可调参数的单一定义处（GROUPS/PARAMS/paramOf/defaults/resolveSettings/clampParam），面板「心智设置」按表生成；属 REFACTOR-PLAN §1.1-5 的配置键名与默认值契约；口径不一致：README「默认保留 14 份」对 params.js:86 的 memory.snapshotKeep def=10，改默认值前先对齐文档"
+  },
+  {
+    "path": "src/mind/personality/index.js",
+    "area": "mind/personality",
+    "owner": "mind-personality",
+    "verdict": "split",
+    "evidence": "487 行；import：mind/index.js、mind/memory/sleep.js；测试：test/mind-personality.test.js 直接 import TRAITS/bandOf/similar/createPersonality；test/mind-fixes.test.js、test/mind-core.test.js、test/mind-design.test.js 经 mind.personality 覆盖；内部依赖 3（mind/clock.js、mind/memory/index.js、mind/personality/traits.js）；三件事：状态记录 observe 157-194 与 trait 夜间步进 nightly 200-297（门槛/步子/拉力/影响力上限）、习惯 habitsNightly 404-431 与版本 restoreHabits 387、展示 selfText/sceneText/changed/habits 432-479；487 行、内部依赖 personality/traits.js、clock.js、memory/index.js；建议按「记录/夜间步进/习惯」三块下沉，kv 键 personality 与 versions 表的 kind=traits/habits 写入方式保持不变"
+  },
+  {
+    "path": "src/mind/personality/traits.js",
+    "area": "mind/personality",
+    "owner": "mind-personality",
+    "verdict": "keep",
+    "evidence": "212 行；import：mind/personality/index.js、mind/self/index.js、scripts/mind-replay-report.js；测试：test/mind-personality.test.js 直接 import TRAIT/TRAITS/bandOf；内部依赖 0（无）；19 维特质数据表（BFI-2 细分）、7 档描述 bandText/bandMid、TRAIT_GROUPS；213 行、0 内部依赖、纯数据；被 personality/index.js、self/index.js、scripts/mind-replay-report.js 使用"
+  },
+  {
+    "path": "src/mind/place.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keep",
+    "evidence": "37 行；import：mind-adapter/index.js、mind-adapter/inspection.js、mind/index.js、mind/inner/index.js、mind/memory/index.js、mind/relations/index.js；测试：无直接 import；placeOf 在 test/mind-generic.test.js 中被引用，窗口解析经全部 createMind 测试覆盖；内部依赖 0（无）；窗口「平台:private|group:会话」解析 placeOf、shortId、以及把注入函数包一层的 makePlace（出错退回默认解析）；37 行、0 内部依赖；被 mind-adapter/index.js、mind-adapter/inspection.js 与 4 个 mind 内部文件使用"
+  },
+  {
+    "path": "src/mind/relations/index.js",
+    "area": "mind/relations",
+    "owner": "mind-relations",
+    "verdict": "split",
+    "evidence": "425 行；import：mind/index.js；测试：relations.* 由 test/mind-personality.test.js、test/mind-body-emotion.test.js、test/mind-graph.test.js、test/mind-forget.test.js、test/mind-owner-call.test.js 等 10 个测试覆盖；内部依赖 1（mind/place.js）；社会认知与关系：relOf/get/put/typeOf/closeness 39-84、看法更新 observe 104-225 与 forgetKnowledge 226、夜间变淡 nightly 252-269、展示 describe/prompt 276-400、列表与手工编辑 list/groups/edit 401-424；425 行、内部依赖 place.js；只被 mind/index.js import（门面内聚好），建议把 describe/prompt 展示层与 nightly 分开；写回集中在 put，kv 键 relations.pester 与 rel.group.<窗口> 保持原样"
+  },
+  {
+    "path": "src/mind/replay.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keep",
+    "evidence": "136 行；import：scripts/replay-mind.js；测试：test/mind-design.test.js 直接 import replayMind/exampleMindReplay；内部依赖 2（mind/clock.js、mind/index.js）；离线回放：虚拟时钟 + 内存库跑 35 天场景，package.json exports \"./mind/replay\"，scripts/replay-mind.js 与 scripts/replay-privacy.js 的底层；136 行；内部依赖 index.js、clock.js；不对真实数据库写入"
+  },
+  {
+    "path": "src/mind/self/index.js",
+    "area": "mind/self",
+    "owner": "mind-self",
+    "verdict": "keep",
+    "evidence": "273 行；import：mind/index.js；测试：test/mind-personality.test.js 直接 import SELF_FIELDS/romanceElsewhere/touchesAge/createSelf；selfPrompt 由 test/mind-design.test.js:190、test/mind-owner-call.test.js 覆盖；内部依赖 2（mind/memory/index.js、mind/personality/traits.js）；她自己决定的变化：字段表 SELF_FIELDS、专一/年龄硬规则 romanceElsewhere/touchesAge、自我故事 updateStory/invalidateStory、版本走 addVersion；除 mind 内部依赖外，唯一的外部 import 是 ../../persona/personas.js 的 MAX_PERSONA_CHARS，建议把该常量改为注入或在本目录定义，以清掉 mind→persona 反向依赖"
+  },
+  {
+    "path": "src/mind/self/public-style.js",
+    "area": "mind/self",
+    "owner": "mind-self",
+    "verdict": "keep",
+    "evidence": "19 行；import：mind/index.js；测试：无直接 import；对外人格经 test/mind-design.test.js:190-191 的 selfPrompt({publicOnly:true}) 断言（含「大肥鱼」、不含私聊内容）覆盖；内部依赖 0（无）；固定词表把私聊卡映射成可公开的性格与口气（11 条规则），不复制原卡文字；19 行、0 内部依赖；被 mind/index.js:23 与 publicPersona 使用，是隐私出站的一部分，词表变更需同时看 mind:privacy"
+  },
+  {
+    "path": "src/mind/store.js",
+    "area": "mind",
+    "owner": "mind-core",
+    "verdict": "keepDoc",
+    "evidence": "269 行；import：mind/index.js；测试：test/mind-fixes.test.js 直接 import openStore/MIGRATIONS；迁移链路由 test/mind-migrate.test.js 覆盖；内部依赖 0（无）；数据契约唯一定义处：SCHEMA_VERSION=3（第 12 行）、SCHEMA 14-62（kv/perception/episodes/links/people/versions/vectors/deletions 8 张表 + 4 索引）、MIGRATIONS 65-96（第 2 版加 episodes_fts 虚拟表与 3 个同步触发器、jobs、usage；第 3 版加 kind/about 生成列与 2 索引）、GENERATED_COLUMNS 99、openStore 105、verify 153、openRecoverableStore 161-191、tx 217-227、snapshot(VACUUM INTO) 204-209、bytes 258-263；迁移顺序、向后兼容（version > SCHEMA_VERSION 拒绝打开）和恢复顺序只写在注释里，缺一份写明的迁移/回滚契约文档；本文件保持零改动，任何结构调整必须先有 test/mind-migrate.test.js 的迁移断言"
+  }
+]

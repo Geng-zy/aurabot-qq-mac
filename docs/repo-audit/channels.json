@@ -1,0 +1,394 @@
+[
+  {
+    "path": "src/channels/adapter-facade.js",
+    "area": "channels",
+    "owner": "channels",
+    "verdict": "keep",
+    "evidence": "42 行、0 个内部依赖、2 处 import（src/channels/qq/adapter.js:4、src/channels/telegram/adapter.js:3）、0 个测试直接引用。成员清点：run()=start()、commitEvent()=on() 是纯改名且 src/ 下 0 调用（grep sendBySession|commitEvent 只命中本文件与 test/platform-hub.test.js:49-63），8 个 start/stop/ready/state/status/on/send/convert 是直转，实做只有 sendBySession 的 session→chatId 映射（9-15 行）和 38-40 行把 transport 其余键整表拷到 adapter。删除测试：删掉后两个 adapter 各要复制 16 行，判 keep；键拷贝同时把 qq/index.js 的 24 个非契约键暴露到 PlatformAdapter 上，是下一批收窄的入口。"
+  },
+  {
+    "path": "src/channels/ids.js",
+    "area": "channels",
+    "owner": "channels",
+    "verdict": "keep",
+    "evidence": "133 行、0 个内部依赖、13 处 import 中含 0 个测试；19 个导出（17 个函数），非测试 importer 跨 4 层：chat/access.js、core/tasks.js、mind-adapter/ids.js、modules/song/index.js。LEGACY_PLATFORM=qq 让「private:123 / group:456 / 纯数字」继续可用，是 qq（convert.js 产 group:123）与 telegram（index.js:72 经 chatIdOf 产 telegram:group:123）两种形状共用的唯一解析点。test/ 无直接 import，行为经 test/channels-contract.test.js 的 demo:private:1 与 test/platform-hub.test.js 间接锁定。"
+  },
+  {
+    "path": "src/channels/index.js",
+    "area": "channels",
+    "owner": "channels",
+    "verdict": "keepDoc",
+    "evidence": "141 行、1 个内部依赖（ids.js）、8 处 import 含 2 个测试（test/channels-contract.test.js、test/platform-hub.test.js）；是 host.js:182 createChannelManager 的唯一上游契约面。文档缺口有实证：46-62 行 CAPS 15 个键不含 images/text/reply，而 src/chat/send-sticker.js:10 读 caps.images、src/channels/telegram/index.js:6 声明 text/reply/images；13-37 行 typedef 未写 quote/forward/sendFile/voiceWav/voiceText，这 5 个方法却被 src/chat/quote.js:24、src/chat/on-message.js:313、src/chat/send-file.js:29、src/chat/transcribe.js:14 依赖，validateChannel 也不校验。保留代码，补 CAPS 词表与方法清单。"
+  },
+  {
+    "path": "src/channels/manager.js",
+    "area": "channels",
+    "owner": "channels",
+    "verdict": "keep",
+    "evidence": "50 行、1 个内部依赖（channels/index.js）、2 处 import（src/host.js:182、test/channels-contract.test.js）、1 个测试引用第 4 个用例「ChannelManager 统一订阅和生命周期」。11 个成员里 get/list/platforms/of/can/status 是 registry 的直转，价值集中在 add()（15-22 行接上事件并把 off 存进 offs）、emit 漏斗（9-13 行）与 dispose()（43-48 行按 dispose?→stop 回退）。删除测试：删掉后 host 要自己实现三件事，判 keep。"
+  },
+  {
+    "path": "src/channels/qq/adapter.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "11 行、3 个内部依赖（qq/index.js、qq/convert.js、adapter-facade.js）、2 处 import（src/channels/registry.js:10、test/platform-hub.test.js）、1 个测试。实做在第 9 行覆盖 facade 的 convert：convertMessageEvent(raw, transport.selfId(), {faceName: transport.faces?.nameOf})，把表情名注入转换；ctx.createTransport 逃生口只被 test/platform-hub.test.js:52 用来注入假 transport，registry.js:10-12 生产路径不传它。"
+  },
+  {
+    "path": "src/channels/qq/contract.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "17 行、1 个内部依赖（channels/ids.js）、1 处 import（src/channels/qq/index.js:24）、0 个测试。QQ_CAPS（6-9 行）15 个键与 channels/index.js:46-62 的 CAPS 同表同序且全为 true，两处都要改才能加能力；qqTarget() 12-15 行是 qq/index.js 传给 people/history/quote/actions/outbound 六个 API 的 targetOf 实现，被依赖而不是文档。"
+  },
+  {
+    "path": "src/channels/qq/convert.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "184 行、0 个内部依赖、10 处 import 含 5 个测试（test/faces.test.js、test/pure.test.js、test/fixes-1.2.0.test.js、test/qq-file.test.js、test/sl-gaps.test.js）；纯函数无 IO，唯一入口 convertMessageEvent（44 行）与别名 parseMessageEvent（184 行）。产出 chatId 为「group:123 / private:123」（134 行），不带平台前缀，这一事实决定 chat 层要用 ids.js 的旧写法兼容；forwards（150 行）只是转发 id 数组，展开在 qq/forward.js。"
+  },
+  {
+    "path": "src/channels/qq/diagnose.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "125 行、0 个内部依赖、2 处 import（features/connection.js:2、test/onebot-diagnose.test.js）、1 个测试（6 个用例，probe 注入 tcpOpen/processRunning/docker）。除纯 Node net 外还 execFile 探 /usr/bin/pgrep 与 docker ps（42、68 行），是 channels 里唯一执行本机命令的文件；被 features/connection.js:16 包成 channel.diagnose，供 src/features/platform-routes.js:5,8 的 /platforms/qq/diagnose 与 /onebot/diagnose 使用。"
+  },
+  {
+    "path": "src/channels/qq/face-table.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "333 行、0 个内部依赖、2 处 import（qq/faces.js:4、features/face-catalog.js:2）、0 个测试直接引用；>300 行按口径写明。内容为 329 条 {id,name,hide} 纯数据（第 2 行注明来源 NapCat 内置表情表），仓库内无生成脚本（grep face-table 在 scripts/ 命中 0 处），因此不是 keepGenerated；消费方 faces.js:50、features/face-catalog.js:7 各自用它建 byId，是内置兜底表。"
+  },
+  {
+    "path": "src/channels/qq/faces.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "103 行、2 个内部依赖（qq/face-table.js、src/chat/tags.js）、4 处 import 含 1 个测试（test/faces.test.js）；非测试 importer 为 features/face-catalog.js、features/face-codec.js、src/persona/personas.js。createFaces().refresh()（87-97 行）以 24 小时 TTL 调 fetch_sys_faces 并合并 COMMON_INDEX，而 features/face-catalog.js:9 对同一 action 另建一条无缓存路径，两条都在用（本文件供 chat 解析，faceCatalog 供面板），是重复调用而不是死代码；第 5 行 import ../../chat/tags.js 构成 channels→chat 反向依赖。"
+  },
+  {
+    "path": "src/channels/qq/features/actions.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "34 行、1 个内部依赖（core/net.js）、1 处 import（qq/index.js:10）、0 个测试直接引用；react 经 test/react.test.js:58-61 断言（calls[0].action 为 set_msg_emoji_like、params.set 为 true），typing 经 test/hub-lifecycle.test.js:335 间接覆盖。5 个方法各有实体：typing 只在私聊调 set_input_status（18-19 行），voiceWav 走 get_record 再回落 fetchImage（24-25 行），不是纯改名。"
+  },
+  {
+    "path": "src/channels/qq/features/config.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "24 行、0 个内部依赖、1 处 import（qq/index.js:20）、0 个测试。endpoint() 3-6 行把 cfg.platforms.qq 与旧 cfg.snowluma 两种地址写法归一，connectionProblem() 13-22 行按「总开关→机器人号→WS 地址→错了号」四级给出中文原因；被 qq/index.js:101 包成 channel.connectionProblem，再由 features/connection.js:13 放进 status().problem。"
+  },
+  {
+    "path": "src/channels/qq/features/connection.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "30 行、1 个内部依赖（qq/diagnose.js）、1 处 import（qq/index.js:15）、0 个测试直接引用；diagnose/reconnect 由 src/features/platform-routes.js:5-9 的四条路由对外暴露。reconnect() 19-28 行轮询 24×500ms 等 ready()，是「点一下必须给结论」的实现；status() 11-14 行返回 {state,login,endpoint,problem}，与 telegram/index.js:194 的字段同名同形。"
+  },
+  {
+    "path": "src/channels/qq/features/contacts/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "259 行、2 个内部依赖（tools/tools.js、chat/access.js）、3 处 import 含 2 个测试（test/contacts.test.js 15 个用例、test/sl-gaps.test.js）。职责三块：好友/加群申请的落盘与通知（104-140 行）、4 个工具（qq_handle_friend_request、qq_list_group_requests、qq_handle_group_request、qq_whitelist）、planWhitelist 纯逻辑（23-50 行，被 test 直接覆盖）。行数 259 <300 未达 split 判据，保留。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/README.md",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keepDoc",
+    "evidence": "44 行文档、0 个内部依赖、0 处 import、0 个测试。内容是图文日记/预览、隐私边界、日期归档三节的对外说明，第 32、44 行列了核心测试命令；底表 56 行里唯一的非 .js 文件，随 diary/ 一起维护，正文与 diary/index.js:96-113 的 7 条路由一致，保留并补「归档失败重试」一节的字段说明。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/archive.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "121 行、3 个内部依赖（diary/assets.js、diary/sources.js、core/store.js）、3 处 import 含 2 个测试（test/diary-archive.test.js、test/macos.test.js）。实做为路径防线：outputFolder()（23-36 行）拒绝相对路径/磁盘根/用户建链接，落盘前后各校验一次（85-87 行 realpath+insideFolder），单轮 8 张、3000 条记录上限；被 diary/index.js:27-30 以 every(300_000) 驱动。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/assets.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "85 行、3 个内部依赖（diary/sources.js、core/image-info.js、core/net.js）、4 处 import 含 2 个测试（test/diary-archive.test.js、test/diary-media.test.js）。downloadImage() 12-49 行手动跟 4 次跳转、逐跳 assertPublicUrl、8MB 上限、read 流式累加；store() 用 md5+拡展名做 id 并以 wx 标志防覆盖，materialize() 对本地图再查符号链接与越界。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/diary-image.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "29 行、2 个内部依赖（src/features/paintings.js、src/features/stickers.js）、2 处 import 含 1 个测试（test/diary-image.test.js）。pickDiaryImage() 13-27 行先取当天画作、再取当天入表情库的图，全部只读本机目录；被 diary/index.js:35 注入 qzone 的 pickImage 钩子。依赖落在 features 层，是 channels→feature 的方向倒置证据之一。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "116 行、7 个内部依赖（archive/assets/media/qzone/qzone-audience/diary-image、core/image-info、tools/tools）、3 处 import 含 2 个测试（test/diary-media.test.js、test/qzone.test.js）。装配 qzone+media+archive，注册 mind.offer(\"write\")（42-55 行）与 9 条路由（81-113 行），另有 qq_send_qzone 工具（57-76 行）；返回 qzone 对象作为模块 exports。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/media.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "105 行、2 个内部依赖（diary/assets.js、diary/sources.js）、3 处 import 含 2 个测试（test/diary-media.test.js、test/diary-archive.test.js）。compose() 55-94 行做「取候选→一次模型调用→只认编号选图→canPublish 快照对比」，parseDraft/reselectPictures/withCredits 是导出纯函数；view() 96-100 行把图换成 /aurabot/api/diary/image?id= 的 URL。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/qzone-audience.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "51 行、0 个内部依赖、4 处 import 含 1 个测试（test/qzone-audience.test.js）；importer 里有 src/core/config.js:8 —— core 反向 import channels 的唯一一处，用于第 496 行校验 diary.visibility 合法值。resolveAudience() 36-50 行实现「面板定范围、单次只能收窄到 self、selected/excluded 名单空就报错」，AUDIENCE_RIGHTS 与 QQ 空间 ugc_right 一一对应。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/qzone.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "249 行、5 个内部依赖（diary/qzone-audience.js、chat/reply.js、core/net.js、core/store.js、mind/clock.js）、7 处 import 含 5 个测试（test/qzone.test.js、test/qzone-audience.test.js、test/diary-media.test.js、test/dsml-leak.test.js、test/features.test.js）。post() 27-69 行两次算可见范围并在下载后再查一次开关；syncHistory() 90-134 行用 PAGE=30 分页且「读不全不判删除」；writeDiary() 137-219 行与 automaticStatus() 221-246 行分管写与配额。"
+  },
+  {
+    "path": "src/channels/qq/features/diary/sources.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "152 行、3 个内部依赖（core/store.js、core/text.js、src/features/stickers.js）、5 处 import 含 2 个测试（test/diary-archive.test.js、test/diary-media.test.js）。collectSources() 95-151 行只取 xhs/taobao/huashi6 三个浏览模块的 48 小时内公开记录 + 表情库 + 管理员指定目录；localPictures() 51-77 行限三层 1500 项、跳过链接；publicText() 12 行是敏感词基础拦截。"
+  },
+  {
+    "path": "src/channels/qq/features/dispatch.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "21 行、0 个内部依赖、1 处 import（qq/index.js:16）、0 个测试直接引用；四个分支经 test/e2e.test.js 与 test/onebot-login-buffer.test.js 的全栈路径间接覆盖（host→mock OneBot）。分发顺序固定：raw→message/poke/group_upload→notice，notice 走 channel.noticeOf，group_upload 用 channel.groupFileMessage 转成消息；group_upload 分支在 test/ 里 0 命中（grep group_upload 0 个测试文件）。"
+  },
+  {
+    "path": "src/channels/qq/features/events.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "52 行、1 个内部依赖（qq/notices.js）、1 处 import（qq/index.js:14）、0 个测试直接引用；noticeText 的翻译层被 test/notices.test.js 直接覆盖（8 个用例），本文件只做 pokeOf（23-30 行）与 groupFileMessage（8-20 行）的 OneBot 形状整理。pokeOf 的 target_id===self 判定经 test/e2e.test.js 的 send_poke 流程间接执行。"
+  },
+  {
+    "path": "src/channels/qq/features/face-catalog.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "merge",
+    "evidence": "15 行、2 个内部依赖（qq/face-table.js、qq/faces.js）、1 处 import（qq/index.js:13）、0 个测试。grep 证据：唯一生产消费者是 src/features/faces-routes.js:23 的 channels.get('qq').faceCatalog()，面板要的是 [{id,name}] 列表；第 9 行 call('fetch_sys_faces', {timeoutMs:8000}) 与 qq/faces.js:89 的同一 action 各建一条路径，本文件还没有缓存。应并入 qq/faces.js（给 createFaces 加 catalog()，复用它已有的 24h 缓存），删掉本文件只需改 faces-routes.js:23 一处。"
+  },
+  {
+    "path": "src/channels/qq/features/face-codec.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "10 行、1 个内部依赖（qq/faces.js）、1 处 import（qq/index.js:12）、0 个测试直接引用；textSegments 经 src/chat/send-text.js:16 在带 caps.faces 的真实路径上被调用。实做是把 createFaces 与 textToSegments/stripFaceTags 收成一个 {faces, textSegments} 对，withFaces=false 时剥标签（第 8 行）；行数 10 <300，删掉后 qq/index.js 要多引 3 个符号，保留。"
+  },
+  {
+    "path": "src/channels/qq/features/forward.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "merge",
+    "evidence": "8 行、1 个内部依赖（qq/forward.js）、1 处 import（qq/index.js:19 的 createForwardApi）、0 个测试。grep 证据：全仓只有 qq/index.js:114 调用 createForwardApi，文件体只做 forward: (id) => readForward({call}, id, {...})，一层柯里化把 call/selfId/faceName 绑好；实现与测试都在 qq/forward.js（49 行，test/forward.test.js 5 个用例）。应并入 qq/index.js 的装配（1 行内联到 channel.forward），删掉本文件后无需改动 readForward。"
+  },
+  {
+    "path": "src/channels/qq/features/group-admin/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "104 行、1 个内部依赖（tools/tools.js）、1 处 import（features/index.js:4）、0 个测试直接引用；qq_group_admin 工具名被 test/e2e.test.js 与 test/module-copy.test.js 引用（0 个用例直接调 execute）。实做是三条独立约束：改群名片用正则直改自己（16-33 行）、身份上下文（36-41 行）、六种动作前先查 groupRoles.canManage 与白名单（60-91 行），另有 /groups/roles 路由（93-101 行）。"
+  },
+  {
+    "path": "src/channels/qq/features/history.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "12 行、0 个内部依赖、1 处 import（qq/index.js:8）、0 个测试直接引用；channel.history 经 src/chat/hub.js:715（传 {retries:0}）与 src/chat/quote.js 的 quoteFromHistory 使用。实做在 4-10 行：按 kind 选 get_group_msg_history/get_friend_msg_history、anchor 时加 message_id+reverse_order、统一回退 rows.messages、过滤 isLegacyDirectRecord。"
+  },
+  {
+    "path": "src/channels/qq/features/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "17 行、8 个内部依赖（8 个 feature 的 index.js）、2 处 import（src/host.js:23、test/platform-modules.test.js）、1 个测试断言 platforms=== ['qq']。11-17 行给 8 个 def 注入 sourcePath=channels/qq/features/<id>/index.js、platforms、platform、platformFeature，其中 3 个（qq-tools/qq-api/qzone-social）原本没写 platforms；QQ_FEATURES 在 host.js:483 与 BUILTINS 一起注册进 core/modules，是 channels 目录承载 feature 层的落点。"
+  },
+  {
+    "path": "src/channels/qq/features/lifecycle.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "25 行、0 个内部依赖、1 处 import（qq/index.js:21）、0 个测试直接引用；dispose 经 test/hub-lifecycle.test.js 的 12 个卸载用例间接执行。manualStop 标志（3、6、12 行）让 watch() 在管理员手动停之后不再自动重连，dispose() 16-23 行按「置位→inbox.flush→清定时器→清监听→gw.stop」固定顺序收尾。"
+  },
+  {
+    "path": "src/channels/qq/features/login.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "72 行、0 个内部依赖、1 处 import（qq/index.js:22）、0 个测试直接引用；核对期间不丢事件的断言在 test/onebot-login-buffer.test.js（loginDelayMs=800 的 mock OneBot）里全栈执行。checkLogin() 3-50 行用 revision 防串代：no-login 断开重试、wrong-account 返回原因、uin 匹配才 replay 缓冲（30-33 行）并 trigger inbox.recover。"
+  },
+  {
+    "path": "src/channels/qq/features/outbound.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "49 行、1 个内部依赖（qq/transport.js 的 OneBotError）、1 处 import（qq/index.js:9）、0 个测试直接引用；入队语义由 test/hub-lifecycle.test.js:373（网关明确没连上→进补发队列）与 test/outbox.test.js 间接覆盖。send() 16-36 行两条入队分支（未 ready、catch 里 transport+isDefiniteFailure）、sendFile() 40-47 行另加 isReady 守卫，是 chat/send-segments.js:57-70 那套 queue/queuedId/queueProblem 协议的生产方。"
+  },
+  {
+    "path": "src/channels/qq/features/outbox-flush.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "19 行、0 个内部依赖、2 处 import（qq/index.js:17、test/qq-outbox-flush.test.js）、1 个测试（断言连接前 calls=0、连接后 calls=1）。flush() 5-10 行把四道闸收进一个 isReady：isDisposed、revision 未变、isConnected、config.enabled/!debug/!dryRun；调用方 qq/index.js:166 传 retries:0 的 call。"
+  },
+  {
+    "path": "src/channels/qq/features/people.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "29 行、0 个内部依赖、1 处 import（qq/index.js:7）、0 个测试直接引用；channel.member 经 src/chat/notify-events.js:24 使用，channel.group 经 hub 群名解析使用。四个方法都要 targetOf 判 kind、把字符串 id 转 Number、按方法给 timeoutMs 默认值与 no_cache/fresh 开关；group() 24-26 行显式 retries:0 避免网关抖动时白等。"
+  },
+  {
+    "path": "src/channels/qq/features/profile/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "216 行、7 个内部依赖（profile/qq-profile.js、chat/access.js、core/img.js、core/net.js、core/store.js、src/features/paintings.js、tools/tools.js）、3 处 import 含 2 个测试（test/profile.test.js、test/pure.test.js）。缺陷可核对：第 49 行 files: ['qq-profile.js']，而 src/core/module-registry.js:116 用 join(SRC, ...key.split('/')) 解析成 src/qq-profile.js，该文件不存在（实测 existsSync=false），管理员对 profile 点「复制成模块」会 ENOENT；正确写法是 channels/qq/features/profile/qq-profile.js。"
+  },
+  {
+    "path": "src/channels/qq/features/profile/qq-profile.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "144 行、4 个内部依赖（core/net.js、core/llm.js、core/image-info.js、core/img.js）、2 处 import 含 1 个测试（test/profile.test.js）。read() 51-141 行先 get_stranger_info 再回落 get_login_info，每次都 checkAccount 比对 user_id 与配置 botQQ（12-16 行），头像走 q1.qlogo.cn 固定 URL + 2MB 上限 + canSeeImages 判能力；dispose 后任何调用抛「资料模块已关闭」。"
+  },
+  {
+    "path": "src/channels/qq/features/qq-api/actions.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "125 行、0 个内部依赖、3 处 import。底表命中 3 个测试：test/qq-api.test.js、test/sl-gaps.test.js 直接 import，test/removed-legacy-paths.test.js 只在断言旧 shim src/modules/qq-api/actions.js 已删除时命中路径片段。纯数据表 QQ_API 共 117 个 action，每项 [谁能用, 参数(!=必填), 说明]，paramsOf() 124 行把参数串解析成 {name,required}。表本身是白名单而非清单：未列出的（取 Cookie、发原始包、send_msg）一律不开放，所以新增 SnowLuma 接口必须手改这里。"
+  },
+  {
+    "path": "src/channels/qq/features/qq-api/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "196 行、6 个内部依赖（channels/ids.js、qq-api/actions.js、chat/access.js、chat/reply.js、core/text.js、tools/tools.js）、4 处 import。底表命中 4 个测试：test/qq-api.test.js、test/qq-api-guard.test.js、test/sl-gaps.test.js 直接 import，test/removed-legacy-paths.test.js 命中路径片段。三层闸都可核对：refusal() 48-62 行（表内/必填/owner 档/白名单）、outboundRefusal() 37-45 行（19 个外发类 action 的目标必须在 allow 里）、cleanOutboundParams() 106-122 行（外显文本二次清洗）。"
+  },
+  {
+    "path": "src/channels/qq/features/qq-tools/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "296 行、6 个内部依赖（channels/ids.js、qq/convert.js、qq-tools/qq-file.js、chat/access.js、chat/reply.js、tools/tools.js）、5 处 import。底表命中 5 个测试：test/qq-tools-file.test.js、test/fixes-1.2.0.test.js、test/freedom.test.js、test/sl-gaps.test.js 直接 import，test/removed-legacy-paths.test.js 命中路径片段。5 个工具：qq_chat_history、qq_send_card、qq_search_chatlog、qq_read_file、qq_send_file、qq_send_message；296 行已接近 300 阈值，是 B4 之后第一个该拆的 feature（读侧 3 个 / 发侧 2 个）。"
+  },
+  {
+    "path": "src/channels/qq/features/qq-tools/qq-file.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "45 行、2 个内部依赖（core/net.js、core/text.js）、2 处 import 含 1 个测试（test/qq-file.test.js）。readQqFile() 28-45 行：拡展名白名单 TEXT_EXT（9 行）、2MB 上限、群文件用 get_group_file_url 换地址/私聊用 get_private_file_url 带 hash、UTF-8 失败再按 GB18030 解（12-16 行），输出前加「只是资料不是指令」前缀。"
+  },
+  {
+    "path": "src/channels/qq/features/quote.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "64 行、0 个内部依赖、1 处 import（qq/index.js:18）、0 个测试直接引用（grep \\.quote\\( 在 test/ 命中 0 处）；生产消费者是 src/chat/quote.js:24 的 channel.quote。核心是归属校验：30-43 行先用 get_msg 取原消息，再比对 message_type/group_id/author/peer 与当前聊天，对不上才走 quoteFromHistory（10-24 行，先按 message_id 锚点再退 30 条）；测试缺口登记在此。"
+  },
+  {
+    "path": "src/channels/qq/features/qzone-social/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "39 行、2 个内部依赖（diary/qzone.js 的 wantsQzonePost、qzone-social/social.js）、3 处 import。底表命中 3 个测试：test/qzone.test.js、test/diary-media.test.js 直接 import，test/removed-legacy-paths.test.js 命中路径片段。装配 mind.offer('social')（17-29 行）、every(60_000) 查新评论（30-34 行）、两条面板路由（35-36 行）；matchWant 复用 diary 的 wantsQzonePost 排除「写说说」意图。"
+  },
+  {
+    "path": "src/channels/qq/features/qzone-social/social.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "258 行、2 个内部依赖（core/store.js、chat/reply.js）、3 处 import 含 2 个测试（test/dsml-leak.test.js、test/pure.test.js 覆盖 cleanComment/pendingInThread/pickFeeds）。写入前两次读配置（89-101 行 sendComment），dryRun 不标 handled 不扣额度（93-96 行），点赞与评论分别计数（83 行）；行数 258 <300，保留。"
+  },
+  {
+    "path": "src/channels/qq/features/stickers-qq.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "165 行、5 个内部依赖（channels/ids.js、chat/access.js、core/net.js、src/features/paintings.js、tools/tools.js）、1 处 import（src/modules/stickers/index.js）、0 个测试直接引用——组织上的例外：三个导出都是工厂（createQqStickerHooks/Bridge/Feature），没有 feature def 的 setup/id/description 形状，也不在 QQ_FEATURES 里，由通用表情模块反向 import；grep stickers-qq 在 test/ 命中 0 处。"
+  },
+  {
+    "path": "src/channels/qq/features/voice/index.js",
+    "area": "channels/qq-features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "187 行、8 个内部依赖（qq/convert.js、core/config.js、src/local/local.js、src/voice/asr|breeze|rvc|tts|wav）、2 处 import 含 1 个测试（test/voice-asr.test.js）。9 条路由覆盖试听/装 edge-tts/ASR 自检/Breeze 额度，speak() 26-35 行先试本地接口再回内置 TTS；依赖全部落在 media（src/voice）与 local 层，是 channels→media 倒置的最大单点。"
+  },
+  {
+    "path": "src/channels/qq/forward.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "49 行、1 个内部依赖（qq/convert.js）、3 处 import 含 1 个测试（test/forward.test.js，5 个用例覆盖嵌套/上限/无内容）；importer 是 features/forward.js（8 行包装）与 src/chat/hub.js:23（只 import forwardBody 供 on-message 拼文案）。常量 MAX_FORWARD_DEPTH=5/LINES=200/CHARS=12000/IMAGES=6 都在这，是转发展开的唯一实现。"
+  },
+  {
+    "path": "src/channels/qq/inbox.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "203 行、2 个内部依赖（core/config.js 的 ownerAuthorizationRevision、core/store.js）、1 处 import（qq/index.js:23）、0 个测试直接引用；重连补收经 test/onebot-login-buffer.test.js 的全栈路径间接执行。语义可核对：去重表 SEEN_LIMIT=1024+RECONNECT_WINDOW_MS=120s（第 6-7 行）、断线前后窗口 after/before（146-155 行）、4 个 worker 并发 wsOnly 拉历史（157-200 行）、enabled/debug/dryRun 时 binding() 返回 null 即完全旁路（69-77 行）。"
+  },
+  {
+    "path": "src/channels/qq/index.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "split",
+    "evidence": "181 行、19 个内部依赖（12 个 features + transport/outbox/inbox/contract/convert）、2 处 import（qq/adapter.js:2、chat/hub.js:100）、0 个测试直接引用（全栈经 host 的 test/e2e、test/onebot-login-buffer 覆盖）。判据是接口过宽而非行数：返回的 channel 对象 117-163 行自写 24 个键 + 6 处 spread 再并入 27 个键 = 51 个键，其中 24 个不在 channels/index.js 的契约面（REQUIRED 6 + OPTIONAL 19）里，又被 adapter-facade.js:38-40 整表拷到 PlatformAdapter 上。拆法：装配留在本文件，私有面（noticeOf/pokeOf/groupFileMessage/faces/faceCatalog/outbox/flushOutbox/setOutboxBarrier）收到独立对象，契约面按需扩 channels/index.js。"
+  },
+  {
+    "path": "src/channels/qq/notices.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "49 行、0 个内部依赖、2 处 import 含 1 个测试（test/notices.test.js，4 个用例覆盖群事件/私聊/不该翻的）；纯函数 noticeText 覆盖 11 类 notice（group_recall/friend_recall/group_ban/group_increase/group_decrease/group_admin/essence/group_card/group_msg_emoji_like/friend_add/notify），对 NapCat 与 SnowLuma 两种 sub_type 差异做了兼容（31-38 行）。"
+  },
+  {
+    "path": "src/channels/qq/outbox.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "173 行、1 个内部依赖（core/store.js）、3 处 import 含 2 个测试（test/outbox.test.js 6 个用例、test/hub-lifecycle.test.js）；不碰网络，只做落盘与补发决策。语义逐条可查：TTL 5min（proactive 60s、diary/qzone 10min，13-17 行）、只收 send_private_msg/send_group_msg 且段只允许 text/at/reply（68-75 行）、先 remove 再 call 的至少一次（138-141 行）、uncertain 丢弃/transport 留队退避 min(60s,2^n)（146-161 行）、原子写 0600（37-50 行）。"
+  },
+  {
+    "path": "src/channels/qq/transport.js",
+    "area": "channels/qq",
+    "owner": "channels-qq",
+    "verdict": "keep",
+    "evidence": "258 行、0 个内部依赖、5 处 import 含 3 个测试（test/gateway-resilience.test.js 10 个用例、test/send-fallback.test.js、test/hub-lifecycle.test.js）。语义：RETRY_DELAYS=[1000,3000,5000] 只对 error.transport 重试（115-135 行），超时标 uncertain 不重试（86 行），WS 重连 2s→30s 指数退避、15s 握手指超时（179-184、222-227 行），stop() 用 stopGeneration 打断在途重试与挂起 echo（50-56、238-249 行）。OneBotError 的 transport/uncertain 标记被 chat 层与 mind-adapter 消费，是跨层契约。"
+  },
+  {
+    "path": "src/channels/registry.js",
+    "area": "channels",
+    "owner": "channels",
+    "verdict": "keep",
+    "evidence": "49 行、2 个内部依赖（qq/adapter.js、telegram/adapter.js）、2 处 import（src/host.js:22、test/platform-hub.test.js）、1 个测试（动态注册 + 重名报错）。adapters 数组写死 qq/telegram 两项；registerPlatformAdapter() 22-30 行有 0 个 src/ 调用者（grep 只命中 test/platform-hub.test.js:44），是给社区扩展留的接缝；createPlatformChannels() 40-48 行逐项 try/catch，单平台创建失败不阻断。"
+  },
+  {
+    "path": "src/channels/telegram/adapter.js",
+    "area": "channels/telegram",
+    "owner": "channels-telegram",
+    "verdict": "merge",
+    "evidence": "8 行、2 个内部依赖（telegram/index.js、adapter-facade.js）、1 处 import（src/channels/registry.js:17）、0 个测试。grep 证据：全仓对 createTelegramAdapter 的调用只有 registry.js:17 一处，文件体仅 createPlatformAdapter({platform,label,transport}) 一层直转，ctx.createTransport 逃生口在 telegram 侧 0 个调用者（只有 qq 版被 test/platform-hub.test.js:52 用）。应并入 src/channels/registry.js（第 17 行换成一行 createPlatformAdapter），或让 adapter-facade 直接提供 createTelegramAdapter；qq/adapter.js 有 convert 覆盖需要留在原处。"
+  },
+  {
+    "path": "src/channels/telegram/index.js",
+    "area": "channels/telegram",
+    "owner": "channels-telegram",
+    "verdict": "keep",
+    "evidence": "235 行、1 个内部依赖（channels/ids.js）、2 处 import（telegram/adapter.js、test/telegram-channel.test.js）、1 个测试。与 qq 的两层拆分不对称：本文件同时承担 Bot API 传输（call/callForm 30-67 行）、长轮询与 offset 游标（130-148 行）、消息归一化（69-111 行）、发送（195-223 行含 multipart 头像图）、生命周期（155-193 行）；235 行 <300 未达 split 判据，保留。契约差异有实证：CAPS 声明 text/reply/images 三个不在 channels/index.js CAPS 里的能力，且没有 dispose/resetInbox，manager.dispose 走 ch.stop() 回退；错误是普通 Error，不带 uncertain，所以 mind-adapter/reminders.js:75 的「不确定不重发」在 telegram 上恒不成立。"
+  }
+]

@@ -1,0 +1,744 @@
+[
+  {
+    "path": "client/client.template.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "split",
+    "evidence": "280 行；DSH 入口：__ModuleLoader__.load 包装 + require('react')/hooks 解构 + primitives()/isMacLike()（宿主能力探测）+ inject/PANEL_ID/API/PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS + 工具 get/post/clipboard/clone/setPath/getPath/pct/cx/fmtTokens/fmtCost/chatLabel/峰谷 4 函数/音调 3 函数/timeAgo/REACT_MOOD_BANDS + 结尾 exports.__panelTest/apply/inject/AurabotPage/WhaleIcon；被全部 104 个片段以 h/useState/useEffect/useRef/get/post/clipboard/cx/setPath/getPath/getPath/pct 与 API 引用（h 出现在 101 个片段、get 53、post 45、cx 32、setPath 22）；锁：primitives-guard.test.js（loader→factory→apply 注册 2 个 slot、缺 primitives 时渲染 MissingPrimitivesPage）、persona-filter-select.test.js 与 panel-mind.test.js（__panelTest 的 22 个键）、about-panel.test.js（PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS 必须是 4 空格顶格单行常量）；结构事实：113 行代码 + 19 行注释 + 149 行空行，其中第 127–269 行是 143 行连续空行（CSS 迁去 parts/styles.js 后留下的洞），第 126 行「样式（只注入一次）」已成空标题；可移出到 parts：timeAgo（6 个片段用）、fmtTokens（mindMemory/overview）、fmtCost 与 chatLabel（overview）、BJ_OFFSET/pad2/bjPartsOf/fmtNextChange（只有 costCard 用）、pitchNum/pitchText/pitchLabel（只有 voice 用）、REACT_MOOD_BANDS（只有 stickers 用）、仓库 3 个常量（about/market/simulate 用）；必须留在模板：loader 包装、require/hooks、primitives 与 isMacLike、API、结尾 exports 与 return module.exports。拆完模板约 110 行，净省约 170 行（含 143 行空行）"
+  },
+  {
+    "path": "client/client.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keepGenerated",
+    "evidence": "5887 行；由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论"
+  },
+  {
+    "path": "client/parts/PageNav.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "10 行；一组页签的折叠容器（nav/div + inert + aria-current + 未保存红点），依赖 navigation.js 的 pageNavId/unsavedDot；被 WorkspaceNav.js 与 aurabotPage.js 引用；锁：panel-mind.test.js「点击当前侧栏分组只切换展开状态」断言 children[0].props.inert 与 aria-current=page；client-build"
+  },
+  {
+    "path": "client/parts/WorkspaceNav.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build"
+  },
+  {
+    "path": "client/parts/about.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "20 行；关于页（版本、API 版本、手册/仓库/发布/提交/鸣谢/模块库链接），只依赖 Card 与模板常量 PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS；被 wizard.js 的 TAB_CONTENT.about 引用；锁：about-panel.test.js 在 vm 里只注入 h 和 Card 就跑 About(...) 并核对 7 个链接 href，因此本文件必须保持只用 h/Card 和 3 个常量；client-build"
+  },
+  {
+    "path": "client/parts/access.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "36 行；「白名单与权限」页：拼装 8 个子卡（GroupRoles/ProfilePerms/HostToolPermissions/DrawChatPermissions/NoticeWorkspaces/CommandList）与模板字段 f.*；被 wizard.js 的 TAB_CONTENT.access 引用，锁：panel-mind.test.js 通过 TAB_CONTENT.access 渲染 DrawChatPermissions 并断言恰好 1 个、且 imagegen 页在 provider=local 时为 0 个；client-build"
+  },
+  {
+    "path": "client/parts/aiButton.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "split",
+    "evidence": "11 行；AI 润色按钮（busy/文案三态）+ 常量 personaDraftKey（aurabot.persona.draft.<id>），后者只被 persona.js 引用；AiButton 被 personaSection.js 引用；锁：client-build；拆法：personaDraftKey（1 行）移入 client-utils 的人格草稿键，预估 11→10 行"
+  },
+  {
+    "path": "client/parts/appearanceCard.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "46 行；她的形象卡（上传参考图 raw fetch、AI 写描述、描述文本域），依赖 Btn/Card/Row/Empty；被 imageGen.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/apply.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "14 行；DSH 插件入口：slots.inject('main') 注册 AurabotPage、slots.inject('sidebar.panellist') 注册 WhaleIcon（order 20），缺 primitives 时注册 MissingPrimitivesPage；被 client.template.js 的 exports.apply 引用；锁：primitives-guard.test.js 断言 apply 后恰好注册 2 个 slot 且主面板渲染出「DSH UI primitives」「0.2.2-rc.3」；client-build"
+  },
+  {
+    "path": "client/parts/asr.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "36 行；语音识别页（开关、API Key、模型选择、AsrStatus 下载态）；被 wizard.js 的 TAB_CONTENT.asr 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/asrStatus.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "merge",
+    "evidence": "12 行；语音识别模型状态与「下载识别模型」按钮（读 phase、post /voice/asr-prepare）；只被 asr.js 引用；锁：client-build；并入 asr.js：删除测试通过（把 phase 判定贴回唯一调用点），估算省 0 行、少 1 个文件边界；与 asr 页的开关/Key 同文件后，phase 文案不再两处维护；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交）"
+  },
+  {
+    "path": "client/parts/aurabotPage.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "split",
+    "evidence": "195 行；应用外壳：9 个 useState + 6 个 useRef + 1 个 useMemo(dirty) + 4 个 useEffect（tab/toast/draft/dirty/saving/writeLock/stateRevision/scrollRef）、reload 5 秒轮询、save 写锁与 revision 竞态、toast 文案分级（/失败|出错|没成功/ 判定 err）、go/jump 的锚点展开、TAB/扩展页装配与整页布局；被 apply.js 注册为 main；锁：ui-navigation.test.js 断言 go() 里有 id === 'character' → selfmind；client-build；拆法：把 st/draft/reload/save/dirty/toast/jump 收进 usePanel()（新 client-hooks），外壳只留布局，预估 195→110 行，省约 85 行（同时让 46 个片段用到的 toast 有单一来源）"
+  },
+  {
+    "path": "client/parts/avatarCard.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "split",
+    "evidence": "40 行；头像卡（预览、换一张、恢复默认、同步成 QQ 头像）+ 人格分节格式库（PSEC_HEAD 正则、PSEC_SUGGEST 7 个建议标题、PSEC_COLORS 10 个配色、psec 序号、splitPersona、joinPersona、autoRows）；AvatarCard 被 persona.js 引用，格式库 6 个符号被 persona.js、personaSection.js、titleFilter.js 引用；锁：client-build；拆法：格式库（约 25 行）移入 client-utils 的人格分节编解码，AvatarCard 只留 UI（40→15 行），personaSection/titleFilter 不再从卡片文件取正则与配色"
+  },
+  {
+    "path": "client/parts/backup.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "106 行；备份与恢复页（导入/导出、备份历史、远端文件列表、deferredSessions 提示），自带 call（第 18 行 raw fetch + x-aurabot-backup 头）、after、1 秒轮询；被 wizard.js 的 TAB_CONTENT.backup 引用；锁：client-build.test.js 断言 function Backup({ toast }) 与「备份：打包数据目录」文案 + client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100；重复实现：call/after/轮询与 remoteBackup.js 第 20/21/19 行逐字重复，应抽 useBackupJob（见 client-utils 条目），本文件可省约 5 行"
+  },
+  {
+    "path": "client/parts/breezeQuota.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "29 行；Breeze 额度卡（查询、领取、下次刷新时间）；被 voice.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/breezeVoices.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "24 行；Breeze 云端音色列表（拉取、选择即填 voice id）；被 voice.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/browser.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "14 行；浏览器页（browser.useDshSidebar 开关 + 两段说明文案），14 行；被 wizard.js 的 TAB_CONTENT.browser 引用；锁：browser-panel.test.js 断言 function Browser({ st, draft, setDraft })、draft.browser.useDshSidebar、'browser.useDshSidebar'、'DSH 侧边浏览器'、'Agent 浏览器' 全在 Browser 函数体内；client-build"
+  },
+  {
+    "path": "client/parts/btn.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "split",
+    "evidence": "15 行；按钮（p.Button + busy/spinner、variant/size 映射、aria-expanded/controls），15 行；被 60 个片段引用；锁：panel-mind.test.js 用 panel.Btn 点「检查与修复」并断言等待态文案；client-build；拆法：第 14–15 行的 nextSelectId 是 select.js 的私有计数器（被 select.js 第 6 行 ++nextSelectId 使用），移入 select.js 后 btn.js 只剩 Btn，预估 15→13 行"
+  },
+  {
+    "path": "client/parts/builtinLocalImage.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "49 行；内置本地生图卡（轮询进度、生成、下载），自带 act 包装；被 imageGen.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/card.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "20 行；卡片（标题/描述/右侧/可折叠 details/收起按钮/锚点 id ab-section-*），20 行；被 56 个片段引用；锁：panel-mind.test.js 断言 fold → details、summary 首个文本、props.id=ab-section-qq-draw-allow、open=undefined；client-build"
+  },
+  {
+    "path": "client/parts/chatModels.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "34 行；聊天模型清单编辑（增删行、provider/model 两列、选择即写回 draft）；只被 model.js 引用，34 行；锁：client-build"
+  },
+  {
+    "path": "client/parts/choices.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "split",
+    "evidence": "8 行；卡片式单选（radiogroup + aria-checked），并把常量 QFACE_IMG（贴表情图源 URL）塞在同一文件末尾；Choices 被 access/hostToolPermissions/profilePerms/useField/wizard 5 处引用，QFACE_IMG 只被 faceMapCard.js 引用；锁：client-build；拆法：QFACE_IMG（1 行）移入 faceMapCard.js，预估 8→7 行"
+  },
+  {
+    "path": "client/parts/codexSub.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "54 行；Codex 生图账号卡（登录状态、刷新、操作、密码键），依赖 Btn/Row/useField；被 imageGen.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/commandList.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "merge",
+    "evidence": "10 行；QQ 命令列表卡（静态 Card + 命令说明）；只被 access.js 引用，无其他导出；锁：client-build；并入 access.js：删除测试通过（整段贴回唯一调用点），估算省 0 行、少 1 个文件边界；放回 access 后与 FIND_SECTIONS 的 qq-commands 锚点同文件，改锚点不易漏；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交）"
+  },
+  {
+    "path": "client/parts/connect.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "56 行；连接页（连接状态、6 个动作按钮、QQ 网关配置 OneBotFields、工作区与会话维护）；被 wizard.js 的 TAB_CONTENT.connect 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/costCard.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "24 行；DeepSeek 峰谷省钱卡（开关、节假日列表、下次切换时间），依赖模板 fmtNextChange/bjPartsOf/pad2/BJ_OFFSET；被 model.js 引用；锁：offpeak.test.js 断言 client.js 含「DeepSeek 峰谷省钱模式」、f.sw('cost.offPeak')、f.list('cost.offPeakHolidays'、「下次切换 」、st?.offpeak?.peak、st?.offpeak?.next；client-build"
+  },
+  {
+    "path": "client/parts/debugChat.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "30 行；概览里的调试对话卡（输入、发送、结果）；被 overview.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/diary.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "split",
+    "evidence": "47 行；QQ 空间页（权限/日记开关/社交互动/历史说说），同时导出 SOCIAL_KIND 给 qzoneSocial.js 用，形成 diary ↔ qzoneSocial 双向依赖（全仓唯一片段级循环）；被 wizard.js 的 TAB_CONTENT.diary 引用；锁：client-build；拆法：SOCIAL_KIND（约 2 行）移入 qzoneSocial.js 或 client-utils，循环消失；预估 47→45 行"
+  },
+  {
+    "path": "client/parts/diaryArchive.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "23 行；空间日记归档卡（未保存判断、定时刷新）；被 diary.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/diaryAudience.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "30 行；说说可见范围卡（自己/好友/指定人、好友列表选择），依赖 stickerCell 的 AUDIENCE_OPTIONS；被 diary.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/diaryMedia.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "42 行；说说配图卡（生成/上传、未保存提醒）；被 diary.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/drawChatPermissions.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "31 行；生图白名单卡（可折叠、按会话勾选）；被 access.js 引用；锁：panel-mind.test.js 断言 Card fold='qq-draw-allow' → details、summary 首个、title「生图白名单」、desc 含「管理员有权限画图」、chips 顺序与 aria-pressed、写回 draft.allow；client-build"
+  },
+  {
+    "path": "client/parts/empty.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "5 行；空状态（图标 + 文案）；被 25 个片段引用；锁：client-build；删除测试不通过（fan-in 25）"
+  },
+  {
+    "path": "client/parts/extPage.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keepDoc",
+    "evidence": "31 行；扩展模块通用页：按 manifest 的 settings 类型（switch/number/select/textarea/password/text）生成控件、读写 draft.ext.<id>.*、内嵌 ExtPanel；被 aurabotPage.js（ext:* 与内嵌模块）引用；锁：client-build；缺文档：settings schema（type/hint/min/max/step/options）与 draft.ext 键名规则只体现在代码里，需要补一份扩展面板字段契约（B7 清单）"
+  },
+  {
+    "path": "client/parts/extPanel.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "48 行；社区模块自定义面板的 iframe 宿主：取一次 token、注入 panelSandboxHtml、postMessage 收 settings 补丁并回写 draft；被 extPage.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/faceMapCard.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "74 行；贴表情映射表卡（QQ 系统表情 + emoji 两种来源、批量复制），依赖 choices.js 的 QFACE_IMG；被 stickers.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/featureFinder.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "split",
+    "evidence": "85 行；搜索浮层（box/trigger/useEffect 外部点击/Escape/键盘上下/结果分组），并另外导出 runMode（判定 正式/试运行/调试）；被 aurabotPage.js 引用，runMode 被 overview.js 与 runControls.js 引用；锁：client-build；拆法：runMode（约 6 行）移入 client-utils 的运行模式工具，featureFinder 只留搜索，预估 85→78 行"
+  },
+  {
+    "path": "client/parts/group.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "116 行；回复规则页 10 个卡（唤醒词/秘书闸/按群覆盖/连发合并/跨群阅读/回复正文与超时/安全刹车/插话限制/按群单独设置/ToolFilter），116 行，25 处 Row；被 wizard.js 的 TAB_CONTENT.group 引用；锁：security-panel.test.js 反向断言 Group 里不得出现 security.dangerConfirm；client-build"
+  },
+  {
+    "path": "client/parts/groupRoles.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "19 行；群管权限卡（静态说明 + fold=qq-group-admin，供 FIND_SECTIONS 锚点）；被 access.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/hostToolPermissions.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "33 行；群里的本机工具与发文件卡（档位 choices、生效群列表、长任务、子智能体、exPath 示例）；被 access.js 引用；锁：group-owner-tools.test.js 断言 client.js 含 f.choices('group.ownerTools' 与 f.list('group.ownerToolsGroups'，并反向断言没有 value: 'all'；client-build"
+  },
+  {
+    "path": "client/parts/identity.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "11 行；「人格与自我」入口：Seg 切换 self（MindSelf）/persona（Persona），localStorage 记住模式，jump.section=null-self-persona 时自动切 persona；被 wizard.js 的 TAB_CONTENT.selfmind 引用；锁：ui-navigation.test.js 断言 function Identity( 存在且旧 character 落到 selfmind；client-build"
+  },
+  {
+    "path": "client/parts/imageFallbacks.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "36 行；生图兜底渠道列表（每项 API Key/地址/清空），依赖 Select/Btn/Row；被 imageGen.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/imageGen.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "117 行；生图页（开关/服务商 Codex 或本地/模型/Key/白名单入口/画作库/形象卡），117 行、12 个依赖；被 wizard.js 的 TAB_CONTENT.imagegen 引用；锁：paintings.test.js 断言 h(PaintGallery, { draft, setDraft, toast }) 渲染时传 toast；client-build"
+  },
+  {
+    "path": "client/parts/installProgress.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "merge",
+    "evidence": "20 行；安装进度条（步骤条、当前步用时、下载量与网速）+ 常量 SONG_PARTS（翻唱 6 个组件名）；SONG_PARTS 只被 song.js 用，fmtBytes/fmtDur 反向依赖 voiceImport.js；被 song.js 引用；锁：client-build；并入 song.js：唯一消费者，删除测试通过；估算省 0–2 行，但消掉 installProgress → voiceImport 的反向依赖，并把 SONG_PARTS 放回使用处；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交）"
+  },
+  {
+    "path": "client/parts/knowledge.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "166 行；知识库页 6 个职责（列表、预览分页 readSeq 竞态、全文搜索 mark 高亮、导入 md 并解析 scope、写笔记、重命名/删除/移动），10 次 get/post；被 wizard.js 的 TAB_CONTENT.knowledge 引用；锁：client-build；166 行低于 300 行拆分线，页内聚在一个组件，本批只做去重不动边界"
+  },
+  {
+    "path": "client/parts/listArea.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "11 行；列表文本域（行/逗号分隔、失焦归一、外部改动才覆盖），被 useField 的 f.list 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/localApi.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "split",
+    "evidence": "52 行；本地接口页（ffmpeg 路径、每个 slot 的接管状态、生成模板/信任/试一下、复制给 DSH），同时导出 MOD_STATE 给 moduleRow.js 用；被 wizard.js 的 TAB_CONTENT.local 与 TAB_CONTENT.video 两处引用；锁：module-copy.test.js 断言「复制给 DSH」文案；client-build；拆法：MOD_STATE（10 行）移入 modules 区域的模块状态工具，页面 52→42 行；video/local 两页共用同一组件的现状需要文档化"
+  },
+  {
+    "path": "client/parts/logLine.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "5 行；一行日志（时间/区域/正文 + 级别 class）；被 logs.js 与 recentLogs.js 两处引用；锁：client-build；fan-in 2，删除测试不通过"
+  },
+  {
+    "path": "client/parts/logs.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "split",
+    "evidence": "18 行；日志页（级别筛选、LogLine 列表、清空/刷新）+ 常量 WIZ_STEPS（向导 4 步名），WIZ_STEPS 只被 wizard.js 用；被 wizard.js 的 TAB_CONTENT.logs 引用；锁：client-build；拆法：WIZ_STEPS（1 行）移入 wizard.js，预估 18→17 行"
+  },
+  {
+    "path": "client/parts/market.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "99 行；模块库页（搜索/分类/安装/更新/卸载/进度条），依赖 moduleTutorial 的 CAP_LABEL/CATEGORY_LABEL/capText 与 simulate 的 TUTORIAL_URL，并有自己一套进度条（STAGE_BAR/percent/stageText/progBar）；被 wizard.js 的 TAB_CONTENT.market 引用；锁：module-copy.test.js 断言「模块库」；client-build；重复实现：进度条与 installProgress.js 是两套（约 10 行可合并到 client-components 的进度组件）"
+  },
+  {
+    "path": "client/parts/meter.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "12 行；进度/状态条（compact 版 ab-vital + 普通版 Row）；被 mindNow、mindInner 引用；锁：panel-mind.test.js 断言 panel.Meter 标签 = 精力/困意/饥饿，并断言内心页有 Meter 陪伴和归属；client-build"
+  },
+  {
+    "path": "client/parts/mindInner.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "60 行；念头与行动页（内心日记、她想要的、动力、主动找你、待批权限、本地小模型），定义 act(path,body,label) 包装；被 wizard.js 的 TAB_CONTENT.inner 引用；锁：panel-mind.test.js「内心」断言 10 段文案 + Meter 陪伴和归属 + 内嵌 MindLocalModel；client-build"
+  },
+  {
+    "path": "client/parts/mindInput.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "14 行；参数输入（失焦/Enter 提交、number 或 text、单位后缀）；只被 mindSettings.js 引用；锁：panel-mind.test.js 断言 ctlOf('记忆改写程度').type === panel.MindInput 且 props.number === true，ctlOf('时区').props.number === false；本文件是第三种数字输入（另有 useField.num 与 f.range 的内嵌 number），但改它会破 panel-mind 契约，本批保持"
+  },
+  {
+    "path": "client/parts/mindLocalModel.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "59 行；本地小模型卡（状态、检查与修复、安装轮询、模型/解释器路径、下载安装），被 mindInner.js 与 mindSettings.js 两处引用；锁：panel-mind.test.js「本地模型检查显示最终结果」用假 fetch + 定时器断言「正在检查本地环境…」「无需下载」且不残留 timer，另断言没设模型时的原因、42K token、一键下载安装、检查与修复；client-build"
+  },
+  {
+    "path": "client/parts/mindMemory.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "130 行；记忆页（概况计数、原始记录对照、梦、待整理），读 mindNow 的 mindDay/MIND_KIND/MIND_LEVEL；被 mood.js 引用；锁：panel-mind.test.js「记忆页」断言 34.6K、梦见在海里、原来记的：…、1 个聊天有还没记下的新消息；client-build"
+  },
+  {
+    "path": "client/parts/mindNow.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "split",
+    "evidence": "70 行；「她现在」页（身体状态/心情/此刻感受/投喂/睡觉），70 行；同时导出 mindDay、MIND_KIND、MIND_LEVEL 三个格式化器，被 mindMemory、mindPeople、mindSelf、mindVersions 4 个页面引用；锁：panel-mind.test.js 断言 h1=她现在、三个 Meter 标签=精力/困意/饥饿、投喂卡文案；client-build；拆法：mindDay/MIND_KIND/MIND_LEVEL（约 12 行）移入 client-utils 的时间/记忆格式化，页面只留 UI，预估 70→58 行"
+  },
+  {
+    "path": "client/parts/mindPeople.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "159 行；关系页（人物列表/六维关系/称呼与印象/老梗别碰心结/群了解/恢复区/关系星图），8 次 post、5 次 toast；被 wizard.js 的 TAB_CONTENT.persona 引用；锁：panel-mind.test.js「关系页」断言 dl/dt/dd 前 4 项、专一提示、激情变化 -6 分；client-build"
+  },
+  {
+    "path": "client/parts/mindSelf.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "77 行；人格与自我页（19 项特质分组、现在的值、小习惯、她写下的、故事、人格卡/自我/性格三套版本、她看到的提示词），依赖 MindVersions/Range；被 identity.js 引用；锁：panel-mind.test.js「人格与自我页」断言 依据/第 4 档变到第 5 档/现在 62/「大鱼」→「小鱼」；client-build"
+  },
+  {
+    "path": "client/parts/mindSettings.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "65 行；心智参数页（按 GET /mind/settings 的 groups/params 生成 Row、搜索跨分类、恢复默认、高级项折叠、内嵌 MindLocalModel）；被 wizard.js 的 TAB_CONTENT.mindsettings 引用；锁：panel-mind.test.js「心智设置」用 slots 驱动断言 Row 顺序、默认值与依据、Switch/MindInput 类型、恢复默认只在改过的项出现、心智核心没起来时的说明；client-build"
+  },
+  {
+    "path": "client/parts/mindVersions.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "69 行；版本对比与清理（人格卡/自我/性格三类、逐版本对比、批量清理）；被 mindSelf.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/missingPrimitivesPage.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "7 行；缺 client-ui-primitives 时的升级提示页（纯静态，无依赖）；被 apply.js 引用；锁：primitives-guard.test.js 断言渲染文本含「DSH UI primitives」与「0.2.2-rc.3」；client-build"
+  },
+  {
+    "path": "client/parts/modOff.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "split",
+    "evidence": "23 行；装了 3 个不相干的东西：ModOff（模块关闭提示卡）、TabBoundary（错误边界，React.Component 类）、copy（clipboard + toast 的复制包装）；ModOff 被 diary.js 引用，TabBoundary 被 aurabotPage.js 引用，copy 被 faceMapCard/moduleRow/moduleTutorial/modules/remoteBackup 5 处引用；锁：client-build；拆法：TabBoundary → client-shell（约 15 行），copy → client-utils（3 行，与模板 clipboard 同处），文件更名 modOff → ModOff 只留组件；文件名与 2/3 内容不符"
+  },
+  {
+    "path": "client/parts/model.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "55 行；聊天模型页（模型下拉、思考强度、视觉、测试连接），组合 ChatModels 与 CostCard；被 wizard.js 的 TAB_CONTENT.model 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/modelPicker.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "28 行；模型下拉（拉 /models、分组、写回 provider/model），28 行；被 asr.js、imageGen.js、mood.js 三处复用；锁：client-build"
+  },
+  {
+    "path": "client/parts/moduleRow.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "41 行；单个模块一行（开关、状态徽章、复制来改/用回内置/重新加载、报错），自带 act 与 MOD_STATE 依赖；被 modules.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/moduleTutorial.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "split",
+    "evidence": "21 行；「想自己写一个模块？」折叠教程（拉 /modules/tutorial、复制教程）+ 常量 CAP_LABEL（6 项能力标签）、CATEGORY_LABEL（6 类）、capText，后三者被 market.js 引用；被 market.js 引用；锁：module-copy.test.js 断言「想自己写一个模块？」与「复制给 DSH」；client-build；拆法：CAP_LABEL/CATEGORY_LABEL/capText（3 行）移入 market 的能力标签工具，预估 21→18 行"
+  },
+  {
+    "path": "client/parts/modules.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "52 行；模块管理页（已安装/来自市场/自己写的/内置四组、新建模块、安全模式、打开文件夹、重新检查），8 个依赖；被 wizard.js 的 TAB_CONTENT.modules 引用；锁：module-copy.test.js 断言「模块库」文案；client-build"
+  },
+  {
+    "path": "client/parts/mood.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "52 行；「记忆」页（私聊隐私、向量检索与精排、聊天流水保留），把 MindMemory 作为二级视图挂进来；被 wizard.js 的 TAB_CONTENT.mood 引用；锁：client-build；页面内嵌页面（mood→mindMemory）是当前唯一既成事实"
+  },
+  {
+    "path": "client/parts/navigation.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "split",
+    "evidence": "138 行；导航/索引数据 + 图标 + 折叠状态共 9 个导出：NAV_GROUPS（8 组 31 页）、TABS、FIND_SECTIONS（搜索锚点）、ICONS/ICON_COMPONENTS/navIcon、visibleTabs、modOn、unsavedDot、pageNavId；自身 0 依赖；被 23 个片段引用（navIcon 11 处、TABS/NAV_GROUPS/visibleTabs 由 aurabotPage、FIND_SECTIONS 由 featureFinder）；锁：client-build 断言 const NAV_GROUPS = [；security-panel/about-panel/browser-panel 用正则锁各页注册行与 search 关键词；ui-navigation 锁 selfmind 与 character 去重；panel-mind 断言 visibleTabs 分组（asr→qq、voice/video→media、local→system）与 TABS 唯一；拆法：路由表（NAV_GROUPS/TABS/FIND_SECTIONS/modOn/visibleTabs）→ navigation.js 保留，图标集（ICONS/ICON_COMPONENTS/navIcon）→ icons.js，折叠状态（pageNavId/unsavedDot）→ 与 PageNav 同处；三份各 40–60 行"
+  },
+  {
+    "path": "client/parts/noticeWorkspaces.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "23 行；DSH 授权与通知卡（审批通知、工作区、QQ 内审批开关）；被 access.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/oneBotFields.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "9 行；OneBot 四个字段（WS 地址/WS 令牌/HTTP 地址/HTTP 令牌）；被 connect.js 与 wizard.js 两处复用；锁：client-build；fan-in 2，删除测试不通过，保留"
+  },
+  {
+    "path": "client/parts/overview.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "155 行；概览页（连接/正式模式/聊天模型/生图/语音/接收能力/转发/合并/token 用量与花费/调试对话/最近日志/更新说明），依赖 10 个片段；被 wizard.js 的 TAB_CONTENT.overview 引用；锁：panel-mind.test.js「概览以运行状态为标题」断言 6 段文案与「平平常常|57」不出现；offpeak 相关文案不在本文件；client-build"
+  },
+  {
+    "path": "client/parts/paintCell.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "merge",
+    "evidence": "10 行；单张画作的缩略单元（img + 提示词 + 时间）；只被 paintGallery.js 引用、无其他导出、无共享常量；锁：client-build；并入 paintGallery.js：删除测试通过（删掉只是把 10 行贴回唯一调用点），估算省 0 行、少 1 个文件边界；与 paintGallery 一起改更不易漏改 toast 契约；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交）"
+  },
+  {
+    "path": "client/parts/paintGallery.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "30 行；「她的画作」卡（列表、单张删除、打开文件夹、刷新）；被 imageGen.js 引用；锁：paintings.test.js 断言 function PaintGallery({ draft, setDraft, toast }) 签名，并断言 const del = async (file) => 之后 400 字符内出现 load()；client-build"
+  },
+  {
+    "path": "client/parts/panelSandboxHtml.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keepDoc",
+    "evidence": "36 行；生成 iframe 的 srcdoc（第 33 行内联 <style> + postMessage shim + token 校验），是全仓唯一不在 styles.js 里的样式片段；被 extPanel.js 引用；锁：client-build；缺文档：sandbox 属性、token 生命周期、可用 postMessage 字段没有契约文档，补进扩展面板文档后再谈收敛"
+  },
+  {
+    "path": "client/parts/persona.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "122 行；人格卡编辑（分节、润色对比、保存/恢复草稿、版本、头像），12 个依赖；被 identity.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/personaSection.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "28 行；单节人格编辑（标题、字数、上移下移删除、AI 润色、对比），依赖 avatarCard 的 psec/PSEC_COLORS/autoRows 与 AiButton；被 persona.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/pickAvatar.js",
+    "area": "client",
+    "owner": "client-utils",
+    "verdict": "keep",
+    "evidence": "13 行；头像选择工具（动态 input[type=file]、5MB 限制、FileReader → POST /avatar/upload）+ avatarSrc（/avatar?v=at）；被 avatarCard.js 与 overview.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/platforms.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "29 行；平台连接页（QQ 状态卡、Telegram token、能力标签、跳转连接页）；被 wizard.js 的 TAB_CONTENT.platforms 引用；锁：ui-navigation.test.js 断言 function Platforms 与 go('connect')；client-build"
+  },
+  {
+    "path": "client/parts/profilePerms.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "20 行；改资料与名单权限卡（Choices 三档 + 管理员/群主分档）；被 access.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/qzoneSocial.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "23 行；空间互动卡（开关、频率、现在逛一次），依赖 diary.js 的 SOCIAL_KIND（与 diary 构成双向依赖）；被 diary.js 引用；锁：client-build；SOCIAL_KIND 迁走后本文件 23 行不变"
+  },
+  {
+    "path": "client/parts/range.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "5 行；滑条（input[type=range] + 右侧数值）；被 useField、mindSelf、panelSandboxHtml、stickers、voice 引用；锁：panel-mind.test.js 有 panel.Range；client-build"
+  },
+  {
+    "path": "client/parts/recentLogs.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "15 行；概览里的最近日志卡（取 /logs、LogLine 列表）；被 overview.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/remoteBackup.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "101 行；云备份卡（Gitee/WebDAV 两套表单、saveBody 只提交改动字段、1 秒轮询、手动备份/拉回）；被 backup.js 引用；锁：client-build；重复实现：第 20 行 call、第 21 行 after、第 19 行 1 秒轮询与 backup.js 第 18/19 行逐字相同（含 x-aurabot-backup 头与「备份请求失败：」文案），两处合计约 10 行应收敛到同一个 useBackupJob，本文件可省约 5 行"
+  },
+  {
+    "path": "client/parts/rootPicker.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "19 行；翻唱根目录选择（输入框、默认位置、300ms 后 check 磁盘余量）；被 song.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/row.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "6 行；表单行（label/hint/details/children + aria-labelledby/describedby），6 行；被 47 个片段引用；锁：panel-mind.test.js 用 panel.Row 断言 label、hint（依据：…）、details（默认：…依据：…）；client-build"
+  },
+  {
+    "path": "client/parts/runControls.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "keep",
+    "evidence": "25 行；右上角运行模式弹层（总开关 Switch + 3 个模式选项 + Escape 收起），依赖 runMode/navIcon；被 aurabotPage.js 引用；锁：client-build；模式文案「正式模式/试运行/调试模式」与 aurabotPage 的 save({debug,dryRun}) 对应"
+  },
+  {
+    "path": "client/parts/security.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "51 行；安全防护页（危险命令确认、SSRF 模式、远端管理/可信反代、其它内置防护）；被 wizard.js 的 TAB_CONTENT.security 引用；锁：security-panel.test.js 断言 function Security({ st, draft, setDraft }) 签名、security.dangerConfirm、security.panelRemoteAccess、security.trustedProxy 三组字段都在 Security 函数体内；client-build"
+  },
+  {
+    "path": "client/parts/seg.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "3 行；分段按钮（ab-seg + aria-pressed）；被 12 个片段引用；锁：client-build；删除测试不通过（fan-in 12）"
+  },
+  {
+    "path": "client/parts/select.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "45 行；自定义下拉（combobox + listbox、键盘上下/Enter/Escape、分组标题、外部点击收起、blur 收起）；使用 btn.js 的 nextSelectId；被 17 个片段引用；锁：persona-filter-select.test.js 直接在 __panelTest.Select 上跑键盘序列并断言 aria-expanded/aria-label/listbox/选中后收起；panel-mind 也取 panel.Select；client-build"
+  },
+  {
+    "path": "client/parts/simulate.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "split",
+    "evidence": "44 行；模块试运行卡（as/kind/text/reply、POST /modules/simulate、结果展示）+ 常量 TUTORIAL_URL（PROJECT_REPO + docs/MODULE-TUTORIAL.md），TUTORIAL_URL 只被 moduleTutorial.js 用；被 modules.js 引用；锁：client-build；拆法：TUTORIAL_URL（1 行）移入 moduleTutorial.js（其唯一消费者），预估 44→43 行"
+  },
+  {
+    "path": "client/parts/song.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "98 行；翻唱页（环境安装进度 InstallProgress、声音、翻唱效果、网易云点歌、试唱），9 个依赖；被 wizard.js 的 TAB_CONTENT.song 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/starMap.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "62 行；关系星图 SVG（取 /mind/people/graph、按亲近度环形排布、悬停高亮），62 行、7 次 get/post；被 mindPeople.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/stickerCell.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "split",
+    "evidence": "41 行；单个表情单元（预览、标签、可见范围选择、保存）；同时导出 AUDIENCE_OPTIONS 与 AUDIENCE_LABEL，被 diaryAudience.js 与 diary.js 引用；被 stickers.js 引用；锁：client-build；拆法：AUDIENCE_OPTIONS/AUDIENCE_LABEL（约 5 行）移入 client-utils 的可见范围常量，表情单元只留 UI，预估 41→36 行"
+  },
+  {
+    "path": "client/parts/stickers.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "194 行；表情包页（开关/概率/偷取策略/表情库/多选删除/QQ 收藏导入/AI 补标签后台任务），194 行是全仓第 3 大片段、11 处 Btn、9 次 post；被 wizard.js 的 TAB_CONTENT.stickers 引用；锁：client-build；未拆理由：单一组件、单一数据源（GET /stickers + GET /sticker/caption-status），低于 300 行拆分线；若后续再加卡片，按「表情库 / 起名任务 / 贴表情」三卡拆"
+  },
+  {
+    "path": "client/parts/styles.js",
+    "area": "client",
+    "owner": "client-styles",
+    "verdict": "split",
+    "evidence": "738 行；全部样式：CSS 模板字符串、230 个类名、713 个 { 块（含 5 个 @media、4 个 @keyframes）；被 useStyle.js 引用（第 13 行 el.textContent = CSS）；锁：client-build 断言产物含 .ab-root{；实测问题：83 行 .ab-pm-* 规则没有任何片段使用（28 个 ab-pm 类全是死代码，removed 的页遗留），另有 9 个未使用类（ab-drive/ab-drives/ab-g4/ab-memory-entry/ab-select/ab-stat/ab-step/ab-steps/ab-tab）；反向缺口：9 个片段在用的类名没有任何规则（ab-link、ab-btn、ab-btn-small 在 knowledge.js，ab-body-state、ab-feed、ab-feelings 在 mindNow.js，ab-overview-paths、ab-reception 在 overview.js，ab-settings-body 在 mindSettings.js）；66 个片段另有 315 处内联 style 对象；拆法：tokens+基础（.ab-root 变量与重置约 120 行）/ 控件（btn/input/sel/seg/chip/badge/savebar 等约 300 行）/ 页面（feed/psec/pm/starmap 等约 300 行）三片；先删 83 行 ab-pm 再拆，净省约 83 行"
+  },
+  {
+    "path": "client/parts/switch.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "4 行；宿主 Switch 的薄封装（on/onChange/disabled/label/title），4 行；被 12 个片段引用；锁：panel-mind.test.js 断言 ctlOf('单一注意力').type === panel.Switch；client-build；删除测试不通过（12 处调用点会各写一遍 primitives 契约）"
+  },
+  {
+    "path": "client/parts/titleFilter.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "37 行；群头衔过滤卡（开关、自动拉群头衔、分组映射）；被 group.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/updateNotes.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "keep",
+    "evidence": "13 行；版本更新说明卡（localStorage 记已读）；被 overview.js 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/useField.js",
+    "area": "client",
+    "owner": "client-hooks",
+    "verdict": "split",
+    "evidence": "26 行；草稿字段工厂（sw/text/area/num/percent/range/list/select/choices），26 行，被 26 个片段调用；同时导出 HOST 与 exPath（示例路径），被 connect/backup/hostToolPermissions/song/voiceImport/wizard 6 个片段引用；锁：client-build；hostToolPermissions 与 group-owner-tools 依赖 f.choices/f.list 的产出形状；拆法：HOST/exPath（4 行）移入 client-utils 的主目录常量，useField 只留字段工厂，预估 26→22 行；另需补一份字段工厂接口文档（9 个方法、路径点号语义）"
+  },
+  {
+    "path": "client/parts/useStyle.js",
+    "area": "client",
+    "owner": "client-hooks",
+    "verdict": "keep",
+    "evidence": "18 行；样式注入 hook（旧无主 style 先删、按 plugin 标记复用、textContent=CSS），18 行；被 aurabotPage.js 引用；锁：client-build；与 styles.js 的 CSS 常量构成唯一注入点"
+  },
+  {
+    "path": "client/parts/voice.js",
+    "area": "client",
+    "owner": "client-pages",
+    "verdict": "keep",
+    "evidence": "119 行；语音合成页（音色选择、Edge/Breeze 双后端、音调滑条、试听、RVC 变声入口），9 个依赖、31 处 Row；被 wizard.js 的 TAB_CONTENT.voice 引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/voiceImport.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "split",
+    "evidence": "66 行；音色导入卡（克隆/上传/删除、raw fetch 上传）；同时导出 fmtBytes/fmtDur 两个格式化器，被 installProgress.js 引用；被 song.js 引用；锁：client-build；拆法：fmtBytes/fmtDur（约 4 行）移入 client-utils 的格式化工具，installProgress 与 voiceImport 的跨文件依赖消失，预估 66→62 行"
+  },
+  {
+    "path": "client/parts/voiceSongModel.js",
+    "area": "client",
+    "owner": "client-components",
+    "verdict": "merge",
+    "evidence": "14 行；语音条变声（RVC）卡：Card + 2 个 Row（音色下拉、变调数字）；只被 voice.js 引用，无共享导出；锁：client-build；并入 voice.js：删除测试通过（12 行贴回唯一调用点），估算省 0 行、少 1 个文件边界；与 voice.js 的 useField 实例复用同一 draft；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交）"
+  },
+  {
+    "path": "client/parts/whaleIcon.js",
+    "area": "client",
+    "owner": "client-primitives",
+    "verdict": "keep",
+    "evidence": "10 行；鲸鱼图标 SVG；被 WorkspaceNav.js 与 apply.js（侧栏图标）引用；锁：client-build"
+  },
+  {
+    "path": "client/parts/wizard.js",
+    "area": "client",
+    "owner": "client-shell",
+    "verdict": "split",
+    "evidence": "87 行；设置向导（4 步表单）+ 路由表 TAB_CONTENT（28 个键）、TAB_KEYS（18 个键的脏检查字段）、moduleSearchText；被 aurabotPage.js 引用（TAB_CONTENT/TAB_KEYS/moduleSearchText/Wizard），moduleSearchText 另被 featureFinder.js 引用；锁：security-panel（security: Security）、browser-panel（browser: Browser, local: LocalApi, 与 browser: ['browser']）、about-panel（about: About）、ui-navigation（NAV_GROUPS 与 TAB_CONTENT 一致）、panel-mind（TAB_CONTENT 每个 id 必须是函数、TABS 无重复 id）；拆法：TAB_CONTENT/TAB_KEYS/moduleSearchText 移入 navigation.js（与 NAV_GROUPS 同处），向导只留 Wizard，预估 87→45 行，迁移 40 行不改行为"
+  }
+]
