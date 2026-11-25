@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.7
+
+- client 最后的核心 hooks/导航拆到 parts：useStyle、useField、PageNav、WorkspaceNav。
+- client.template.js 365 → 293 行；页面/样式/核心片段累计 103 个。
+- 回归：面板/client 构建 19 个测试通过。
+
 ## 1.6.6
 
 - 子系统回合 runSystemTurn 和子代理回合 runSubagentTurn 从 hub.js 拆出。

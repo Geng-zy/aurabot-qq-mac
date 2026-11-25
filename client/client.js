@@ -125,24 +125,6 @@ window.__ModuleLoader__.load({
 
     // ---------------- 样式（只注入一次） ----------------
 
-    function useStyle() {
-      useEffect(() => {
-        // 交给 DSH 的样式归属：热更新时旧 <style> 会被宿主清掉，新模块重新注入。
-        // 老版本留下的无主 style 先移除，否则 getElementById 会一直复用它，CSS 永远不刷新。
-        const old = document.getElementById('aurabot-style')
-        if (old) {
-          if (old.dataset && old.dataset.plugin === 'dsh-aurabot-qq') return
-          old.remove()
-        }
-        const el = document.createElement('style')
-        el.id = 'aurabot-style'
-        el.dataset.plugin = 'dsh-aurabot-qq'
-        el.textContent = CSS
-        document.head.appendChild(el)
-      }, [])
-    }
-
-    // ---------------- 图标 ----------------
 
 
 
@@ -156,66 +138,12 @@ window.__ModuleLoader__.load({
 
 
 
-    function useField(draft, setDraft) {
-      return {
-        sw: (path, extra) => h(Switch, { on: !!getPath(draft, path), onChange: (v) => setDraft(setPath(draft, path, v)), ...(extra || {}) }),
-        text: (path, props) => h('input', { className: cx('ab-input', props && props.size), value: getPath(draft, path) ?? '', placeholder: props && props.placeholder, type: (props && props.type) || 'text', onChange: (e) => setDraft(setPath(draft, path, e.target.value)) }),
-        area: (path, props) => h('textarea', { className: cx('ab-input', props && props.size), rows: (props && props.rows) || 3, spellCheck: false, style: { fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12, lineHeight: 1.5, resize: 'vertical' }, value: getPath(draft, path) ?? '', placeholder: props && props.placeholder, onChange: (e) => setDraft(setPath(draft, path, e.target.value)) }),
-        num: (path, props) => h('input', { className: 'ab-input sm', type: 'number', min: props && props.min, max: props && props.max, step: (props && props.step) || 1, value: getPath(draft, path) ?? '', onChange: (e) => setDraft(setPath(draft, path, e.target.value === '' ? '' : Number(e.target.value))) }),
-        percent: (path) => h(Range, { min: 0, max: 100, value: pct(getPath(draft, path)), onChange: (v) => setDraft(setPath(draft, path, v / 100)), fmt: (v) => v + '%' }),
-        // 滑块只是常用范围；超过的值在旁边的框里直接填（概率这种 0~1 的不用）
-        range: (path, min, max, step, fmt) => {
-          const slider = h(Range, { min, max, step, value: getPath(draft, path), onChange: (v) => setDraft(setPath(draft, path, v)), fmt })
-          if (max <= 1) return slider
-          return h('div', { className: 'ab-flex' }, slider, h('input', { className: 'ab-input sm', type: 'number', step, value: getPath(draft, path) ?? '', onChange: (e) => setDraft(setPath(draft, path, e.target.value === '' ? '' : Number(e.target.value))) }))
-        },
-        list: (path, props) => h(ListArea, { value: getPath(draft, path) || [], placeholder: props && props.placeholder, numbers: props && props.numbers, onChange: (v) => setDraft(setPath(draft, path, v)) }),
-        select: (path, options, props) => h(Select, { value: getPath(draft, path) ?? '', options, onChange: (v) => setDraft(setPath(draft, path, v)), ...(props || {}) }),
-        choices: (path, options) => h(Choices, { value: getPath(draft, path), options, onChange: (v) => setDraft(setPath(draft, path, v)) }),
-      }
-    }
 
-    // ---------------- 按插件所在系统显示示例 ----------------
-    // 主目录（/state 带回来），示例路径用它写
-    const HOST = { home: '' }
-    /** 示例路径：主目录下的 rel。 */
-    const exPath = (rel) => (HOST.home || '/Users/你') + '/' + rel
 
-    // 页面 ID 同时供旧书签、模块 manifest 的 tab 和本地导航记录使用。
 
-    function PageNav({ group, current, go, dirtyOf, expanded, rail }) {
-      return h('div', {
-        id: pageNavId(group, rail), className: cx('ab-nav-collapse', rail ? 'ab-rail-collapse' : 'ab-stage-collapse'),
-        'data-expanded': expanded,
-      }, h('div', { className: 'ab-nav-clip', inert: expanded ? undefined : 'inert' },
-        h(rail ? 'div' : 'nav', { className: rail ? 'ab-rail-pages' : 'ab-page-nav', 'aria-label': rail ? undefined : group.label + '页面' },
-          group.pages.map((t) => h('button', {
-            key: t.id, type: 'button', 'aria-current': current.id === t.id ? 'page' : undefined, onClick: () => go(t.id),
-          }, t.label, dirtyOf(t.id) ? unsavedDot() : null)))))
-    }
 
-    function WorkspaceNav({ groups, current, go, dirtyOf, version, collapsedGroup, toggleGroup }) {
-      return h('aside', { className: 'ab-rail' },
-        h('button', { type: 'button', className: 'ab-wordmark', onClick: () => go('overview'), 'aria-label': 'AuraBot 概览' },
-          h('span', { className: 'ab-brand-mark' }, h(WhaleIcon, { size: 21 })), h('b', null, 'AuraBot')),
-        h('nav', { className: 'ab-work-nav', 'aria-label': 'AuraBot 功能' }, groups.map((g) => {
-          const active = current.group === g.id
-          const hasPages = g.pages.length > 1
-          const expanded = hasPages && active && collapsedGroup !== g.id
-          return h('div', { key: g.id }, h('button', {
-            type: 'button', 'aria-current': active ? 'true' : undefined, 'aria-expanded': hasPages ? expanded : undefined,
-            'aria-controls': hasPages ? pageNavId(g, true) + (active ? ' ' + pageNavId(g, false) : '') : undefined,
-            className: cx('ab-rail-item', active && 'on'),
-            onClick: () => {
-              if (!active) go(g.pages[0].id)
-              else if (hasPages) toggleGroup(g.id)
-            },
-          }, navIcon(g.icon), h('span', { className: 'ab-rail-label' }, g.label, hasPages ? navIcon('chevron') : null),
-          (!active || (hasPages && !expanded)) && g.pages.some((t) => dirtyOf(t.id)) ? unsavedDot() : null),
-          hasPages ? h(PageNav, { group: g, current, go, dirtyOf, expanded, rail: true }) : null)
-        })),
-        h('button', { type: 'button', className: 'ab-build', onClick: () => go('about') }, 'v' + version, navIcon('next')))
-    }
+
+
 
 
 
@@ -350,6 +278,40 @@ window.__ModuleLoader__.load({
       // 写法同 DSH 自带的「自动化任务」（order 10）和「插件」（order 0）：排在它们后面
       slots.inject('main', () => slots.register({ name: 'main', key: PANEL_ID }, AurabotPage))
       slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
+    }
+
+    function PageNav({ group, current, go, dirtyOf, expanded, rail }) {
+    return h('div', {
+    id: pageNavId(group, rail), className: cx('ab-nav-collapse', rail ? 'ab-rail-collapse' : 'ab-stage-collapse'),
+    'data-expanded': expanded,
+    }, h('div', { className: 'ab-nav-clip', inert: expanded ? undefined : 'inert' },
+    h(rail ? 'div' : 'nav', { className: rail ? 'ab-rail-pages' : 'ab-page-nav', 'aria-label': rail ? undefined : group.label + '页面' },
+    group.pages.map((t) => h('button', {
+    key: t.id, type: 'button', 'aria-current': current.id === t.id ? 'page' : undefined, onClick: () => go(t.id),
+    }, t.label, dirtyOf(t.id) ? unsavedDot() : null)))))
+    }
+
+    function WorkspaceNav({ groups, current, go, dirtyOf, version, collapsedGroup, toggleGroup }) {
+    return h('aside', { className: 'ab-rail' },
+    h('button', { type: 'button', className: 'ab-wordmark', onClick: () => go('overview'), 'aria-label': 'AuraBot 概览' },
+    h('span', { className: 'ab-brand-mark' }, h(WhaleIcon, { size: 21 })), h('b', null, 'AuraBot')),
+    h('nav', { className: 'ab-work-nav', 'aria-label': 'AuraBot 功能' }, groups.map((g) => {
+    const active = current.group === g.id
+    const hasPages = g.pages.length > 1
+    const expanded = hasPages && active && collapsedGroup !== g.id
+    return h('div', { key: g.id }, h('button', {
+    type: 'button', 'aria-current': active ? 'true' : undefined, 'aria-expanded': hasPages ? expanded : undefined,
+    'aria-controls': hasPages ? pageNavId(g, true) + (active ? ' ' + pageNavId(g, false) : '') : undefined,
+    className: cx('ab-rail-item', active && 'on'),
+    onClick: () => {
+    if (!active) go(g.pages[0].id)
+    else if (hasPages) toggleGroup(g.id)
+    },
+    }, navIcon(g.icon), h('span', { className: 'ab-rail-label' }, g.label, hasPages ? navIcon('chevron') : null),
+    (!active || (hasPages && !expanded)) && g.pages.some((t) => dirtyOf(t.id)) ? unsavedDot() : null),
+    hasPages ? h(PageNav, { group: g, current, go, dirtyOf, expanded, rail: true }) : null)
+    })),
+    h('button', { type: 'button', className: 'ab-build', onClick: () => go('about') }, 'v' + version, navIcon('next')))
     }
 
     function About({ st }) {
@@ -5564,6 +5526,52 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-flex' }, h('b', null, '已更新到 v' + st.version), h('div', { className: 'ab-spacer' }), h(Btn, { small: true, kind: 'ghost', onClick: dismiss }, '知道了')),
     h('div', { style: { whiteSpace: 'pre-wrap', marginTop: 6 } }, notes)) : null
     }
+
+    function useField(draft, setDraft) {
+    return {
+    sw: (path, extra) => h(Switch, { on: !!getPath(draft, path), onChange: (v) => setDraft(setPath(draft, path, v)), ...(extra || {}) }),
+    text: (path, props) => h('input', { className: cx('ab-input', props && props.size), value: getPath(draft, path) ?? '', placeholder: props && props.placeholder, type: (props && props.type) || 'text', onChange: (e) => setDraft(setPath(draft, path, e.target.value)) }),
+    area: (path, props) => h('textarea', { className: cx('ab-input', props && props.size), rows: (props && props.rows) || 3, spellCheck: false, style: { fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12, lineHeight: 1.5, resize: 'vertical' }, value: getPath(draft, path) ?? '', placeholder: props && props.placeholder, onChange: (e) => setDraft(setPath(draft, path, e.target.value)) }),
+    num: (path, props) => h('input', { className: 'ab-input sm', type: 'number', min: props && props.min, max: props && props.max, step: (props && props.step) || 1, value: getPath(draft, path) ?? '', onChange: (e) => setDraft(setPath(draft, path, e.target.value === '' ? '' : Number(e.target.value))) }),
+    percent: (path) => h(Range, { min: 0, max: 100, value: pct(getPath(draft, path)), onChange: (v) => setDraft(setPath(draft, path, v / 100)), fmt: (v) => v + '%' }),
+    // 滑块只是常用范围；超过的值在旁边的框里直接填（概率这种 0~1 的不用）
+    range: (path, min, max, step, fmt) => {
+    const slider = h(Range, { min, max, step, value: getPath(draft, path), onChange: (v) => setDraft(setPath(draft, path, v)), fmt })
+    if (max <= 1) return slider
+    return h('div', { className: 'ab-flex' }, slider, h('input', { className: 'ab-input sm', type: 'number', step, value: getPath(draft, path) ?? '', onChange: (e) => setDraft(setPath(draft, path, e.target.value === '' ? '' : Number(e.target.value))) }))
+    },
+    list: (path, props) => h(ListArea, { value: getPath(draft, path) || [], placeholder: props && props.placeholder, numbers: props && props.numbers, onChange: (v) => setDraft(setPath(draft, path, v)) }),
+    select: (path, options, props) => h(Select, { value: getPath(draft, path) ?? '', options, onChange: (v) => setDraft(setPath(draft, path, v)), ...(props || {}) }),
+    choices: (path, options) => h(Choices, { value: getPath(draft, path), options, onChange: (v) => setDraft(setPath(draft, path, v)) }),
+    }
+    }
+
+    // ---------------- 按插件所在系统显示示例 ----------------
+    // 主目录（/state 带回来），示例路径用它写
+    const HOST = { home: '' }
+    /** 示例路径：主目录下的 rel。 */
+    const exPath = (rel) => (HOST.home || '/Users/你') + '/' + rel
+
+    // 页面 ID 同时供旧书签、模块 manifest 的 tab 和本地导航记录使用。
+
+    function useStyle() {
+    useEffect(() => {
+    // 交给 DSH 的样式归属：热更新时旧 <style> 会被宿主清掉，新模块重新注入。
+    // 老版本留下的无主 style 先移除，否则 getElementById 会一直复用它，CSS 永远不刷新。
+    const old = document.getElementById('aurabot-style')
+    if (old) {
+    if (old.dataset && old.dataset.plugin === 'dsh-aurabot-qq') return
+    old.remove()
+    }
+    const el = document.createElement('style')
+    el.id = 'aurabot-style'
+    el.dataset.plugin = 'dsh-aurabot-qq'
+    el.textContent = CSS
+    document.head.appendChild(el)
+    }, [])
+    }
+
+    // ---------------- 图标 ----------------
 
     function Voice({ st, draft, setDraft, toast, reload }) {
     const f = useField(draft, setDraft)
