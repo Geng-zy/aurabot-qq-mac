@@ -1,0 +1,36 @@
+    function Access({ st, draft, setDraft, toast }) {
+      const f = useField(draft, setDraft)
+      return h('div', { className: 'ab-grid' },
+        h(Card, { section: 'qq-allowlist', className: 'ab-allowlist', title: '私聊与群白名单', desc: '只有名单里的人和群，ta才会理。一行一个号码。' },
+          h(Row, { label: '私聊白名单', hint: '管理员默认就在里面。' }, f.list('platforms.qq.allow.private', { placeholder: '每行一个 QQ 号', numbers: true })),
+          h(Row, { label: '群白名单', hint: '把机器人拉进群后，把群号加到这里。' }, f.list('platforms.qq.allow.groups', { placeholder: '每行一个群号', numbers: true })),
+        ),
+        h(DrawChatPermissions, { st, draft, setDraft }),
+        h(Card, { fold: 'qq-owner', title: '管理员与私聊权限', desc: '管理员的 QQ 号。群管、点歌、电脑上的操作只听管理员的。' },
+          h(Row, { label: '管理员 QQ 号' }, f.text('platforms.qq.ownerQQ')),
+          h(Row, { label: 'ta怎么称呼你', hint: '一开始她这么叫你；之后她可以自己换个叫法（会通知你，「人格与自我」页能看、能退回）。你在这里改了，就以你改的为准。' }, f.text('ownerName', { placeholder: '管理员' })),
+          h(Row, { label: '管理员私聊的权限', hint: '群聊永远没有电脑操作权限，这里管不到群。' },
+            h('div', { style: { width: '100%' } },
+              h(Choices, { value: draft.ownerLevel, onChange: (v) => setDraft(setPath(draft, 'ownerLevel', v)), options: [
+                { value: 'full', label: '完整', desc: '私聊里让ta用电脑做事（查文件、跑命令、上网查）也能做' },
+                { value: 'social', label: '受限', desc: '可用 QQ 和心智工具，例如查关系、回忆经历、看待办。无本机读写权限。' },
+                { value: 'chat', label: '纯聊天', desc: '什么工具都没有，只聊天' },
+              ] }),
+              h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '切换后会给管理员私聊换一个新的 DSH 会话（旧的还在侧栏里）。'))),
+          h(Row, { label: '给她自由', hint: '开启后，她可以自行决定怎么聊天和创作。修改 QQ 资料、管理好友或群、读写本机文件等操作仍需通过当前会话的管理员权限检查。' }, f.sw('freedom')),
+        ),
+        h(Card, { fold: 'qq-notices', title: 'DSH 授权与通知' },
+          h(Row, { label: 'DSH 卡住时在 QQ 里说一声', hint: '有会话在等授权、等你选东西时，她用自己的话跟你说一句（不是固定通知）。人不在电脑前也知道。' }, f.sw('notice.enabled')),
+          draft.notice?.enabled === false ? null : [
+            h(Row, { key: 'a', label: '要授权时', hint: '工具卡住、等你点批准的时候' }, f.sw('notice.approval')),
+            h(Row, { key: 'q', label: '要选选项时', hint: '有会话在等你选东西的时候' }, f.sw('notice.question')),
+            h(NoticeWorkspaces, { key: 'w', toast }),
+          ],
+          h(Row, { label: '在 QQ 里批准', hint: '和你私聊时要授权，回复「确认」批准这一次、回复「取消」拒绝，5 分钟没回就不批。只认你本人的私聊回复，DSH 里也能同时点。QQ 号被盗的话，对方也能批，介意就关掉' }, f.sw('approvalViaQQ')),
+        ),
+        h(HostToolPermissions, { draft, setDraft }),
+        h(ProfilePerms, { st, draft, setDraft }),
+        modOn(st, 'group-admin') ? h(GroupRoles, null) : null,
+        h(CommandList, null),
+      )
+    }

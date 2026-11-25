@@ -12,7 +12,9 @@ test('关于页通过系统导航打开', () => {
 })
 
 test('关于页的手册与版本指向本分支，上游链接用于署名', () => {
-  const body = src.slice(src.indexOf('    function About({ st })'), src.indexOf('    function RecentLogs({ go })'))
+  const aboutStart = src.indexOf('    function About({ st })')
+  const aboutEnd = src.indexOf('\n    function ', aboutStart + 1)
+  const body = src.slice(aboutStart, aboutEnd < 0 ? src.length : aboutEnd)
   const repos = src.match(/^    const (?:PROJECT_REPO|UPSTREAM_REPO|MODULE_REPOS) = .+$/gm)
   const h = (type, props, ...children) => ({ type, props, children })
   const tree = runInNewContext(`${repos.join('\n')}\n${body}\nAbout({ st: { version: '1.5.1', apiVersion: 1 } })`, { h, Card: 'card' })
