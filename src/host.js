@@ -55,6 +55,7 @@ import { registerMindSettingsRoutes } from './features/mind-settings-routes.js'
 import { registerMindMemoryRoutes } from './features/mind-memory-routes.js'
 import { registerMindSelfRoutes } from './features/mind-self-routes.js'
 import { registerPersonaRoutes } from './features/persona-routes.js'
+import { registerDebugRoutes } from './features/debug-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
@@ -905,21 +906,7 @@ export function apply(ctx) {
     listPersonas, readPersona, savePersona, deletePersona, getMind: () => mind, askModel, ctx, log,
   })
 
-  // 按群头衔不理：白名单里的群（带群名）+ 这些群里现有的头衔，面板里点一个就设成要过滤的那类
-  route('/groups/titles', async () => {
-    const gids = (cfg.allow.groups || []).map(String)
-    const groups = await Promise.all(gids.map(async (gid) => ({ groupId: gid, name: await hub.groupName(gid) })))
-    if (!gids.length) return { ok: true, groups, titles: [], failed: [] }
-    const { titles, failed } = await hub.titleFilter.titlesIn(gids)
-    hub.titleFilter.clear()
-    return { ok: true, groups, titles, failed, message: failed.length ? `有 ${failed.length} 个群的成员没拉到（她在群里吗？）` : '' }
-  })
-
-  // 面板里的调试对话：走管理员私聊的正常链路，但不发 QQ、不写进心智（来自原项目 f476866）
-  route('/debug/say', async (req) => {
-    const b = await readBody(req)
-    try { return await hub.debugSay(String(b.text || '')) } catch (error) { return { ok: false, message: error.message } }
-  })
+  registerDebugRoutes({ route, readBody, getConfig: () => cfg, hub })
 
   // 本地接口
   const openFolder = (dir) => {
