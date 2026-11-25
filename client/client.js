@@ -3312,6 +3312,7 @@ body[data-ds-dark-theme] .ab-root{
       const [list, setList] = useState(null)
       const [edit, setEdit] = useState({})
       const [open, setOpen] = useState(null)
+      const readSeq = useRef(0)
       const [q, setQ] = useState('')
       const [hits, setHits] = useState([])
       const [hasMore, setHasMore] = useState(false)
@@ -3328,9 +3329,19 @@ body[data-ds-dark-theme] .ab-root{
         return String(text || '').split(new RegExp('(' + safe + ')', 'ig')).map((part, i) => part.toLowerCase() === needle.toLowerCase() ? h('mark', { key: i }, part) : part)
       }
       const preview = async (path) => {
+        const seq = ++readSeq.current
         setOpen({ path, text: '加载中…' })
-        const r = await get('/knowledge/read?path=' + encodeURIComponent(path))
-        setOpen({ path, text: r.ok ? r.text : (r.message || '读取失败') })
+        const r = await get('/knowledge/read?path=' + encodeURIComponent(path) + '&offset=0&limit=30000')
+        if (seq !== readSeq.current) return
+        setOpen(r.ok ? { path, text: r.text, total: r.total, truncated: r.truncated, offset: String(r.text || '').length } : { path, text: r.message || '读取失败' })
+      }
+      const loadMore = async () => {
+        if (!open?.path || open.truncated === false) return
+        const seq = ++readSeq.current
+        const r = await get('/knowledge/read?path=' + encodeURIComponent(open.path) + '&offset=' + encodeURIComponent(open.offset || 0) + '&limit=30000')
+        if (seq !== readSeq.current) return
+        if (!r.ok) { toast(r.message || '读取失败', 'err'); return }
+        setOpen({ ...open, text: open.text + r.text, total: r.total, truncated: r.truncated, offset: (open.offset || 0) + String(r.text || '').length })
       }
       const importScope = (text) => {
         const clean = String(text || '').replace(/^\uFEFF/, '').replace(/^\s*?(?=---\s*\n)/u, '')
@@ -3457,8 +3468,10 @@ body[data-ds-dark-theme] .ab-root{
             if (r.ok) { setNote({ title: '', content: '', scope: 'all' }); load() }
           } }, '写入知识库')),
         ),
-        open ? h(Card, { title: open.path, right: h(Btn, { small: true, kind: 'ghost', onClick: () => setOpen(null) }, '关闭') },
-          h('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: 460, overflow: 'auto', fontSize: 12.5 } }, open.text)) : null,
+        open ? h(Card, { title: open.path, right: h(Btn, { small: true, kind: 'ghost', onClick: () => { readSeq.current++; setOpen(null) } }, '关闭') },
+          h('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: 460, overflow: 'auto', fontSize: 12.5 } }, open.text),
+          open.total ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 6 } }, `已显示 ${String(open.text || '').length} / ${open.total} 字` + (open.truncated ? '，还有后续内容' : '，已到结尾')) : null,
+          open.truncated ? h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, onClick: loadMore }, '加载更多')) : null) : null,
       )
     }
 

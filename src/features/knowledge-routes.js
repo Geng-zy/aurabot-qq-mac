@@ -3,7 +3,10 @@
 export function registerKnowledgeRoutes({ route, readBody, query, knowledge }) {
   route('/knowledge/list', async () => ({ ok: true, list: knowledge.list() }))
   route('/knowledge/read', async (req) => {
-    const r = knowledge.read(String(query(req).path || ''), { limit: 30000, admin: true })
+    const q = query(req)
+    const offset = Math.max(0, Math.trunc(Number(q.offset)) || 0)
+    const limit = Math.max(1, Math.min(30000, Math.trunc(Number(q.limit)) || 30000))
+    const r = knowledge.read(String(q.path || ''), { offset, limit, admin: true })
     return r ? { ok: true, ...r } : { ok: false, message: '读不到这个知识库文件' }
   })
   route('/knowledge/search', async (req) => {
