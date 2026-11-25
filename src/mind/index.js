@@ -544,9 +544,10 @@ export function createMind(opts) {
       person: p || prev?.person || null,
       episodes: [...(prev?.episodes || []), ...eps], perception: [...(prev?.perception || []), ...per], derived: [...(prev?.derived || []), ...derived],
     }
-    store.set(forgottenKey(pid), bundle)
-    for (const r of eps) memory.deleteEpisode(r.id)
+    // 恢复包和删除必须一起提交：中途写库失败时不能只留下半份恢复区或半份活动记忆。
     store.tx(() => {
+      store.set(forgottenKey(pid), bundle)
+      for (const r of eps) memory.deleteEpisodeRaw(r.id)
       for (const r of per) store.prep('DELETE FROM perception WHERE id = ?').run(r.id)
       emotion.forgetAppraisals(pid, wins)
       if (!keepPerson) { store.prep('DELETE FROM people WHERE id = ?').run(pid); recordDeletion(pid, 'person') }
@@ -554,6 +555,7 @@ export function createMind(opts) {
         const { rel, tom, ...rest } = p
         savePerson({ ...rest, noMemory: true })
       }
+      memory.touchAudience()
     })
     conversation.invalidatePerson(pid, wins)
     inner.clearDeferred()

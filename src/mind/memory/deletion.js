@@ -8,6 +8,12 @@ export function createDeletion({ store, now, S, deps, vectors, row, save, queueJ
     store.tx(() => { removeOne(e, record); touchAudience() })
     return true
   }
+  function deleteEpisodeRaw(id, { record = true } = {}) {
+    const e = row(id)
+    if (!e) return false
+    removeOne(e, record)
+    return true
+  }
   function removeOne(e, record) {
     store.prep('DELETE FROM episodes WHERE id = ?').run(e.id)
     vectors.remove(e.id)
@@ -93,5 +99,5 @@ export function createDeletion({ store, now, S, deps, vectors, row, save, queueJ
   }
 
 
-  return { deleteEpisode, applyDeletions, boost, setPrivateOnly }
+  return { deleteEpisode, deleteEpisodeRaw, applyDeletions, boost, setPrivateOnly }
 }

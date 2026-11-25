@@ -276,7 +276,7 @@ export function createMemory(deps) {
 
 
   const deletion = createDeletion({ store, now, S, deps, vectors, row, save, queueJob, touchAudience })
-  const { deleteEpisode, applyDeletions, boost, setPrivateOnly } = deletion
+  const { deleteEpisode, deleteEpisodeRaw, applyDeletions, boost, setPrivateOnly } = deletion
 
   const sharing = createSharing({
     store, now, deps, place, ownerPrivate, shareSourceAllowed, insert, save, touchAudience, randomUUID, keywordHits, row, visibleIn,
@@ -301,7 +301,7 @@ export function createMemory(deps) {
 
   return {
     connect, encodeWindow, encodeThrough, encodePending, pendingThrough, pendingWindows, recall, recallMore, strengthen, workingMemory, visibleIn, visibleForRecall, visibleForAudience, sourceVisible, protectedText, sharesIn, sharedText, restrictedShareText, privacyCandidates,
-    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, applyDeletions, boost, setPrivateOnly, shareEpisode, revokeShare, audienceRevision, touchAudience, notePrivacyContext, list, sourceCounts, related, counts,
+    dueIntentions, completeIntention, noteSaid, specialDays, dueNow, setReminderDelivery, dueFollowups, closeFollowup, followups, remember, topicScore, deleteEpisode, deleteEpisodeRaw, applyDeletions, boost, setPrivateOnly, shareEpisode, revokeShare, audienceRevision, touchAudience, notePrivacyContext, list, sourceCounts, related, counts,
     embedEpisodes, staleVectorIds, vectorProgress, embedModel, canEmbed, canThink: () => Boolean(think), queueJob, takeJobs, doneJob, ask, row, save, rOf, vectors, insert,
   }
 }
