@@ -71,6 +71,7 @@ import { createMindAdapter } from './mind-adapter/index.js'
 import { createPurgeScope } from './integration/purge-scope.js'
 import { installPromptVariables } from './host/prompt-vars.js'
 import { applyPanelSave } from './host/panel-save.js'
+import { createOverview } from './host/overview.js'
 import { createHttpKit } from './host/http.js'
 import { installPersonaHoist } from './integration/persona-hoist.js'
 import { createLocalInstaller } from './mind-adapter/install.js'
@@ -687,39 +688,11 @@ export function apply(ctx) {
   }, 'aurabot: 收尾')
 
   // ---------- 面板接口 ----------
-  async function overview() {
-    const diary = use('diary')
-    return {
-      ok: true,
-      version: VERSION,
-      apiVersion: API_VERSION,
-      home: homedir(),
-      config: publicConfig(cfg),
-      onebot: await qq.status(),
-      channels: channels.status(),
-      outbox: outbox.status(),
-      stats: hub.stats(),
-      offpeak: (() => { const now = new Date(); const holidays = cfg.cost?.offPeakHolidays || []; const next = nextChange(now, { holidays }); return { peak: isPeak(now, { holidays }), next: next?.at || 0 } })(),
-      // 模块关着时给个空壳，面板照常显示
-      // 概览上的心情（心智核心）：value 把 -1～1 的愉快度换成 0～100 显示
-      mood: (() => { try { const f = mind.mind.feeling(); return { value: Math.round((f.mood.v + 1) * 50), label: f.body.asleep ? '睡着了' : f.mood.label, reason: f.emotions[0] ? f.emotions[0].name : '', history: [] } } catch (error) { return { value: 0, label: '心智核心没起来', reason: '', history: [] } } })(),
-      stickers: { count: stickers.library().items.length },
-      diary: { next: '', last: diary?.history()[0] || null },
-      qzoneSocial: use('qzone-social')?.state?.() ?? null,
-      // 心智核心：上次睡觉整理的时间和结果、今天花了多少
-      mind: mind ? { sleep: mind.mind._store.get('sleep.lastReport', null), usage: mind.mind.budget.spent(), counts: mind.mind.status().counts } : null,
-      avatar: avatarInfo(),
-      voice: { edgeInstalled: use('voice')?.edgeInstalled?.() ?? false },
-      song: use('song')?.status?.() ?? null,
-      sessions: hub.sessions(),
-      sessionHealth: hub.sessionHealth(),
-      workspaceDir: workspaceDirOf(cfg),
-      workspaceReal: realWorkspace(workspaceDirOf(cfg)),
-      personas: listPersonas(),
-      modules: mods.status(),
-      bridge: { dshTools: cfg.bridge.dshTools, http: cfg.bridge.http, hasToken: Boolean(cfg.bridge.token), tools: bridge.deniedTools(), toolsService: Boolean(ctx.get?.('tools')) },
-    }
-  }
+  const overview = createOverview({
+    getConfig: () => cfg, version: VERSION, apiVersion: API_VERSION, homedir, publicConfig,
+    qq, channels, outbox, hub, nextChange, isPeak, getMind: () => mind, stickers, use,
+    avatarInfo: () => avatarInfo(), workspaceDirOf, realWorkspace, listPersonas, mods, bridge, ctx,
+  })
 
   // ---------- 面板：对外接口聚合 ----------
 
