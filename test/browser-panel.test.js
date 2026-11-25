@@ -22,9 +22,9 @@ test('全局开关落在 browser 段：默认关 + 归一化补默认值', () =>
 
 test('面板开关改的就是 browser.useDshSidebar，且开关卡片文案齐全', () => {
   const start = client.indexOf('function Browser(')
-  const sec = client.indexOf('function Security(')
-  assert.ok(start >= 0 && sec > start, '页面组件边界找不到')
-  const page = client.slice(start, sec)
+  assert.ok(start >= 0, '缺 Browser 组件')
+  const end = client.indexOf('\n    function ', start + 1)
+  const page = client.slice(start, end < 0 ? client.length : end)
   assert.ok(page.includes("draft.browser.useDshSidebar"), '面板没读 browser.useDshSidebar')
   assert.ok(page.includes("'browser.useDshSidebar'"), '面板没写 browser.useDshSidebar')
   assert.ok(page.includes('DSH 侧边浏览器'), '缺「DSH 侧边浏览器」说明文案')
