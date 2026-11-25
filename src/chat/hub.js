@@ -5,13 +5,11 @@
 
 import { randomUUID } from 'node:crypto'
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { isAbsolute, join, resolve } from 'node:path'
-import { homedir, tmpdir } from 'node:os'
-import { fileURLToPath } from 'node:url'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { homedir } from 'node:os'
 import { ownerAuthorizationRevision } from '../core/config.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
-import { gifFrames } from '../core/image-info.js'
 import { parseReply, bubbleDelay, wantsVoice, itemsToLine, deliveredItems, cleanOutboundText, cleanOutboundSegments, capOutboundText, isSilence } from './reply.js'
 import { CHAT_STYLE_INSTRUCTION, polishChatProse } from './reply-style.js'
 import { decideGroupReply, engagedHint, pickAutoReply, policyFor, sameNameNote, topicRelevance } from './group-policy.js'
@@ -23,11 +21,10 @@ import { asrConfigured, transcribeAudio } from '../voice/asr.js'
 import { mimeOf } from '../core/image-info.js'
 import { normalizeForMatch } from '../security/leak-guard.js'
 import { forwardBody } from '../channels/qq/forward.js'
-import { findFfmpeg, findSharp, shrinkImage, shrinkWithSharp } from '../core/img.js'
 import { redact } from '../core/redact.js'
 import { askModel, defaultModel, pickReasoningEffort, modelVision, modelContextWindow } from '../core/llm.js'
 import { resolveChatModel } from './chat-model.js'
-import { stripFaceTags, splitSpeakable } from './tags.js'
+import { stripFaceTags } from './tags.js'
 import { expandMentions, hasMention } from './mentions.js'
 import { cleanContent, cleanText } from '../core/text.js'
 import { createRecentMedia } from './recent-media.js'
@@ -37,7 +34,7 @@ import { createQqChannel } from '../channels/qq/index.js'
 import { takeInterim, reasoningOf, rescueFromThinking } from './steps.js'
 import { withPromptCapture, currentPromptSources, memoryPromptRanges } from '../security/leak-guard.js'
 import { createFileRelay } from './file-relay.js'
-import { FILE_TIMEOUT_MS, fileRootsOf, insideRoots, checkSendableFile } from './file-policy.js'
+import { checkSendableFile } from './file-policy.js'
 import { createFileSender } from './send-file.js'
 import { localImageBlocked } from './image-policy.js'
 import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
@@ -47,7 +44,7 @@ import { createImageSender } from './send-image.js'
 import { createOnDelivered } from './on-delivered.js'
 import { createReplyJournal } from './reply-journal.js'
 import { createQuoteResolver } from './quote.js'
-import { inlineLabel, indentBody, quoteWho, quoteBody, quoteWhen, quoteInline } from './quote-format.js'
+import { inlineLabel, indentBody, quoteWho, quoteInline } from './quote-format.js'
 import { createReferenceTools } from './reference.js'
 import { createTranscriber } from './transcribe.js'
 import { createImageTools } from './images.js'
@@ -230,7 +227,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       if (!(chance > 0) || !msg.messageId || msg.messageId === '0') return
       // 心智核心在：想不想贴、贴哪种由她（睡着、讨厌、正生 ta 气就不贴；按心情和这条在说什么挑）
       let wish = null
-      try { wish = mind?.reactWish?.({ chatId: msg.chatId, userId: msg.userId, text: msg.text }) || null } catch (error) {}
+      try { wish = mind?.reactWish?.({ chatId: msg.chatId, userId: msg.userId, text: msg.text }) || null } catch {}
       if (Math.random() >= chance * (wish ? wish.scale : mood().sticker)) return
       const cap = cfg.stickers?.reactMaxPerHour ?? 10
       const ts = Date.now()
@@ -255,7 +252,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       reactStamps.set(msg.chatId, recent)
       log.info(`${msg.chatId}：给这条消息贴了个「${name}」（${id}）${wish ? '｜' + wish.why : ''}`)
       // 贴表情也是她做过的事：记进她的经历（不发消息）
-      try { mind?.said?.({ chatId: msg.chatId, message: `（给${msg.nickname || msg.userId}刚才那条消息贴了个「${name}」）`, kind: 'reaction' }) } catch (error) {}
+      try { mind?.said?.({ chatId: msg.chatId, message: `（给${msg.nickname || msg.userId}刚才那条消息贴了个「${name}」）`, kind: 'reaction' }) } catch {}
     } catch (error) {
       log.debug?.('贴表情失败：', error?.message || error)
     }
@@ -456,10 +453,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   })
 
   // ---------- 盯 DSH 会话：一轮结束就发 ----------
-  function textOf(message) {
-    if (!message || !Array.isArray(message.content)) return ''
-    return message.content.filter((b) => b && b.type === 'text' && typeof b.text === 'string').map((b) => b.text).join('\n').trim()
-  }
+
 
   /** 记下这个会话最近一次请求的输入量和时间（换新会话用）。 */
   function noteUsage(chatId, key, usage) {
@@ -496,7 +490,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       // 查群名是锦上添花：失败就退回群号，别在网关抖动时白等重试
       const info = await channelOf(chatId)?.group?.(chatId)
       if (info?.name) groupNames.set(key, info.name)
-    } catch (error) {}
+    } catch {}
     return groupNames.get(key) || gid
   }
 
@@ -587,7 +581,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
   function attentionBlocked(chatId, p) {
     let a = null
-    try { a = mind?.attention?.() } catch (error) {}
+    try { a = mind?.attention?.() } catch {}
     if (!a?.single) return false
     if (a.ownerCuts && ownerIn(p)) return false
     return [...busy.keys()].some((k) => k !== chatId && !k.startsWith('system:') && isBusy(k))
@@ -903,7 +897,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     }
     try {
       if (dsh.sessions && typeof dsh.sessions.flush === 'function') await dsh.sessions.flush(agent.session)
-    } catch (error) {}
+    } catch {}
     if (receipt) return receipt
   }
 
@@ -990,7 +984,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
       const id = chatOfSession(sessionId)
       const target = parseChat(id)
       return target?.kind === 'private' && isOwner(getConfig(), target.id, id)
-    } catch (error) { return false }
+    } catch { return false }
   }
 
   function turnHasOwner(sessionId) {
@@ -1024,7 +1018,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
         if (!entry) continue
         if (entry.sessionId && sessionKey(entry.sessionId) === key) return chatId
       }
-    } catch (error) {}
+    } catch {}
     return ''
   }
 
@@ -1229,7 +1223,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     for (const done of [...pauses]) done()
     for (const wait of [...replyWaits]) {
       clearTimeout(wait.timer)
-      try { wait.reject(disposedError()) } catch (error) {}
+      try { wait.reject(disposedError()) } catch {}
     }
     replyWaits.clear()
     clearSlowNotices()
@@ -1332,7 +1326,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     pickAutoReply, quoteImages, quoteInline, quoteWho, quotedInfo, sameNameNote, senderLabel
   })
 
-  const { enqueue, flush, scheduleAttentionRetry, recordSecretary } = createAttentionQueue({
+  const { enqueue, flush } = createAttentionQueue({
     MAX_MESSAGE_IMAGES, RANK, askModel, attentionBlocked, attentionPriority, attentionQueue,
     attentionRetryTimers, bump, busy, defaultModel, dsh, flushing, getConfig, getMind: () => mind,
     groupBuf, groupEngagedRun, groupInterjects, groupKey, groupMusts,
@@ -1342,12 +1336,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     turnEpochs, writeJson,
   })
 
-  const { ensureWorkspace, controller, platformLabel, titleFor, workspacePathOf, isCurrentWorkspacePath } = createWorkspaceHelpers({
+  const { ensureWorkspace, controller, titleFor, workspacePathOf, isCurrentWorkspacePath } = createWorkspaceHelpers({
     channels, chatInfo: (...a) => chatInfo(...a), dsh, getConfig, groupKey, groupNames, log, mkdirSync,
     ownerLabel, parseChat, workspaceDirOf, workspaceTitleOf: (...a) => workspaceTitleOf(...a),
   })
 
-  const { createSession, createSessionNow, recordAttachFailure } = createSessionCreate({
+  const { createSession, recordAttachFailure } = createSessionCreate({
     SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError: (...a) => backoffError(...a),
     cleanOrphan: (...a) => cleanOrphan(...a), controller, ensureWorkspace, getConfig, getMind: () => mind,
     isDisposed: () => disposed, log, map, parseChat, presetFor, recoverSessionAttach: (...a) => recoverSessionAttach(...a),
@@ -1359,7 +1353,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     availableModels, controller, defaultModel, dsh, getConfig, hooks, log, pickReasoningEffort, resolveChatModel,
   })
 
-  const { resolveAgent, encodeForHandoff, waitForHandoff, agentFor } = createAgentResolve({
+  const { encodeForHandoff, waitForHandoff, agentFor } = createAgentResolve({
     applyModel, archiveQuietly: (...a) => archiveQuietly(...a), assertActive, audienceRevision, controller,
     createSession, dsh, getConfig, getMind: () => mind, keyOf, levelFor, log, map, modelContextWindow,
     mount: (...a) => mount(...a), optionalService, parseChat, presetFor, resolveTarget, running, saveMap,
@@ -1377,8 +1371,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   })
 
   const {
-    sessionFailure, backoffError, systemSessionCooldown, freshSessionId, workspaceHasSession,
-    recoveryWorkspace, recoveredAttachStillCurrent, recoverSessionAttach, cleanOrphan,
+    sessionFailure, backoffError, systemSessionCooldown, recoveredAttachStillCurrent, recoverSessionAttach, cleanOrphan,
   } = createSessionRecovery({
     SESSION_BACKOFF, assertActive, dsh, isCurrentWorkspacePath, log, map, sessionFailures, sessionKey,
     sessionToChat, systemFailures, workspacePathOf, recordAttachFailure,
