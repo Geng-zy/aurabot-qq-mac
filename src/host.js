@@ -60,6 +60,7 @@ import { registerLocalRoutes } from './features/local-routes.js'
 import { registerModuleRoutes } from './features/module-routes.js'
 import { registerAvatarRoutes } from './features/avatar-routes.js'
 import { registerNoticeRoutes } from './features/notice-routes.js'
+import { registerPanelCoreRoutes } from './features/panel-core-routes.js'
 import { registerBridgeRoutes } from './features/bridge-routes.js'
 import { registerMindLiveRoutes } from './features/mind-live-routes.js'
 import { registerMindPeopleRoutes } from './features/mind-people-routes.js'
@@ -696,35 +697,11 @@ export function apply(ctx) {
 
   // ---------- 面板：对外接口聚合 ----------
 
-  route('/state', async () => overview())
-  // token 用量与花费：今日 / 昨日 / 近 7 天 / 近 30 天，各带模块明细
-  // ?range=today|yesterday|7|30|all —— 面板点哪张指标卡就按哪个区间出明细
-  route('/usage', async (req) => ({ ok: true, ...usageReport({ range: query(req).range || '7' }) }))
-
-  route('/save', async (req) => {
-    const saved = await applyPanelSave({
-      body: await readBody(req),
-      getConfig: () => cfg,
-      setConfig,
-      mergeFromPanel,
-      clearReasoningCache,
-      clearVisionCache,
-      startWatchdog: () => setTimeout(safe(watchdog, '看门狗'), 100),
-      qq,
-      log,
-      mods,
-      hub,
-    })
-    return { ...(await overview()), message: saved.message }
-  })
-
-  // 手动把调试会话建出来（默认一开调试就自动建，这个是为了重开面板后能再确认一次）
-  route('/debug/session', async () => {
-    try {
-      return await hub.ensureDebugSession()
-    } catch (error) {
-      return { ok: false, message: error.message }
-    }
+  registerPanelCoreRoutes({
+    route, readBody, query, getConfig: () => cfg, setConfig, overview, usageReport,
+    applyPanelSave, mergeFromPanel, clearReasoningCache, clearVisionCache,
+    startWatchdog: () => setTimeout(safe(watchdog, '看门狗'), 100),
+    qq, log, mods, hub,
   })
 
   registerKnowledgeRoutes({ route, readBody, query, knowledge })
