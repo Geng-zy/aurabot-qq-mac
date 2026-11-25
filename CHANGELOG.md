@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.2
+
+- client 导航定义（NAV_GROUPS / TABS / visibleTabs）拆到 client/parts/navigation.js。
+- client.template.js 2359 → 2222 行；页面片段 51 个。
+- 回归：面板/client 构建测试通过。
+
 ## 1.6.1
 
 - 消息段最终出口 sendSegments 从 hub.js 拆到 chat/send-segments.js。
