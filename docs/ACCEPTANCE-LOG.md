@@ -75,4 +75,23 @@ dsh-node --test test/purge-scope-integration.test.js test/persona-hoist.test.js 
 **本轮未做真实外发**：按总控要求，QQ/Telegram 的真实消息只在指定账号/会话/动作时发送。
 语音条的网关接受性在 1.6.31 开发期已用真实 `send_private_msg` 验过（`retcode 0`），本批不重复外发。
 
-**候选包**：`/tmp/dsh-aurabot-qq-1.6.31.tgz`（最终 sha256 见本批提交说明与 GitHub Release）。
+### 6. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.31.tgz
+条目      437（全部在 package/ 下，无日志/配置/备份/DSH 状态）
+字节      19,624,472
+sha256    214aaa95ee38929db9c2f74e87e7c33e6414655886af507da3473cd3628a88dd
+提交      0eee0b5（main）
+tag       v1.6.31 → 0eee0b5
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.31
+资产      dsh-aurabot-qq-1.6.31.tgz  19,624,472 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45678269153（上一个 dispatch 45635963413 的
+          macos-latest 失败原因是 "job was not acquired by Runner"，GitHub 容量问题，非代码）
+```
+
+Mini 上跑的就是这份 sha256 的包：安装后 `src/host.js`、`src/voice/duration.js`、
+`src/chat/voice-file.js`、`client/client.js`、`docs/REPO-INVENTORY.md` 五个文件与 Air 逐一同哈希。
+
+**push 事件没有自动触发 CI**（0eee0b5 推送后 `gh run list` 无新记录，actions 权限为 enabled），
+所以用 `workflow_dispatch` 显式触发，与以往做法一致。
