@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.95
+
+- client.js 建立「模板 + 页面片段 + 构建」结构，DSH 仍只加载单文件入口。
+- 备份页、知识库页先拆到 client/parts/；新增 scripts/build-client.mjs 和构建回归。
+- 回归：client 构建测试通过，生成文件与拆分前一致。
+
 ## 1.5.94
 
 - onMessage 主体从 hub.js 拆到 chat/on-message.js。
