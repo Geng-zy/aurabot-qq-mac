@@ -46,6 +46,7 @@ import { createStickerSender } from './send-sticker.js'
 import { createImageSender } from './send-image.js'
 import { createOnDelivered } from './on-delivered.js'
 import { createReplyJournal } from './reply-journal.js'
+import { createQuoteResolver } from './quote.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -153,7 +154,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const SYSTEM_STUCK_GRACE_MS = 5 * 60_000
   const SYSTEM_BACKOFF = [2, 5, 15, 30, 60, 120].map((minutes) => minutes * 60_000)
   const groupBuf = new Map() // groupId → [{t, uid, nick, text, at, replyId, quote}]
-  const quoteCache = new Map() // chatId|replyId → { ok, who, uid, text, images, stickers, records, isBot }  引用消息解析缓存
   const groupInterjects = new Map() // groupId → [t]  她主动开口（插话、接话）的时间
   const groupSaid = new Map() // groupId → [t]  她每次在群里说话的时间（刹车用）
   const groupMusts = new Map() // groupId → [t]  她因被 @/叫到而必回的时间（每小时必回上限用；管理员触发的不计入）
@@ -1573,48 +1573,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   // ---------- 引用消息 ----------
-  // QQ 的引用段只有 message_id，正文要用 get_msg 再取一次。取到后把「谁、说了什么、几张图」带上；
-  // 取不到也记一笔，让她知道「这条引用没读到」，可以如实说没看到（别装作看见了）。
-  const QUOTE_CACHE_MAX = 200
-  async function quotedInfo(replyId, ctx = null) {
-    const id = String(replyId || '')
-    if (!id) return null
-    const chatId = ctx?.chatId || (ctx?.groupId ? `group:${ctx.groupId}` : ctx?.userId ? `private:${ctx.userId}` : '')
-    const key = `${chatId}|${id}`
-    if (quoteCache.has(key)) {
-      const cached = quoteCache.get(key)
-      cached.at = Date.now()
-      quoteCache.delete(key)
-      quoteCache.set(key, cached)
-      return cached
-    }
-    const out = { ok: false, who: '', uid: '', text: '', images: [], stickers: [], records: 0, isBot: false, at: 0, chatId, time: 0 }
-    try {
-      const channel = channelOf(chatId)
-      if (!channel?.quote) throw new Error('这个平台读不了引用')
-      const q = await channel.quote(chatId, id)
-      // 被引用那条消息的发生时间。引用里要标出来，否则模型拿「今晚/昨天」
-      // 去对历史引用时会按当前时间算错（2026-11-04 实测：11-02 的话被当成「今晚」）。
-      out.time = q.time
-      out.uid = q.userId
-      out.who = q.nickname
-      const parsed = q.msg
-      out.text = String(parsed.text || '').trim().slice(0, 300)
-      out.images = parsed.images || []
-      out.stickers = parsed.stickers || []
-      out.records = (parsed.records || []).length
-      out.isBot = out.uid === String(selfId || getConfig().botQQ)
-      out.ok = true
-      out.at = Date.now()
-    } catch (error) {
-      log.debug(`引用消息没拉到（${id}）：`, error.message)
-    }
-    if (out.ok) {
-      if (quoteCache.size >= QUOTE_CACHE_MAX) quoteCache.delete(quoteCache.keys().next().value)
-      quoteCache.set(key, out)
-    }
-    return out
-  }
+  const quotedInfo = createQuoteResolver({ channelOf, getConfig, selfId, log })
+  const quoteCache = quotedInfo.cache
 
   const senderLabel = (chatId, uid) => isOwner(getConfig(), uid, chatId) ? '管理员本人' : '其他人'
   const inlineLabel = (name) => String(name || '').replace(/[\r\n\u2028\u2029【】]/g, ' ').slice(0, 100)
