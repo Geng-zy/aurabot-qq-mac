@@ -35,7 +35,7 @@ export function createNotifyEvents({
   async function onPoke(poke) {
     if (isDisposed() || !poke) return
     if (hooks?.poke) {
-      try { if (await hooks.poke(poke.raw || poke)) return } catch (error) {}
+      try { if (await hooks.poke(poke.raw || poke)) return } catch {}
     }
     if (isDisposed()) return
     const group = poke.groupId
@@ -52,7 +52,7 @@ export function createNotifyEvents({
     try {
       const info = group ? await channel.member(chatId, poker) : await channel.user(poker)
       nickname = info?.card || info?.nickname || poker
-    } catch (error) {}
+    } catch {}
     if (isDisposed()) return
     log.info(`${chatId}：${nickname} 戳了戳她`)
     await onMessage(channel.pokeMessage(poke, nickname))

@@ -101,7 +101,7 @@ export function createFileRelay({ host = () => 'host.docker.internal', ttlMs = 1
   function close() {
     closed = true
     offers.clear()
-    try { server?.close(); server?.closeAllConnections() } catch (error) {}
+    try { server?.close(); server?.closeAllConnections() } catch {}
     server = null
     port = 0
   }

@@ -115,7 +115,7 @@ export function createModuleLoader({ state, builtinDefs, builtins, getConfig, se
       }
     }
     // 旧快照删掉（加载过的代码已经在内存里，删文件不影响）
-    try { for (const n of readdirSync(root)) if (join(root, n) !== snap) rmSync(join(root, n), { recursive: true, force: true }) } catch (error) {}
+    try { for (const n of readdirSync(root)) if (join(root, n) !== snap) rmSync(join(root, n), { recursive: true, force: true }) } catch {}
     const mod = await import(pathToFileURL(join(snap, relative(u.dir, u.file))).href)
     return { def: mod.default, stamp }
   }

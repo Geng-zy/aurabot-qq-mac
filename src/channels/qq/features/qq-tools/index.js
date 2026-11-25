@@ -35,7 +35,7 @@ async function resolveGroup(onebot, allow, wanted, showNames) {
   const text = String(wanted).trim()
   if (allowed.includes(text)) return { id: text }
   let list = []
-  try { list = await onebot.call('get_group_list', {}, { timeoutMs: 15000 }) } catch (error) {}
+  try { list = await onebot.call('get_group_list', {}, { timeoutMs: 15000 }) } catch {}
   const groups = (Array.isArray(list) ? list : []).filter((g) => allowed.includes(String(g.group_id)))
   const hits = groups.filter((g) => String(g.group_name || '').includes(text))
   if (hits.length === 1) return { id: String(hits[0].group_id) }

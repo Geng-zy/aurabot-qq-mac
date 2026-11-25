@@ -125,7 +125,7 @@ export function installPersonaHoist(ctx, { llm, isAurabotRequest, log } = {}) {
       log?.debug?.('包 adapter 失败：', error.message)
       return false
     }
-    restores.push(() => { for (const fn of restore) { try { fn() } catch (error) { /* ignore */ } } })
+    restores.push(() => { for (const fn of restore) { try { fn() } catch { /* ignore */ } } })
     return true
   }
 
@@ -143,12 +143,12 @@ export function installPersonaHoist(ctx, { llm, isAurabotRequest, log } = {}) {
     offAdapters = ctx.on('llm/adapters-updated', () => {
       try {
         if (adapters instanceof Map) for (const entry of adapters.values()) wrapAdapter(entry?.adapter)
-      } catch (error) { /* ignore */ }
+      } catch { /* ignore */ }
     })
-  } catch (error) { /* ignore */ }
+  } catch { /* ignore */ }
 
   return () => {
-    try { if (typeof offAdapters === 'function') offAdapters() } catch (error) { /* ignore */ }
+    try { if (typeof offAdapters === 'function') offAdapters() } catch { /* ignore */ }
     for (const restore of restores) restore()
   }
 }

@@ -66,7 +66,7 @@ export function breezeSession() {
 
 /** 清掉保存的会话（换账号时用）。 */
 export function clearBreezeSession() {
-  try { writeJson(sessionFile(), {}) } catch (error) {}
+  try { writeJson(sessionFile(), {}) } catch {}
 }
 
 /**

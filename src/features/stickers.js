@@ -288,7 +288,7 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
     if (fromQQ && it.emojiId && !getConfig().dryRun) {
       try { await deleteCustomFace(it.emojiId) } catch (error) { log.warn('从 QQ 收藏里删除失败：', error.message) }
     }
-    try { unlinkSync(join(dir(), it.file)) } catch (error) {}
+    try { unlinkSync(join(dir(), it.file)) } catch {}
     lib.items = lib.items.filter((i) => i.md5 !== md5)
     saveLibrary(lib)
     return { ok: true }
@@ -307,7 +307,7 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
         try { await deleteCustomFace(it.emojiId) } catch (error) { qqFailed++; log.warn('从 QQ 收藏里删除失败：', error.message) }
       }
     }
-    for (const it of found) { try { unlinkSync(join(dir(), it.file)) } catch (error) {} }
+    for (const it of found) { try { unlinkSync(join(dir(), it.file)) } catch {} }
     const gone = new Set(found.map((i) => i.md5))
     // 重新读一遍再写：后台可能刚给别的表情起完名，别把那些改动冲掉
     const fresh = loadLibrary()

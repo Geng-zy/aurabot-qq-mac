@@ -7,7 +7,7 @@ export function createGroupContext({ IMAGE_SOURCE_PREFIX, MAX_MESSAGE_IMAGES, an
       for (let i = 0; i < imgs.length && p.images.length < MAX_MESSAGE_IMAGES; i++) p.images.push({ type: 'image', data: imgs[i].data, mediaType: imgs[i].mediaType, name: `qq-${msg.messageId}-${i + 1}`, groupEntry: entry })
       if (imgs.length && entry) entry.mediaPending = true // 这些图已经进 pending.images，groupPrompt 不用再带
       if (animatedNote(imgs) && (await canSeeFor(p.chat)) !== false) p.images.push({ type: 'text', text: animatedNote(imgs) })
-    } catch (error) {}
+    } catch {}
   }
 
   // 群聊这一段里群友发的图：只带最近 5 分钟内、最多 2 张（#181）。触发回复那条的图走 pending.images，这里跳过。

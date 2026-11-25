@@ -16,7 +16,7 @@ export function pickDiaryImage ({ now = new Date() } = {}) {
       const p = paintingPath(paintings[0].file)
       if (p) return p
     }
-  } catch (error) {}
+  } catch {}
   // 2) 今天收进表情库的表情包：最新一张（表情库只有表情，不会把大照片带上空间）
   try {
     const items = loadLibrary().items.filter((i) => Number(i.at) >= t0)
@@ -24,6 +24,6 @@ export function pickDiaryImage ({ now = new Date() } = {}) {
       const p = stickerPath(items[items.length - 1])
       if (p) return p
     }
-  } catch (error) {}
+  } catch {}
   return ''
 }

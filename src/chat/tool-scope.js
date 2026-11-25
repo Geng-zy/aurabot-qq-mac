@@ -60,7 +60,7 @@ export function createToolScope({ log } = {}) {
   function releaseAgent(agent) {
     for (const [key, gate] of gates) {
       if (gate.agent !== agent) continue
-      try { if (typeof gate.off === 'function') gate.off() } catch (error) { /* ignore */ }
+      try { if (typeof gate.off === 'function') gate.off() } catch { /* ignore */ }
       gates.delete(key)
     }
   }
@@ -68,7 +68,7 @@ export function createToolScope({ log } = {}) {
   /** 撤掉全部闸（插件卸载时用）。 */
   function closeAll() {
     for (const [key, gate] of gates) {
-      try { if (typeof gate.off === 'function') gate.off() } catch (error) { /* ignore */ }
+      try { if (typeof gate.off === 'function') gate.off() } catch { /* ignore */ }
       gates.delete(key)
     }
   }

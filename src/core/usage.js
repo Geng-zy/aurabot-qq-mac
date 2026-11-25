@@ -284,7 +284,7 @@ function saveSoon() {
   if (saveTimer) return
   saveTimer = setTimeout(() => {
     saveTimer = null
-    try { writeJson(file(), state) } catch (error) {}
+    try { writeJson(file(), state) } catch {}
   }, SAVE_DELAY)
   saveTimer.unref?.()
 }

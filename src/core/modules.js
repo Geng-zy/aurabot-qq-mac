@@ -51,7 +51,7 @@ export async function loadLib() {
   walk(SRC)
   for (const f of files) {
     const key = relative(SRC, f).split(sep).join('/')
-    try { libCache.set(key, await import(pathToFileURL(f).href)) } catch (error) {}
+    try { libCache.set(key, await import(pathToFileURL(f).href)) } catch {}
   }
   return libCache
 }

@@ -147,7 +147,7 @@ function balancedSpans (raw, maxLen) {
 
 /** 严格 JSON 不行时，容忍单引号 / 无引号 key / Python 的 True/False/None（模型常这么写调用）。 */
 function parseJsonLoose (text) {
-  try { return JSON.parse(text) } catch (error) {}
+  try { return JSON.parse(text) } catch {}
   let t = String(text)
   t = t.replace(/'((?:[^'\\]|\\.)*)'/g, (m, inner) => JSON.stringify(inner.replace(/\\'/g, "'")))
   t = t.replace(/\bTrue\b/g, 'true').replace(/\bFalse\b/g, 'false').replace(/\bNone\b/g, 'null')

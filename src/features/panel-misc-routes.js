@@ -41,7 +41,7 @@ export function registerPanelMiscRoutes({
   // 版本更新交给 DSH 插件管理器；这里只保留只读的更新说明。
   route('/changelog', async () => {
     let text = ''
-    try { text = readFileSync(join(root, 'CHANGELOG.md'), 'utf8') } catch (error) {}
+    try { text = readFileSync(join(root, 'CHANGELOG.md'), 'utf8') } catch {}
     return { ok: true, version, notes: changelogSection(text, version) }
   })
 

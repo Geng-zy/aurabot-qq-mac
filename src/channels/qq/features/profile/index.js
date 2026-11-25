@@ -82,7 +82,7 @@ export default {
       } catch (error) {
         lastError = error
       } finally {
-        try { unlinkSync(tmp) } catch (error) {}
+        try { unlinkSync(tmp) } catch {}
       }
       return { ok: false, message: '换头像失败：网关不接受这张图（' + (lastError && lastError.message ? lastError.message : '未知错误') + '）' }
     }

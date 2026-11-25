@@ -34,7 +34,7 @@ export function registerAvatarRoutes({
   })
 
   route('/avatar/reset', async () => {
-    try { unlinkSync(avatarFile()) } catch (error) {}
+    try { unlinkSync(avatarFile()) } catch {}
     return { ok: true, message: '恢复成默认头像了', avatar: avatarInfo() }
   })
 

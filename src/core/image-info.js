@@ -37,7 +37,7 @@ export function imageSize(buf) {
         i += 2 + len
       }
     }
-  } catch (error) {}
+  } catch {}
   return { width: 0, height: 0 }
 }
 

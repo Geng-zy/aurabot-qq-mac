@@ -25,6 +25,6 @@ export function createReplyJournal({
       setLastBotToOwner({ at: Date.now(), text: speech.map((i) => i.value).join('\n') })
     }
     try { onActivity?.({ kind: 'out', chatId, reply: said, userText }) }
-    catch (error) { /* 活动通知失败不影响发送 */ }
+    catch { /* 活动通知失败不影响发送 */ }
   }
 }

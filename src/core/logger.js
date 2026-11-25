@@ -24,7 +24,7 @@ export function createLogger({ dsh, retainDays = 14 } = {}) {
         const p = join(dir(), name)
         if (now - statSync(p).mtimeMs > retainDays * 86400_000) unlinkSync(p)
       }
-    } catch (error) {}
+    } catch {}
   }
 
   function write(level, area, message) {
@@ -38,13 +38,13 @@ export function createLogger({ dsh, retainDays = 14 } = {}) {
     if (ring.length > RING) ring.shift()
     try {
       appendFileSync(join(dir(), `aurabot-${day}.log`), `${day} ${time} [${level}] [${area}] ${text}\n`, 'utf8')
-    } catch (error) {}
+    } catch {}
     try {
       const fn = level === 'error' ? dsh?.logger?.error : level === 'warn' ? dsh?.logger?.warn : dsh?.logger?.info
       if (level !== 'debug') fn?.call(dsh.logger, `aurabot[${area}]: ${text}`)
-    } catch (error) {}
+    } catch {}
     for (const l of listeners) {
-      try { l(entry) } catch (error) {}
+      try { l(entry) } catch {}
     }
     cleanup()
     return entry

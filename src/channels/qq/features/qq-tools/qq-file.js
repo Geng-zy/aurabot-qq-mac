@@ -11,7 +11,7 @@ const TEXT_EXT = new Set(['.txt', '.md', '.markdown', '.log', '.csv', '.tsv', '.
 /** Windows 记事本存的中文常是 GBK：UTF-8 解不开就按 GB18030 再解。 */
 function decodeText(buf) {
   if (buf.includes(0)) return null
-  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf) } catch (error) {}
+  try { return new TextDecoder('utf-8', { fatal: true }).decode(buf) } catch {}
   try { return new TextDecoder('gb18030', { fatal: true }).decode(buf) } catch (error) { return null }
 }
 

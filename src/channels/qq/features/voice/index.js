@@ -29,7 +29,7 @@ export default {
         try {
           const file = await local.call('tts', { text }, { readResult: localAudioFile })
           return { file, engine: 'local' }
-        } catch (error) {}
+        } catch {}
       }
       return textToSpeech(text, voice, api.log)
     }

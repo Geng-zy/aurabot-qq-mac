@@ -31,7 +31,7 @@ export function createModuleRegistry({ state, builtinDefs, getConfig, setConfig,
       try {
         const r = typeof b === 'function' ? b({ chat: { chatId: 'private:0', kind: 'private', userId: '0' }, level: 'full', sessionId: '' }) : b
         for (const t of [].concat(r || [])) if (t?.name) names.push(t.name)
-      } catch (error) {}
+      } catch {}
     }
     rec.toolNamesCache = names
     return names
@@ -92,7 +92,7 @@ export function createModuleRegistry({ state, builtinDefs, getConfig, setConfig,
       const types = readFileSync(join(BUILTIN_DIR, TYPES), 'utf8')
       const tdest = join(userDir(), TYPES)
       if (!existsSync(tdest) || readFileSync(tdest, 'utf8') !== types) writeFileSync(tdest, types, 'utf8')
-    } catch (error) {}
+    } catch {}
   }
 
   function create(id, name) {

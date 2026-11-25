@@ -54,7 +54,7 @@ function outDir() {
       const p = join(d, n)
       if (Date.now() - statSync(p).mtimeMs > 86400_000) unlinkSync(p)
     }
-  } catch (error) {}
+  } catch {}
   return d
 }
 
@@ -104,7 +104,7 @@ export async function installEdge(log, { root = '' } = {}) {
     if (r.code !== 0) return { ok: false, message: '安装 edge-tts 失败：' + r.err.slice(-300) }
     return { ok: true, message: '语音组件装好了' }
   } finally {
-    try { rmSync(cache, { recursive: true, force: true }) } catch (error) {}
+    try { rmSync(cache, { recursive: true, force: true }) } catch {}
   }
 }
 
@@ -117,7 +117,7 @@ async function edgeSynth(text, voice, rate, pitch) {
   if (rate && rate !== '+0%') args.push(`--rate=${rate}`)
   if (pitch && pitch !== '+0Hz') args.push(`--pitch=${pitch}`)
   const r = await run(pyExe(), args, { timeoutMs: 60000 })
-  try { unlinkSync(txt) } catch (error) {}
+  try { unlinkSync(txt) } catch {}
   if (r.code !== 0 || !existsSync(file) || statSync(file).size < 500) {
     throw new Error('edge-tts 失败：' + (r.err || r.out).slice(-200))
   }
@@ -143,7 +143,7 @@ async function macSynth(text) {
   const r = await run('say', [...(voice ? ['-v', voice] : []), '-o', aiff, '-f', '-'], { timeoutMs: 60000, input: text })
   if (!existsSync(aiff)) throw new Error('macOS 语音失败：' + r.err.slice(-200))
   const c = await run('afconvert', ['-f', 'WAVE', '-d', 'LEI16@24000', aiff, file], { timeoutMs: 60000 })
-  try { unlinkSync(aiff) } catch (error) {}
+  try { unlinkSync(aiff) } catch {}
   if (!existsSync(file) || statSync(file).size < 1000) throw new Error('macOS 语音转换失败：' + (c.err || r.err).slice(-200))
   return file
 }
@@ -345,7 +345,7 @@ export async function httpSynth(text, c) {
   const looksJson = ctype.includes('json') || buf[0] === 0x7b
   if (looksJson) {
     let parsed = null
-    try { parsed = JSON.parse(buf.toString('utf8')) } catch (error) {}
+    try { parsed = JSON.parse(buf.toString('utf8')) } catch {}
     if (!parsed) throw new Error('返回的是 JSON 但解析失败：' + buf.toString('utf8').slice(0, 160))
     const code = parsed.code ?? parsed.status ?? parsed.retcode
     const b64 = pickAudioFromJson(parsed)

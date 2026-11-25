@@ -81,7 +81,7 @@ export function parseAuthInput (input) {
   const v = String(input || '').trim()
   if (!v) return {}
   let url = null
-  try { url = new URL(v) } catch (error) {}
+  try { url = new URL(v) } catch {}
   if (url) {
     // 1455 打不开时浏览器地址栏里仍是一条 localhost 回调地址，这里不强校验主机名
     return {
@@ -140,11 +140,11 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
     try {
       writeFileSync(tmp, JSON.stringify(cred), { encoding: 'utf8', mode: 0o600, flag: 'wx' })
       renameSync(tmp, target)
-    } finally { try { if (existsSync(tmp)) unlinkSync(tmp) } catch (error) {} }
+    } finally { try { if (existsSync(tmp)) unlinkSync(tmp) } catch {} }
   }
 
   function clear () {
-    try { if (existsSync(file())) unlinkSync(file()) } catch (error) {}
+    try { if (existsSync(file())) unlinkSync(file()) } catch {}
   }
 
   function status () {
@@ -213,7 +213,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
     p.email = cred.email || ''
     p.verifier = ''
     clearTimeout(p.timer)
-    try { p.server?.close() } catch (error) {}
+    try { p.server?.close() } catch {}
     log?.info?.('ChatGPT 订阅登录成功')
     return cred
   }
@@ -236,7 +236,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
           const code = url.searchParams.get('code') || ''
           if (!code) return html(400, '没有 code')
           html(200, '<h2>已收到授权结果</h2><p>回到 Aurabot 面板查看登录结果。</p>')
-          try { server.close() } catch (error) {}
+          try { server.close() } catch {}
           settle({ code })
         } catch (error) {
           html(500, '处理回调出错')
@@ -258,7 +258,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
     pending = p
     const cb = await startCallbackServer(state)
     if (disposed || pending !== p || p.epoch !== epoch) {
-      try { cb.server?.close() } catch (error) {}
+      try { cb.server?.close() } catch {}
       throw new Error('登录会话已取消或模块已卸载')
     }
     p.timer = setTimeout(() => { if (pending === p && ['waiting', 'exchanging'].includes(p.status)) cancelLogin('登录已超时，请重新登录') }, 10 * 60_000)
@@ -270,7 +270,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
           if (r.error) throw new Error('授权失败：' + r.error)
           await exchange(r.code, p)
         } catch (error) {
-          if (pending === p && p.epoch === epoch && !disposed) { p.status = 'error'; p.error = error.message; clearTimeout(p.timer); try { p.server?.close() } catch (error) {} }
+          if (pending === p && p.epoch === epoch && !disposed) { p.status = 'error'; p.error = error.message; clearTimeout(p.timer); try { p.server?.close() } catch {} }
         }
       }).catch(() => {})
     } else {
@@ -293,7 +293,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
     if ((String(input).includes('code=') || parsed.state) && parsed.state !== p.state) throw new Error('state 不匹配，请重新登录')
     try { return await exchange(parsed.code, p) }
     catch (error) {
-      if (pending === p && p.epoch === epoch && !disposed) { p.status = 'error'; p.error = error.message; clearTimeout(p.timer); try { p.server?.close() } catch (error) {} }
+      if (pending === p && p.epoch === epoch && !disposed) { p.status = 'error'; p.error = error.message; clearTimeout(p.timer); try { p.server?.close() } catch {} }
       throw error
     }
   }
@@ -308,7 +308,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
     epoch++
     refreshJob = null
     clearTimeout(pending?.timer)
-    try { pending?.server?.close?.() } catch (error) {}
+    try { pending?.server?.close?.() } catch {}
     if (pending && ['waiting', 'exchanging'].includes(pending.status)) { pending.status = 'error'; pending.error = why || '已取消'; pending.verifier = '' }
     return { ok: true }
   }

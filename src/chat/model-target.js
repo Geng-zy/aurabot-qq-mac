@@ -7,12 +7,12 @@ export function createModelTarget({ availableModels, controller, defaultModel, d
     try {
       const r = resolveChatModel(cfg, chat, typeof availableModels === 'function' ? availableModels() : null)
       if (r) sel = { provider: r.provider, model: r.model, reasoningEffort: r.reasoningEffort || cfg.model.reasoningEffort || '' }
-    } catch (error) {}
+    } catch {}
     if (hooks?.model && chat) {
       try {
         const r = hooks.model(sel, chat)
         if (r && r.provider && r.model) sel = { reasoningEffort: '', ...r }
-      } catch (error) {}
+      } catch {}
     }
     return sel
   }

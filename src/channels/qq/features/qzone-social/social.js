@@ -52,7 +52,7 @@ export function pickFeeds(feeds, selfId, now = Date.now()) {
 
 export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
   // 空间里看到的东西记进流水（chatId = qzone），每次整理记忆时从里面提炼关于好友的事
-  const remember = (who, uin, text) => { try { hub.logChat?.('qzone', who, text, uin) } catch (error) {} }
+  const remember = (who, uin, text) => { try { hub.logChat?.('qzone', who, text, uin) } catch {} }
   const file = () => dataDir('qzone-social.json')
   const load = () => readJson(file(), () => ({ day: '', count: 0, lastRun: 0, replied: {}, seen: [], history: [] }))
   const save = (s) => writeJson(file(), s)

@@ -112,7 +112,7 @@ export function dirSize(dir) {
     for (const e of names) {
       const full = join(d, e.name)
       if (e.isDirectory()) stack.push(full)
-      else try { total += statSync(full).size } catch (error) {}
+      else try { total += statSync(full).size } catch {}
     }
   }
   return total
@@ -266,7 +266,7 @@ export function checkRoot(path) {
     while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe)
     const s = statfsSync(probe)
     freeGB = Math.round((Number(s.bavail) * Number(s.bsize)) / 1024 ** 3 * 10) / 10
-  } catch (error) {}
+  } catch {}
   return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个磁盘只剩 ${freeGB} GB，装完要 5 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
 }
 
@@ -668,7 +668,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
         }
       })
       // 下载缓存用完删掉（几个 GB）；环境里的文件是硬链接 / 复制过去的，删缓存不影响
-      try { rmSync(cacheDir, { recursive: true, force: true }) } catch (error) {}
+      try { rmSync(cacheDir, { recursive: true, force: true }) } catch {}
       install = { ...install, running: false, ok: true, step: '', progress: null, message: `装好了，用时 ${Math.round((Date.now() - install.startedAt) / 60000)} 分钟` }
       log.info('翻唱环境装好了')
     } catch (error) {
@@ -1001,7 +1001,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     const vol = await meanVolume(vocals, signal)
     if (vol < VOCAL_MIN_DB) {
       log.info(`翻唱：「${job.title}」几乎没有人声（${vol.toFixed(0)} dB），像是纯音乐`)
-      try { rmSync(dir, { recursive: true, force: true }) } catch (error) {}
+      try { rmSync(dir, { recursive: true, force: true }) } catch {}
       if (!job.file) markNoVocals(job.songKey)
       if (job.file || job.songId) throw new Error('这首没有人声（像是纯音乐或伴奏版），换一首吧')
       job.skip = [...(job.skip || []), job.songKey]
@@ -1069,7 +1069,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       if (delivered) onSung?.(job.title || job.query, job.chatId)
       job.onResult?.({ ok: delivered, generated, ...(simulated ? { simulated } : {}), summary: message, outcome: 0.8 })
       if (!job.onResult && !delivered && !sent?.queued && !getConfig().dryRun && !getConfig().debug) noticeFail(job, null, message, generated)
-      if (!cfg().keepWork) try { rmSync(r.dir, { recursive: true, force: true }) } catch (error) {}
+      if (!cfg().keepWork) try { rmSync(r.dir, { recursive: true, force: true }) } catch {}
     } catch (error) {
       if (job.workDir && !cfg().keepWork) try { rmSync(job.workDir, { recursive: true, force: true }) } catch {}
       if (job.signal?.aborted) {

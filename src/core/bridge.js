@@ -131,7 +131,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
   }
 
   function clearTools() {
-    for (const off of toolOffs) { try { off() } catch (error) {} }
+    for (const off of toolOffs) { try { off() } catch {} }
     toolOffs = []
     toolNames = []
   }
@@ -184,7 +184,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
     const h = req.headers || {}
     const auth = String(h.authorization || h.Authorization || '')
     let given = auth.startsWith('Bearer ') ? auth.slice(7).trim() : String(h['x-aurabot-token'] || '')
-    if (!given) try { given = new URL(req.url, 'http://x').searchParams.get('token') || '' } catch (error) {}
+    if (!given) try { given = new URL(req.url, 'http://x').searchParams.get('token') || '' } catch {}
     const a = Buffer.from(given)
     const b = Buffer.from(cfg.bridge.token)
     return a.length === b.length && timingSafeEqual(a, b)

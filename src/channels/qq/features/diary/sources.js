@@ -70,7 +70,7 @@ export function localPictures(folder) {
         const caption = clip(basename(file, extname(file)), 60)
         if (!publicText(caption)) continue
         files.push({ id: 'local:' + sourceId(file), kind: 'local', src: file, root, caption, at: stat.mtimeMs, ...archiveMetadata(file) })
-      } catch (error) { /* 文件被移动或无法读取时跳过。 */ }
+      } catch { /* 文件被移动或无法读取时跳过。 */ }
     }
   }
   return files.sort((a, b) => b.at - a.at).slice(0, 60)
@@ -133,7 +133,7 @@ export function collectSources(api, settings, history = [], now = Date.now()) {
   }
   if (settings.stickers) {
     let items = []
-    try { items = api.use('stickers')?.library?.()?.items || [] } catch (error) {}
+    try { items = api.use('stickers')?.library?.()?.items || [] } catch {}
     if (!Array.isArray(items)) items = []
     for (const item of items.slice(-300)) {
       if (!item || typeof item.file !== 'string' || basename(item.file) !== item.file || /[\\/]/.test(item.file) || !/\.(png|jpe?g|gif|webp)$/i.test(item.file)) continue

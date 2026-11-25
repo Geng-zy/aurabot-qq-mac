@@ -19,7 +19,7 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
       res.setHeader?.('content-type', type)
       res.setHeader?.('cache-control', 'no-store')
       res.end?.(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body))
-    } catch (error) {}
+    } catch {}
   }
   const readBody = async (req, max = 2 * 1024 * 1024) => {
     let s = ''

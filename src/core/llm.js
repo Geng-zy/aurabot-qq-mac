@@ -10,7 +10,7 @@ export function defaultModel(dsh, cfg) {
     const svc = dsh.get('agentDefaultModel')
     const sel = svc && typeof svc.currentSelection === 'function' ? svc.currentSelection() : null
     if (sel && sel.provider && sel.model) return { provider: sel.provider, model: sel.model }
-  } catch (error) {}
+  } catch {}
   return null
 }
 
@@ -40,7 +40,7 @@ export async function modelVision (dsh, provider, model) {
       const mods = info && info.inputModalities
       if (Array.isArray(mods)) value = mods.includes('image')
     }
-  } catch (error) {}
+  } catch {}
   visionCache.set(key, { at: Date.now(), value })
   return value
 }
@@ -173,7 +173,7 @@ async function runStream (llm, params, onUsage) {
     }
   } finally {
     // 报错也已经计费了，所以在 finally 里记，且一次调用最多一行；记的是数字，不含聊天内容
-    if (usage && onUsage) { try { onUsage(usage) } catch (error) {} }
+    if (usage && onUsage) { try { onUsage(usage) } catch {} }
   }
   return out.trim()
 }

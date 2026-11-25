@@ -17,7 +17,7 @@ export function tcpOpen(port, host = '127.0.0.1', timeoutMs = 800) {
     const finish = (value) => {
       if (done) return
       done = true
-      try { socket.destroy() } catch (error) {}
+      try { socket.destroy() } catch {}
       resolve(value)
     }
     socket.setTimeout(timeoutMs)
@@ -109,12 +109,12 @@ export async function diagnose({ cfg, state, wrongAccount = '', call, probe = {}
   add('插件连上网关', connected, connected ? '连上了' : `现在是「${state || '未连接'}」`, 'token 填错也会连不上：对一下 SnowLuma 里 OneBot 的 token 和这里填的是不是一样，然后点「重新连接」')
   if (connected) {
     let info = null
-    try { info = await call('get_login_info', {}, { timeoutMs: 6000 }) } catch (error) {}
+    try { info = await call('get_login_info', {}, { timeoutMs: 6000 }) } catch {}
     const uin = String(info?.user_id ?? '')
     if (!uin) add('登录的号', null, '网关没回登录信息', '')
     else add('登录的号', uin === String(cfg.botQQ), `${info.nickname || ''}（${uin}）`, `网关登录的不是机器人号 ${cfg.botQQ}：在远程桌面里换成机器人号登录`)
     let st = null
-    try { st = await call('get_status', {}, { timeoutMs: 6000 }) } catch (error) {}
+    try { st = await call('get_status', {}, { timeoutMs: 6000 }) } catch {}
     if (st && typeof st.online === 'boolean') add('QQ 在线', st.online, st.online ? '在线' : '掉线了', '在远程桌面里看看 QQ 是不是被踢下线、要不要重新扫码')
   } else if (wrongAccount) {
     add('登录的号', false, wrongAccount, `网关登录的是 ${wrongAccount}，不是机器人号 ${cfg.botQQ}，插件已经断开：在远程桌面里换成机器人号登录`)

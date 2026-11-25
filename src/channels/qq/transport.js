@@ -58,7 +58,7 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
   const setState = (s, detail) => {
     if (state === s) return
     state = s
-    try { onState?.(s, detail) } catch (error) {}
+    try { onState?.(s, detail) } catch {}
   }
 
   /** 走一次 HTTP 或 WS；网络层失败标成 transport，业务错误照原样抛。 */
@@ -245,7 +245,7 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
       ws = null
       clearPending('QQ 网关客户端已停止')
       setState('stopped')
-      try { sock?.close() } catch (error) {}
+      try { sock?.close() } catch {}
     },
     restart() {
       this.stop()

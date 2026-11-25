@@ -53,7 +53,7 @@ export function listPersonas() {
     try {
       const p = parsePersona(id, readFileSync(join(dir(), n), 'utf8'))
       out.push({ id, name: p.name, tags: p.tags, chars: p.body.length })
-    } catch (error) {}
+    } catch {}
   }
   return out
 }

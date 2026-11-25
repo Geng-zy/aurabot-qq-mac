@@ -22,7 +22,7 @@ export function knownGlobalToolNames(agent) {
   try {
     const names = agent?.ctx?.tools?.view?.(agent)?.restrictableNames
     if (names instanceof Set) return [...names]
-  } catch (error) { /* 继续尝试下一种 */ }
+  } catch { /* 继续尝试下一种 */ }
   try {
     const off = agent?.ctx?.tools?.restrict?.({ deny: ['aurabot__probe__'] })
     if (typeof off === 'function') off()

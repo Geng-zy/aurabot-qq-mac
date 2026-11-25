@@ -39,7 +39,7 @@ export function createOutbox ({ file = dataDir('outbox', 'queue.json'), log, now
       ensureDir(dirname(file))
       const tmp = `${file}.${process.pid}.tmp`
       writeFileSync(tmp, JSON.stringify(next), { encoding: 'utf8', mode: 0o600 })
-      try { chmodSync(tmp, 0o600) } catch (error) {}
+      try { chmodSync(tmp, 0o600) } catch {}
       renameSync(tmp, file)
       items = next
       return true

@@ -23,7 +23,7 @@ export function createTranscriber({
     const pid = snap?.selection?.providerId
     const prov = snap?.providers?.find((p) => p.id === pid)
     if (prov && prov.preparation && !['ready', 'standby'].includes(prov.preparation.phase)) {
-      try { stt.prepare(pid) } catch (error) {}
+      try { stt.prepare(pid) } catch {}
       throw new Error(`识别模型还在准备（${prov.preparation.phase}）`)
     }
     const spec = stt.resolve({ audio: new Uint8Array(await recordWav(rec, suppliedWav, chatId)) })

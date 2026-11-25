@@ -77,7 +77,7 @@ export function listPaintings ({ limit = 20 } = {}) {
       const st = statSync(join(dir(), file))
       const m = metaOf(file)
       all.push({ file, bytes: st.size, at: m.at || st.mtimeMs, prompt: m.prompt })
-    } catch (error) {}
+    } catch {}
   }
   all.sort((a, b) => b.at - a.at)
   return { items: all.slice(0, n), total: all.length, limit: n }

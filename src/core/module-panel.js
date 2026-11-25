@@ -21,13 +21,13 @@ export function createModulePanel({ state, isDisposed, note, log, getConfig, bui
   function emit(event, ...args) {
     if (isDisposed()) return
     for (const { fn } of listeners.get(event) || []) {
-      try { const r = fn(...args); if (r && typeof r.catch === 'function') r.catch(() => {}) } catch (error) {}
+      try { const r = fn(...args); if (r && typeof r.catch === 'function') r.catch(() => {}) } catch {}
     }
   }
   /** 依次问每个模块，第一个返回真值的接管（收到消息时用）。 */
   async function claim(event, ...args) {
     for (const { fn } of listeners.get(event) || []) {
-      try { if (await fn(...args)) return true } catch (error) {}
+      try { if (await fn(...args)) return true } catch {}
     }
     return false
   }
@@ -39,7 +39,7 @@ export function createModulePanel({ state, isDisposed, note, log, getConfig, bui
         const r = await fn(v, ...args)
         if (r === null) return null
         if (r !== undefined) v = r
-      } catch (error) {}
+      } catch {}
     }
     return v
   }
@@ -52,7 +52,7 @@ export function createModulePanel({ state, isDisposed, note, log, getConfig, bui
         if (r && typeof r.then === 'function') continue
         if (r === null) return null
         if (r !== undefined) v = r
-      } catch (error) {}
+      } catch {}
     }
     return v
   }
@@ -78,7 +78,7 @@ export function createModulePanel({ state, isDisposed, note, log, getConfig, bui
     const parts = []
     for (const rec of live.values()) {
       for (const fn of rec.contexts) {
-        try { const t = fn(args); if (t) parts.push(String(t)) } catch (error) {}
+        try { const t = fn(args); if (t) parts.push(String(t)) } catch {}
       }
     }
     return parts.join('\n\n')
@@ -87,7 +87,7 @@ export function createModulePanel({ state, isDisposed, note, log, getConfig, bui
     const out = []
     for (const rec of live.values()) {
       for (const fn of rec.rules) {
-        try { const t = typeof fn === 'function' ? fn(kind, getConfig()) : fn; for (const line of [].concat(t || [])) if (line) out.push(String(line)) } catch (error) {}
+        try { const t = typeof fn === 'function' ? fn(kind, getConfig()) : fn; for (const line of [].concat(t || [])) if (line) out.push(String(line)) } catch {}
       }
     }
     return out

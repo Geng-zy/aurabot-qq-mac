@@ -86,7 +86,7 @@ function cleanParamValue (value, clean) {
       try {
         const parsed = JSON.parse(trimmed)
         return JSON.stringify(cleanParamValue(parsed, clean))
-      } catch (error) {}
+      } catch {}
     }
     return clean(value)
   }

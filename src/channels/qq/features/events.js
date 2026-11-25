@@ -11,7 +11,7 @@ export function createEventApi({ call, parse, selfId, faceName }) {
       try {
         const m = await call('get_group_member_info', { group_id: ev.group_id, user_id: ev.user_id }, { timeoutMs: 5000 })
         nickname = String(m?.card || m?.nickname || nickname)
-      } catch (error) {}
+      } catch {}
       return parse({
         post_type: 'message', message_type: 'group', sub_type: 'normal', self_id: ev.self_id, group_id: ev.group_id, user_id: ev.user_id, message_id: 0,
         sender: { user_id: ev.user_id, nickname },

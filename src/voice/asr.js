@@ -88,7 +88,7 @@ export async function transcribeAudio(buffer, voice, log, { fetchImpl = globalTh
     const raw = await r.text().catch(() => '')
     if (!r.ok) throw new Error(`HTTP ${r.status}${raw ? '：' + raw.slice(0, 160) : ''}`)
     let json = null
-    try { json = JSON.parse(raw) } catch (error) {}
+    try { json = JSON.parse(raw) } catch {}
     if (!json) throw new Error('识别服务返回的不是 JSON：' + raw.slice(0, 160))
     const text = str(json.text || json.transcript)
     log?.debug?.(`云端识别（${c.provider}）用时 ${Date.now() - started}ms，得到 ${text.length} 字`)
