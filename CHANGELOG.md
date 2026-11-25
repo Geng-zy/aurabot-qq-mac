@@ -2,6 +2,11 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.14
+
+- 会话失败/恢复辅助拆到 chat/session-recovery.js：sessionFailure、backoffError、recoverSessionAttach、cleanOrphan 等。
+- hub.js 2150 → 2066 行；回归：E2E/系统会话退避 130 个测试通过。
+
 ## 1.6.13
 
 - 排队/注意力刷新/群聊秘书判断拆到 chat/attention.js：enqueue、flush、scheduleAttentionRetry、recordSecretary。
