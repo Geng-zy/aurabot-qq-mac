@@ -45,6 +45,7 @@ import { createTextSender } from './send-text.js'
 import { createStickerSender } from './send-sticker.js'
 import { createImageSender } from './send-image.js'
 import { createOnDelivered } from './on-delivered.js'
+import { createReplyJournal } from './reply-journal.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -988,7 +989,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   const onDelivered = createOnDelivered({
-    isDisposed: () => disposed, parseChat, sentIds, mind, log, recordReply, deliveredItems, bump,
+    isDisposed: () => disposed, parseChat, sentIds, mind, log, recordReply: (...args) => recordReply(...args), deliveredItems, bump,
   })
 
   // system：系统通知，不算她说的话。
@@ -1299,27 +1300,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return { missedAt, failed: failures.length, errors: failures, delivered, queued: scope.queued, simulated: scope.simulated, unconfirmed }
   }
 
-  function recordReply(chatId, confirmed, { own = false, userText = '' } = {}) {
-    const said = itemsToLine(confirmed)
-    if (!said) return
-    const info = chatInfo(chatId)
-    if (info.kind === 'group') {
-      const gkey = groupKey(chatId)
-      const said = (groupSaid.get(gkey) || []).filter((t) => Date.now() - t < 3600_000)
-      said.push(Date.now())
-      groupSaid.set(gkey, said)
-      groupEngaged.set(gkey, Date.now() + ENGAGE_MS) // 在群里说了话 = 加入了话题
-    }
-    logChat(chatId, 'bot', said)
-    // 不是这个聊天自己那一轮发的（管理员在私聊里让她去群里说、扩展模块代发）：记下来，下次这个聊天交给她时告诉她自己说过什么
-    if (!own) saidElsewhere.set(chatId, [...(saidElsewhere.get(chatId) || []), { at: Date.now(), text: said.slice(0, 300) }].slice(-5))
-    lastChatAt = Date.now()
-    if (info.kind === 'private') lastPrivateAt.set(info.id, Date.now())
-    const speech = confirmed.filter((i) => i.kind === 'text' || i.kind === 'voice')
-    if (speech.length && info.kind === 'private' && info.platform === 'qq' && info.id === String(getConfig().ownerQQ)) lastBotToOwner = { at: Date.now(), text: speech.map((i) => i.value).join('\n') }
-    try { onActivity?.({ kind: 'out', chatId, reply: said, userText }) }
-    catch (error) { log.warn('回复活动通知失败：', error.message) }
-  }
+  const recordReply = createReplyJournal({
+    chatInfo, groupKey, groupSaid, groupEngaged, engageMs: ENGAGE_MS, logChat, saidElsewhere,
+    getConfig, itemsToLine, onActivity,
+    touchLastChat: () => { lastChatAt = Date.now() },
+    touchPrivate: (id) => lastPrivateAt.set(id, Date.now()),
+    setLastBotToOwner: (value) => { lastBotToOwner = value },
+  })
 
   // ---------- 盯 DSH 会话：一轮结束就发 ----------
   function textOf(message) {
