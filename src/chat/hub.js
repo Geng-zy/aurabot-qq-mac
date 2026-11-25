@@ -8,7 +8,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
 import { homedir, tmpdir } from 'node:os'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { ownerAuthorizationRevision } from '../core/config.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { gifFrames } from '../core/image-info.js'
@@ -43,6 +43,7 @@ import { localImageBlocked } from './image-policy.js'
 import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
 import { createTextSender } from './send-text.js'
 import { createStickerSender } from './send-sticker.js'
+import { createImageSender } from './send-image.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -1144,46 +1145,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
    * base64 膨胀（#169）。只有网关明确拒绝（路径读不到、retcode 非 0）才改用 base64；超时、断线可能已经发出去了，
    * 再发会变成两张，所以不回退。files.imageByPath 关掉就一直是 base64。
    */
-  async function sendImage(chatId, src, replyId, userId, opts = {}) {
-    if (disposed) return null
-    const s = String(src ?? '').trim()
-    const head = [...quote(replyId), ...mention(userId)]
-    const local = isAbsolute(s) ? s : /^file:\/\//i.test(s) ? s : ''
-    if (local && getConfig().files?.imageByPath !== false) {
-      // 用 pathToFileURL 转成合法的 file:// 地址（路径里的空格、中文会正确编码）
-      const file = local.startsWith('file://') ? local : pathToFileURL(local).href
-      try {
-        const r = await sendSegments(chatId, [...head, { type: 'image', data: { file } }], `[图片·路径] ${local.slice(-40)}`, { ...opts, throwOnError: true })
-        if (r) {
-          log.debug(`${chatId}：按路径发图「${local.slice(-40)}」`)
-          return r
-        }
-        // 总开关关着、试运行、或者扩展模块拦下了：这不是错误，也不该再走 base64 发一遍
-        return null
-      } catch (error) {
-        if (!definiteFailure(chatId, error)) {
-          log.warn(`${chatId}：按路径发图失败，发送结果不确定，不再重发：`, error.message)
-          // 调用方要发别的形态（比如 qq_send_file 想改用 sendFile）时，得知道「可能已经发出去了」，不能接着发第二份
-          if (opts.strict) throw new Error(`图片可能已经发出去了，但网关没确认：${error.message}`)
-          return null
-        }
-        log.debug(`${chatId}：按路径发不出去，改用 base64：`, error.message)
-      }
-    }
-    let buf
-    try { buf = await fetchImage(s, { maxBytes: MAX_IMAGE_BYTES }) }
-    catch (error) {
-      log.warn('图片发不出去：', error.message)
-      return opts.strict ? false : null
-    }
-    try {
-      return await sendSegments(chatId, [...head, { type: 'image', data: { file: 'base64://' + buf.toString('base64') } }], `[图片] ${s.slice(-40)}`, { ...opts, throwOnError: opts.strict || opts.throwOnError })
-    } catch (error) {
-      if (opts.strict && definiteFailure(chatId, error)) return false
-      if (opts.strict) throw new Error(`图片可能已经发出去了，但网关没确认：${error.message}`)
-      throw error
-    }
-  }
+  const sendImage = createImageSender({
+    isDisposed: () => disposed, getConfig, quote, mention, sendSegments, log, definiteFailure, fetchImage, maxBytes: MAX_IMAGE_BYTES,
+  })
 
   function silenceTurn(chatId) {
     log.info(`${chatId}：她选择不说话`)
