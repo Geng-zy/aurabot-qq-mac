@@ -175,9 +175,9 @@ export function cardText(raw) {
     const from = String(m.title && m.desc ? m.title : m.tag || '').trim()
     if (!title && !url) return '[卡片消息]'
     return `[分享卡片${from ? '（' + from + '）' : ''}：${title}${url ? ' ' + url : ''}]`
-  } catch (error) {
+  } catch { 
     return '[卡片消息]'
-  }
+   }
 }
 
 /** 兼容旧调用方。 */

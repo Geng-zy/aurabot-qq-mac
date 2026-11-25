@@ -17,9 +17,9 @@ export function createModuleRegistry({ state, builtinDefs, getConfig, setConfig,
       try {
         const m = JSON.parse(readFileSync(file, 'utf8'))
         return Array.isArray(m.capabilities) ? m.capabilities.map(String) : []
-      } catch (error) {
+      } catch { 
         return []
-      }
+       }
     }
     return []
   }

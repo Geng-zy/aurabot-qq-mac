@@ -24,9 +24,9 @@ export function readJson(file, fallback) {
     let text = readFileSync(file, 'utf8')
     if (text.charCodeAt(0) === 0xfeff) text = text.slice(1)
     return JSON.parse(text)
-  } catch (error) {
+  } catch { 
     return typeof fallback === 'function' ? fallback() : fallback
-  }
+   }
 }
 
 /** 严格读取：文件不存在才用 fallback；JSON 损坏时把原文件留底并抛出，不能静默当空配置。 */

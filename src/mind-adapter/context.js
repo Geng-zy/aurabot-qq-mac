@@ -95,9 +95,9 @@ export function createContextAssembly({ mind, mem, windowOf, keywords, dayKey, p
         if (shares) parts.push(shares)
       }
       return parts.join('\n')
-    } catch (error) {
+    } catch { 
       return ''
-    }
+     }
   }
 
 

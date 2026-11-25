@@ -92,8 +92,8 @@ export function moveWorkspace(from, to) {
       unlinkSync(hold)
       rmSync(real, { recursive: true, force: true })
     } else rmSync(hold, { recursive: true, force: true })
-  } catch (error) {
+  } catch { 
     leftover = linked ? real : hold
-  }
+   }
   return { ok: true, target, message: `搬好了，文件现在在 ${target}` + (leftover ? `。旧文件没删干净，可以手动删掉 ${leftover}` : '') }
 }

@@ -29,9 +29,9 @@ export function savePainting (buf, prompt, { now = new Date() } = {}) {
     for (let n = 1; existsSync(file); n++) file = join(d, `${stamp}-${String(now.getMilliseconds()).padStart(3, '0')}-${n}-${slug}.${ext}`)
     writeFileSync(file, buf)
     return file
-  } catch (error) {
+  } catch { 
     return ''
-  }
+   }
 }
 
 /** 文件名安全：只接受本目录下的纯文件名，挡住 ../ 之类。 */

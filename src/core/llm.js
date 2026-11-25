@@ -99,9 +99,9 @@ export async function modelReasoning (dsh, provider, model) {
         if (!value.efforts.length) value = null
       }
     }
-  } catch (error) {
+  } catch { 
     value = null // 查不到就当不支持：少传一个参数，总比整轮报错强
-  }
+   }
   cacheReasoning(provider, model, value)
   return value
 }
@@ -123,9 +123,9 @@ export async function modelContextWindow (dsh, provider, model) {
       const n = Number(info?.context?.contextWindow)
       if (Number.isInteger(n) && n > 0) value = n
     }
-  } catch (error) {
+  } catch { 
     value = 0
-  }
+   }
   contextCache.set(key, { at: Date.now(), value })
   return value
 }

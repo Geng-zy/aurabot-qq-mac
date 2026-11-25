@@ -28,9 +28,9 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
     try {
       const cfg = getConfig()
       return (getMind()?.ownerCall?.()) || cfg.ownerName || '管理员'
-    } catch (error) {
+    } catch { 
       return getConfig().ownerName || '管理员'
-    }
+     }
   }
 
   const rulesOpts = (kind) => {

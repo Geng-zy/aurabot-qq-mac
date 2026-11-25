@@ -16,9 +16,9 @@ export function createSocialPreferences({ mind, mem, isOwnerChat, shortId, speak
       const text = parts.join('\n')
       if (text.length <= 6000) return text
       return text.slice(0, 6000).replace(/[^\n]*$/, '') + '\n（关系提示过长，后面的细节省略。）'
-    } catch (error) {
+    } catch { 
       return ''
-    }
+     }
   }
 
   function dislikes(userId, chatId) {
@@ -74,9 +74,9 @@ export function createSocialPreferences({ mind, mem, isOwnerChat, shortId, speak
       else if (v > -0.15) pool = ['吃瓜', '托腮', '暗中观察', 'OK']
       else { pool = ['无奈', 'emm', '捂脸']; scale *= 0.5 }
       return { scale: Math.max(0, Math.min(2, scale)), pool, why: `${label}，亲近 ${close.toFixed(2)}，爱用表情 ${expr.toFixed(2)}` }
-    } catch (error) {
+    } catch { 
       return null
-    }
+     }
   }
   function interjectCap() {
     return Number(mind.setting('relations.interjectCapPerHour')) || 0

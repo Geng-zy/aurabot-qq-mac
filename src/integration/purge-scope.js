@@ -28,9 +28,9 @@ export function isAurabotPersonaPreset(preset) {
 export function presetOfAgent(agent) {
   try {
     return String(agent?.session?.header?.agentPreset || agent?.preset || '')
-  } catch (error) {
+  } catch { 
     return ''
-  }
+   }
 }
 
 export const IDENTITY_LOCK_MARK = '【身份锁定】'

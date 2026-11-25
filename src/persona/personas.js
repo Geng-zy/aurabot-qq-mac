@@ -17,9 +17,9 @@ export function seedPersonas() {
     for (const n of readdirSync(BUNDLED)) {
       if (n.endsWith('.md') && !existsSync(join(dir(), n))) copyFileSync(join(BUNDLED, n), join(dir(), n))
     }
-  } catch (error) {
+  } catch { 
     // 数据目录可能是只读的（例如 DSH 的 ACL 沙盒）：继续用插件自带人格，不能因此让整个插件挂载失败。
-  }
+   }
 }
 
 export function parsePersona(id, raw) {

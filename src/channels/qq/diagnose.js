@@ -49,9 +49,9 @@ export function hostPort(url, fallbackPort) {
     const u = new URL(String(url))
     const port = Number(u.port) || (u.protocol === 'wss:' || u.protocol === 'https:' ? 443 : u.protocol === 'ws:' || u.protocol === 'http:' ? 80 : fallbackPort)
     return { host: u.hostname.replace(/^\[|\]$/g, ''), port }
-  } catch (error) {
+  } catch { 
     return null
-  }
+   }
 }
 
 /**

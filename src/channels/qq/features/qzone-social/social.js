@@ -178,9 +178,9 @@ export function createQzoneSocial({ getConfig, onebot, hub, log, mind }) {
         detail = d
         content = String(d?.content || '')
         existing = summarizeComments(d?.comments, { selfId: self(), ownerQQ: getConfig().ownerQQ, ownerName: owner(), max: 8 })
-      } catch (error) {
+      } catch { 
         content = String(f.html || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim()
-      }
+       }
       images = (String(f.html || '').match(/<img/g) || []).length
       const latest = getConfig()
       if (latest.enabled && latest.qzoneSocial.enabled && latest.qzoneSocial.like && !latest.dryRun) {

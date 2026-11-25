@@ -36,9 +36,9 @@ export function asrSettings(voice) {
   try {
     const u = new URL(baseUrl)
     if (!['http:', 'https:'].includes(u.protocol)) return null
-  } catch (error) {
+  } catch { 
     return null
-  }
+   }
   return {
     provider,
     baseUrl,

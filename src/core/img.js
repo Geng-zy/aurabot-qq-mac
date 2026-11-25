@@ -55,9 +55,9 @@ export async function shrinkWithSharp(sharp, buf, maxSide) {
       .jpeg({ quality: 82 })
       .toBuffer()
     return Buffer.isBuffer(out) && out.length ? out : null
-  } catch (error) {
+  } catch { 
     return null
-  }
+   }
 }
 
 export function shrinkImage(buf, maxSide, ffmpeg, { timeoutMs = 30000 } = {}) {
@@ -73,9 +73,9 @@ export function shrinkImage(buf, maxSide, ffmpeg, { timeoutMs = 30000 } = {}) {
         '-vf', `scale='min(${maxSide},iw)':-2`,
         '-q:v', '4', '-f', 'image2', '-c:v', 'mjpeg', 'pipe:1',
       ])
-    } catch (error) {
+    } catch { 
       return finish(null)
-    }
+     }
     const out = []
     const timer = setTimeout(() => { try { proc.kill() } catch {} ; finish(null) }, timeoutMs)
     proc.stdout.on('data', (d) => out.push(d))

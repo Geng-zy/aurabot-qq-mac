@@ -74,9 +74,9 @@ export async function shouldUseCnMirror(mode, fetchImpl = fetch) {
     try {
       const r = await fetchImpl(url, { method: 'HEAD', signal: AbortSignal.timeout(4000) })
       return r.status < 500 ? Date.now() - t : Infinity
-    } catch (error) {
+    } catch { 
       return Infinity
-    }
+     }
   }
   const times = await Promise.all([probe('https://pypi.org/simple/pip/'), probe('https://huggingface.co/'), probe('https://github.com/')])
   return times.some((t) => t > 2500)

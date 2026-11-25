@@ -62,9 +62,9 @@ export function edgeInstalled() {
   if (!existsSync(pyExe())) return false
   try {
     return readdirSync(join(PYENV_DIR, 'lib')).some((v) => v.startsWith('python') && existsSync(join(PYENV_DIR, 'lib', v, 'site-packages', 'edge_tts')))
-  } catch (error) {
+  } catch { 
     return false
-  }
+   }
 }
 
 /** 面板「安装语音组件」：建虚拟环境并 pip 安装 edge-tts（开源，LGPL）。 */

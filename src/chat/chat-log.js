@@ -27,9 +27,9 @@ export function createChatLog({ getConfig, log, trashDir, mind, hooks, cleaningF
   function chatLogDays() {
     try {
       return readdirSync(dataDir('chatlog')).filter((name) => DAY_FILE.test(name)).map((name) => name.slice(0, 10)).sort()
-    } catch (error) {
+    } catch { 
       return []
-    }
+     }
   }
 
   /** 一天的全部流水行。 */
@@ -38,9 +38,9 @@ export function createChatLog({ getConfig, log, trashDir, mind, hooks, cleaningF
       const file = join(dataDir('chatlog'), `${day}.jsonl`)
       if (!existsSync(file)) return []
       return readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line))
-    } catch (error) {
+    } catch { 
       return []
-    }
+     }
   }
 
   /**

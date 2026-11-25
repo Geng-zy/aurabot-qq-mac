@@ -102,11 +102,11 @@ export function createDiaryArchive(api, { assets = createDiaryAssets(api.dataDir
           current.error = ''
           writeJson(file(), current)
           saved++
-        } catch (error) {
+        } catch { 
           // 撤销权限后不再开始下一张，也不写错误状态到用户选定的目录。
           assertActive(snapshot.folder)
           failed++
-        }
+         }
       }
       const current = load()
       current.lastAt = now()

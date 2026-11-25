@@ -55,9 +55,9 @@ export function decodeJwt (token) {
     const parts = String(token || '').split('.')
     if (parts.length !== 3) return null
     return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'))
-  } catch (error) {
+  } catch { 
     return null
-  }
+   }
 }
 
 /** access token 里的 chatgpt_account_id（生图必需）。 */
@@ -104,9 +104,9 @@ export function openInBrowser (url, { run = spawn } = {}) {
     child.on?.('error', () => {}) // 打不开时仍可在面板手动打开授权链接。
     child.unref()
     return true
-  } catch (error) {
+  } catch { 
     return false
-  }
+   }
 }
 
 /**
@@ -238,9 +238,9 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
           html(200, '<h2>已收到授权结果</h2><p>回到 Aurabot 面板查看登录结果。</p>')
           try { server.close() } catch {}
           settle({ code })
-        } catch (error) {
+        } catch { 
           html(500, '处理回调出错')
-        }
+         }
       })
       server.once('error', () => resolve({ server: null, result: null }))
       server.listen(CALLBACK_PORT, CALLBACK_HOST, () => resolve({ server, result }))

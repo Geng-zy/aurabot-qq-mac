@@ -545,9 +545,9 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
     try {
       await run(python, ['-c', 'import ' + mods.join(', ')], { log, timeoutMs: 120_000 })
       return true
-    } catch (error) {
+    } catch { 
       return false
-    }
+     }
   }
 
   async function runInstall() {
