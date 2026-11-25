@@ -119,10 +119,10 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
           // 注册表里如果残留同名工具（旧 agent 作用域/旧版泄漏），先把我们记着的旧 disposer 清掉再注册
           const dkey = sid + '|' + tool.name
           const stale = toolDisposers.get(dkey)
-          if (stale) { try { stale() } catch (error) {} toolDisposers.delete(dkey) }
+          if (stale) { try { stale() } catch {} toolDisposers.delete(dkey) }
           const off = agent.ctx.tools.register(reg)
           toolDisposers.set(dkey, off)
-          offs.push(() => { toolDisposers.delete(dkey); try { off() } catch (error) {} })
+          offs.push(() => { toolDisposers.delete(dkey); try { off() } catch {} })
         } catch (error) {
           log.warn(`工具 ${tool.name} 挂不上：`, error.message)
         }
@@ -140,7 +140,7 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
             try {
               const t = p({ chat, sessionId: sid, publicOnly: sources.publicOnly === true, userText: sources.userText })
               if (t) parts.push(t)
-            } catch (error) {}
+            } catch {}
           }
           if (chat.kind !== 'system') {
             const cfg = getConfig()

@@ -1,4 +1,4 @@
-export function createOnMessageHandler({ LEGACY_PLATFORM, addGroupImages, animatedNote, bump, canSeeFor, channelOf, checkAllowed, decideGroupReply, dislikes, enqueue, forwardBody, getConfig, groupBuf, groupEngaged, groupEngagedRun, groupInterjects, groupKey, groupMusts, groupSaid, hooks, imagesOf, indentBody, inlineLabel, isMuted, isOwner, log, logChat, maybeReact, memoryScore, mood, normChat, onActivity, onCommand, ownerAuthorizationRevision, parseChat, pending, policyFor, privateSources, quoteImages, quoteInline, quotedInfo, random, recentFiles, recentMedia, repliedToBot, sendSegments, senderLabel, sleep, stickerStash, stickers, titleFilter, lastPoker, lastPrivateAt, lastSpeaker, pokeAt, topicRelevance, transcribe, wantsVoice, getMind, getSelfId, setSelfId, setLastChat, setLastOwner, isDisposed }) {
+export function createOnMessageHandler({ LEGACY_PLATFORM, addGroupImages, animatedNote, bump, canSeeFor, channelOf, checkAllowed, decideGroupReply, dislikes, enqueue, forwardBody, getConfig, groupBuf, groupEngaged, groupEngagedRun, groupInterjects, groupKey, groupMusts, groupSaid, hooks, imagesOf, indentBody, inlineLabel, isMuted, isOwner, log, logChat, maybeReact, memoryScore, mood, normChat, onActivity, onCommand, ownerAuthorizationRevision, parseChat, pending, policyFor, privateSources, quoteImages, quoteInline, quotedInfo, random, recentFiles, recentMedia, repliedToBot, sendSegments, senderLabel, sleep, stickerStash, stickers, titleFilter, lastPrivateAt, topicRelevance, transcribe, wantsVoice, getMind, getSelfId, setSelfId, setLastChat, setLastOwner, isDisposed }) {
   return async function onMessage(msg) {
     const mind = getMind()
     let selfId = getSelfId()
@@ -185,7 +185,7 @@ export function createOnMessageHandler({ LEGACY_PLATFORM, addGroupImages, animat
       } else {
         // 心情好更爱插话，心情差少插话
         pol = { ...pol0, interjectChance: Math.min(1, pol0.interjectChance * mood().chatty) }
-        try { memScore = typeof memoryScore === 'function' ? memoryScore(recentTexts.join(' ')) : 0 } catch (error) {}
+        try { memScore = typeof memoryScore === 'function' ? memoryScore(recentTexts.join(' ')) : 0 } catch {}
       }
       // 这一条要是语音，最多等 2 秒看能不能转出来：叫她的名字在语音里时也能叫动她；
       // 转得慢（比如云端兜底）就先走群聊判断，交给她时再等完整结果

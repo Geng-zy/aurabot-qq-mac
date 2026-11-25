@@ -13,7 +13,7 @@ export function findFfmpeg(configured = '', { pathEnv = process.env.PATH || '', 
   if (own) cands.push(own)
   for (const d of String(pathEnv).split(':')) if (d && d.trim()) cands.push(join(d.trim(), 'ffmpeg'))
   cands.push('/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg')
-  for (const c of cands) { try { if (exists(c)) return c } catch (error) {} }
+  for (const c of cands) { try { if (exists(c)) return c } catch {} }
   return ''
 }
 
@@ -29,7 +29,7 @@ export async function findSharp({ resourcesPath = process.resourcesPath, importe
   try {
     const m = await importer('sharp')
     if (m) return m.default || m
-  } catch (error) {}
+  } catch {}
   const cands = resourcesPath ? [
     join(resourcesPath, 'app.asar', 'dsh', 'node_modules', 'sharp', 'dist', 'index.mjs'),
     join(resourcesPath, 'dsh', 'node_modules', 'sharp', 'dist', 'index.mjs'),
@@ -40,7 +40,7 @@ export async function findSharp({ resourcesPath = process.resourcesPath, importe
     try {
       const m = await importer(pathToFileURL(file).href)
       if (m) return m.default || m
-    } catch (error) {}
+    } catch {}
   }
   return null
 }
@@ -77,14 +77,14 @@ export function shrinkImage(buf, maxSide, ffmpeg, { timeoutMs = 30000 } = {}) {
       return finish(null)
     }
     const out = []
-    const timer = setTimeout(() => { try { proc.kill() } catch (error) {} ; finish(null) }, timeoutMs)
+    const timer = setTimeout(() => { try { proc.kill() } catch {} ; finish(null) }, timeoutMs)
     proc.stdout.on('data', (d) => out.push(d))
     proc.stderr.on('data', () => {}) // 占位，别让管道堵住
     // ffmpeg 可能在输入写完前退出（坏图、路径不对等）；stdin 的异步错误不能让宿主进程崩溃。
-    proc.stdin.on('error', () => { clearTimeout(timer); try { proc.kill() } catch (error) {} ; finish(null) })
+    proc.stdin.on('error', () => { clearTimeout(timer); try { proc.kill() } catch {} ; finish(null) })
     proc.on('error', () => { clearTimeout(timer); finish(null) })
     proc.on('close', () => { clearTimeout(timer); const b = Buffer.concat(out); finish(b.length ? b : null) })
-    try { proc.stdin.end(buf) } catch (error) { finish(null) }
+    try { proc.stdin.end(buf) } catch { finish(null) }
   })
 }
 

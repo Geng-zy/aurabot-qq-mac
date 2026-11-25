@@ -1279,7 +1279,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     indentBody, inlineLabel, isMuted, isOwner, log, logChat, maybeReact, memoryScore, mood,
     normChat, onActivity, onCommand, ownerAuthorizationRevision, parseChat, pending, policyFor,
     privateSources, quoteImages, quoteInline, quotedInfo, random, recentFiles, recentMedia,
-    repliedToBot, sendSegments, senderLabel, sleep, stickerStash, stickers, titleFilter, lastPoker, lastPrivateAt, lastSpeaker, pokeAt,
+    repliedToBot, sendSegments, senderLabel, sleep, stickerStash, stickers, titleFilter, lastPrivateAt,
     topicRelevance, transcribe, wantsVoice,
     getMind: () => mind, getSelfId: () => selfId, setSelfId: (value) => { selfId = value },
     setLastChat: (value) => { lastChatAt = value },

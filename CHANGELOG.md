@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.23
+
+- 清理 on-message/mount/session-events 的未使用依赖与空 catch。
+- 清理 core/img.js、core/python.js 的空 catch 参数；lint warning 381 → 361。
+- 回归：全量测试通过。
+
 ## 1.6.22
 
 - 清理 host.js 拆分后未使用的 import/变量和空 catch 参数；lint warning 400 → 381。

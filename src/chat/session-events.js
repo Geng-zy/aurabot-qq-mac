@@ -68,7 +68,7 @@ export function createSessionEventHandler({
             usage: d.usage,
             at: event.time,
           })
-        } catch (error) {}
+        } catch {}
       }
       if (d.interrupted) return
       // 顺手记下思考：万一这一轮她一个字正文都没写，turn/end 时还有机会把定稿捞回来
@@ -98,7 +98,7 @@ export function createSessionEventHandler({
         const token = st.runToken
         // 中间段里的 <feel> 也交给心智核心（发出去时会被剥掉，这里不收就丢了）
         let feed
-        if (prev && mind?.feel) { try { prev = mind.feel(chatId, prev, { senders: [...(st.senders || [])], deferFeed: (pending) => { feed ??= pending } }) } catch (error) {} }
+        if (prev && mind?.feel) { try { prev = mind.feel(chatId, prev, { senders: [...(st.senders || [])], deferFeed: (pending) => { feed ??= pending } }) } catch {} }
         if (prev) {
           st.retry = null
           // 不在这里记账：deliver 会在真发出去之后自己 logChat，一条都没发成功就不记。
@@ -166,7 +166,7 @@ export function createSessionEventHandler({
         try { text = mind.feel(chatId, text, { senders: turnSenders, deferFeed: (pending) => { feed ??= pending } }) } catch (error) { log.debug('心智记录感受失败：', error.message) }
       }
       if (mind?.noteTurn && completedTurn(d) && !chatId.startsWith('system:')) {
-        try { mind.noteTurn(chatId, turnSenders) } catch (error) {}
+        try { mind.noteTurn(chatId, turnSenders) } catch {}
       }
       const sys = st.system
       const wantVoice = Boolean(st.wantVoice)

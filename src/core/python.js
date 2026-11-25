@@ -26,7 +26,7 @@ function run(cmd, args, { env, log, timeoutMs = 30 * 60_000 } = {}) {
     const feed = (buf) => { tail = (tail + String(buf)).slice(-4000) }
     child.stdout.on('data', feed)
     child.stderr.on('data', feed)
-    const timer = setTimeout(() => { try { child.kill() } catch (error) {} }, timeoutMs)
+    const timer = setTimeout(() => { try { child.kill() } catch {} }, timeoutMs)
     child.on('error', (e) => { clearTimeout(timer); reject(e) })
     child.on('exit', (code) => {
       clearTimeout(timer)
@@ -105,7 +105,7 @@ export async function findSystemUv({ log } = {}) {
     try {
       await run(c, ['--version'], { log, timeoutMs: 15_000 })
       return c
-    } catch (error) {}
+    } catch {}
   }
   return ''
 }
@@ -174,7 +174,7 @@ export function extractZip(buf, dir) {
     mkdirSync(dirname(dest), { recursive: true })
     writeFileSync(dest, f.data)
     if ((/(^|\/)(bin|scripts)\//i.test(f.name) || !/\.[a-z0-9]{1,5}$/i.test(basename(f.name)))) {
-      try { chmodSync(dest, 0o755) } catch (error) {}
+      try { chmodSync(dest, 0o755) } catch {}
     }
   }
 }
@@ -185,7 +185,7 @@ export function findFile(dir, name) {
   while (stack.length) {
     const d = stack.pop()
     let names
-    try { names = readdirSync(d, { withFileTypes: true }) } catch (error) { continue }
+    try { names = readdirSync(d, { withFileTypes: true }) } catch { continue }
     for (const e of names) {
       const full = join(d, e.name)
       if (e.isDirectory()) stack.push(full)
