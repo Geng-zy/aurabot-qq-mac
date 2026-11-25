@@ -36,7 +36,7 @@ function run(cmd, args, { env, onLine, timeoutMs = 60 * 60_000, spawnImpl = spaw
     p.stderr?.on('data', take)
     const timer = setTimeout(() => { try { p.kill('SIGTERM') } catch {} ; reject(new Error('超时')) }, timeoutMs)
     p.on('error', (e) => { clearTimeout(timer); reject(e) })
-    p.on('close', (code) => { clearTimeout(timer); code === 0 ? resolve(tail) : reject(new Error(tail.trim().split('\n').slice(-3).join(' ') || '退出码 ' + code)) })
+    p.on('close', (code) => { clearTimeout(timer); if (code === 0) resolve(tail); else reject(new Error(tail.trim().split('\n').slice(-3).join(' ') || '退出码 ' + code)) })
   })
 }
 

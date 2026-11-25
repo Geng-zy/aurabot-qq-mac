@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.29
+
+- 清理无用 catch 包装、三元表达式副作用和部分 dead code；lint warning 177 → 165。
+- 保留 mentions/tags/reply 必要转义：实验性去掉后触发正则回溯卡死，已回滚并加回归验证。
+- 回归：全量测试通过。
+
 ## 1.6.28
 
 - 清理未使用变量/参数：offpeak、module-routes、mind-adapter、mind/inner、core/modules。

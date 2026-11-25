@@ -680,7 +680,7 @@ export function apply(ctx) {
     approvalRelay?.dispose()
     // 先停平台：关闭期间不再产生新的入站/出站；再收中枢、心智和模块。
     for (const ch of channels.list()) {
-      try { ch.dispose ? ch.dispose() : ch.stop() } catch (error) { log.warn(`关闭平台 ${ch.platform} 失败：`, error.message) }
+      try { if (ch.dispose) ch.dispose(); else ch.stop() } catch (error) { log.warn(`关闭平台 ${ch.platform} 失败：`, error.message) }
     }
     tasks.dispose()
     hub.dispose()

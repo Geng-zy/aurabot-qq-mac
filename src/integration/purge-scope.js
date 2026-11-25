@@ -94,12 +94,8 @@ export function installPurgePromptGuard(ctx, { log, isAurabotAgent, enabled = ()
   const listener = async (...args) => {
     const next = args.length >= 3 ? args[args.length - 1] : null
     let assembly = args[0]
-    try {
-      if (typeof next === 'function') assembly = await next()
-    } catch (error) {
-      // 组装失败保持失败，不能拿旧 assembly 兜底成「看似正常」的提示词。
-      throw error
-    }
+    // 组装失败保持失败，不能拿旧 assembly 兜底成「看似正常」的提示词。
+    if (typeof next === 'function') assembly = await next()
     try {
       if (enabled() === false) return assembly
       const agent = args[1]?.agent

@@ -63,7 +63,8 @@ export function createOutreach({ mind, opts, ownerOf, ownerChat, parseChat, now,
       if (receipt !== true && receipt?.delivered !== true) return { ok: false, summary: '没有确认发出主动消息' }
       const o = outreachState()
       const at = now()
-      o.day === mind.today() ? o.count++ : (o.day = mind.today(), o.count = 1)
+      if (o.day === mind.today()) o.count++
+      else { o.day = mind.today(); o.count = 1 }
       if (lastOwnerAt < startedAt) o.pending = { at, reason: why, kind }
       o.log = [{ at, reason: why, kind }, ...o.log].slice(0, 75)
       mind._store.set('outreach', o)
