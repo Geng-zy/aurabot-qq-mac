@@ -17,17 +17,17 @@
 
 闸门：`test/module-lifecycle.test.js`（12）、`test/modules.test.js`（26）、`test/module-panel-route.test.js`。本次试拆到第 1 步时发现热重载测试出现 404 竞态，已整体回退，不把半成品留在 beta。
 
-## 2. client/client.js（6360 行）
+## 2. client（2026-11-25 更新）
 
-- `@deepseek-ai/dsh-client-ui-primitives` **不是 npm 包**，只作为 DSH Web shell 的 seed 词存在；插件目录没有 `node_modules`，Node 侧测试无法 import。
-- 10 个测试文件用 `readFileSync('client/client.js')` + `includes` 锁死了单文件结构；整体迁移会成片打红。
-- `client-ui-settings` 是 profile 级设置服务，和 AuraBot 自己的 `/state + draft` 双缓冲不是同一模型，不能直接替换。
+已完成单文件构建式模块化，DSH 仍只加载 `client/client.js`：
 
-可行顺序（先松绑测试）：
+- `client/client.template.js` 只保留 293 行入口核心；
+- `client/parts/*.js` 已拆出 103 个页面/组件/样式/hooks 片段；
+- `scripts/build-client.mjs` 按文件名拼回单文件，`test/client-build.test.js` 校验可重建；
+- 面板测试不再依赖页面函数顺序，`security-panel` / `about-panel` 已改为按函数体边界取源码。
 
-1. 把 `panel-mind.test.js` / `persona-filter-select.test.js` 的 marker 字符串注入改成固定 `exports.__test__` 钩子；
-2. 迁移纯叶子：`SOURCE` 死常量、图标、`Btn/Switch/Toast`、剪贴板；
-3. 再评估 `Card/Row/Select` 和整页容器。
+仍保留在模板里的：DSH `__ModuleLoader__` 包装、React/primitives 初始化、`apply`。
+`@deepseek-ai/dsh-client-ui-primitives` 仍不是可 import 的 npm 包，整体迁到 DSH client-ui 仍属于后续 P2，不影响当前单文件入口。
 
 ## 3. 兼容层
 
@@ -48,7 +48,7 @@ node scripts/check-syntax.mjs
 node --test "test/**/*.test.js"
 ```
 
-当前：359 个文件语法通过，1549 个测试通过，0 失败。
+当前：546 个文件语法通过，1562 个测试通过，0 失败。
 
 ## 6. 真实环境核验（2026-11-17）
 

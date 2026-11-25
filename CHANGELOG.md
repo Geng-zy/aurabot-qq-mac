@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.10
+
+- 同步审计文档到当前结构：HANDOFF/功能说明版本更新到 1.6.9。
+- P2 迁移文档的 client 段改为「模板 + 103 个片段 + 单文件构建」现状，测试数更新为 1562。
+- 回归：文档改动，代码与 1.6.9 相同。
+
 ## 1.6.9
 
 - 群聊上下文/群图处理拆到 chat/group-context.js：addGroupImages、freshGroupImages、groupImageBlocks、groupPrompt。
