@@ -8,9 +8,9 @@
 //
 // 接口说明给写模块的人看：src/modules/API.md（每次启动复制到数据目录 modules/ 里）。
 
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join, relative, resolve, sep } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
 import { dataDir } from './store.js'
 import { defineTool } from '../tools/tools.js'
@@ -19,7 +19,6 @@ import { createModulePanel } from './module-panel.js'
 import { createModuleApi } from './module-api.js'
 import { createModuleRegistry } from './module-registry.js'
 import { createModuleLoader } from './module-loader.js'
-import { rewriteImports, scopeCoreForModule, lazyProxy } from './module-code.js'
 export { rewriteImports, scopeCoreForModule, lazyProxy } from './module-code.js'
 
 /** 扩展接口版本：只加不改。哪天不得不改已有的东西才升到 2，并在更新说明里写清楚怎么迁移。 */

@@ -1,5 +1,4 @@
 // 投喂和 <feel> 感受：喂了什么、收走感受标记、写进情绪和经历。
-import { naturalFoodOffer } from './feeding.js'
 
 export function createFeel({ mind, mem, now, debug, syncOwner, windowOf, parseChat, personIn, notRemembered, refOfChat, isOwnerChat, shortId, naturalFoodOffer: naturalFoodOfferFn, parsePerson, LEGACY_PLATFORM }) {
   const naturalFoodOffer = naturalFoodOfferFn

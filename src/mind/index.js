@@ -6,7 +6,7 @@
 import { join } from 'node:path'
 import { appendFileSync, readFileSync, readdirSync, statSync, renameSync, rmSync, existsSync, mkdirSync } from 'node:fs'
 import { openRecoverableStore, GENERATED_COLUMNS } from './store.js'
-import { resolveSettings, paramOf, clampParam, PARAMS, GROUPS } from './params.js'
+import { resolveSettings, paramOf, clampParam } from './params.js'
 import { currentAge, dayKey, describeNow, isBirthday, validTimeZone } from './clock.js'
 import { createBudget } from './budget.js'
 import { createMemory } from './memory/index.js'

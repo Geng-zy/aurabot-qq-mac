@@ -1,5 +1,4 @@
 // 记忆可见性/隐私：谁在哪个窗口能看到哪条经历，以及可分享/受限文本。
-import { anchorDates, relativeDayWords } from './text.js'
 import { dayKey } from '../clock.js'
 import { randomUUID } from 'node:crypto'
 

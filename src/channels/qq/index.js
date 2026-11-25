@@ -21,7 +21,7 @@ import { createConfigApi } from './features/config.js'
 import { createLifecycle } from './features/lifecycle.js'
 import { createLoginGate } from './features/login.js'
 import { createQqInbox } from './inbox.js'
-import { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
+import { PLATFORM, QQ_CAPS, qqTarget } from './contract.js'
 
 export { PLATFORM, QQ_CAPS, qqTarget, qqChat } from './contract.js'
 

@@ -1,6 +1,6 @@
 // 数据目录、JSON 读写（UTF-8 无 BOM、先写临时文件再改名）。
 
-import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join, dirname } from 'node:path'
 

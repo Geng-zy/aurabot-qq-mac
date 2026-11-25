@@ -265,20 +265,7 @@ window.__ModuleLoader__.load({
 
 
 
-    function apply(ctx) {
-      const slots = ctx.get('slots')
-      if (slots === undefined) return
-      try {
-        primitives()
-      } catch (error) {
-        slots.inject('main', () => slots.register({ name: 'main', key: PANEL_ID }, () => h(MissingPrimitivesPage, { error })))
-        slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
-        return
-      }
-      // 写法同 DSH 自带的「自动化任务」（order 10）和「插件」（order 0）：排在它们后面
-      slots.inject('main', () => slots.register({ name: 'main', key: PANEL_ID }, AurabotPage))
-      slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
-    }
+
 
     function PageNav({ group, current, go, dirtyOf, expanded, rail }) {
     return h('div', {
@@ -429,6 +416,21 @@ window.__ModuleLoader__.load({
     h(Btn, { small: true, disabled: !list.length || busy === 'describe', onClick: describe }, busy === 'describe' ? '正在看图…' : '看图写一段'),
     desc !== null ? h(Btn, { small: true, kind: 'primary', onClick: () => act('/image/appearance/description', { text: desc }, '存好了') }, '保存描述') : null,
     text ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/mind/self/change', { what: 'looks', content: text, why: '管理员导入了她的形象图' }); toast((r && r.message) || '好了', r && r.ok === false ? 'err' : 'ok') } }, '也写进她的「外貌」') : null))))
+    }
+
+    function apply(ctx) {
+    const slots = ctx.get('slots')
+    if (slots === undefined) return
+    try {
+    primitives()
+    } catch (error) {
+    slots.inject('main', () => slots.register({ name: 'main', key: PANEL_ID }, () => h(MissingPrimitivesPage, { error })))
+    slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
+    return
+    }
+    // 写法同 DSH 自带的「自动化任务」（order 10）和「插件」（order 0）：排在它们后面
+    slots.inject('main', () => slots.register({ name: 'main', key: PANEL_ID }, AurabotPage))
+    slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
     }
 
     function Asr({ draft, setDraft, toast }) {
