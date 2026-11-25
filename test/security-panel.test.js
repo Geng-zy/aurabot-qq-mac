@@ -20,12 +20,15 @@ test('安全防护页接上了页签、组件、搜索和 SSRF 模式配置', ()
 })
 
 test('危险命令确认放在安全防护页，不能藏在聊天页', () => {
-  const groupStart = client.indexOf('function Group(')
-  const securityStart = client.indexOf('function Security(')
-  const logsStart = client.indexOf('function Logs(')
-  assert.ok(groupStart >= 0 && securityStart > groupStart && logsStart > securityStart, '页面组件边界找不到')
-  const group = client.slice(groupStart, securityStart)
-  const security = client.slice(securityStart, logsStart)
+  // client 页面现在由 parts 拼接，函数顺序不再代表页面顺序；按函数体边界取。
+  const fnBody = (name) => {
+    const start = client.indexOf(`function ${name}(`)
+    assert.ok(start >= 0, `缺 ${name} 组件`)
+    const end = client.indexOf('\n    function ', start + 1)
+    return client.slice(start, end < 0 ? client.length : end)
+  }
+  const group = fnBody('Group')
+  const security = fnBody('Security')
   assert.ok(security.includes('security.dangerConfirm'), '安全防护页缺危险命令确认')
   assert.ok(!group.includes('security.dangerConfirm'), '聊天页不该再出现危险命令确认')
 })
