@@ -369,3 +369,15 @@ test('试运行生成并保存画作，不调用发送接口或记录已送达�
   assert.equal(s.events.length, 0)
   assert.equal(readdirSync(join(dir, 'imagegen')).length, 1)
 })
+
+test('xAI 参考图：JSON image 字段是包含 type/url 的对象', async () => {
+  let seen = null
+  const cfg = normalize({ ownerQQ: OWNER, enabled: true, dryRun: false, freedom: false, imageGen: { enabled: true, provider: 'xai', baseUrl: 'https://api.x.ai/v1', apiKey: 'xai-key', model: 'grok-2-image' } })
+  const gen = createImageGen({ getConfig: () => cfg, log, fetchImpl: async (url, init) => { seen = { url, init }; return new Response(JSON.stringify({ data: [{ b64_json: b64 }] })) } })
+  assert.deepEqual(await gen.generate('把猫改成蓝色', { image: PNG }), PNG)
+  assert.equal(seen.url, 'https://api.x.ai/v1/images/edits')
+  const body = JSON.parse(seen.init.body)
+  assert.equal(body.model, 'grok-2-image')
+  assert.equal(body.image.type, 'image_url')
+  assert.match(body.image.url, /^data:image\/png;base64,/)
+})
