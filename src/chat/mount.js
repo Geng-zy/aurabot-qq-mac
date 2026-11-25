@@ -49,7 +49,7 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
     assertActive()
     const sid = sessionKey(agent.session?.id ?? agent.id)
     const tools = level !== 'chat' && typeof buildTools === 'function' ? buildTools({ chat, level, sessionId: sid }) : []
-    const denied = (() => { try { return hooks?.deniedTools?.() || [] } catch (error) { return [] } })()
+    const denied = (() => { try { return hooks?.deniedTools?.() || [] } catch { return [] } })()
     // Purge 把宿主维护工具注册成全局工具，社交预设也会继承。只有完整权限的管理员私聊可以用它们。
     const configAtMount = getConfig()
     const ownerMaintenance = chat.kind === 'private' && level === 'full' && levelFor(configAtMount, chat) === 'full'
@@ -59,7 +59,7 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
     // 模块（重）启动代际也进 key：热重载后工具名通常不变，但工具对象是旧实例的闭包（issue #73），
     // 只比名字会一直 return，会话里永远用旧实现/旧状态；带上代际就整套重挂。
     let gen = 0
-    try { gen = typeof toolsGeneration === 'function' ? Number(toolsGeneration()) || 0 : 0 } catch (error) { gen = 0 }
+    try { gen = typeof toolsGeneration === 'function' ? Number(toolsGeneration()) || 0 : 0 } catch { gen = 0 }
     const maintenanceKey = ownerMaintenance ? `owner:${maintenanceBot}:${maintenanceRevision}` : maintenance.join(',')
     const toolsKey = tools.map((t) => t.name).sort().join(',') + '|' + denied.join(',') + '|' + maintenanceKey + '|gen:' + gen
     const prev = mounted.get(sid)

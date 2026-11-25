@@ -108,7 +108,7 @@ export function dirSize(dir) {
   while (stack.length) {
     const d = stack.pop()
     let names
-    try { names = readdirSync(d, { withFileTypes: true }) } catch (error) { continue }
+    try { names = readdirSync(d, { withFileTypes: true }) } catch { continue }
     for (const e of names) {
       const full = join(d, e.name)
       if (e.isDirectory()) stack.push(full)
@@ -290,7 +290,7 @@ export function pathsOf(root) {
 /** models 目录里的音色：[{id, pth, index}]，同名 .index 可选。 */
 export function listVoices(modelsDir) {
   let names = []
-  try { names = readdirSync(modelsDir) } catch (error) { return [] }
+  try { names = readdirSync(modelsDir) } catch { return [] }
   const pths = names.filter((n) => n.toLowerCase().endsWith('.pth')).sort()
   const ids = pths.map((n) => n.slice(0, -4))
   const indexFor = (id) => {
@@ -329,7 +329,7 @@ export function applioPython(p, { exists = existsSync } = {}) {
 export function findRubberband(p, { pathEnv = process.env.PATH || '', exists = existsSync } = {}) {
   const cands = [join(p.bin, 'rubberband'), ...String(pathEnv).split(':').filter(Boolean).map((d) => join(d, 'rubberband')),
     '/opt/homebrew/bin/rubberband', '/usr/local/bin/rubberband']
-  return cands.find((c) => { try { return exists(c) } catch (error) { return false } }) || ''
+  return cands.find((c) => { try { return exists(c) } catch { return false } }) || ''
 }
 
 /** 像不像 RVC 模型：PyTorch 存的 .pth 要么是 zip 格式（PK 开头），要么是老的 pickle（0x80 开头）。 */
@@ -387,7 +387,7 @@ export function deleteVoice(modelsDir, id) {
 /** 缓存目录只留最新的 keep 个文件。 */
 export function pruneCache(dir, keep) {
   let files = []
-  try { files = readdirSync(dir).map((n) => ({ n, t: statSync(join(dir, n)).mtimeMs })) } catch (error) { return 0 }
+  try { files = readdirSync(dir).map((n) => ({ n, t: statSync(join(dir, n)).mtimeMs })) } catch { return 0 }
   const old = files.sort((a, b) => b.t - a.t).slice(keep)
   for (const f of old) rmSync(join(dir, f.n), { force: true })
   return old.length
@@ -774,7 +774,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       const out = await run(P().ffmpeg, ['-hide_banner', '-i', file], { signal, acceptedExitCodes: [0, 1] })
       const m = out.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)
       return m ? Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) : 0
-    } catch (error) { signal?.throwIfAborted(); return 0 }
+    } catch { signal?.throwIfAborted(); return 0 }
   }
 
   /** 人声轨的平均音量（dB）；纯音乐分出来的人声几乎是静音。 */
@@ -783,7 +783,7 @@ export function createSongStudio({ getConfig, log, sendVoiceFile, sendText, say,
       const out = await run(P().ffmpeg, ['-hide_banner', '-i', file, '-af', 'volumedetect', '-f', 'null', '-'], { signal })
       const m = out.match(/mean_volume:\s*(-?[\d.]+|-inf)/)
       return m ? (m[1] === '-inf' ? -200 : Number(m[1])) : 0
-    } catch (error) { signal?.throwIfAborted(); return 0 }
+    } catch { signal?.throwIfAborted(); return 0 }
   }
 
   async function download(job, dir) {

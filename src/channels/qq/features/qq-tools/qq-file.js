@@ -12,7 +12,7 @@ const TEXT_EXT = new Set(['.txt', '.md', '.markdown', '.log', '.csv', '.tsv', '.
 function decodeText(buf) {
   if (buf.includes(0)) return null
   try { return new TextDecoder('utf-8', { fatal: true }).decode(buf) } catch {}
-  try { return new TextDecoder('gb18030', { fatal: true }).decode(buf) } catch (error) { return null }
+  try { return new TextDecoder('gb18030', { fatal: true }).decode(buf) } catch { return null }
 }
 
 async function fileUrl(onebot, chat, file) {

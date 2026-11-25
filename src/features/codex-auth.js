@@ -191,7 +191,7 @@ export function createCodexAuth ({ log, fetchImpl, openUrl, createServerImpl = c
     })
     const text = await r.text().catch(() => '')
     if (!r.ok) throw new Error(`换取令牌失败（HTTP ${r.status}），请重新登录`)
-    try { return JSON.parse(text) } catch (error) { throw new Error('换取令牌返回的不是 JSON') }
+    try { return JSON.parse(text) } catch { throw new Error('换取令牌返回的不是 JSON') }
   }
 
   async function exchange (code, p) {

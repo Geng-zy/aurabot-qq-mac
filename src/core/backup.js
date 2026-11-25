@@ -875,7 +875,7 @@ function planSessionRestore(data, info) {
 
 /** 恢复后还没下载的模块库模块。 */
 export function pendingModules() {
-  try { return JSON.parse(readFileSync(modulesFile(), 'utf8')) } catch (error) { return [] }
+  try { return JSON.parse(readFileSync(modulesFile(), 'utf8')) } catch { return [] }
 }
 
 export function setPendingModules(list) {
@@ -895,7 +895,7 @@ export function cancelRestore() {
 }
 
 export function pendingRestore() {
-  try { return JSON.parse(readFileSync(pendingFile(), 'utf8')) } catch (error) { return null }
+  try { return JSON.parse(readFileSync(pendingFile(), 'utf8')) } catch { return null }
 }
 
 /** 面板显示：外盘暂时不在时留下的待迁入会话。 */
@@ -1000,7 +1000,7 @@ export function listBackups() {
       const st = statSync(join(backupsDir(), name))
       return { name, bytes: st.size, at: st.mtimeMs, createdAt: backupStamp(name) }
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.at - a.at || b.name.localeCompare(a.name))
-  } catch (error) { return [] }
+  } catch { return [] }
 }
 
 /** 上传和远端下载共用受保护的落盘及暂存流程。 */

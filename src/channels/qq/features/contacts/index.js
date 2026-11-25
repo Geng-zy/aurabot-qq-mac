@@ -66,7 +66,7 @@ export default {
         if (!existsSync(f)) return []
         const j = JSON.parse(readFileSync(f, 'utf8'))
         return Array.isArray(j) ? j.filter((x) => x && x.flag && x.userId) : []
-      } catch (error) { return [] }
+      } catch { return [] }
     }
     const savePending = (list) => {
       try { writeFileSync(pendingFile(), JSON.stringify(list.slice(-PENDING_MAX))) } catch (error) { api.log.warn('存好友申请出错：', error.message) }
@@ -78,7 +78,7 @@ export default {
         if (!existsSync(f)) return []
         const j = JSON.parse(readFileSync(f, 'utf8'))
         return Array.isArray(j) ? j.filter((x) => x && x.flag && ['add', 'invite'].includes(x.subType)) : []
-      } catch (error) { return [] }
+      } catch { return [] }
     }
     const saveGroupPending = (list) => {
       try { writeFileSync(groupPendingFile(), JSON.stringify(list.slice(-PENDING_MAX))) } catch (error) { api.log.warn('存加群申请出错：', error.message) }
@@ -161,7 +161,7 @@ export default {
         return { ok: false, message: `有 ${pending.length} 个待处理的申请：${pending.map((x) => x.userId).join('、')}。说清楚是哪个 QQ 号` }
       }
       let doubt = []
-      try { doubt = (await onebot.call('get_doubt_friends_add_request', { count: 50 }, { timeoutMs: 15000 })) || [] } catch (error) { doubt = [] }
+      try { doubt = (await onebot.call('get_doubt_friends_add_request', { count: 50 }, { timeoutMs: 15000 })) || [] } catch { doubt = [] }
       if (!Array.isArray(doubt)) doubt = []
       const d = qq ? doubt.find((x) => String(x.user_id) === qq) : (doubt.length === 1 ? doubt[0] : null)
       if (d && d.uid) return { ok: true, via: 'doubt', flag: String(d.uid), userId: String(d.user_id || qq || '') }

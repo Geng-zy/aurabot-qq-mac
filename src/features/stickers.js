@@ -419,7 +419,7 @@ export function createStickerStore({ dsh, getConfig, log, qq = null, downloadSeg
         if (!it || (!all && String(it.name || '').trim() && (it.tags || []).length)) { job.skipped++; job.done++; continue }
         job.current = it.name || it.md5.slice(0, 8)
         let buf
-        try { buf = readFileSync(join(dir(), it.file)) } catch (error) { job.failed++; job.done++ }
+        try { buf = readFileSync(join(dir(), it.file)) } catch { job.failed++; job.done++ }
         if (!buf) continue
         const { name, tags, noVision } = await caption(buf, mimeOf(buf), it.summary || '')
         if (!name) {

@@ -105,7 +105,7 @@ export function createChatLog({ getConfig, log, trashDir, mind, hooks, cleaningF
       const now = new Date()
       prune(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`)
       return true
-    } catch (error) { return false }
+    } catch { return false }
   }
 
   /** 这条流水能不能给当前会话看。 */

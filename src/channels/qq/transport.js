@@ -193,7 +193,7 @@ export function createOneBotClient({ endpoint, onEvent, onState, log, retryDelay
     sock.onmessage = (ev) => {
       if (ws !== sock) return
       let data
-      try { data = JSON.parse(typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString('utf8')) } catch (error) { return }
+      try { data = JSON.parse(typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data).toString('utf8')) } catch { return }
       if (data && data.echo && pending.has(data.echo)) {
         const p = pending.get(data.echo)
         pending.delete(data.echo)

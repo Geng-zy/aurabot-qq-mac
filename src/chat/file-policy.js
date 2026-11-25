@@ -11,12 +11,12 @@ export const isExternalFile = (s) => /^(https?:\/\/|base64:\/\/)/i.test(s)
 export const fileLabel = (name, src) => String(name || '').trim() || basename(src.split(/[?#]/)[0]) || '文件'
 export const fileRootsOf = (cfg, workspaceDirOf) => [workspaceDirOf(cfg), ...(Array.isArray(cfg?.files?.dirs) ? cfg.files.dirs : [])]
   .filter(Boolean)
-  .map((d) => { try { return resolve(String(d)) } catch (error) { return '' } })
+  .map((d) => { try { return resolve(String(d)) } catch { return '' } })
   .filter(Boolean)
 
 export function insideRoots(file, roots) {
   let p
-  try { p = resolve(file) } catch (error) { return false }
+  try { p = resolve(file) } catch { return false }
   return roots.some((root) => {
     const rel = relative(root, p)
     return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel))

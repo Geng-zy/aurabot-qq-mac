@@ -33,7 +33,7 @@ function run(cmd, args, timeoutMs = 4000) {
   return new Promise((resolve) => {
     try {
       execFile(cmd, args, { timeout: timeoutMs }, (error, stdout) => resolve(error ? null : String(stdout || '')))
-    } catch (error) { resolve(null) }
+    } catch { resolve(null) }
   })
 }
 

@@ -4,7 +4,7 @@ import { collectSources, publicText } from './sources.js'
 export function parseDraft(output, candidates, maxChars) {
   const raw = String(output || '').trim().replace(/^```(?:json)?\s*|\s*```$/gi, '')
   let draft
-  try { draft = JSON.parse(raw) } catch (error) { throw new Error('图文日记草稿格式不完整，本次未发布') }
+  try { draft = JSON.parse(raw) } catch { throw new Error('图文日记草稿格式不完整，本次未发布') }
   const text = String(draft?.text || '').replace(/\|\|\|/g, ' ').replace(/<[^>]*>/g, '').trim()
   if (!text || text === '[沉默]' || text.length > maxChars + 20 || !publicText(text)) throw new Error('日记正文为空、过长或含敏感信息，本次未发布')
   const ids = [...new Set(Array.isArray(draft.imageIds) ? draft.imageIds : [])]
@@ -84,7 +84,7 @@ export function createDiaryMedia(api, { assets = createDiaryAssets(api.dataDir('
       try {
         const image = await assets.materialize(picture)
         if (!images.some((item) => item.id === image.id)) images.push(image)
-      } catch (error) { warnings.push('有一张配图未能读取，已跳过，正文仍保留。') }
+      } catch { warnings.push('有一张配图未能读取，已跳过，正文仍保留。') }
       canPublish(snapshot)
     }
     return {

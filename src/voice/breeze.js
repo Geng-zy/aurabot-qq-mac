@@ -33,7 +33,7 @@ const siteHeaders = (c, extra = {}) => ({ origin: siteOf(c), referer: siteOf(c) 
 function siteRequest(url, { method = 'GET', headers = {}, body = null, timeoutMs = 20000 } = {}) {
   return new Promise((resolve, reject) => {
     let target
-    try { target = new URL(url) } catch (error) { reject(new Error('站点地址不对：' + url)); return }
+    try { target = new URL(url) } catch { reject(new Error('站点地址不对：' + url)); return }
     const send = target.protocol === 'http:' ? httpRequest : httpsRequest
     const payload = body == null ? null : (typeof body === 'string' ? body : JSON.stringify(body))
     const req = send(target, {

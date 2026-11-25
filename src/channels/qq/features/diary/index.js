@@ -101,7 +101,7 @@ export default {
       try {
         const bytes = media.image(http.query(req).id)
         return http.send(res, 200, bytes, mimeOf(bytes))
-      } catch (error) { return http.send(res, 404, '') }
+      } catch { return http.send(res, 404, '') }
     })
     api.route('/diary/history', async () => {
       const sync = await qzone.syncHistory()

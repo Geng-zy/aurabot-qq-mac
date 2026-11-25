@@ -18,7 +18,7 @@ const CANCEL_RE = /^(取消|取消执行|拒绝|不要|不|不行|别|停|停手
 export function safeOwnedSession (probe) {
   return (sessionId) => {
     if (typeof probe !== 'function') return true
-    try { return probe(sessionId) !== false } catch (error) { return true }
+    try { return probe(sessionId) !== false } catch { return true }
   }
 }
 
@@ -76,7 +76,7 @@ export function createDangerGuard ({ getConfig, deliver, chatOfSession, isOwnedS
     if (typeof isOwnedSession === 'function') {
       let owned = null
       // 判断不出来（抛错）就按老逻辑走，仍然 fail-closed
-      try { owned = !!isOwnedSession(sessionId) } catch (error) { owned = null }
+      try { owned = !!isOwnedSession(sessionId) } catch { owned = null }
       if (owned === false) return next()
     }
     const chatId = chatOfSession ? String(chatOfSession(sessionId) || '') : ''

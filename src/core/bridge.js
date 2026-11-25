@@ -205,7 +205,7 @@ export function createBridge({ ctx, getConfig, setConfig, hub, mods, log, versio
 }
 
 function safeJson(v) {
-  try { return JSON.parse(JSON.stringify(v ?? null)) } catch (error) { return String(v) }
+  try { return JSON.parse(JSON.stringify(v ?? null)) } catch { return String(v) }
 }
 
 /** 面板上给的示例（复制就能用）。 */

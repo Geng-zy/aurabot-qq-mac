@@ -90,7 +90,7 @@ function matches(entry, name) {
   if (!entry || !entry.match) return false
   let re = reCache.get(entry.match)
   if (re === undefined) {
-    try { re = new RegExp(entry.match, 'i') } catch (error) { re = null }
+    try { re = new RegExp(entry.match, 'i') } catch { re = null }
     reCache.set(entry.match, re)
   }
   return Boolean(re && re.test(name))

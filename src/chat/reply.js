@@ -152,7 +152,7 @@ function parseJsonLoose (text) {
   t = t.replace(/'((?:[^'\\]|\\.)*)'/g, (m, inner) => JSON.stringify(inner.replace(/\\'/g, "'")))
   t = t.replace(/\bTrue\b/g, 'true').replace(/\bFalse\b/g, 'false').replace(/\bNone\b/g, 'null')
   t = t.replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
-  try { return JSON.parse(t) } catch (error) { return null }
+  try { return JSON.parse(t) } catch { return null }
 }
 
 function isToolCallValue (v) {

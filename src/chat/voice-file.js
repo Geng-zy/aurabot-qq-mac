@@ -13,7 +13,7 @@ export function audioDurationSec(file, getConfig) {
     const m = String(r.stderr || '').match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/)
     if (!m) return 0
     return Math.max(1, Math.round(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])))
-  } catch (error) { return 0 }
+  } catch { return 0 }
 }
 
 export function createVoiceFileSender({ isDisposed, channelOf, getConfig, sendSegments, durationOf }) {

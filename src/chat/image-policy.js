@@ -13,5 +13,5 @@ export function localImageBlocked(chatId, src, { getConfig, chatInfo, workspaceD
   if (!isAbsolute(s) && !/^file:/i.test(s)) return false
   try {
     return !insideRoots(/^file:/i.test(s) ? fileURLToPath(s) : s, [...fileRootsOf(cfg, workspaceDirOf), dataDir()])
-  } catch (error) { return true }
+  } catch { return true }
 }

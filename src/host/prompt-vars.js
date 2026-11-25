@@ -59,7 +59,7 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
     const mind = getMind()
     let core = ''
     if (mind) {
-      try { core = mind.selfPrompt() } catch (error) { core = '' }
+      try { core = mind.selfPrompt() } catch { core = '' }
     }
     return rewrite('persona', core || currentPersonaText(cfg.persona.current))
   })
@@ -69,7 +69,7 @@ export function installPromptVariables(ctx, { getConfig, getMind, getMods } = {}
   variable('aurabot_identity_lock', () => (getConfig().purge?.identityLock === false ? '' : IDENTITY_LOCK_TEXT))
 
   variable('aurabot_persona_public', () => {
-    try { return getMind()?.selfPrompt({ publicOnly: true }) || '你是大肥鱼。' } catch (error) { return '你是大肥鱼。' }
+    try { return getMind()?.selfPrompt({ publicOnly: true }) || '你是大肥鱼。' } catch { return '你是大肥鱼。' }
   })
 
   variable('aurabot_rules_private', () => {

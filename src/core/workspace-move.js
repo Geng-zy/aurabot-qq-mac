@@ -22,7 +22,7 @@ function tally(dir) {
   return { files, bytes }
 }
 
-const isLink = (p) => { try { return lstatSync(p).isSymbolicLink() } catch (error) { return false } }
+const isLink = (p) => { try { return lstatSync(p).isSymbolicLink() } catch { return false } }
 function containsLink(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name)
@@ -44,7 +44,7 @@ function realTarget(path) {
 
 /** 现在文件实际在哪（搬过就是新位置）。 */
 export function realWorkspace(dir) {
-  try { return realpathSync(dir) } catch (error) { return dir }
+  try { return realpathSync(dir) } catch { return dir }
 }
 
 /** 把工作区搬到 to，原路径 from 留联接。失败时一切恢复原样。 */

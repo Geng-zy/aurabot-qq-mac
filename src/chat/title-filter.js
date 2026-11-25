@@ -68,7 +68,7 @@ export function createTitleFilter({ getConfig, onebot, log, now = Date.now }) {
     const failed = []
     for (const gid of groupIds) {
       let rows
-      try { rows = await onebot.call('get_group_member_list', { group_id: Number(gid), no_cache: true }, { timeoutMs: 15000 }) } catch (error) { failed.push(String(gid)); continue }
+      try { rows = await onebot.call('get_group_member_list', { group_id: Number(gid), no_cache: true }, { timeoutMs: 15000 }) } catch { failed.push(String(gid)); continue }
       for (const m of Array.isArray(rows) ? rows : []) {
         const title = normTitle(m.title)
         if (!title) continue

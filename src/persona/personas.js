@@ -46,7 +46,7 @@ export function listPersonas() {
   seedPersonas()
   const out = []
   let names = []
-  try { names = readdirSync(dir()) } catch (error) { return out }
+  try { names = readdirSync(dir()) } catch { return out }
   for (const n of names) {
     if (!n.endsWith('.md')) continue
     const id = n.slice(0, -3)

@@ -57,7 +57,7 @@ export function localPictures(folder) {
   while (queue.length && entries < 1500) {
     const { dir, depth } = queue.shift()
     let items
-    try { items = readdirSync(dir, { withFileTypes: true }) } catch (error) { continue }
+    try { items = readdirSync(dir, { withFileTypes: true }) } catch { continue }
     for (const item of items) {
       if (++entries > 1500) break
       if (item.isSymbolicLink()) continue
@@ -80,7 +80,7 @@ function remoteImage(value) {
   try {
     const url = new URL(value)
     return /^https?:$/.test(url.protocol) && !url.username && !url.password ? url.href : ''
-  } catch (error) { return '' }
+  } catch { return '' }
 }
 
 // 公开作品链接重新构造，不把 Cookie、分享令牌或任意查询参数带进正文。
@@ -110,7 +110,7 @@ export function collectSources(api, settings, history = [], now = Date.now()) {
     ]
     for (const [id, platform, kinds] of platforms) {
       let rows = []
-      try { rows = api.use(id)?.state?.()?.history || [] } catch (error) { continue }
+      try { rows = api.use(id)?.state?.()?.history || [] } catch { continue }
       if (!Array.isArray(rows)) continue
       for (const row of rows.slice(0, 80)) {
         if (!row || typeof row !== 'object') continue
@@ -146,7 +146,7 @@ export function collectSources(api, settings, history = [], now = Date.now()) {
   let folderError = ''
   if (settings.local && settings.folder) {
     try { localPictures(settings.folder).forEach(add) }
-    catch (error) { folderError = '指定的图片目录无法读取，请检查路径和权限。' }
+    catch { folderError = '指定的图片目录无法读取，请检查路径和权限。' }
   }
   return { events: events.slice(0, 18), pictures, folderError }
 }

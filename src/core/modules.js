@@ -70,7 +70,7 @@ const SNAP = '.aurabot-cache'
 /** 模块文件夹里所有文件（含子目录，不含依赖和快照）。 */
 function filesOf(dir, base = dir, out = []) {
   let list = []
-  try { list = readdirSync(dir, { withFileTypes: true }) } catch (error) { return out }
+  try { list = readdirSync(dir, { withFileTypes: true }) } catch { return out }
   for (const e of list) {
     const full = join(dir, e.name)
     if (e.isDirectory()) { if (!SKIP_DIRS.has(e.name)) filesOf(full, base, out) }
@@ -86,7 +86,7 @@ function stampOf(dir) {
     if (f === '.complete') continue
     h.update(relative(dir, join(dir, f)))
     h.update('\0')
-    try { h.update(readFileSync(join(dir, f))) } catch (error) { h.update('missing') }
+    try { h.update(readFileSync(join(dir, f))) } catch { h.update('missing') }
     h.update('\0')
   }
   return h.digest('hex')
@@ -97,7 +97,7 @@ const entryOf = (dir) => ENTRY.map((n) => join(dir, n)).find((p) => existsSync(p
 export function scanUser() {
   const out = []
   let names = []
-  try { names = readdirSync(userDir(), { withFileTypes: true }) } catch (error) { return out }
+  try { names = readdirSync(userDir(), { withFileTypes: true }) } catch { return out }
   for (const e of names) {
     if (!e.isDirectory() || /^[_.]/.test(e.name)) continue
     const dir = join(userDir(), e.name)

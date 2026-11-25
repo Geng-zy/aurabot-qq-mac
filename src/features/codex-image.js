@@ -56,7 +56,7 @@ export function createCodexImage({ auth, fetchImpl, log }) {
       await r.body?.cancel()
       let credential
       try { credential = await auth.ensureAccess({ force: true }) }
-      catch (error) { throw unavailable('订阅登录已过期，去生图页重新登录 ChatGPT') }
+      catch { throw unavailable('订阅登录已过期，去生图页重新登录 ChatGPT') }
       r = await once(credential)
       check()
     }

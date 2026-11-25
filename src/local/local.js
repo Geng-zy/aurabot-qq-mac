@@ -73,7 +73,7 @@ export function createLocal({ getConfig, log }) {
   const last = {} // slot → { ok, at, message }
 
   function hashOf(slot) {
-    try { return createHash('sha256').update(readFileSync(pathOf(slot))).digest('hex') } catch (error) { return '' }
+    try { return createHash('sha256').update(readFileSync(pathOf(slot))).digest('hex') } catch { return '' }
   }
   function sidecar() { return join(dir(), '.trusted.json') }
   function storedHashes() {

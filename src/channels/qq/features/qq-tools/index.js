@@ -12,7 +12,7 @@ async function isGroupMember(onebot, groupId, userId) {
   try {
     const m = await onebot.call('get_group_member_info', { group_id: Number(groupId), user_id: Number(userId), no_cache: true }, { timeoutMs: 10000 })
     return String(m?.user_id) === String(userId) && Number(m?.join_time) > 0
-  } catch (error) { return false }
+  } catch { return false }
 }
 
 /**

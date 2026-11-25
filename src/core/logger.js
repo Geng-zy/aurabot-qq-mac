@@ -72,5 +72,5 @@ export function createLogger({ dsh, retainDays = 14 } = {}) {
 function fmt(v) {
   if (v instanceof Error) return v.message
   if (typeof v === 'string') return v
-  try { return JSON.stringify(v) } catch (error) { return String(v) }
+  try { return JSON.stringify(v) } catch { return String(v) }
 }

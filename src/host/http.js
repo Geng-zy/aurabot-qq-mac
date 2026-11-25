@@ -36,7 +36,7 @@ export function createHttpKit({ getConfig, log, prefix: PREFIX }) {
     } catch (error) { throw new Error(error.message || '请求内容没有接收完整') }
     if (!s.trim()) return {}
     let body
-    try { body = JSON.parse(s) } catch (error) { throw new Error('请求内容不是有效的 JSON') }
+    try { body = JSON.parse(s) } catch { throw new Error('请求内容不是有效的 JSON') }
     if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('请求内容需要是一个 JSON 对象')
     return body
   }

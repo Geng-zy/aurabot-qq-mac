@@ -7,7 +7,7 @@ function decodeName(bytes, utf8Flag) {
   // Windows 上打的中文 zip 文件名多半是 GBK；先试 UTF-8，不合法再按 GBK
   const s = bytes.toString('utf8')
   if (!s.includes('�')) return s
-  try { return new TextDecoder('gbk').decode(bytes) } catch (error) { return s }
+  try { return new TextDecoder('gbk').decode(bytes) } catch { return s }
 }
 
 /**

@@ -117,7 +117,7 @@ export function createCommunity({ mods, getConfig, setConfig, log, version, aliv
   let progress = null // 安装中：{ id, name, stage: 'index' | 'download' | 'install' | 'start', received, total }
 
   const readSource = (id) => {
-    try { return JSON.parse(readFileSync(join(dirOf(id), SOURCE_FILE), 'utf8')) } catch (error) { return null }
+    try { return JSON.parse(readFileSync(join(dirOf(id), SOURCE_FILE), 'utf8')) } catch { return null }
   }
   const hasFolder = (id) => existsSync(dirOf(id))
 

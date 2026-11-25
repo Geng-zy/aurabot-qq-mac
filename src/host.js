@@ -323,7 +323,7 @@ export function apply(ctx) {
       // 群名（聊天中枢查到过的；没查到就显示群号）
       groupName: (gid, platform) => platform === LEGACY_PLATFORM ? hub?.groupNames?.get?.(String(gid)) || '' : '',
       // 正在翻唱（很吃内存）：本地小模型先让路
-      heavyBusy: () => { try { return Boolean(use('song')?.status?.()?.current) } catch (error) { return false } },
+      heavyBusy: () => { try { return Boolean(use('song')?.status?.()?.current) } catch { return false } },
       foregroundBusy: () => hub?.foregroundBusy(),
       // 醒来后把睡着时找她的消息重新交给聊天中枢（一条一条来，管理员的先）
       onWakeReplay: async (list) => {
@@ -402,7 +402,7 @@ export function apply(ctx) {
     const off = purge.installPromptGuard(ctx, {
       enabled: () => getConfig().purge?.identityLock !== false,
       isAurabotAgent: (agent) => {
-        try { return Boolean(hub?.chatOfSession?.(agent?.session?.id)) } catch (error) { return false }
+        try { return Boolean(hub?.chatOfSession?.(agent?.session?.id)) } catch { return false }
       },
     })
     return () => { try { if (typeof off === 'function') off() } catch { /* ignore */ } }
@@ -414,7 +414,7 @@ export function apply(ctx) {
       llm: ctx.llm,
       log,
       isAurabotRequest: (options) => {
-        try { return Boolean(options?.sessionId && hub?.chatOfSession?.(options.sessionId)) } catch (error) { return false }
+        try { return Boolean(options?.sessionId && hub?.chatOfSession?.(options.sessionId)) } catch { return false }
       },
     })
     return () => { try { if (typeof off === 'function') off() } catch { /* ignore */ } }
@@ -491,7 +491,7 @@ export function apply(ctx) {
     getConfig,
     log: logger.child('危险命令'),
     deliver: (chatId, text) => backgroundText(chatId, text, '通知'),
-    chatOfSession: (sessionId) => { try { return hub.chatOfSession?.(sessionId) || '' } catch (error) { return '' } },
+    chatOfSession: (sessionId) => { try { return hub.chatOfSession?.(sessionId) || '' } catch { return '' } },
     // tools/pre-execute 是进程级的，同一个 DSH 里管理员自己开的会话也会走到这里；那些会话不归这个守卫管
     // 判断不出来（hub.isOwnedSession 缺失 / 抛错）时 safeOwnedSession 返回 true，走原 deny 逻辑；
     // 只有明确 false（宿主自己的 GUI/CLI 会话）才放行给 DSH 自己的权限系统，别在异常时 fail-open。
@@ -518,7 +518,7 @@ export function apply(ctx) {
       const owner = sameChat(chatId, ownerChatId())
       return mind?.selfPrompt({ publicOnly: !owner }) || (owner ? currentPersonaText(getConfig().persona.current) : '你是大肥鱼。')
     },
-    context: (chatId) => { try { return mind?.contextFor?.({ chat: chatOfId(chatId) }) || '' } catch (error) { return '' } },
+    context: (chatId) => { try { return mind?.contextFor?.({ chat: chatOfId(chatId) }) || '' } catch { return '' } },
     send: (chatId, text) => backgroundText(chatId, text, '后台消息'),
     log,
   })
@@ -561,7 +561,7 @@ export function apply(ctx) {
     try {
       const reg = ctx.workspaceRegistry || ctx.get?.('workspaceRegistry')
       return reg?.list?.() || []
-    } catch (error) { return [] }
+    } catch { return [] }
   }
   function workspaceOfSession(sessionId) {
     const sid = String(sessionId || '')
