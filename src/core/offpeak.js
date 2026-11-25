@@ -7,7 +7,6 @@
 // 注意「周一~周五 / 节假日」看的是北京时间的日期，峰/谷的小时看的是 UTC 小时——两套口径叠加。
 
 const TZ_OFFSET_MS = 8 * 3600_000 // 北京时间 = UTC+8
-const DAY_MS = 86400_000
 
 /** UTC 毫秒 → 北京时间的日期字段（用 getUTC* 读，避免宿主时区影响）。 */
 function beijingParts (ms) {

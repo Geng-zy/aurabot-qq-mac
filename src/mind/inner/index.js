@@ -64,7 +64,6 @@ export function parseThought(text) {
 export function createInner(deps) {
   const { store, now, setting } = deps
   const log = deps.log || { debug() {}, info() {}, warn() {}, error() {} }
-  const random = deps.random || Math.random
   const A = (k) => setting('attention.' + k)
   let local = null // { chat(messages, opts) }
   let ask = null // 聊天模型：({ scene, system, text, maxTokens }) => string

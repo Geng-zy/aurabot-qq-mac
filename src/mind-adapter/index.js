@@ -229,7 +229,7 @@ export function createMindAdapter(opts) {
     mind, ownerOf, ownerChat, isOwnerChat, personIn, parseChat, now,
     reachOwner: (...args) => reachOwner(...args), getConfig: () => opts.getConfig(), isClosed: () => closed,
   })
-  const { grantState, free, granted, requestPermission, checkApproval, decide, revoke } = permission
+  const { free, granted, requestPermission, checkApproval, decide, revoke } = permission
   moduleApiFactory = createMindModuleApi({
     mind, mem, outreach, opts, now, debug, ownerOf, ownerChat, parseChat, windowOf, personOf,
     refOfChat, notRemembered, canThink: (...args) => canThink(...args), actionBudget: (...args) => actionBudget(...args),

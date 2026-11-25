@@ -74,7 +74,7 @@ export function registerModuleRoutes({
   route('/modules/simulate', async (req) => {
     const cfg = getConfig()
     const b = await readBody(req)
-    const { owner, userId, chat } = simChat(b)
+    const { owner, chat } = simChat(b)
     const text = String(b.text || '')
     const steps = []
     const msg = { ...chat, nickname: owner ? cfg.ownerName || '管理员' : '路人', role: '', messageId: 'sim', text, mentioned: Boolean(b.mentioned), replyId: '', images: [], stickers: [], records: [], forwards: [], raw: { simulated: true } }

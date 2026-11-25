@@ -132,7 +132,7 @@ export function createModules({ ctx, core, getConfig, setConfig, logger, version
   const log = logger.child('modules')
   const builtinDefs = new Map(builtins.map((d) => [d.id, d]))
   const state = createModuleState()
-  const { live, errors, routes, listeners, revisions, userSeen } = state
+  const { live, routes, listeners } = state
   let note = () => {}
   let isLoaderDisposed = () => false
   const panel = createModulePanel({
