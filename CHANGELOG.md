@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.85
+
+- 贴表情目录路由从 host.js 拆到 features/faces-routes.js。
+- 移除 host.js 中重复注册的 /setup/done（面板核心已注册）。
+- 回归：425 个语法文件、lint 0 errors、E2E/备份 127 个测试通过。
+
 ## 1.5.84
 
 - 面板概览/用量/保存/调试会话/首次向导路由从 host.js 拆到 features/panel-core-routes.js。

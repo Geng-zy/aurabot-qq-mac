@@ -61,6 +61,7 @@ import { registerModuleRoutes } from './features/module-routes.js'
 import { registerAvatarRoutes } from './features/avatar-routes.js'
 import { registerNoticeRoutes } from './features/notice-routes.js'
 import { registerPanelCoreRoutes } from './features/panel-core-routes.js'
+import { registerFacesRoutes } from './features/faces-routes.js'
 import { registerBridgeRoutes } from './features/bridge-routes.js'
 import { registerMindLiveRoutes } from './features/mind-live-routes.js'
 import { registerMindPeopleRoutes } from './features/mind-people-routes.js'
@@ -709,14 +710,6 @@ export function apply(ctx) {
     route, readBody, query, logger, mods, commandList, root: ROOT, version: VERSION, changelogSection,
     getConfig, qq, onebot, moveWorkspace, workspaceDirOf, log,
   })
-  route('/setup/done', async (req) => {
-    const body = await readBody(req)
-    if (!cfg.botQQ || !cfg.ownerQQ || cfg.botQQ === cfg.ownerQQ) return { ok: false, message: '先填好不同的机器人 QQ 和你的 QQ' }
-    if (body.existingConnection && !(cfg.enabled && qq.ready())) return { ok: false, message: 'QQ 网关还没通过机器人号核对，请先连接并核对后再进入面板' }
-    setConfig({ ...cfg, setupDone: true })
-    log.info('首次使用向导完成')
-    return { ...(await overview()), message: '设置完成，大肥鱼可以上线啦' }
-  })
   registerPlatformRoutes({ route, channels, qq, onebot, getConfig })
   registerSessionRoutes({ route, getConfig, backgroundText, hub })
   // 人格
@@ -837,29 +830,7 @@ export function apply(ctx) {
     route, readBody, query, getConfig: () => cfg, mods, community, hub, parseCommand, send, openFolder, root: ROOT, apiVersion: API_VERSION,
   })
 
-  // 贴表情：面板要展示「当前有哪些表情可以贴」——内置常用 + 网关系统表情目录（取不到就只用内置）
-  // emoji 走 Unicode 码点，QQ 老表情走它自己那套编号，两套在 set_msg_emoji_like 里都能直接用。
-  const REACT_EMOJIS = [
-    { char: '👍', name: '赞', id: '128077' },
-    { char: '❤️', name: '爱心', id: '10084' },
-    { char: '😂', name: '笑哭', id: '128514' },
-    { char: '😭', name: '大哭', id: '128557' },
-    { char: '🤔', name: '思考', id: '129300' },
-    { char: '😅', name: '冷汗', id: '128517' },
-    { char: '😳', name: '脸红', id: '128563' },
-    { char: '🥺', name: '委屈', id: '129402' },
-    { char: '🎉', name: '庆祝', id: '127881' },
-    { char: '🌹', name: '玫瑰', id: '127801' },
-    { char: '🍬', name: '糖', id: '127852' },
-    { char: '✨', name: '闪', id: '10024' },
-    { char: '🔥', name: '火', id: '128293' },
-    { char: '🙏', name: '拜托', id: '128591' },
-  ]
-  route('/panel/faces', async () => {
-    const qqChannel = channels.get('qq')
-    const faces = qqChannel?.faceCatalog ? await qqChannel.faceCatalog() : []
-    return { ok: true, faces, emojis: REACT_EMOJIS }
-  })
+  registerFacesRoutes({ route, channels })
 
   registerBridgeRoutes({ route, readBody, query, getConfig: () => cfg, bridge })
 
