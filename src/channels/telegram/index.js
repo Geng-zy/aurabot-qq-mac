@@ -93,7 +93,7 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         }
       }
     }
-    if (!text && !images.length && photo?.file_id) return null
+    if (!text && !images.length && photo?.file_id) throw Object.assign(new Error('图片最终下载失败'), { mediaTransient: true })
     const entities = [...(msg.entities || []), ...(msg.caption_entities || [])].filter((e) => e?.type === 'mention' && Number.isInteger(e.offset) && Number.isInteger(e.length))
     const handles = entities.map((e) => text.slice(e.offset, e.offset + e.length).replace(/^@/, '').toLowerCase()).filter(Boolean)
     const botName = String(me?.username || '').toLowerCase()
@@ -117,7 +117,11 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     if (signal?.aborted || (current && !current())) return false
     // 重启后不要补回上次进程停掉之前的旧消息；只处理本次启动后的消息。
     if (Number(msg.date) && Number(msg.date) < startedAt - 2) return true // 明确丢弃的旧消息也要确认游标
-    const parsed = await normalize(msg, signal)
+    let parsed
+    try { parsed = await normalize(msg, signal) } catch (error) {
+      if (error?.mediaTransient) { log.warn?.('Telegram 图片下载最终失败，保留消息稍后重试：', error.message); return false }
+      throw error
+    }
     if (signal?.aborted || (current && !current())) return false
     if (parsed) emit({ type: 'message', msg: parsed })
     return true
@@ -131,7 +135,8 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         for (const update of updates || []) {
           if (!current()) break
           const delivered = await dispatchUpdate(update, { signal: ctl.signal, current })
-          if (delivered) offset = Math.max(offset, Number(update.update_id) + 1)
+          if (!delivered) { await sleep(3000); break }
+          offset = Math.max(offset, Number(update.update_id) + 1)
         }
       } catch (error) {
         if (!current()) break
