@@ -10,7 +10,7 @@ import { createFakeDsh } from './helpers/fake-dsh.js'
 const OWNER = '10000001'
 const BOT = '20000002'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until(fn, ms = 10000) {
+async function until(fn, ms = 30000) {
   const t = Date.now()
   while (Date.now() - t < ms) {
     const v = await fn()

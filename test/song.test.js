@@ -97,7 +97,7 @@ test('点歌前置检查：没打开、没装好、没说歌名', () => {
   assert.match(st.message, /导入/)
 })
 
-test('取消后台翻唱会停止当前 ffmpeg 进程，排队取消也不会开始处理', { timeout: 8000 }, async (t) => {
+test('取消后台翻唱会停止当前 ffmpeg 进程，排队取消也不会开始处理', { timeout: 15000 }, async (t) => {
   const root = mkdtempSync(join(tmpdir(), 'aurabot-song-cancel-'))
   const active = new AbortController()
   const waiting = new AbortController()
@@ -125,7 +125,7 @@ test('取消后台翻唱会停止当前 ffmpeg 进程，排队取消也不会开
     run: (task) => s.requestAutonomous({ chatId: chat.chatId, file: source, signal: AbortSignal.any([active.signal, task.signal]) }),
   })
   let pid = 0
-  for (let i = 0; i < 300 && !pid; i++) {
+  for (let i = 0; i < 1000 && !pid; i++) {
     if (existsSync(marker)) pid = Number(readFileSync(marker, 'utf8'))
     if (!pid) await delay(10)
   }

@@ -1,7 +1,15 @@
 {
-  "env": { "browser": true, "node": true, "es2024": true },
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2024": true
+  },
   "rules": {
     "no-undef": "error",
     "no-unused-vars": "warn"
-  }
+  },
+  "ignorePatterns": [
+    "client/client.template.js",
+    "client/parts/**"
+  ]
 }
