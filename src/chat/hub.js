@@ -49,6 +49,7 @@ import { createReplyJournal } from './reply-journal.js'
 import { createQuoteResolver } from './quote.js'
 import { inlineLabel, indentBody, quoteWho, quoteBody, quoteWhen, quoteInline } from './quote-format.js'
 import { createReferenceTools } from './reference.js'
+import { createTranscriber } from './transcribe.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -1583,88 +1584,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     recentMedia, segmentBytes, channelOf, maxImageBytes: MAX_IMAGE_BYTES, sentIds, parseChat,
   })
 
-  /** QQ 语音是 silk：让网关转成 wav，再统一成 16kHz 单声道 PCM16。 */
-  async function recordWav(rec, suppliedWav, chatId) {
-    if (suppliedWav) return toMono16k(suppliedWav)
-    const channel = channelOf(chatId)
-    if (!channel?.voiceWav) throw new Error('这个平台取不了语音')
-    return toMono16k(await channel.voiceWav(rec))
-  }
-
-  async function transcribe(msg, suppliedWav) {
-    for (const rec of msg.records) {
-      // 本地接口接管：用用户自己的识别服务（最先试）
-      if (localApi?.active('asr')) {
-        try {
-          const wav = await recordWav(rec, suppliedWav, msg.chatId)
-          const dir = mkdtempSync(join(tmpdir(), 'aurabot-asr-'))
-          try {
-            const file = join(dir, 'input.wav')
-            writeFileSync(file, wav)
-            const r = await localApi.call('asr', { file })
-            const text = String(typeof r === 'string' ? r : r?.text || '').trim()
-            if (text) return `[语音] ${text}`
-          } finally { rmSync(dir, { recursive: true, force: true }) }
-        } catch (error) {
-          log.debug('本地接口语音识别失败：', error.message)
-        }
-      }
-      const voiceCfg = getConfig().voice
-      const viaCloud = async () => {
-        if (!asrConfigured(voiceCfg)) return ''
-        try { return await transcribeAudio(await recordWav(rec, suppliedWav, msg.chatId), voiceCfg, log) } catch (error) {
-          log.debug('云端语音识别失败：', error.message)
-          return ''
-        }
-      }
-      const viaQq = async () => {
-        if (suppliedWav) return '' // 外部输入没有 QQ 消息编号，复用本地/云端/DSH 识别。
-        try {
-          const channel = channelOf(msg.chatId)
-          return channel?.voiceText ? await channel.voiceText(msg) : ''
-        } catch (error) {
-          log.debug('QQ 语音转文字失败：', error.message)
-          return ''
-        }
-      }
-      // 默认 QQ 优先（快、免费），云端做兜底；硅基 SenseVoice 实测一次约 14 秒，
-      // 所以只有把「先用谁」设成云端才提前（移植自原项目 2baf896）
-      const order = voiceCfg.asrApi?.prefer === 'cloud' ? [viaCloud, viaQq] : [viaQq, viaCloud]
-      for (const via of order) {
-        const text = await via()
-        if (text) return `[语音] ${text}`
-      }
-      try {
-        const text = await localTranscribe(rec, suppliedWav, msg.chatId)
-        if (text) return `[语音] ${text}`
-      } catch (error) {
-        log.debug('本地语音识别失败：', error.message)
-      }
-      return '[发来一条语音，没听清]'
-    }
-    return ''
-  }
-
-  /**
-   * DSH 自带识别（SenseVoice）：resolve({audio}) → transcribe(spec, signal)，音频必须是 16kHz 单声道 PCM16 WAV。
-   * QQ 语音是 silk：先让网关 get_record 转成 wav，再重采样。
-   */
-  async function localTranscribe(rec, suppliedWav, chatId) {
-    const stt = dsh.get('speechToText')
-    if (!stt || typeof stt.resolve !== 'function' || typeof stt.transcribe !== 'function') throw new Error('DSH 没开启语音输入')
-    // 模型还没下载好：顺手开始准备（下载一次，之后常驻），这一条先算没听清
-    const snap = typeof stt.snapshot === 'function' ? stt.snapshot() : null
-    const pid = snap?.selection?.providerId
-    const prov = snap?.providers?.find((p) => p.id === pid)
-    if (prov && prov.preparation && !['ready', 'standby'].includes(prov.preparation.phase)) {
-      try { stt.prepare(pid) } catch (error) {}
-      throw new Error(`识别模型还在准备（${prov.preparation.phase}）`)
-    }
-    const spec = stt.resolve({ audio: new Uint8Array(await recordWav(rec, suppliedWav, chatId)) })
-    const r = await stt.transcribe(spec, AbortSignal.timeout(60000))
-    const text = typeof r === 'string' ? r : r?.text || r?.transcript
-    return text ? String(text).trim() : ''
-  }
+  const { transcribe, localTranscribe } = createTranscriber({
+    getConfig, channelOf, localApi, log, dsh, toMono16k, asrConfigured, transcribeAudio,
+  })
 
   // 动图交给模型时通常只看到一帧，这里如实告诉她，免得她把动图说成静态图。
   const animatedNote = (imgs) => {
