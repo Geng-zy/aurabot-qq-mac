@@ -2,6 +2,11 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.15
+
+- 会话创建拆到 chat/session-create.js：createSession、createSessionNow、recordAttachFailure。
+- hub.js 2066 → 1997 行；回归：E2E/系统会话/面板 142 个测试通过。
+
 ## 1.6.14
 
 - 会话失败/恢复辅助拆到 chat/session-recovery.js：sessionFailure、backoffError、recoverSessionAttach、cleanOrphan 等。
