@@ -44,6 +44,7 @@ import { audioDurationSec, createVoiceFileSender } from './voice-file.js'
 import { createTextSender } from './send-text.js'
 import { createStickerSender } from './send-sticker.js'
 import { createImageSender } from './send-image.js'
+import { createOnDelivered } from './on-delivered.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -986,23 +987,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     return parseChat(chatId)
   }
 
-  function onDelivered({ chatId, message, note, messageId, system, replyJournal, replyFeed }) {
-    const target = parseChat(chatId)
-    if (disposed || !target) return
-    if (messageId !== undefined && messageId !== null) {
-      sentIds.add(`${target.platform}:${messageId}`)
-      if (sentIds.size > 500) sentIds.delete(sentIds.values().next().value)
-    }
-    if (!system) {
-      try { mind?.said?.({ chatId, message, note, messageId }) } catch (error) { log.debug('心智记录发言失败：', error.message) }
-      if (replyFeed) {
-        try { mind?.confirmReplyFeed?.(chatId, replyFeed) } catch (error) { log.warn('记录聊天投喂失败：', error.message) }
-      }
-      if (replyJournal) recordReply(chatId, deliveredItems(message), { own: replyJournal === 'own' })
-    }
-    bump('sent')
-    if (Array.isArray(message) && message.some(({ type }) => type === 'record')) bump('voice')
-  }
+  const onDelivered = createOnDelivered({
+    isDisposed: () => disposed, parseChat, sentIds, mind, log, recordReply, deliveredItems, bump,
+  })
 
   // system：系统通知，不算她说的话。
   // quiet：额外消息（如语音后的表情）失败只写日志，不进入本轮错误列表。
