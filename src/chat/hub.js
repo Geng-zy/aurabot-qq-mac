@@ -56,6 +56,7 @@ import { createOnMessageHandler } from './on-message.js'
 import { createNotifyEvents } from './notify-events.js'
 import { createSendSegments } from './send-segments.js'
 import { createDeliverTurn } from './deliver-turn.js'
+import { createTurnHelpers } from './turn-helpers.js'
 import { createRunSubagentTurn } from './run-subagent-turn.js'
 import { createRunSystemTurn } from './run-system-turn.js'
 import { createVoiceSender } from './send-voice.js'
@@ -1001,24 +1002,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     mind, tts, sendText, sendSegments, log, failStore, definiteFailure,
   })
 
-  /** 戳回去：私聊戳对方，群里戳最近戳她的人（没人戳过就戳这一段最后说话的人）。 */
-  async function pokeBack(chatId) {
-    const cfg = getConfig()
-    if (channelOf(chatId)?.caps?.poke === false) return
-    const info = chatInfo(chatId)
-    const group = info.kind === 'group' ? info.id : ''
-    const target = group ? lastPoker.get(chatId) || lastSpeaker.get(chatId) : info.id
-    if (!target) return
-    if (cfg.debug || !cfg.enabled || cfg.dryRun || captureStore.getStore()) return log.info(`试运行（没真戳）→ ${chatId}：戳了戳 ${target}`)
-    try {
-      await channelOf(chatId).poke(chatId, target)
-      log.info(`${chatId}：她戳了戳 ${target}`)
-      return true
-    } catch (error) {
-      log.debug('戳一戳失败：', error.message)
-    }
-  }
-
   const sendVoiceFile = createVoiceFileSender({ isDisposed: () => disposed, channelOf, getConfig, sendSegments, durationOf: (file) => audioDurationSec(file, getConfig) })
 
   // 发文件：网关可能和插件不在同一台机器上（Docker / 远程 OneBot），它看不到本机路径，
@@ -1050,35 +1033,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const sendImage = createImageSender({
     isDisposed: () => disposed, getConfig, quote, mention, sendSegments, log, definiteFailure, fetchImage, maxBytes: MAX_IMAGE_BYTES,
   })
-
-  function silenceTurn(chatId) {
-    log.info(`${chatId}：她选择不说话`)
-    const info = chatInfo(chatId)
-    if (info.kind === 'group') {
-      groupEngaged.delete(groupKey(chatId))
-      groupEngagedRun.delete(groupKey(chatId))
-    }
-  }
-
-  /** 一轮回复落地：拆条、语音、表情。 */
-  function deliver(chatId, text, opts = {}) {
-    const active = currentPromptSources()
-    const current = opts.sources || active || outputSources.get(chatId)
-    const sources = current && { ...current, system: new Map(current.system), memory: [...current.memory] }
-    return outputScope.run({ chatId, sources, delivered: [], queued: 0, simulated: 0, journal: opts.own ? 'own' : 'external', blocked: false, allowPromptEcho: false }, () => deliverTurn(chatId, text, opts))
-  }
-
-  async function whenTurnIdle(chatId) {
-    const gate = turnSendLocks.get(chatId)
-    if (gate) await gate.catch(() => {})
-  }
-
-  /** 后台通知/系统提示：不抢多气泡的发送中间，等整轮结束再发。 */
-  async function sendBackground(chatId, message, note, opts = {}) {
-    const gate = turnSendLocks.get(chatId)
-    if (gate) await gate.catch(() => {})
-    return sendSegments(chatId, message, note, { ...opts, system: true })
-  }
 
   const recordReply = createReplyJournal({
     chatInfo, groupKey, groupSaid, groupEngaged, engageMs: ENGAGE_MS, logChat, saidElsewhere,
@@ -2405,7 +2359,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     sessionKey, sessionToChat, chatOfSession, turnState, running, turnCurrent, markRunning,
     sessionTarget, moduleOfTool, recordUsage, moduleLabel, reasoningOf, assistantReplyText,
     cleaningFor, blockSessionPrivacy, log, getConfig, getMind: () => mind, noteUsage, takeInterim, extractReply,
-    guardReply, chainSend, deliver, map, audienceRevision, release, rememberFinished,
+    guardReply, chainSend, deliver: (...a) => deliver(...a), map, audienceRevision, release, rememberFinished,
     slowNoticeSent, clearSlowNotices, clearRunning, stopTyping, rescueFromThinking, isSilence,
     requestReplyRewrite, completedTurn, redact, recoverReply, debugWaiters, turnSessionCurrent,
     outputSources, turnEpochs, sendChain,
@@ -2437,8 +2391,8 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     isDisposed: () => disposed, localImageBlocked, log, mood, outputScope, parseReply, pause, polishChatProse,
     sendImage: (...a) => sendImage(...a), sendSticker: (...a) => sendSticker(...a),
     sendText: (...a) => sendText(...a), sendVoice: (...a) => sendVoice(...a),
-    silenceTurn, stickers, turnSendLocks, workspaceDirOf, getMind: () => mind,
-    recordReply: (...a) => recordReply(...a), pokeBack,
+    silenceTurn: (...a) => silenceTurn(...a), stickers, turnSendLocks, workspaceDirOf, getMind: () => mind,
+    recordReply: (...a) => recordReply(...a), pokeBack: (...a) => pokeBack(...a),
   })
 
   const runSubagentTurn = createRunSubagentTurn({
@@ -2451,6 +2405,12 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     getMind: () => mind, isDisposed: () => disposed, isOwner, parseChat, randomUUID, recoverSystemTurn,
     replyWaits, sessionKey, sourcesFor, systemFailed, systemFailures, systemStarting, systemTurns,
     turnState, withPromptCapture,
+  })
+
+  const { pokeBack, silenceTurn, deliver, whenTurnIdle, sendBackground } = createTurnHelpers({
+    getConfig, channelOf, chatInfo, lastPoker, lastSpeaker, captureStore, log, groupEngaged,
+    groupEngagedRun, groupKey, currentPromptSources, outputSources, outputScope, deliverTurn,
+    turnSendLocks, sendSegments,
   })
 
   return {
