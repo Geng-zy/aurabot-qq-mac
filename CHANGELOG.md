@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.13
+
+- 排队/注意力刷新/群聊秘书判断拆到 chat/attention.js：enqueue、flush、scheduleAttentionRetry、recordSecretary。
+- 保留合并窗口、插话、单一注意力、秘书否决和会话冷却保留。
+- hub.js 2354 → 2150 行；回归：E2E/模块 133 个测试通过。
+
 ## 1.6.12
 
 - 新增 docs/EXTERNAL-ACCEPTANCE.md，按 QQ/Telegram、备份、模型、桌面 GUI、本地推理、长期运行列外部验收项。
