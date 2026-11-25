@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.5.78
+
+- 联动密钥/示例/开放接口和模型列表/测速路由从 host.js 拆出。
+- 新增 features/bridge-routes.js；模型动作并入 features/model-routes.js。
+- 回归：420 个语法文件、lint 0 errors、E2E/备份 127 个测试通过。
+
 ## 1.5.77
 
 - 工作区级授权/提问上报开关和聊天秘书记录路由从 host.js 拆到 features/notice-routes.js。

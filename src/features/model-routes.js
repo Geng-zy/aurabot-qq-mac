@@ -1,6 +1,6 @@
 // 面板「获取可用模型」：查询已保存 Key 绑定的端点，草稿换地址时不继承旧 Key。
 
-export function registerModelRoutes({ route, readBody, getConfig, getMind, listProviderModels }) {
+export function registerModelRoutes({ route, readBody, getConfig, getMind, listProviderModels, listModels, clearReasoningCache, clearVisionCache, askModel, ctx }) {
   const normEndpoint = (v) => String(v || '').trim().replace(/\/+$/, '')
   const normAsr = (v) => normEndpoint(v).replace(/\/audio\/(?:speech|transcriptions)$/i, '')
   const savedKeys = () => ({
@@ -17,6 +17,26 @@ export function registerModelRoutes({ route, readBody, getConfig, getMind, listP
       mind: () => mind ? normEndpoint(mind.mind.setting('memory.embedUrl')) : '',
     }
   }
+
+  route('/models', async (req) => {
+    try {
+      if (new URL(req.url, 'http://x').searchParams.get('refresh') === '1') { clearReasoningCache(); clearVisionCache() }
+      return { ok: true, list: await listModels() }
+    } catch (error) {
+      return { ok: false, message: error.message, list: [] }
+    }
+  })
+
+  route('/model/ping', async (req) => {
+    const b = await readBody(req)
+    const t = Date.now()
+    try {
+      const text = await askModel(ctx, { cfg: { model: { provider: b.provider, model: b.model } }, module: 'model-ping', system: '只回复两个字：在呢', text: '在吗', maxTokens: 800 })
+      return { ok: true, ms: Date.now() - t, text: text.slice(0, 40) }
+    } catch (error) {
+      return { ok: false, ms: Date.now() - t, message: error.message }
+    }
+  })
 
   route('/provider-models', async (req) => {
     const b = await readBody(req)

@@ -60,6 +60,7 @@ import { registerLocalRoutes } from './features/local-routes.js'
 import { registerModuleRoutes } from './features/module-routes.js'
 import { registerAvatarRoutes } from './features/avatar-routes.js'
 import { registerNoticeRoutes } from './features/notice-routes.js'
+import { registerBridgeRoutes } from './features/bridge-routes.js'
 import { registerMindPeopleRoutes } from './features/mind-people-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
@@ -771,7 +772,7 @@ export function apply(ctx) {
   // ---------- 心智核心（面板「心情与记忆」「人物」「心智设置」） ----------
   const mindOff = { ok: false, message: '心智核心没起来，看日志里的原因' }
   registerMindMemoryRoutes({ route, readBody, query, getMind: () => mind })
-  registerModelRoutes({ route, readBody, getConfig: () => cfg, getMind: () => mind, listProviderModels })
+  registerModelRoutes({ route, readBody, getConfig: () => cfg, getMind: () => mind, listProviderModels, listModels, clearReasoningCache, clearVisionCache, askModel, ctx })
   registerMindSettingsRoutes({
     route, readBody, getMind: () => mind, getConfig: () => cfg,
     clearEmbedKey: () => { cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg) },
@@ -947,41 +948,7 @@ export function apply(ctx) {
     return { ok: true, faces, emojis: REACT_EMOJIS }
   })
 
-  // 联动
-  route('/bridge/token', async () => ({ ok: true, token: cfg.bridge.http ? bridge.ensureToken() : '' }))
-  route('/bridge/token/reset', async (req) => req?.method === 'POST' ? { ok: true, token: bridge.resetToken(), message: '换了新密钥，旧的立刻失效' } : { ok: false, message: '换密钥要用 POST' })
-  route('/bridge/examples', async (req) => ({ ok: true, ...bridge.examples(String(query(req).base || 'http://127.0.0.1:端口')) }))
-  // 开放接口：都要带密钥。/open/* 给外部程序（curl/脚本）用，跨机 + 自定义 Host 是正常用法，
-  // 且有自己的 Bearer 鉴权——跳过管理面的 Host 允许名单（复审 2·P1-2 的豁免原则同理）。
-  const open = (path, fn) => route('/open' + path, async (req) => {
-    if (!bridge.authorized(req)) return { ok: false, code: 401, message: cfg.bridge.http ? '密钥不对（请求头 Authorization: Bearer 密钥）' : '开放接口没打开（面板「扩展」→ 联动）' }
-    return fn(req)
-  }, { skipHostCheck: true })
-  open('/info', async () => bridge.ops.info())
-  open('/send', async (req) => bridge.ops.send(await readBody(req)))
-  open('/think', async (req) => bridge.ops.think(await readBody(req)))
-  open('/call', async (req) => bridge.ops.call(await readBody(req)))
-  open('/events', async (req) => bridge.ops.events(query(req)))
-
-  // 模型：列出 DSH 里可用的模型，测一下哪个回得快
-  route('/models', async (req) => {
-    try {
-      if (new URL(req.url, 'http://x').searchParams.get('refresh') === '1') { clearReasoningCache(); clearVisionCache() }
-      return { ok: true, list: await listModels() }
-    } catch (error) {
-      return { ok: false, message: error.message, list: [] }
-    }
-  })
-  route('/model/ping', async (req) => {
-    const b = await readBody(req)
-    const t = Date.now()
-    try {
-      const text = await askModel(ctx, { cfg: { model: { provider: b.provider, model: b.model } }, module: 'model-ping', system: '只回复两个字：在呢', text: '在吗', maxTokens: 800 })
-      return { ok: true, ms: Date.now() - t, text: text.slice(0, 40) }
-    } catch (error) {
-      return { ok: false, ms: Date.now() - t, message: error.message }
-    }
-  })
+  registerBridgeRoutes({ route, readBody, query, getConfig: () => cfg, bridge })
 
   // 形象图
   // 头像：自定义的放在数据目录（重装插件不丢），没有就用插件自带的大肥鱼
