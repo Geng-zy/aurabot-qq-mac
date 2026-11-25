@@ -56,6 +56,8 @@ import { createOnMessageHandler } from './on-message.js'
 import { createNotifyEvents } from './notify-events.js'
 import { createSendSegments } from './send-segments.js'
 import { createDeliverTurn } from './deliver-turn.js'
+import { createRunSubagentTurn } from './run-subagent-turn.js'
+import { createRunSystemTurn } from './run-system-turn.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -2125,76 +2127,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
    *  key：同一个模块有**多种**后台用途时用来分会话（如外部模块的不同后台用途）——
    *  不带 key 走 `<name>` 那条（向后兼容，老会话继续复用），带 key 走 `<name>:<key>`，
    *  于是工作区里各自一条会话、进度互不阻塞，也不会把两种提示词混进同一段上下文。 */
-  async function runSystemTurn(name, title, prompt, { timeoutMs = 180000, noTools = false, publicOnly = false, key: scope = '' } = {}) {
-    const suffix = String(scope || '').trim().replace(/[^\w:-]/g, '').slice(0, 32)
-    const chat = { chatId: suffix ? `system:${name}:${suffix}` : `system:${name}`, kind: 'system', title, noTools: !!noTools }
-    assertActive()
-    if (systemStarting.has(chat.chatId)) throw new Error('这个后台会话的上一轮还没结束')
-    systemStarting.add(chat.chatId)
-    let result
-    try {
-      const current = systemTurns.get(chat.chatId)
-      if (current?.st.system && current.st.system.timedOutAt == null) throw new Error('这个后台会话的上一轮还没结束')
-      const failure = systemFailures.get(chat.chatId)
-      if (failure && Date.now() < failure.until) throw new Error(`后台会话冷却中，${Math.ceil((failure.until - Date.now()) / 60_000)} 分钟后再试`)
-      if (current?.st.system && Date.now() - current.st.system.timedOutAt < SYSTEM_STUCK_GRACE_MS) throw new Error('这个后台会话的上一轮还没结束')
-      if (current?.needsRecovery || current?.st.system) {
-        try { await recoverSystemTurn(chat.chatId, current) } catch (error) {
-          if (!disposed) systemFailed(chat.chatId)
-          throw error
-        }
-      } else if (current) systemTurns.delete(chat.chatId)
-      const { agent, sessionId } = await agentFor(chat)
-      assertActive()
-      const key = sessionKey(sessionId)
-      const st = turnState.get(key) || { lastTurn: -1, text: '', senders: new Set() }
-      if (st.system) throw new Error('这个后台会话的上一轮还没结束')
-      turnState.set(key, st)
-      const budget = await mind?.reserveActionModel?.(prompt)
-      let timer
-      let rejectWait
-      const base = new Promise((resolve, reject) => {
-        rejectWait = reject
-        st.system = { resolve, reject }
-        timer = setTimeout(() => {
-          if (st.system === system) {
-            system.timedOutAt = Date.now()
-            systemFailed(chat.chatId)
-          }
-          reject(new Error('等太久了'))
-        }, timeoutMs)
-      })
-      const system = st.system
-      systemTurns.set(chat.chatId, { agent, sessionId, key, st })
-      // 卸载时立即结束等待，不用等模型或超时。
-      const wait = { timer, reject: rejectWait, result: null }
-      wait.result = base.then((text) => { systemFailures.delete(chat.chatId); return text }, (error) => {
-        if (system.timedOutAt == null && !disposed) systemFailed(chat.chatId)
-        throw error
-      }).finally(() => { clearTimeout(timer); replyWaits.delete(wait); budget?.(system.started, system.tokens) })
-      replyWaits.add(wait)
-      wait.result.catch(() => {})
-      result = wait.result
-      // followup 可能等整轮结束才返回；超时后保留标记，直到收到 turn/end 或取消并归档。
-      Promise.resolve().then(() => {
-        assertActive()
-        const previous = sourcesFor(chat.chatId)
-        const sources = { ...previous, system: new Map(previous.system), publicOnly }
-        system.started = true
-        return withPromptCapture(sources, () => agent.followup({ id: randomUUID(), role: 'user', content: [{ type: 'text', text: cleanText(prompt) }], source: { kind: SOURCE_KIND, speaker: { role: 'none' } } }))
-      }).catch((error) => {
-        if (st.system === system && system.timedOutAt == null) { st.system = null; system.reject(error) }
-      })
-    } finally {
-      systemStarting.delete(chat.chatId)
-    }
-    return result
-  }
-
-  /** 这一轮里说话的人是不是全是管理员（群管等敏感工具用）。 */
-  /** 这一轮里管理员说过话（群里常有别人插话，不要求每条都是管理员）。 */
-  // 管理员私聊里只可能是管理员说话：就算这一轮的记录丢了（工具是旧闭包、排队轮次被上一轮 turn/end 清掉等，见 #90），
-  // 「仅管理员」也应当放行；群聊 / 别人私聊不放宽。
   function ownerPrivateChat(sessionId) {
     try {
       const id = chatOfSession(sessionId)
@@ -2424,103 +2356,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
    * 调用方（模块）自己把关：任务提示词必须自足（子级看不到任何对话历史）。
    * @returns {Promise<string>} 子智能体的最终输出文本
    */
-  async function runSubagentTurn(name, title, prompt, { timeoutMs = 600000, moduleId = '', source = null } = {}) {
-    assertActive()
-    // 权限边界（一审 #177）：① 调用模块必须在 module.json 的 capabilities 里声明 plugin-internals；
-    // ② 必须带「管理员开口」的来源（source.kind='owner' + 管理员私聊 chatId）；
-    // ③ 定时任务这类没人应答的场合，只有 config.subagentBackground=true 才放行；都没有就拒绝（无人应答 = 拒绝）。
-    const caps = typeof capabilitiesOf === 'function' ? capabilitiesOf(moduleId) : []
-    if (!moduleId || !Array.isArray(caps) || !caps.includes('plugin-internals')) {
-      throw Object.assign(new Error(`模块「${moduleId || '未声明'}」没有 plugin-internals 能力，不能用子智能体委派（在 module.json 的 capabilities 里声明）`), { code: 'CAPABILITY_REQUIRED' })
-    }
-    const c = getConfig()
-    const ownerQQ = String(c.ownerQQ || '')
-    const ownerChat = source && source.kind === 'owner' ? String(source.chatId || '') : ''
-    const fromOwner = Boolean(ownerQQ) && ownerChat === `private:${ownerQQ}`
-    const fromBackground = Boolean(source && source.kind === 'system') && c.subagentBackground === true
-    if (!fromOwner && !fromBackground) {
-      throw Object.assign(new Error('子智能体委派要管理员开口：source 必须是管理员私聊，或打开「后台子智能体」开关（没人应答时一律拒绝）'), { code: 'OWNER_REQUIRED' })
-    }
-    const subagents = optionalService('subagents')
-    if (!subagents || typeof subagents.startActivation !== 'function') {
-      throw Object.assign(new Error('宿主没有 subagents 委派服务（需要较新的 DSH）'), { code: 'SUBAGENT_UNAVAILABLE' })
-    }
-    // rc.2 的具名子智能体服务同时采用扁平参数。rc.1 的服务需要 request 包装。
-    const namedService = typeof subagents.namesOf === 'function'
-    const parent = await subagentParent()
-    // 调度父会话没有模型请求记录。DSH 会从创建参数继承选模，因此每次委派显式传入 AuraBot 的模型。
-    const agentOptions = namedService ? await resolveTarget(subagentParentChat) : null
-    assertActive()
-    const ac = new AbortController()
-    subagentRuns.add(ac)
-    const limit = Math.min(2_147_483_647, Math.max(5000, Number(timeoutMs) || 600000))
-    const timer = setTimeout(() => ac.abort(Object.assign(new Error(`子智能体超时（${Math.round(limit / 1000)} 秒）`), { code: 'SUBAGENT_TIMEOUT' })), limit)
-    let rejectOnAbort
-    const aborted = new Promise((_, reject) => {
-      rejectOnAbort = () => reject(ac.signal.reason)
-      ac.signal.addEventListener('abort', rejectOnAbort, { once: true })
-    })
-    let activation = null
-    try {
-      const task = {
-        prompt: [{ type: 'text', text: String(prompt) }], parent, agentPreset: 'aurabot-subagent',
-        ...(agentOptions ? { agentOptions } : {}),
-      }
-      const starting = Promise.resolve().then(() => {
-        ac.signal.throwIfAborted()
-        return subagents.startActivation({
-          ...(namedService ? task : { request: task }),
-          provider: 'spawn',
-          label: String(title || name || '任务').slice(0, 80),
-          signal: ac.signal,
-          delivery: 'caller',
-        })
-      }).then((started) => {
-        if (ac.signal.aborted) {
-          disposeActivation(started)
-          throw ac.signal.reason
-        }
-        activation = started
-        return started
-      })
-      const started = await Promise.race([starting, aborted])
-      // 新服务的 signal 只保证创建阶段取消，创建成功后的超时要 dispose 精确的 activation。
-      const r = await Promise.race([started.result, aborted])
-      if (r && r.error) throw new Error(`子智能体执行失败：${r.error}`)
-      // 新版 DSH 用 stopReason 标记结果，非正常完成时 output 可能是不完整的过程内容。
-      if (r && typeof r === 'object' && 'stopReason' in r && r.stopReason !== 'completed') {
-        throw Object.assign(new Error(`子智能体没有正常完成（${r.stopReason}）`), { code: 'SUBAGENT_INCOMPLETE' })
-      }
-      // 兼容旧版字符串/包装对象；有类型的消息块只接受 text，绝不递归读取 reasoning 或工具块。
-      const collect = (v, out = []) => {
-        if (v == null || out.length >= 200) return out
-        if (typeof v === 'string') { if (v.trim()) out.push(v); return out }
-        if (Array.isArray(v)) {
-          // 最终消息仍带工具调用时，旁边的文字可能只是工具执行前的过程说明。
-          if (v.some((block) => block && (block.type === 'tool-call' || block.type === 'tool_use'))) return out
-          for (const x of v) collect(x, out)
-          return out
-        }
-        if (typeof v === 'object') {
-          if ('type' in v) {
-            if (v.type === 'text' && typeof v.text === 'string') collect(v.text, out)
-          } else if (typeof v.text === 'string') collect(v.text, out)
-          else for (const k of ['content', 'output', 'summary', 'message', 'result']) if (k in v) collect(v[k], out)
-        }
-        return out
-      }
-      const parts = collect(r)
-      if (!parts.length) throw Object.assign(new Error('子智能体没有可用的最终文字'), { code: 'SUBAGENT_EMPTY_OUTPUT' })
-      return namedService ? parts.join('\n') : parts.at(-1)
-    } finally {
-      clearTimeout(timer)
-      ac.signal.removeEventListener('abort', rejectOnAbort)
-      subagentRuns.delete(ac)
-      disposeActivation(activation)
-    }
-  }
-
-  /** 插件卸载：停掉所有计时器 / 等待，撤掉仍存活会话里挂的工具与上下文。 */
   function dispose() {
     if (disposed) return
     disposed = true
@@ -2604,6 +2439,18 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     sendText: (...a) => sendText(...a), sendVoice: (...a) => sendVoice(...a),
     silenceTurn, stickers, turnSendLocks, workspaceDirOf, getMind: () => mind,
     recordReply: (...a) => recordReply(...a), pokeBack,
+  })
+
+  const runSubagentTurn = createRunSubagentTurn({
+    assertActive, capabilitiesOf, disposeActivation, getConfig, getMind: () => mind, optionalService,
+    resolveTarget, subagentParent, subagentParentChat, subagentRuns,
+  })
+
+  const runSystemTurn = createRunSystemTurn({
+    SOURCE_KIND, SYSTEM_STUCK_GRACE_MS, agentFor, assertActive, chatOfSession, cleanText, getConfig,
+    getMind: () => mind, isDisposed: () => disposed, isOwner, parseChat, randomUUID, recoverSystemTurn,
+    replyWaits, sessionKey, sourcesFor, systemFailed, systemFailures, systemStarting, systemTurns,
+    turnState, withPromptCapture,
   })
 
   return {

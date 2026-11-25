@@ -2,6 +2,12 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.6
+
+- 子系统回合 runSystemTurn 和子代理回合 runSubagentTurn 从 hub.js 拆出。
+- 保留权限边界、会话隔离、超时、系统回合恢复和回复等待。
+- hub.js 2700 → 2547 行；回归：E2E/模块 133 个测试通过。
+
 ## 1.6.5
 
 - 回复投递主流程 deliverTurn 从 hub.js 拆到 chat/deliver-turn.js。
