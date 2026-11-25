@@ -50,6 +50,7 @@ import { createQuoteResolver } from './quote.js'
 import { inlineLabel, indentBody, quoteWho, quoteBody, quoteWhen, quoteInline } from './quote-format.js'
 import { createReferenceTools } from './reference.js'
 import { createTranscriber } from './transcribe.js'
+import { createImageTools } from './images.js'
 import { createVoiceSender } from './send-voice.js'
 import { SESSION_BACKOFF, isSessionBackoff } from './session-backoff.js'
 import { recordUsage, moduleLabel, moduleOfTool } from '../core/usage.js'
@@ -1580,7 +1581,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const quoteCache = quotedInfo.cache
 
   const { senderLabel, quoteImages, referenceImage, repliedToBot } = createReferenceTools({
-    isDisposed: () => disposed, disposedError, getConfig, isOwner, quotedInfo, quoteCache, imagesOf,
+    isDisposed: () => disposed, disposedError, getConfig, isOwner, quotedInfo, quoteCache, imagesOf: (...args) => imagesOf(...args),
     recentMedia, segmentBytes, channelOf, maxImageBytes: MAX_IMAGE_BYTES, sentIds, parseChat,
   })
 
@@ -1588,37 +1589,9 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     getConfig, channelOf, localApi, log, dsh, toMono16k, asrConfigured, transcribeAudio,
   })
 
-  // 动图交给模型时通常只看到一帧，这里如实告诉她，免得她把动图说成静态图。
-  const animatedNote = (imgs) => {
-    const n = imgs.filter((img) => img.frames > 1).length
-    return n ? `（其中 ${n} 张是动图，你看到的可能只是其中一帧，别说它是静态的，也别编没看到的动作）` : ''
-  }
-
-  /** 超大的图交给模型可能让整轮请求失败：先缩小，缩不了就跳过这张，别的照常。 */
-  async function fitForModel(buf) {
-    if (buf.length <= MODEL_IMAGE_BYTES) return buf
-    const ffmpeg = findFfmpeg(getConfig().local?.ffmpegPath || '')
-    const small = (ffmpeg ? await shrinkImage(buf, 2048, ffmpeg) : null) || await shrinkWithSharp(await findSharp(), buf, 2048)
-    if (!small || small.length > MODEL_IMAGE_BYTES) throw new Error(`图片 ${Math.round(buf.length / 1048576)}MB 缩不下来`)
-    return small
-  }
-
-  async function imagesOf(msg) {
-    const out = []
-    for (const seg of [...msg.stickers, ...msg.images].slice(0, MAX_MESSAGE_IMAGES)) {
-      try {
-        const raw = await segmentBytes(seg, channelOf(msg.chatId), { maxBytes: MAX_IMAGE_BYTES, allowLocal: false })
-        const frames = gifFrames(raw)
-        const buf = await fitForModel(raw)
-        const mime = mimeOf(buf)
-        if (!mime.startsWith('image/')) continue
-        out.push({ data: buf.toString('base64'), mediaType: mime, frames })
-      } catch (error) {
-        log.debug('图片下载失败：', error.message)
-      }
-    }
-    return out
-  }
+  const { animatedNote, fitForModel, imagesOf } = createImageTools({
+    getConfig, channelOf, segmentBytes, log, maxImageBytes: MAX_IMAGE_BYTES, maxMessageImages: MAX_MESSAGE_IMAGES, modelImageBytes: MODEL_IMAGE_BYTES,
+  })
 
   /** 收到一条消息。msg 是连接拆好的通用形状（src/channels/qq/convert.js 的 parseMessageEvent）。 */
   async function onMessage(msg) {
