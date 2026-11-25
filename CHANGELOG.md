@@ -2,6 +2,11 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.17
+
+- 目标模型解析拆到 chat/model-target.js：targetModel、resolveTarget、applyModel。
+- hub.js 1860 → 1815 行；回归：E2E 109 个测试通过。
+
 ## 1.6.16
 
 - 会话解析/交接/agentFor 拆到 chat/agent-resolve.js。

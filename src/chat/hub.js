@@ -62,6 +62,7 @@ import { createAttentionQueue } from './attention.js'
 import { createSessionRecovery } from './session-recovery.js'
 import { createSessionCreate } from './session-create.js'
 import { createAgentResolve } from './agent-resolve.js'
+import { createModelTarget } from './model-target.js'
 import { createRunSubagentTurn } from './run-subagent-turn.js'
 import { createRunSystemTurn } from './run-system-turn.js'
 import { createVoiceSender } from './send-voice.js'
@@ -460,56 +461,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   }
 
   /** 这个聊天要用的模型：管理员按聊天指定的 > 面板里选的全局模型（或 DSH 默认），扩展模块还可以再按聊天改。 */
-  function targetModel(chat) {
-    const cfg = getConfig()
-    const t = defaultModel(dsh, cfg)
-    let sel = t ? { provider: t.provider, model: t.model, reasoningEffort: cfg.model.reasoningEffort || '' } : null
-    // 管理员按聊天指定的模型（私聊 QQ 号 > 群号 > 所有私聊 / 所有群默认）；没指定或指定的模型已不存在就用上面的
-    try {
-      const r = resolveChatModel(cfg, chat, typeof availableModels === 'function' ? availableModels() : null)
-      if (r) sel = { provider: r.provider, model: r.model, reasoningEffort: r.reasoningEffort || cfg.model.reasoningEffort || '' }
-    } catch (error) {}
-    if (hooks?.model && chat) {
-      try {
-        const r = hooks.model(sel, chat)
-        if (r && r.provider && r.model) sel = { reasoningEffort: '', ...r }
-      } catch (error) {}
-    }
-    return sel
-  }
-  /**
-   * 想要的思考强度要先按模型能力收敛：没有推理元数据的模型（本地 Ollama、部分手写 provider）
-   * 只要收到 reasoningEffort 就会被 DSH 整轮拒掉（UNSUPPORTED_REASONING_EFFORT），
-   * 等于这个模型直接没法用。不支持就不传这个参数，让 DSH 用模型自己的默认。
-   */
-  async function resolveTarget(chat) {
-    const t = targetModel(chat)
-    if (!t) return null
-    const effort = await pickReasoningEffort(dsh, t.provider, t.model, t.reasoningEffort)
-    return { provider: t.provider, model: t.model, ...(effort ? { reasoningEffort: effort } : {}) }
-  }
-  const keyOf = (t) => (t ? `${t.provider}::${t.model}::${t.reasoningEffort || ''}` : '')
-
-  /** 让聊天会话用面板里选的模型和思考强度；只改这个会话，不改 DSH 的默认模型。 */
-  function applyModel(agent, target) {
-    try {
-      if (!target) return false
-      const sel = { provider: target.provider, model: target.model }
-      if (target.reasoningEffort) sel.reasoningEffort = target.reasoningEffort
-      // agent.model.select 只作用于当前会话。旧宿主用控制器内部的会话选择接口。
-      if (typeof agent.model?.select === 'function') agent.model.select(sel)
-      else {
-        const agents = controller().agents
-        if (typeof agents?.selectForNextRequest === 'function') agents.selectForNextRequest(agent, sel)
-        else agent.session.append('model/selection', sel)
-      }
-      return true
-    } catch (error) {
-      log.debug('设置会话模型失败（用默认）：', error.message)
-      return false
-    }
-  }
-
   function unmount(rec) {
     mounts.delete(rec)
     toolScope.releaseAgent(rec.agent)
@@ -796,6 +747,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   /** 没触发回复的群消息带的图：如果正有一段在等她回，把图也带上（最多 4 张）。 */
   const pending = new Map() // chatId → { chat, texts, images, senders, wantVoice, timer, firstAt, mode, count }
   const attentionRetryTimers = new Map() // chatId → timer：注意力/忙碌兜底重试，dispose 时清理
+  const keyOf = (t) => (t ? `${t.provider}::${t.model}::${t.reasoningEffort || ''}` : '')
   const handoffEncodings = new Map() // chatId → 换会话交接的编码任务
   const secretaryLogs = new Map() // chatId → 最近几次秘书判断（面板排错用）
   const secretaryStatsFile = dataDir('secretary-stats.json')
@@ -1711,7 +1663,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
 
   const runSubagentTurn = createRunSubagentTurn({
     assertActive, capabilitiesOf, disposeActivation, getConfig, getMind: () => mind, optionalService,
-    resolveTarget, subagentParent, subagentParentChat, subagentRuns,
+    resolveTarget: (...a) => resolveTarget(...a), subagentParent, subagentParentChat, subagentRuns,
   })
 
   const runSystemTurn = createRunSystemTurn({
@@ -1739,7 +1691,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     groupBuf, groupEngagedRun, groupInterjects, groupKey, groupMusts,
     groupPrompt: (...a) => groupPrompt(...a), groupRefs, isBusy, isDisposed: () => disposed,
     isOwner, isSessionBackoff, lastSpeaker, log, pending, pushToSession: (...a) => pushToSession(...a),
-    release, running, secretaryLogs, secretaryStats, secretaryStatsFile, stickerStash, targetModel,
+    release, running, secretaryLogs, secretaryStats, secretaryStatsFile, stickerStash, targetModel: (...a) => targetModel(...a),
     turnEpochs, writeJson,
   })
 
@@ -1749,6 +1701,10 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     isDisposed: () => disposed, log, map, parseChat, presetFor, recoverSessionAttach: (...a) => recoverSessionAttach(...a),
     recoveredAttachStillCurrent: (...a) => recoveredAttachStillCurrent(...a), saveMap, sessionCreating,
     sessionFailure: (...a) => sessionFailure(...a), sessionFailures, titleFor, workspaceDirOf,
+  })
+
+  const { targetModel, resolveTarget, applyModel } = createModelTarget({
+    availableModels, controller, defaultModel, dsh, getConfig, hooks, log, pickReasoningEffort, resolveChatModel,
   })
 
   const { resolveAgent, encodeForHandoff, waitForHandoff, agentFor } = createAgentResolve({
