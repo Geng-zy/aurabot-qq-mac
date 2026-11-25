@@ -8,11 +8,14 @@ const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf
 
 test('hub 不再持有 purge 专用识别与工具名探测', () => {
   const hub = read('src/chat/hub.js')
-  assert.ok(!hub.includes('isPurgeTool'), 'purge 专用判断应留在 integration')
-  assert.ok(!hub.includes('purgeToolNames'), '工具名探测应复用 integration/host-tools')
-  assert.ok(!hub.includes('GROUP_GUEST_SAFE'), '访客白名单应留在 chat/tool-scope')
-  assert.ok(hub.includes('purgeScope.toolNames(agent)'), 'hub 应通过接缝取维护工具名')
-  assert.ok(hub.includes('toolScope.restrictGuest(agent)'), 'hub 应通过会话工具闸收工具')
+  const mount = read('src/chat/mount.js')
+  for (const text of [hub, mount]) {
+    assert.ok(!text.includes('isPurgeTool'), 'purge 专用判断应留在 integration')
+    assert.ok(!text.includes('purgeToolNames'), '工具名探测应复用 integration/host-tools')
+    assert.ok(!text.includes('GROUP_GUEST_SAFE'), '访客白名单应留在 chat/tool-scope')
+  }
+  assert.ok(mount.includes('purgeScope.toolNames(agent)'), 'mount 应通过接缝取维护工具名')
+  assert.ok(mount.includes('toolScope.restrictGuest(agent)'), 'mount 应通过会话工具闸收工具')
 })
 
 test('host 只负责接线：创建接缝、安装身份锁定、传给 hub', () => {

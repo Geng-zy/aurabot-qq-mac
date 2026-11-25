@@ -77,7 +77,7 @@ test('接线契约：preset、人格变量、闸门、面板开关都在', () =>
   assert.ok(promptVars.includes("variable('aurabot_rules_group_owner'"), 'prompt-vars 没定义 aurabot_rules_group_owner')
   assert.ok(promptVars.includes("rulesText('group-owner'"), 'prompt-vars 没把 group-owner 传给 rulesText')
 
-  const hub = read('src/chat/hub.js')
+  const hub = read('src/chat/hub.js') + read('src/chat/mount.js')
   assert.ok(hub.includes('toolScope.applyGate(key, turnSendersAllOwner(sessionId))'), 'pushToSession 没按发言人开合')
   const scope = read('src/chat/tool-scope.js')
   assert.ok(scope.includes('GUEST_SAFE_TOOLS'), '非管理员那一轮要有能力白名单')
