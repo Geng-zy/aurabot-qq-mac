@@ -20,7 +20,7 @@
 | 文件 | 类别 | 区域 | 行 | 被依赖 | 测试引用 | 结论 | 归属 | 依据 |
 |---|---|---|---|---|---|---|---|---|
 | `.github/workflows/pr-check.yml` | ci | .github | 59 | 0 | 0 | 保留 | ci | 55 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 npm install --ignore-scripts → npm run check → npm run lint → npm pack → tar 三条路径校验（package/src/host.js、package/client/client.js、package/package.json）→ npm test；触发分支仍带历史分支 beta/v1.5.10（L6-7）；与 docs/HANDOFF.md:30 写的「PR Check 使用 Node 22」不一致 |
-| `.gitignore` | config | root | 10 | 0 | 0 | 保留 | repo | 9 行 / 7 条规则：node_modules/、*.log、*.tmp-*、__pycache__/、*.pyc、.DS_Store、**/.DS_Store；不忽略 `*.tgz`，而 CI 与自己发布都会在仓库根跑 `npm pack`（pr-check.yml 的 Pack artifact 步骤），产物会以未跟踪文件出现 |
+| `.gitignore` | config | root | 11 | 0 | 0 | 保留 | repo | 9 行 / 7 条规则：node_modules/、*.log、*.tmp-*、__pycache__/、*.pyc、.DS_Store、**/.DS_Store；不忽略 `*.tgz`，而 CI 与自己发布都会在仓库根跑 `npm pack`（pr-check.yml 的 Pack artifact 步骤），产物会以未跟踪文件出现 |
 | `.oxlintrc.json` | config | root | 15 | 0 | 0 | 保留 | tooling-lint | 15 行；rules 只有 no-undef:error 与 no-unused-vars:warn；ignorePatterns 忽略 client/client.template.js 与 client/parts/**，被忽略的是源片段、被 lint 的反而是生成物 client/client.js；本次 `./node_modules/.bin/oxlint src client` 实测 282 个文件、165 warning / 0 error；scripts/ 与 test/ 不在 `npm run lint` 的目录参数里 |
 | `assets/dafeiyu.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 315748 字节；署名与许可写在 THIRD-PARTY-NOTICES.md（上游原图、CC BY-NC-SA 4.0）；src/features/avatar-routes.js:16 在用户未上传头像时读它作为 /avatar 回退 |
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
@@ -135,7 +135,7 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 78 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 97 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 57 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -155,7 +155,7 @@
 | `docs/repo-audit/media-adapters.json` | doc | docs | 415 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
 | `docs/repo-audit/mind.json` | doc | docs | 289 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
 | `docs/repo-audit/tests-scripts-config.json` | doc | docs | 1444 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
-| `docs/REPO-INVENTORY.md` | doc | docs | 650 | 0 | 0 | 保留·生成物 | docs | 626 行生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
+| `docs/REPO-INVENTORY.md` | doc | docs | 649 | 0 | 0 | 保留·生成物 | docs | 626 行生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-relationships.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 与 README_EN.md 的 <img> 直接引用（关系页截图），删了 README 会出现坏图。 |
 | `docs/screenshots/aurabot-search.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md / README_EN.md 的功能搜索截图引用；同样属于 README 资源。 |
 | `docs/SESSION-HANDOFF.md` | doc | docs | 1314 | 0 | 0 | 保留 | docs | 1308 行交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。 |

@@ -34,6 +34,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Inventory has no unreviewed files
+        run: node scripts/repo-inventory.mjs --write
       - name: Install dev tooling
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Syntax check
@@ -44,8 +46,6 @@ jobs:
         run: |
           npm run build:client
           git diff --exit-code -- client/client.js
-      - name: Inventory has no unreviewed files
-        run: node scripts/repo-inventory.mjs --write
       - name: Pack artifact
         run: npm pack --silent
       - name: Verify npm pack layout
