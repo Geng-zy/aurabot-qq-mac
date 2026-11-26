@@ -1574,4 +1574,8 @@ oxlint      0 error / 19 warning（备份相关文件零告警）
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.52.tgz（463 条目，19,635,879 字节）
 sha256    b0c37826fb2ccd14c393cd525c6b9e1cff03bb77c0c3e6e1c7bfea00b9da6789
+提交      ce4591c（main）
+tag       v1.6.52 → ce4591c
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.52
+CI        run 45852200820 → ubuntu-latest success、macos-latest success（00:22 双绿）
 ```
