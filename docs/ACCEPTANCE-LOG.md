@@ -155,3 +155,17 @@ Mini：同上 + host-routes.test.js → 19/19，跳过 0（用 mini 上装的 ds
 ```
 
 **本轮未做真实外发**（按总控：真实平台发送需指定账号/会话/动作）。
+
+### 6. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.32.tgz
+条目      441（全部在 package/ 下）
+字节      19,629,634
+sha256    1c6ca6c25c0dc90d56dea24ad82de3814327336e47b3e0ff724d7ffe602108ca
+提交      7d7ad39（main）
+tag       v1.6.32 → 7d7ad39
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.32
+资产      dsh-aurabot-qq-1.6.32.tgz  19,629,634 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45738085526（ubuntu + macos 双平台 success）
+```
