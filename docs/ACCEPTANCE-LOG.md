@@ -517,3 +517,78 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.37
 资产      dsh-aurabot-qq-1.6.37.tgz  19,636,565 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45754398866（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B5（第二刀）· 修线上故障：hub 漏传 pending（潜伏自 1.6.9）
+
+### 故障与定位
+
+```text
+现象  [error] [core] 处理消息出错： Cannot read properties of undefined (reading 'get')
+来源  Mini 上 11:44:55 与 11:45:43 各一次（近 5 天日志里唯一的 error），整条群消息被丢掉
+定位  1.6.37 先给这条日志补了堆栈；本批再加一道机械核对：
+      「每个 chat 工厂解构出的参数」 vs 「hub 调用时传的实参」
+      → src/chat/group-context.js 的 addGroupImages 第一行 pending.get(...)，而 hub 漏传 pending
+溯源  git log -L：createGroupContext 的调用点从 1.6.9「拆出群聊上下文」起就少这三个键
+```
+
+### 改动
+
+```text
+src/chat/hub.js                createGroupContext 补 pending（少传的第三键 attentionRetryTimers 在模块里从未使用，直接删）
+src/chat/group-context.js      删死参数 attentionRetryTimers
+src/chat/run-subagent-turn.js  删死参数 getMind
+src/chat/run-system-turn.js    删死参数 chatOfSession / isOwner / parseChat
+src/chat/session-create.js     删死参数 getMind
+test/chat-wiring.test.js       新增 63 行 2 个用例：参数必须传齐 + 不许有僵尸参数
+test/group-context-images.test.js 新增 62 行 3 个用例：入队/无队列/到上限
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1616 passed / 0 failed / 0 skipped（比 1.6.37 多 5 个）
+语法检查    575 个文件通过
+oxlint      0 error / 157 warning（删掉 5 个死参数后从 164 降下来）
+清单闸门    652 个文件全部有结论，0 待审
+```
+
+红-绿：`test/chat-wiring.test.js` 在修复前报
+`group-context.js → createGroupContext 缺：pending、attentionRetryTimers`，补上 `pending` 后通过。
+
+### 2. 模拟网关（Air）
+
+`test/e2e.test.js` 全绿（含群消息带图、待发队列、合并多条这几条路）。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / chat-wiring / group-context-images / chat-session-events / e2e
+      → tests 125 / pass 125 / fail 0 / skipped 0
+```
+
+### 4. 验证流程本身的一个坑（已修正并记下）
+
+前两次 Mini 跑测试出现假失败，原因都是 **rsync 只同步了部分目录**：
+- 只带 `src test package.json` → `community.test.js` 的 MODULE-TUTORIAL 断言读不到 `docs/`；
+- 只带 `src test docs package.json` → `e2e` 的人格断言读不到 `personas/dafeiyu.md`（4 个用例红）。
+
+现在统一用整仓同步（排除 `node_modules`/`.git`/`*.tgz`），补齐后 125/125。
+
+### 5. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-123933
+加载    2026-11-26 12:39:38 [core] Aurabot v1.6.38 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 12:39:41 [onebot] 已连上 QQ 网关（WS）
+同源    src/chat/hub.js、group-context.js、run-system-turn.js 与 Air 同哈希
+监控    重启后日志新增 error 0（原来的 2 条是 11:44 的历史记录）
+```
+
+### 6. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.38.tgz（444 条目，19,637,179 字节）
+sha256    259fa5c4e8433bfeb0f62e46821ed6329f4a4ee6a7e180cfe4c6253c4a3c01f5
+```

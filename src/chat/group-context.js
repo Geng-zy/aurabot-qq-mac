@@ -1,4 +1,4 @@
-export function createGroupContext({ IMAGE_SOURCE_PREFIX, MAX_MESSAGE_IMAGES, animatedNote, canSeeFor, engagedHint, groupBuf, groupEngagedRun, groupKey, groupName, groupRefs, imagesOf, indentBody, inlineLabel, log, pickAutoReply, quoteImages, quoteInline, quoteWho, quotedInfo, sameNameNote, senderLabel, pending, attentionRetryTimers }) {
+export function createGroupContext({ IMAGE_SOURCE_PREFIX, MAX_MESSAGE_IMAGES, animatedNote, canSeeFor, engagedHint, groupBuf, groupEngagedRun, groupKey, groupName, groupRefs, imagesOf, indentBody, inlineLabel, log, pickAutoReply, quoteImages, quoteInline, quoteWho, quotedInfo, sameNameNote, senderLabel, pending }) {
   async function addGroupImages(msg, entry = null) {
     const p = pending.get(msg.chatId)
     if (!p || p.images.length >= MAX_MESSAGE_IMAGES) return

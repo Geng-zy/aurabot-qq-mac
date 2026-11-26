@@ -1,4 +1,4 @@
-export function createSessionCreate({ SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError, cleanOrphan, controller, ensureWorkspace, getConfig, getMind, isDisposed, log, map, parseChat, presetFor, recoverSessionAttach, recoveredAttachStillCurrent, saveMap, sessionCreating, sessionFailure, sessionFailures, titleFor, workspaceDirOf }) {
+export function createSessionCreate({ SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError, cleanOrphan, controller, ensureWorkspace, getConfig, isDisposed, log, map, parseChat, presetFor, recoverSessionAttach, recoveredAttachStillCurrent, saveMap, sessionCreating, sessionFailure, sessionFailures, titleFor, workspaceDirOf }) {
   async function createSession(chat, level, assertCurrent) {
     const failure = sessionFailure(chat.chatId)
     if (failure && Date.now() < failure.until) throw backoffError(chat.chatId, failure)

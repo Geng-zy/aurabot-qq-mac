@@ -1,4 +1,4 @@
-export function createRunSystemTurn({ SOURCE_KIND, SYSTEM_STUCK_GRACE_MS, agentFor, assertActive, chatOfSession, cleanText, getConfig, getMind, isDisposed, isOwner, parseChat, randomUUID, recoverSystemTurn, replyWaits, sessionKey, sourcesFor, systemFailed, systemFailures, systemStarting, systemTurns, turnState, withPromptCapture }) {
+export function createRunSystemTurn({ SOURCE_KIND, SYSTEM_STUCK_GRACE_MS, agentFor, assertActive, cleanText, getMind, isDisposed, randomUUID, recoverSystemTurn, replyWaits, sessionKey, sourcesFor, systemFailed, systemFailures, systemStarting, systemTurns, turnState, withPromptCapture }) {
   return async function runSystemTurn(name, title, prompt, { timeoutMs = 180000, noTools = false, publicOnly = false, key: scope = '' } = {}) {
     const mind = getMind()
     const suffix = String(scope || '').trim().replace(/[^\w:-]/g, '').slice(0, 32)

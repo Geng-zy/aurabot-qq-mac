@@ -2,6 +2,22 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.38
+
+- 修线上故障（自 1.6.9 起潜伏）：`hub.js` 调用 `createGroupContext` 时漏传 `pending`，
+  而 `group-context.js` 的 `addGroupImages` 第一行就是 `pending.get(msg.chatId)`。
+  表现是群消息进到「有待发队列 + 带图」这条路上时抛
+  `[error] [core] 处理消息出错： Cannot read properties of undefined (reading 'get')`，整条群消息被丢掉。
+  1.6.37 给这条日志补了堆栈后，用「工厂参数 vs hub 实参」的机械核对定位到它。
+- 新增 `test/chat-wiring.test.js`：扫 `src/chat/*.js` 每个工厂解构的参数与 hub 的调用实参，断言「必须传齐」，
+  反向再断言「没有僵尸参数」。拆文件时少传依赖这类问题，从此在提交前就能发现。
+- 顺带清掉 5 个死参数（传进来从未使用）：`group-context` 的 `attentionRetryTimers`、
+  `run-subagent-turn` 的 `getMind`、`run-system-turn` 的 `chatOfSession`/`isOwner`/`parseChat`、
+  `session-create` 的 `getMind`。lint warning 164 → 157。
+- 新增 `test/group-context-images.test.js`（3 个用例）直接覆盖崩溃那条路：入队并标 mediaPending、
+  无待发队列时安静返回、到上限不再塞图。
+- 回归：全量 1616 个测试通过（新增 5 个），语法 575 文件，oxlint 0 error / 157 warning。
+
 ## 1.6.37
 
 - B5（第一刀）core 的 zip 读取去重：社区模块安装那份内联解析器（40 行）搬进 `src/core/zip.js` 的

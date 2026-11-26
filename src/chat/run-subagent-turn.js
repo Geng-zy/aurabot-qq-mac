@@ -1,4 +1,4 @@
-export function createRunSubagentTurn({ assertActive, capabilitiesOf, disposeActivation, getConfig, getMind, optionalService, resolveTarget, subagentParent, subagentParentChat, subagentRuns }) {
+export function createRunSubagentTurn({ assertActive, capabilitiesOf, disposeActivation, getConfig, optionalService, resolveTarget, subagentParent, subagentParentChat, subagentRuns }) {
   return async function runSubagentTurn(name, title, prompt, { timeoutMs = 600000, moduleId = '', source = null } = {}) {
     assertActive()
     // 权限边界（一审 #177）：① 调用模块必须在 module.json 的 capabilities 里声明 plugin-internals；

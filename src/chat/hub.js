@@ -1305,7 +1305,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const { addGroupImages, groupPrompt } = createGroupContext({
     IMAGE_SOURCE_PREFIX, MAX_MESSAGE_IMAGES, animatedNote, canSeeFor, engagedHint, groupBuf,
     groupEngagedRun, groupKey, groupName, groupRefs, imagesOf, indentBody, inlineLabel, log,
-    pickAutoReply, quoteImages, quoteInline, quoteWho, quotedInfo, sameNameNote, senderLabel
+    pickAutoReply, quoteImages, quoteInline, quoteWho, quotedInfo, sameNameNote, senderLabel, pending
   })
 
   attentionRanking = createAttentionRanking({

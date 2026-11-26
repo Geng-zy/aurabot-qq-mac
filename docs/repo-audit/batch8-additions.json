@@ -1,0 +1,23 @@
+[
+  {
+    "path": "test/chat-wiring.test.js",
+    "area": "test",
+    "owner": "test-chat",
+    "verdict": "keep",
+    "evidence": "63 行 2 个用例；扫 src/chat/*.js 的工厂解构参数与 hub 的调用实参，断言「传齐了」和「没有僵尸参数」；抓到的真实故障：group-context 的 pending 自 1.6.9 起漏传（线上 Cannot read properties of undefined (reading 'get')）。"
+  },
+  {
+    "path": "test/group-context-images.test.js",
+    "area": "test",
+    "owner": "test-chat",
+    "verdict": "keep",
+    "evidence": "62 行 3 个用例；直接测 createGroupContext().addGroupImages：入队并标 mediaPending、无待发队列时安静返回、到上限不再塞图；这条路上游就是漏传 pending 崩溃的那一行。"
+  },
+  {
+    "path": "docs/repo-audit/batch8-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B5 第二刀新增两个测试（chat-wiring / group-context-images）的审计补充，3 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  }
+]
