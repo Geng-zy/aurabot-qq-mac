@@ -9,9 +9,9 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { defineTool } from '../tools/tools.js'
-import { describeDelivery } from '../chat/reply.js'
-import { checkAllowed } from '../chat/access.js'
-import { parseChat } from '../channels/index.js'
+import { describeDelivery } from './delivery-text.js'
+import { checkAllowed } from './access.js'
+import { parseChat } from './ids.js'
 
 const RING = 300
 

@@ -39,7 +39,7 @@
     "area": "chat",
     "owner": "chat-access",
     "verdict": "keep",
-    "evidence": "147 行；15 个 src 文件 import（src/chat/hub.js、src/core/config.js、src/mind-adapter/index.js、src/security/danger.js，以及 src/channels/qq/features/{contacts,profile,qq-api,qq-tools,stickers-qq}.js）；5 个直接测试（test/pure.test.js:8、test/freedom.test.js、test/platform-config.test.js、test/group-owner-tools.test.js、test/long-tasks.test.js）；内部依赖 1 个（src/channels/ids.js）。反向依赖事实：channels 侧 5 个文件 import 本文件，与目标分层方向相反。"
+    "evidence": "re-export shim → src/core/access.js（原 147 行纯策略：谁能说话、她在每个会话的权限档位；只依赖 core/ids.js）。实现已搬到 core 消除 core→chat 反向依赖；现有 import 不用改。"
   },
   {
     "path": "src/chat/agent-resolve.js",
@@ -67,7 +67,7 @@
     "area": "chat",
     "owner": "chat-model",
     "verdict": "keep",
-    "evidence": "65 行；importer 3（src/chat/hub.js、src/core/config.js、test/chat-model.test.js）；内部依赖 0；test/chat-model.test.js 直接覆盖 normalizeChatModels/resolveChatModel；docs/DESIGN.md:16 记录 cfg.chatModels 的四个键与优先级（privateDefault/groupDefault/privates/groups）。"
+    "evidence": "re-export shim → src/core/chat-model.js（原 65 行纯函数：按会话解析聊天模型，0 依赖）。config 归一化改指 core。"
   },
   {
     "path": "src/chat/commands.js",
@@ -109,7 +109,7 @@
     "area": "chat",
     "owner": "chat-group",
     "verdict": "keep",
-    "evidence": "145 行；importer 6（src/chat/hub.js L15、src/core/config.js、test/pure.test.js、test/group-identity.test.js、test/fixes-1.2.0.test.js、test/sl-gaps.test.js）；内部依赖 0；4 个直接测试覆盖 decideGroupReply/policyFor/topicRelevance/inQuietHours/engagedHint；纯函数。"
+    "evidence": "re-export shim → src/core/group-policy.js（原 145 行纯策略：群聊插话/冷却/白名单判定，0 依赖）。config-defaults/config-normalize 原来反向 import 它，现在都指 core。"
   },
   {
     "path": "src/chat/group-roles.js",

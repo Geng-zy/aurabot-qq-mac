@@ -549,17 +549,7 @@ export function deliveredItems(message, { transcript, sticker } = {}) {
 }
 
 /** 给工具和联动接口同一套回执语义。 */
-export function describeDelivery(result) {
-  const { delivered = false, simulated = 0, queued = 0, unconfirmed = 0 } = result || {}
-  const receipt = { delivered, queued }
-  if (unconfirmed) {
-    const pending = queued ? `，另有 ${queued} 条正在排队` : ''
-    return { ...receipt, ok: false, message: `${delivered ? '部分已发出，' : ''}${unconfirmed} 条未确认送达${pending}` }
-  }
-  if (queued) return { ...receipt, ok: true, message: delivered ? '部分已发出，其余正在排队' : '已排队，正在等待发送' }
-  if (simulated) return { ...receipt, ok: true, simulated: true, message: '模拟发送完成，未发到 QQ' }
-  return { ...receipt, ok: delivered, message: delivered ? '发出去了' : '未确认送达' }
-}
+export { describeDelivery } from '../core/delivery-text.js'
 
 function pushText(items, s) {
   const t = stripMarkdown(String(s || '').replace(/<\/?reply[^>]*>/g, '')) // 写坏的引用标签直接去掉

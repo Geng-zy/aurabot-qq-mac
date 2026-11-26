@@ -668,3 +668,63 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.39
 资产      dsh-aurabot-qq-1.6.39.tgz  19,637,779 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45761620480（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B5（第四刀）· core 反向依赖 10 → 0
+
+### 做法：纯逻辑下沉 + 旧路径留一行兼容出口
+
+```text
+搬进 core（全部 0 内部依赖，或只依赖 core）：
+  src/channels/ids.js                              → src/core/ids.js          133 行
+  src/chat/access.js                               → src/core/access.js       147 行（只依赖 ids）
+  src/chat/group-policy.js                         → src/core/group-policy.js 145 行
+  src/chat/chat-model.js                           → src/core/chat-model.js    65 行
+  src/channels/qq/features/diary/qzone-audience.js → src/core/qzone-audience.js 51 行
+  src/voice/wav.js                                 → src/core/wav.js           60 行
+
+两条「真反向边」用两个小模块替掉：
+  core/media → features/stickers（stickerPath）      → 新增 core/sticker-path.js   18 行（目录由调用方给）
+  core/bridge → chat/reply（describeDelivery）        → 新增 core/delivery-text.js  24 行（纯函数）
+
+旧路径全部保留为「一行 re-export」，现有 import 一处都不用改。
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1618 passed / 0 failed / 0 skipped（比 1.6.39 多 2 个分层守卫）
+语法检查    586 个文件通过（新增 8 个 core 文件 + 1 个测试）
+oxlint      0 error / 157 warning（搬动过程中新增的 2 条未使用 import 已清）
+清单闸门    665 个文件全部有结论，0 待审（6 个旧路径的结论改成「兼容出口」，8 个新文件补了结论）
+```
+
+新增 `test/core-layering.test.js`：
+- core 的 import 里不许出现 chat/channels/features/voice/song/mind/mind-adapter/modules/local/persona；
+- 6 个兼容出口必须只剩「一行 re-export」，防止实现又被写回旧路径。
+
+### 2. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / core-layering / group-owner-tools / e2e / voice-asr
+      → tests 129 / pass 129 / fail 0 / skipped 0
+```
+
+### 3. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-140340
+上传    scp 首次 "Connection closed"（交接文档 §1.8 记过的网络抖动），重试一次成功，sha256 前缀 334e90ca 对上
+加载    2026-11-26 14:03:45 [core] Aurabot v1.6.40 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 14:03:48 [onebot] 已连上 QQ 网关（WS）
+面板    /aurabot/api/state → version=1.6.40，onebot=connected，modules=12
+同源    core/ids、access、group-policy、sticker-path、delivery-text 与 Air 逐一同哈希
+```
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.40.tgz（454 条目，19,640,438 字节）
+sha256    334e90ca8336ef836b6c58f15c768763e8abf987bbcf4a2c79a1e0c591bcb1e8
+```

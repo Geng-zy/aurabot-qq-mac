@@ -43,18 +43,18 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.39 更新
+## 1.6.40 更新
 
-### core：`config.js` 按「数据 / 规则 / 磁盘」拆开（B5 第三刀）
+### core 不再反向依赖上层（B5 第四刀）
 
-- 844 行拆成三份：`config-defaults.js`（默认值表，纯数据）、`config-normalize.js`（归一化与一组小工具）、`config.js`（只剩读盘存盘与面板合并，177 行）。
-- 对外契约不变：`config.js` 继续导出 `DEFAULTS` 与 `normalize`，12 个测试文件与面板代码不用改。
-- **等价性有实证**：把上一版实现临时放回仓内，对 10 组输入逐一代入两版 `normalize()`，输出完全一致；`DEFAULTS` 也逐字节一致。
-- 三个源码契约测试改为按新结构读取（默认值读 defaults、归一化读 normalize），断言的事实一条没放松。
+- `src/core/` 对 chat / channels / features / voice 的反向依赖从 **10 条降到 0 条**。
+- 做法是「纯逻辑下沉 + 旧路径留一行兼容出口」：`ids`、`access`、`group-policy`、`chat-model`、`qzone-audience`、`wav` 六个零依赖模块搬进 core；`media → features/stickers` 与 `bridge → chat/reply` 两条真反向边用两个小模块（`sticker-path`、`delivery-text`）替掉。
+- 旧路径全部保留为一行 re-export，现有 import 一处都不改，对外契约不变。
+- 新增 `test/core-layering.test.js` 守住这条边界，防止实现又被写回旧路径。
 
 ### 前几批
 
-1.6.38 修 hub 漏传 pending；1.6.37 zip 去重 + 错误堆栈；1.6.36 会话事件；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 写操作闸；1.6.32 组合根；1.6.31 语音条 + 清单。
+1.6.39 config.js 拆分（带等价性实证）；1.6.38 修线上潜伏 bug；1.6.37 zip 去重；1.6.36 会话事件；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 写操作闸；1.6.32 组合根；1.6.31 语音条 + 清单。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -140,12 +140,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.39.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.40.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.39.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.40.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

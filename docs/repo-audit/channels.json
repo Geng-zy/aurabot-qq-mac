@@ -11,7 +11,7 @@
     "area": "channels",
     "owner": "channels",
     "verdict": "keep",
-    "evidence": "133 行、0 个内部依赖、13 处 import 中含 0 个测试；19 个导出（17 个函数），非测试 importer 跨 4 层：chat/access.js、core/tasks.js、mind-adapter/ids.js、modules/song/index.js。LEGACY_PLATFORM=qq 让「private:123 / group:456 / 纯数字」继续可用，是 qq（convert.js 产 group:123）与 telegram（index.js:72 经 chatIdOf 产 telegram:group:123）两种形状共用的唯一解析点。test/ 无直接 import，行为经 test/channels-contract.test.js 的 demo:private:1 与 test/platform-hub.test.js 间接锁定。"
+    "evidence": "re-export shim → src/core/ids.js（原 133 行纯 chatId 解析：parseChat/chatIdOf/normChat/parsePerson，0 依赖）。core/tasks、core/access、core/bridge 原来反向 import 它，现在都指 core。"
   },
   {
     "path": "src/channels/index.js",
@@ -144,7 +144,7 @@
     "area": "channels/qq-features",
     "owner": "channels-qq-features",
     "verdict": "keep",
-    "evidence": "51 行、0 个内部依赖、4 处 import 含 1 个测试（test/qzone-audience.test.js）；importer 里有 src/core/config.js:8 —— core 反向 import channels 的唯一一处，用于第 496 行校验 diary.visibility 合法值。resolveAudience() 36-50 行实现「面板定范围、单次只能收窄到 self、selected/excluded 名单空就报错」，AUDIENCE_RIGHTS 与 QQ 空间 ugc_right 一一对应。"
+    "evidence": "re-export shim → src/core/qzone-audience.js（原 51 行常量表：空间日记可见范围，0 依赖）。config 归一化改指 core。"
   },
   {
     "path": "src/channels/qq/features/diary/qzone.js",

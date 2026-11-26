@@ -41,14 +41,14 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.39 highlights
+## 1.6.40 highlights
 
-### core: `config.js` split by data / rules / disk (B5, third slice)
+### `src/core` no longer depends on upper layers (B5, fourth slice)
 
-- 844 lines become three files: `config-defaults.js` (the DEFAULTS table, pure data), `config-normalize.js` (normalisation plus a handful of small helpers) and `config.js` (177 lines: read, write, expose to the panel).
-- Public contract unchanged: `config.js` still exports `DEFAULTS` and `normalize`, so 12 test files and the panel code did not move.
-- **Equivalence is measured, not claimed**: the previous implementation was temporarily dropped back into the tree and both `normalize()` versions were run over ten inputs; outputs matched exactly, and `DEFAULTS` is byte-identical.
-- Three source-contract tests now read the new files; none of their assertions were loosened.
+- Reverse dependencies from `core` into chat / channels / features / voice dropped from **10 to 0**.
+- Method: pure zero-dependency modules move down into `core` (`ids`, `access`, `group-policy`, `chat-model`, `qzone-audience`, `wav`), and the two genuine edges (`media → features/stickers`, `bridge → chat/reply`) are replaced by two small modules (`sticker-path`, `delivery-text`).
+- Every old path stays as a one-line re-export, so no existing import changed and the public contract is untouched.
+- New `test/core-layering.test.js` guards the boundary so implementations cannot creep back.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -134,12 +134,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.39.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.40.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.39.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.40.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

@@ -3,11 +3,12 @@
 
 import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import {join} from 'node:path'
 import { dataDir, readJson, writeJson } from '../core/store.js'
 import { imageSize, mimeOf, stickerSizeOk } from '../core/image-info.js'
 import { askModel, canSeeImages } from '../core/llm.js'
 import { dHash, dHashDistance, toWebP } from './sticker-hash.js'
+import { stickerFileIn } from '../core/sticker-path.js'
 
 const dir = () => dataDir('stickers')
 const indexFile = () => join(dir(), 'index.json')
@@ -24,9 +25,7 @@ function saveLibrary(lib) {
 }
 
 export function stickerPath(item) {
-  const file = String(item?.file || '')
-  if (!file || basename(file) !== file || !/\.(?:png|jpe?g|gif|webp)$/i.test(file)) return ''
-  return join(dir(), file)
+  return stickerFileIn(dir(), item)
 }
 
 /** 模糊匹配：备注 / 标签里包含关键词得分高；完全找不到返回 null。 */

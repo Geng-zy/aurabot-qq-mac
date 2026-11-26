@@ -5,10 +5,10 @@
 // 现在它只依赖 DEFAULTS，能单独测（已有 10 多个测试文件直接引它）。
 
 import { DEFAULTS } from './config-defaults.js'
-import { DEFAULT_GROUP_POLICY } from '../chat/group-policy.js'
-import { LEVELS, PROFILE_PERM_KEYS, PROFILE_PERM_LEVELS, profilePermDefault } from '../chat/access.js'
-import { normalizeChatModels } from '../chat/chat-model.js'
-import { DIARY_AUDIENCES } from '../channels/qq/features/diary/qzone-audience.js'
+import { DEFAULT_GROUP_POLICY } from './group-policy.js'
+import { LEVELS, PROFILE_PERM_KEYS, PROFILE_PERM_LEVELS, profilePermDefault } from './access.js'
+import { normalizeChatModels } from './chat-model.js'
+import { DIARY_AUDIENCES } from './qzone-audience.js'
 
 export const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v)
 

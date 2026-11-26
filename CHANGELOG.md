@@ -2,6 +2,23 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.40
+
+- B5（第四刀）分层修正：`src/core/` 对上层（chat / channels / features / voice / song / mind / module）的反向依赖
+  从 **10 条降到 0 条**。做法是「纯逻辑下沉 + 旧路径留一行兼容出口」：
+  - `channels/ids.js` → `core/ids.js`（133 行，0 依赖）
+  - `chat/access.js` → `core/access.js`（147 行，只依赖 ids）
+  - `chat/group-policy.js` → `core/group-policy.js`（145 行，0 依赖）
+  - `chat/chat-model.js` → `core/chat-model.js`（65 行，0 依赖）
+  - `channels/qq/features/diary/qzone-audience.js` → `core/qzone-audience.js`（51 行，0 依赖）
+  - `voice/wav.js` → `core/wav.js`（60 行，0 依赖）
+  - 新增 `core/sticker-path.js`（18 行）与 `core/delivery-text.js`（24 行），替掉
+    `core/media → features/stickers` 与 `core/bridge → chat/reply` 两条真反向边
+  - 旧路径全部保留为「一行 re-export」，现有 import 一处都不用改（对外契约不变）
+- 新增 `test/core-layering.test.js`：core 只许依赖 core 与内置模块；兼容出口必须只剩一行 re-export，
+  防止有人把实现又写回去、让边界重新烂掉。
+- 回归：全量 1618 个测试通过（新增 2 个），语法 586 文件，oxlint 0 error / 157 warning。
+
 ## 1.6.39
 
 - B5（第三刀）`config.js` 拆分：844 行 → 三份，按「数据 / 规则 / 磁盘」分开

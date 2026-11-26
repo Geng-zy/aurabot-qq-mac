@@ -1,0 +1,72 @@
+[
+  {
+    "path": "src/core/ids.js",
+    "area": "core",
+    "owner": "core-ids",
+    "verdict": "keep",
+    "evidence": "133 行；chatId 解析与拼装（parseChat/chatIdOf/normChat/parsePerson/LEGACY_PLATFORM），0 内部依赖；被 core/tasks、core/access、core/bridge 直接引用，另有 src/channels/ids.js 与 src/channels/index.js 经兼容出口使用；test/channels-contract.test.js 等 6 个测试覆盖 chatId 解析。"
+  },
+  {
+    "path": "src/core/access.js",
+    "area": "core",
+    "owner": "core-access",
+    "verdict": "keep",
+    "evidence": "147 行；谁能跟她说话与权限档位（LEVELS/checkAllowed/profilePermDefault），只依赖 core/ids.js；被 config 归一化、chat/hub、features 多处引用（原路径 chat/access.js 现在是 re-export）；test/group-owner-tools.test.js、test/h05-*.test.js 覆盖权限判定。"
+  },
+  {
+    "path": "src/core/group-policy.js",
+    "area": "core",
+    "owner": "core-policy",
+    "verdict": "keep",
+    "evidence": "145 行；群聊插话/冷却/白名单判定与 DEFAULT_GROUP_POLICY，0 内部依赖；被 config-defaults（默认值）与 config-normalize（归一化）直接引用，chat 侧经兼容出口使用；test/features.test.js、test/e2e.test.js 覆盖群聊策略。"
+  },
+  {
+    "path": "src/core/chat-model.js",
+    "area": "core",
+    "owner": "core-model",
+    "verdict": "keep",
+    "evidence": "65 行；按会话解析聊天模型（normalizeChatModels），0 内部依赖；config 归一化直接引用；test/chat-model.test.js 覆盖解析顺序与回退。"
+  },
+  {
+    "path": "src/core/qzone-audience.js",
+    "area": "core",
+    "owner": "core-policy",
+    "verdict": "keep",
+    "evidence": "51 行；空间日记可见范围常量与归一化，0 内部依赖；config 归一化直接引用，QQ 日记功能经兼容出口使用；test/diary-audience.test.js 覆盖可见范围。"
+  },
+  {
+    "path": "src/core/wav.js",
+    "area": "core",
+    "owner": "core-media",
+    "verdict": "keep",
+    "evidence": "60 行；WAV 解析（parseWav）与转 16k 单声道（toMono16k），0 内部依赖；core/media 与 core/img 链路直接用，voice/asr 经兼容出口使用；test/voice-asr.test.js 覆盖。"
+  },
+  {
+    "path": "src/core/sticker-path.js",
+    "area": "core",
+    "owner": "core-media",
+    "verdict": "keep",
+    "evidence": "18 行；表情包文件名的安全解析（只认纯文件名 + 图片扩展名），目录由调用方给；被 core/media（按 md5 找图）与 features/stickers（stickerPath）使用，替掉 core→features 的反向依赖。"
+  },
+  {
+    "path": "src/core/delivery-text.js",
+    "area": "core",
+    "owner": "core-bridge",
+    "verdict": "keep",
+    "evidence": "24 行；投递结果 → 给管理员的一句话（describeDelivery），纯函数；被 core/bridge 与 chat/reply（re-export）使用，替掉 core→chat/reply 的反向依赖；test/e2e.test.js 的回执断言覆盖文案。"
+  },
+  {
+    "path": "test/core-layering.test.js",
+    "area": "test",
+    "owner": "test-core",
+    "verdict": "keep",
+    "evidence": "52 行 2 个用例；扫 src/core/*.js 的 import，断言不出现指向 chat/channels/features/voice/song/mind/mind-adapter/modules/local/persona 的路径；并断言 6 个兼容出口只剩一行 re-export。1.6.40 之前 core 有 10 条反向边，靠这条守住。"
+  },
+  {
+    "path": "docs/repo-audit/batch10-moves.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B5 第四刀的审计补充：8 个搬进 core 的模块 + 分层守卫测试，共 10 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  }
+]

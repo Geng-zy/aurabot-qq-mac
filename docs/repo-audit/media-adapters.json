@@ -410,6 +410,6 @@
     "area": "voice",
     "owner": "media-wav",
     "verdict": "keep",
-    "evidence": "60 行；被 8 处 import：src/voice/tts.js、src/chat/hub.js、src/core/media.js、src/channels/qq/features/voice/index.js；test/features.test.js、test/module-chat-api.test.js、test/module-media-api.test.js、test/voice-asr.test.js 覆盖（另有未跟踪的 test/audio-duration.test.js 直接 import 本文件）；内部依赖 0 个；导出 3 个纯函数（parseWav/buildWav/toMono16k），只支持 PCM16 并在 17 行显式拒绝其它格式。缺陷事实：src/core/media.js 属 core 层却 import 本文件，与 REFACTOR-PLAN.md:29 的「core 不依赖上层」相反向。"
+    "evidence": "re-export shim → src/core/wav.js（原 60 行纯 WAV 解析/重采样，0 依赖）。core/media 现在直接指 core/wav。"
   }
 ]

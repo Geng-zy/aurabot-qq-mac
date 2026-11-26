@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { dataDir, readJson, writeJson } from './store.js'
-import { normChat } from '../channels/ids.js'
+import { normChat } from './ids.js'
 import { defineTool, str } from '../tools/tools.js'
 
 const ACTIVE = new Set(['queued', 'running', 'cancelling', 'delivering'])

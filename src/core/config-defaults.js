@@ -5,7 +5,7 @@
 //
 // 改这里的值 = 改所有新安装的行为；老配置缺的键会按这里补（见 config-normalize.js）。
 
-import { DEFAULT_GROUP_POLICY } from '../chat/group-policy.js'
+import { DEFAULT_GROUP_POLICY } from './group-policy.js'
 
 export const DEFAULTS = {
   enabled: false, // 总开关：关着一句都不发

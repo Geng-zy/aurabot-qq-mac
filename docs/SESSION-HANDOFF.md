@@ -2,7 +2,7 @@
 
 ```text
 最后更新   2026-11-26
-适用版本   v1.6.39
+适用版本   v1.6.40
 仓库目录   /Users/geng/Desktop/Project/dsh/aurabot-qq-mac
 维护仓库   https://github.com/Geng-zy/aurabot-qq-mac
 默认分支   main（发布只用 main + 版本 tag + GitHub Release）
@@ -18,7 +18,7 @@
 
 ```text
 上一个发布             3658ee3 / v1.6.30
-package.json           1.6.39
+package.json           1.6.40
 全量测试               1577 passed / 0 failed / 0 skipped
 语法检查               564 个文件通过
 oxlint                 0 errors / 164 warnings
@@ -237,7 +237,7 @@ ssh aurabot-mini
 ```bash
 scp -i ~/.ssh/aurabot_macmini_ed25519 \
   -o IdentitiesOnly=yes \
-  /tmp/dsh-aurabot-qq-1.6.39.tgz \
+  /tmp/dsh-aurabot-qq-1.6.40.tgz \
   gengzhiyu@100.89.128.72:/tmp/
 ```
 
@@ -332,16 +332,16 @@ https://github.com/Geng-zy/aurabot-qq-mac.git
 ### 2.4 包内容审计
 
 ```bash
-tar -tzf /tmp/dsh-aurabot-qq-1.6.39.tgz | head
-tar -tzf /tmp/dsh-aurabot-qq-1.6.39.tgz | grep -v '^package/' | head
-tar -tzf /tmp/dsh-aurabot-qq-1.6.39.tgz | wc -l
+tar -tzf /tmp/dsh-aurabot-qq-1.6.40.tgz | head
+tar -tzf /tmp/dsh-aurabot-qq-1.6.40.tgz | grep -v '^package/' | head
+tar -tzf /tmp/dsh-aurabot-qq-1.6.40.tgz | wc -l
 ```
 
 期望：
 
 - 所有路径以 `package/` 开头；
 - 没有 `logs/`、`sessions.json`、`config.json`、`backups/`；
-- 1.6.39 实测 433 个条目。
+- 1.6.40 实测 433 个条目。
 
 ---
 
@@ -563,8 +563,8 @@ DSH/pnpm 在启动/安装时会按这个 tarball 解析。只替换 `node_module
 
 ```bash
 cd /Users/geng/Desktop/Project/dsh/aurabot-qq-mac
-/Users/geng/.bun/bin/bun pm pack --ignore-scripts --filename /tmp/dsh-aurabot-qq-1.6.39.tgz
-shasum -a 256 /tmp/dsh-aurabot-qq-1.6.39.tgz
+/Users/geng/.bun/bin/bun pm pack --ignore-scripts --filename /tmp/dsh-aurabot-qq-1.6.40.tgz
+shasum -a 256 /tmp/dsh-aurabot-qq-1.6.40.tgz
 ```
 
 传到 mini：
@@ -572,14 +572,14 @@ shasum -a 256 /tmp/dsh-aurabot-qq-1.6.39.tgz
 ```bash
 scp -i ~/.ssh/aurabot_macmini_ed25519 \
   -o IdentitiesOnly=yes \
-  /tmp/dsh-aurabot-qq-1.6.39.tgz \
-  gengzhiyu@100.89.128.72:/tmp/dsh-aurabot-qq-1.6.39.tgz
+  /tmp/dsh-aurabot-qq-1.6.40.tgz \
+  gengzhiyu@100.89.128.72:/tmp/dsh-aurabot-qq-1.6.40.tgz
 ```
 
 在 mini 上执行：
 
 ```bash
-cp /tmp/dsh-aurabot-qq-1.6.39.tgz /tmp/dsh-aurabot-qq-final21.tgz
+cp /tmp/dsh-aurabot-qq-1.6.40.tgz /tmp/dsh-aurabot-qq-final21.tgz
 
 cd ~/.dsh/profiles/desktop
 
@@ -599,7 +599,7 @@ grep "Aurabot v" ~/.dsh/plugins-data/aurabot/logs/aurabot-$(date +%F).log | tail
 期望：
 
 ```text
-Aurabot v1.6.39 已加载
+Aurabot v1.6.40 已加载
 ```
 
 ### 6.3 为什么用 `pkill -9`
@@ -954,7 +954,7 @@ const body = src.slice(start, end < 0 ? src.length : end)
 3. 网关（SnowLuma/NapCat 一类）直接以 `Input does not contain a known duration` 拒收。
 4. 拒收后走「改发文字」，所以群里只看到文字，像是「她不想发语音」。
 
-1.6.39 起的处理：
+1.6.40 起的处理：
 
 - `src/voice/duration.js` 自己解 WAV / MP3 / OGG / M4A 容器，没有 ffmpeg 也能给出秒数；认不出才回落 ffmpeg。
 - `src/voice/tts.js` 检查 `say` / `afconvert` 退出码，并要求结果不是 0 采样的 WAV（`say` 失败会留下正好 4096 字节的空 WAV，旧的大小校验过得去）。
@@ -1133,7 +1133,7 @@ const pending = new Map()
 1.6.28  未使用变量清理
 1.6.29  安全 warning 清理 + 正则实验回滚
 1.6.30  最终审计/版本文档同步
-1.6.39  语音条补 duration（不依赖 ffmpeg）+ 空语音拦截
+1.6.40  语音条补 duration（不依赖 ffmpeg）+ 空语音拦截
 ```
 
 ---
@@ -1253,7 +1253,7 @@ client.template.js 280 行
 ```text
 你在 /Users/geng/Desktop/Project/dsh/aurabot-qq-mac 继续维护 AuraBot macOS 插件。
 先读 docs/SESSION-HANDOFF.md 和 docs/EXTERNAL-ACCEPTANCE.md。
-当前基线：v1.6.39，3658ee3，1562 tests passed，0 lint errors。
+当前基线：v1.6.40，3658ee3，1562 tests passed，0 lint errors。
 先跑 caffeinate 全量测试确认基线，不要假设上次状态。
 不要为清 warning 改 API/正则；不要只替换 node_modules 目录升级 Mac mini。
 Mac mini：gengzhiyu@100.89.128.72，SSH key ~/.ssh/aurabot_macmini_ed25519，Tailscale 名称 gengmac-mini。
