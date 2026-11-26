@@ -41,18 +41,13 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.33 highlights
+## 1.6.34 highlights
 
-### Explicit write gating for the panel API (B2)
+### Channel contract gaps closed (B4)
 
-- "Writes must be POST" used to be inferred from verbs in the path (save/delete/…). Some endpoints look like queries but read a request body, so a GET ran them with an empty body: `GET /aurabot/api/notice/toggle` persisted the approval-notice switch.
-- `src/host/post-only.js` now lists the 20 body-reading endpoints explicitly and the gate is "path heuristics ∪ explicit list". `/debug/say`, `/modules/tool` and `/mind/permission/decide` are covered too, all answering 405 with `Allow: POST`.
-- A regression test covers it; the GET-does-not-mutate case fails against the old gate.
-- `MIND_OFF` and friends moved into `src/panel/route-kit.js`, so five mind route files stop duplicating the same receipt.
-
-### Previous release (B1)
-
-- `src/host.js` 855 → 658 lines via routes / backup-schedule / mind / avatar modules; all 133 routes pinned by a snapshot test.
+- The `profile` feature declared `files: ['qq-profile.js']`, which the panel's "copy built-in module" action resolved to a non-existent `src/qq-profile.js`. It now uses src-relative paths, and a regression test checks every builtin and QQ feature file declaration.
+- `caps.recall` promised something the QQ channel never implemented. `recall(messageId)` now exists (via `delete_msg`), and `validateChannel` rejects a channel that declares a capability without the matching method.
+- The B2 write gate still applies: the 20 body-reading panel endpoints only accept POST.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -138,12 +133,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.33.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.34.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.33.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.34.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

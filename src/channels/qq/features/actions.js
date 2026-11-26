@@ -12,6 +12,13 @@ export function createActionsApi({ call, targetOf }) {
       await call('send_poke', { user_id: Number(userId), ...(tgt?.kind === 'group' ? { group_id: Number(tgt.id) } : {}) }, { timeoutMs: 10000 })
     },
 
+    /** 撤回自己发的消息：caps.recall 声明的就是它（之前只声明没实现）。 */
+    async recall(messageId) {
+      const id = Number(messageId)
+      if (!Number.isFinite(id)) throw new Error('撤回需要消息编号')
+      await call('delete_msg', { message_id: id }, { timeoutMs: 10000 })
+    },
+
     /** 「对方正在输入」：QQ 只有私聊有。 */
     async typing(chatId) {
       const tgt = targetOf(chatId)

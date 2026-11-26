@@ -43,18 +43,13 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.33 更新
+## 1.6.34 更新
 
-### 面板写操作闸显式化（B2）
+### 渠道层契约补齐（B4）
 
-- 以前「写操作只能 POST」靠路径里的动词猜（save/delete/…）。有一类接口路径看着是查询、其实要读包体，GET 拿到空对象照样往下跑：`GET /aurabot/api/notice/toggle` 会把「审批通知」开关写盘。
-- 现在新增显式登记表 `src/host/post-only.js`（20 条），闸门改成「路径词根 ∪ 显式登记」，两条都不满足才放行 GET；`/debug/say`、`/modules/tool`、`/mind/permission/decide` 同类问题一并挡住，统一回 405 + `Allow: POST`。
-- 新增回归测试，其中「GET 不再改配置」这条在旧实现下会失败。
-- `MIND_OFF` 等重复回执收进 `src/panel/route-kit.js`，5 个心智路由文件不再各写一份。
-
-### 上一版（B1）
-
-- `src/host.js` 855 → 658 行，拆出 routes / backup-schedule / mind / avatar 四个模块；133 条路由锁成快照。
+- 修 `profile` 功能声明里的文件路径：以前写成 `qq-profile.js`，面板「复制内置模块」会去找不存在的 `src/qq-profile.js`。现在统一用 src 相对路径，并加了回归测试逐个校验内置模块与 QQ 功能的文件声明。
+- 修 `caps.recall` 说得到做不到：QQ 一直声明支持撤回，但连接上没有 `recall` 方法。现在补上（走 `delete_msg`），并让 `validateChannel` 在注册时校验「说了能做就必须有方法」。
+- 上一版（B2）的写操作闸继续有效：需要请求包体的 20 条面板接口只接受 POST。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -140,12 +135,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.33.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.34.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.33.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.34.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

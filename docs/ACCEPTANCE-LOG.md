@@ -243,3 +243,71 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.33
 资产      dsh-aurabot-qq-1.6.33.tgz  19,630,700 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45741622764（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B4 · 渠道层契约补齐
+
+范围：`src/channels/index.js`（契约校验）、`src/channels/qq/features/{actions,profile}/`、两个新测试。路由表、caps 取值、数据格式都不变。
+
+### 修掉的两处真实缺陷（都是先红后绿）
+
+```text
+1) profile 功能 files: ['qq-profile.js']
+   → module-registry.fork() 按 src 相对路径读文件 → src/qq-profile.js 不存在 → 面板「复制内置模块」必 ENOENT
+   证据：test/module-files-paths.test.js 在修前报 "profile: files=qq-profile.js"，修后 3/3 通过
+
+2) QQ caps.recall = true，但连接上没有 recall 方法（只声明没实现）
+   证据：validateChannel 新增 caps↔方法校验后，QQ 适配器一旦缺 recall 就注册失败；
+         test/channels-caps.test.js 用「declared but missing」的反例先红，补上 recall 后全绿
+```
+
+### 改动
+
+```text
+src/channels/qq/features/actions.js   +recall(messageId)（delete_msg），7 行
+src/channels/qq/features/profile/index.js  files 改成 src 相对路径
+src/channels/index.js                 +CAP_METHODS（8 项能力→方法）+ validateChannel 校验，165 行
+test/module-files-paths.test.js       新增 44 行 3 个用例
+test/channels-caps.test.js            新增 48 行 5 个用例
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1589 passed / 0 failed / 0 skipped（比 1.6.33 多 8 个）
+语法检查    569 个文件通过
+oxlint      0 error / 164 warning
+清单闸门    642 个文件全部有结论，0 待审
+```
+
+### 2. 模拟网关（Air）
+
+`test/channels-contract.test.js` + `test/gateway-resilience.test.js` + 新契约测试共 22/22：
+QQ 适配器通过 `validateChannel`，Telegram 因为没声明这些能力不要求实现，重连/补发不受影响。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / channels-caps / module-files-paths / channels-contract /
+      host-routes / panel-post-only → tests 19 / pass 19 / fail 0 / skipped 0
+```
+
+### 4. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-104139
+加载    2026-11-26 10:41:53 [core] Aurabot v1.6.34 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 10:41:56 [onebot] 已连上 QQ 网关（WS）
+面板    GET /aurabot/api/state → 200，version=1.6.34，onebot=connected
+闸门    GET /aurabot/api/notice/toggle → 405（B2 的闸门继续生效）
+契约    日志里 caps./必须是函数/连接少了 命中 0（新校验没有误伤注册）
+同源    channels/index.js、qq/features/actions.js、qq/features/profile/index.js 与 Air 同哈希
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.34.tgz（443 条目，19,631,840 字节）
+sha256    5363157ff4e20f343e43a7b45923da6e0746b52e94910bd4d557e192b375dd9e
+```

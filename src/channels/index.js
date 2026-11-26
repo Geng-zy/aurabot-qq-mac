@@ -62,6 +62,23 @@ export const CAPS = {
 }
 
 export const REQUIRED_CHANNEL_METHODS = Object.freeze(['platform', 'start', 'stop', 'send', 'on', 'ready'])
+
+/**
+ * 能力位 → 必须实现的方法。caps 里写 true 却没有对应方法，等于对调用方撒谎：
+ * 上层按 caps 判断「能做」再去调，就会在运行时炸。
+ * 只列有明确方法名的能力；friendRequests / groupAdmin / profile / card 这些走平台自己的 call()，不在此列。
+ */
+export const CAP_METHODS = Object.freeze({
+  voice: ['voiceWav', 'voiceText'],
+  files: ['sendFile'],
+  forward: ['forward'],
+  history: ['history'],
+  react: ['react'],
+  poke: ['poke'],
+  typing: ['typing'],
+  recall: ['recall'],
+  quote: ['quote'],
+})
 export const OPTIONAL_CHANNEL_METHODS = Object.freeze([
   'restart', 'status', 'selfId', 'state', 'member', 'members', 'user', 'group', 'history', 'getMessage',
   'react', 'poke', 'typing', 'recall', 'call', 'isDefiniteFailure', 'textSegments', 'meta', 'convert',
@@ -85,6 +102,13 @@ export function validateChannel(channel) {
   }
   for (const k of OPTIONAL_CHANNEL_METHODS) {
     if (channel[k] !== undefined && channel[k] !== null && typeof channel[k] !== 'function') throw new Error(`连接的 ${k} 必须是函数`)
+  }
+  // caps 是给调用方看的承诺：说了能做，就必须真有那个方法
+  const caps = channel.caps || {}
+  for (const [cap, methods] of Object.entries(CAP_METHODS)) {
+    if (caps[cap] !== true) continue
+    const missing = methods.filter((m) => typeof channel[m] !== 'function')
+    if (missing.length) throw new Error(`caps.${cap} 说支持，但连接缺 ${missing.join('、')}`)
   }
   return channel
 }

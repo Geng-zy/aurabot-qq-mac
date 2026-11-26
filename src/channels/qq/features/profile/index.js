@@ -46,7 +46,7 @@ export default {
   name: '改资料',
   version: '1.2.0',
   description: '管理员私聊时查看自己的 QQ 资料与头像图片（qq_get_profile）、发送当前头像（qq_send_avatar）；按权限修改 QQ 资料',
-  files: ['qq-profile.js'],
+  files: ['channels/qq/features/profile/qq-profile.js'], // src 相对路径：fork 时按它复制
   setup(api, { fetchAvatar, ask } = {}) {
     const { hub, onebot } = api.core
     const reader = createQqProfile({ getConfig: api.config, onebot, dsh: api.dsh, log: api.log, fetchAvatar, ask })

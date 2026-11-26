@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.34
+
+- B4 渠道层契约补齐（两处真实缺陷，都有先红后绿的回归）：
+  - `profile` 功能的 `files: ['qq-profile.js']` 会被 `module-registry.fork()` 解析成不存在的 `src/qq-profile.js`，
+    面板「复制内置模块」必 ENOENT。改成 src 相对路径，并新增 `test/module-files-paths.test.js`
+    校验所有内置模块/QQ 功能的 `sourcePath` 与 `files` 都真实存在、写法统一。
+  - QQ 的 `caps.recall` 一直是 `true`，但连接上根本没有 `recall` 方法（只声明没实现）。
+    补上 `recall(messageId)`（走 `delete_msg`），并在 `validateChannel` 增加 caps↔方法校验：
+    声明了某项能力却没有对应方法，注册时直接报错。新增 `test/channels-caps.test.js`。
+- 回归：全量 1589 个测试通过（新增 8 个），语法 569 文件，oxlint 0 error / 164 warning。
+- 对外契约不变：caps 取值不变（QQ 的 recall 从「假的 true」变成「真的能用」），路由表不变。
+
 ## 1.6.33
 
 - B2 面板写操作闸显式化：新增 `src/host/post-only.js`（20 条「需要请求包体」的路径白名单），
