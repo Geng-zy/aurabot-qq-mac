@@ -1645,3 +1645,64 @@ tag       v1.6.53 → 652556c
 Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.53
 CI        run 45860132000 → ubuntu-latest success、macos-latest success（00:50 双绿）
 ```
+
+---
+
+## B14 · `backup.js` 第二刀：路径安全层独立
+
+```text
+src/core/backup.js     899 → 767 行
+src/core/backup-fs.js  新增 135 行
+搬走  dataBoundary（真实根 + inode 边界）
+      checkPath（逐段 lstat + realpath + 祖先链 key，49 处调用点全部改指向）
+      safeName（拒绝 ../、Windows 保留名、控制字符）
+      openCheckedOutput / verifyFile / removeChecked
+      moveChecked / runRestoreMoves
+保留  打包（createBackup）、.restore 发布与 journal 回滚、会话恢复、pending API、保留策略、检查与列表
+```
+
+为什么先搬这一层：其余所有落盘动作都建在它上面。把它隔离后，下一批拆「发布/回滚」时不用在两个文件之间
+来回核对边界检查。
+
+### 切分脚本自己踩的坑（记下来）
+
+第一版按**行号批量删除**，三个单行箭头函数（`fileId`/`sameRenamedFile`/`unsafePath`）的「花括号配对」
+范围互相重叠，结果把 `walk()` 切成碎片——语法检查立刻报：
+
+```text
+src/core/backup.js:72  SyntaxError: Unexpected token '}'
+```
+
+改成**按函数名定位 + 花括号配对**重做（从 `git show HEAD:src/core/backup.js` 的原始内容切），一次通过。
+教训：切分脚本要比它切分的代码更严格；重叠区间必须合并，不能依赖删除顺序。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1656 passed / 0 failed / 0 skipped
+语法检查    606 个文件通过
+oxlint      0 error / 19 warning
+清单闸门    699 行，0 待审
+备份专项    backup / backup-stage / backup-restart / backup-webdav / backup-push 共 57 个用例
+```
+
+### 2. 真实 Purge 模块 + 实机（Mini）
+
+```text
+回滚点  ~/aurabot-release-backups/20261127-005936
+加载    2026-11-27 00:59:42 [core] Aurabot v1.6.54 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.54，onebot=connected
+真备份  POST /backup/create → ok；结果 133 个文件 / 21,959,981 字节
+        （这条最有价值：打包全程走新的 backup-fs.js checkPath，真机上确实还能正确落盘）
+错误    01:00 之后新增 [error] 0 条
+测试    backup / backup-stage / backup-restart / backup-webdav / purge-scope-integration
+        → 32 passed / 0 failed / 0 skipped
+同源    src/core/backup.js、src/core/backup-fs.js 与 Air 同哈希
+```
+
+### 3. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.54.tgz（464 条目，19,637,316 字节）
+sha256    ba169f388e504b5fa00b3184c77a23791827d2938743e3eae9e69be803257b0a
+```

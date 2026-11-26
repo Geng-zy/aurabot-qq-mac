@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.54
+
+- B14 拆 `backup.js` 第二刀：把**路径安全层**整段搬到 `src/core/backup-fs.js`（135 行），`backup.js` 899 → 767 行。
+  搬走：`dataBoundary`（真实根 + inode 边界）、`checkPath`（逐段 lstat + realpath + 祖先链 key）、
+  `safeName`（拒绝 `../`、Windows 保留名、控制字符）、`openCheckedOutput`/`verifyFile`/`removeChecked`、
+  `moveChecked`/`runRestoreMoves`。
+- 为什么先搬这一层：其余所有落盘动作（打包、发布、回滚、会话恢复）都建在它上面。把它单独拿出来之后，
+  再拆「发布/回滚」时不用在两个文件之间来回看边界检查。
+- 过程里踩了个自己的坑，记在这里：第一版用「按行号批量删除」切分，三个单行箭头函数的匹配范围互相重叠，
+  把 `walk()` 切成了碎片（语法检查立刻报 `SyntaxError: Unexpected token '}'`）。改成**按函数名 + 花括号配对**
+  定位后一次通过。教训：切分脚本要比它切分的代码更严格。
+- 顺带清掉因搬迁而不再使用的 5 个 fs/path 导入。
+- 回归：全量 1656 个测试通过（含上一批新增的 6 个暂存用例）；语法 606 文件，oxlint 0 error / 19 warning。
+
 ## 1.6.53
 
 - B13 恢复路径补直接测试，顺带修掉一个小泄漏。写测试前先说清现状：`.restore` 发布与 journal 回滚这段

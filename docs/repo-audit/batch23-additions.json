@@ -1,0 +1,9 @@
+[
+  {
+    "path": "src/core/backup-fs.js",
+    "area": "core",
+    "owner": "core-backup",
+    "verdict": "keep",
+    "evidence": "135 行；备份的路径安全层：dataBoundary（真实根 + id）、checkPath（逐段 lstat + realpath + 祖先链 key）、safeName（拒绝 ../、Windows 保留名、控制字符）、openCheckedOutput/verifyFile/removeChecked、moveChecked/runRestoreMoves。被 backup.js 引用 12 个符号；备份四个测试文件 + 本轮 6 个暂存用例覆盖。"
+  }
+]

@@ -3,8 +3,8 @@
     "path": "src/core/backup.js",
     "area": "core",
     "owner": "core-data",
-    "verdict": "split",
-    "evidence": "897 行（1.6.41 已执行第一刀：ZIP 编解码与格式上限进 core/backup-zip.js 198 行；读目录的名字策略用 checkName 钩子留在本文件）；剩余是 .restore 发布/journal 回滚/会话恢复/保留策略。"
+    "verdict": "keep",
+    "evidence": "767 行（1.6.54 已执行第二刀：路径安全层进 backup-fs.js 135 行，899 → 767；1.6.41 第一刀把 ZIP 编解码搬进 backup-zip.js 198 行）。本文件保留：打包（createBackup）、.restore 发布与 journal 回滚、会话恢复、pending API、保留策略、检查与列表；备份相关四个测试文件 51 个用例 + test/backup-stage.test.js 6 个暂存用例覆盖。"
   },
   {
     "path": "src/core/bridge.js",

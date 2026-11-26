@@ -5,11 +5,15 @@
 
 import { randomUUID } from 'node:crypto'
 import { open, mkdir, readdir, rename, rm } from 'node:fs/promises'
-import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { constants, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { crc32, deflateRawSync } from 'node:zlib'
 import { homedir } from 'node:os'
-import { join, parse, relative } from 'node:path'
+import { join, parse } from 'node:path'
 import { dataDir, dshHome } from './store.js'
+import {
+  checkPath, dataBoundary, fileId, listFiles, moveChecked, openCheckedOutput, removeChecked,
+  runRestoreMoves, safeName, sameRenamedFile, unsafePath, verifyFile,
+} from './backup-fs.js'
 import {
   MAX_ZIP, MAX_FILE, DEFLATE_MAX, MAX_EXPANDED, MAX_DIRECTORY, MAX_MANIFEST, MANIFEST,
   centralHeader, dosTime, localHeader, readEntries, readEntry, verifyEntryStreaming,
@@ -64,46 +68,6 @@ const LEGACY_LIFE_TEMP = [
   new RegExp(`^life-advance\\.state-v2\\.stage\\.${LIFE_UUID}\\.[a-f0-9]{64}\\.[a-f0-9]{64}$`, 'u'),
   /^life-advance\.state-v2\.aborted$/u,
 ]
-
-const fileId = (st) => [st.dev, st.ino, st.birthtimeNs].join(':')
-// Windows 可能在重用文件名时沿用旧创建时间，移动前后只比对卷和文件编号。
-const sameRenamedFile = (before, after) => before.dev === after.dev && before.ino === after.ino
-const unsafePath = (rel) => new Error('不安全或已变化的备份路径：' + rel)
-
-function dataBoundary(path) {
-  const root = realpathSync.native(path)
-  const info = lstatSync(root, { bigint: true })
-  if (!info.isDirectory()) throw unsafePath(path)
-  return { root, id: fileId(info) }
-}
-
-function checkPath(base, rel, { directory = false, create = false } = {}) {
-  if (rel ? !safeName(rel) : !directory) throw unsafePath(rel)
-  const root = lstatSync(base.root, { bigint: true })
-  if (!root.isDirectory() || fileId(root) !== base.id || relative(base.root, realpathSync.native(base.root))) {
-    throw unsafePath(rel)
-  }
-  const parts = rel ? rel.split('/') : []
-  const target = join(base.root, ...parts)
-  const ids = [base.id]
-  let path = base.root
-  let info = root
-  for (const [index, part] of parts.entries()) {
-    path = join(path, part)
-    const isDir = directory || index < parts.length - 1
-    info = lstatSync(path, { bigint: true, throwIfNoEntry: false })
-    if (!info && create && isDir) {
-      try { mkdirSync(path) } catch (error) { if (error.code !== 'EEXIST') throw error }
-      info = lstatSync(path, { bigint: true })
-    }
-    if (!info) return { path: target, info: null, key: null }
-    if (isDir ? !info.isDirectory() : !info.isFile()) throw unsafePath(rel)
-    ids.push(fileId(info))
-  }
-  if (relative(path, realpathSync.native(path))) throw unsafePath(rel)
-  return { path, info, key: ids.join('/'), parentKey: ids.slice(0, -1).join('/') }
-}
-
 async function walk(base, rel, out, skippedFiles, market = [], extraSkip = [], parentKey, prefixLength = 0) {
   const dir = checkPath(base, rel, { directory: true })
   if (!dir.info || (parentKey && dir.parentKey !== parentKey)) throw unsafePath(rel)
@@ -176,14 +140,6 @@ export function sessionDirName(cwd) {
   }).join('').replace(/-{2,}/g, '-').replace(/^-+/, '')
   return `--${body.slice(0, 251)}--`
 }
-
-function safeName(name) {
-  if (!name || name.includes('\\') || name.includes('\0') || name.startsWith('/') || /^[a-zA-Z]:/.test(name)) return false
-  return name.split('/').every((seg) => seg && seg !== '.' && seg !== '..'
-    && (process.platform !== 'win32' || (!/[<>:"|?*\x00-\x1f]|[ .]$/u.test(seg)
-      && !/^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/iu.test(seg))))
-}
-
 export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {}, captureMind = null, configOnly = false } = {}) {
   const root = dataDir()
   await mkdir(root, { recursive: true })
@@ -309,33 +265,6 @@ async function withRestoreStage(run) {
   restoreInProgress = true
   try { return await run() } finally { restoreInProgress = false }
 }
-
-async function openCheckedOutput(data, rel) {
-  const file = await open(checkPath(data, rel).path, 'wx', 0o600)
-  try {
-    const opened = await file.stat({ bigint: true })
-    const named = checkPath(data, rel)
-    if (!opened.isFile() || opened.nlink !== 1n || !named.info || fileId(named.info) !== fileId(opened)) {
-      throw unsafePath(rel)
-    }
-    return { file, key: named.key }
-  } catch (error) {
-    await file.close()
-    throw error
-  }
-}
-
-function verifyFile(data, entry) {
-  const named = checkPath(data, entry.rel)
-  if (named.key !== entry.key) throw unsafePath(entry.rel)
-  return named
-}
-
-function removeChecked(data, rel, directory = false) {
-  try { rmSync(checkPath(data, rel, { directory }).path, { force: true, recursive: directory }) }
-  catch { /* 只清理仍在已校验目录内的暂存。 */ }
-}
-
 function publishStage(data, job) {
   const plan = [
     ['.restore', 'data', true],
@@ -477,67 +406,6 @@ async function stageBackup(path, received) {
 export function stageRestore(path) {
   return withRestoreStage(() => stageBackup(path))
 }
-
-function listFiles(base, rel, out = []) {
-  const dir = checkPath(base, rel, { directory: true })
-  if (!dir.info) throw unsafePath(rel)
-  for (const item of readdirSync(dir.path, { withFileTypes: true })) {
-    const child = rel + '/' + item.name
-    if (item.isDirectory()) listFiles(base, child, out)
-    else {
-      const file = checkPath(base, child)
-      if (!file.info || file.info.nlink !== 1n) throw unsafePath(child)
-      out.push({ rel: child, key: file.key })
-    }
-  }
-  return out
-}
-
-function moveChecked(source, file, destination, rel, directory = false) {
-  const parent = rel.slice(0, Math.max(0, rel.lastIndexOf('/')))
-  checkPath(destination, parent, { directory: true, create: true })
-  const from = checkPath(source, file.rel, { directory })
-  const to = checkPath(destination, rel, { directory })
-  if (from.key !== file.key || to.info) throw unsafePath(rel)
-  let copied = false
-  try {
-    renameSync(from.path, to.path)
-  } catch (error) {
-    if (directory || error.code !== 'EXDEV') throw error
-    if (checkPath(source, file.rel).key !== file.key || checkPath(destination, rel).info) throw unsafePath(rel)
-    copyFileSync(from.path, to.path, constants.COPYFILE_EXCL)
-    if (checkPath(source, file.rel).key !== file.key) throw unsafePath(file.rel)
-    rmSync(from.path)
-    copied = true
-  }
-  const moved = checkPath(destination, rel, { directory })
-  if (!moved.info || (!copied && !sameRenamedFile(from.info, moved.info))) throw unsafePath(rel)
-  return { rel, key: moved.key }
-}
-
-function runRestoreMoves(run) {
-  const moved = []
-  const move = (source, file, destination, rel, directory = false) => {
-    const placed = moveChecked(source, file, destination, rel, directory)
-    moved.push({ source, file, destination, placed, directory })
-  }
-  try {
-    run(move)
-  } catch (error) {
-    const failed = []
-    for (const step of moved.reverse()) {
-      try { moveChecked(step.destination, step.placed, step.source, step.file.rel, step.directory) }
-      catch { failed.push(step.file.rel) }
-    }
-    if (failed.length) {
-      const rollback = new Error('恢复中断，无法安全回退：' + failed.join(', '), { cause: error })
-      rollback.code = 'RESTORE_ROLLBACK_FAILED'
-      throw rollback
-    }
-    throw error
-  }
-}
-
 function finalConfig(data, file, info, root, workspaceDir) {
   const original = readFileSync(verifyFile(data, file).path, 'utf8').replace(/^\uFEFF/, '')
   const esc = (s) => JSON.stringify(s).slice(1, -1)
