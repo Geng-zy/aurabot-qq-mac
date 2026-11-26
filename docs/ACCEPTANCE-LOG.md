@@ -727,4 +727,9 @@ Mini：purge-scope-integration / core-layering / group-owner-tools / e2e / voice
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.40.tgz（454 条目，19,640,438 字节）
 sha256    334e90ca8336ef836b6c58f15c768763e8abf987bbcf4a2c79a1e0c591bcb1e8
+提交      deddb6f（main）
+tag       v1.6.40 → deddb6f
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.40
+资产      dsh-aurabot-qq-1.6.40.tgz  19,640,438 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45766624146（ubuntu + macos 双平台 success）
 ```
