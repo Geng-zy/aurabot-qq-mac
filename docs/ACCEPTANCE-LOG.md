@@ -1261,4 +1261,9 @@ Mini：purge-scope-integration / purge-preset / persona-hoist / system-session-b
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.48.tgz（460 条目，19,648,177 字节）
 sha256    214745e88cec63bf82575b018c6467218ecd0e603069bcb4b87a8d184033de6f
+提交      7cc835f（main）
+tag       v1.6.48 → 7cc835f
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.48
+资产      dsh-aurabot-qq-1.6.48.tgz  19,648,177 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45804466657（ubuntu + macos 双平台 success）
 ```
