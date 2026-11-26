@@ -1112,4 +1112,9 @@ Mini：purge-scope-integration / local-trust / local / features → tests 16 / p
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.46.tgz（460 条目，19,645,525 字节）
 sha256    e860442a78337341489a144d9e0c4b9c4637cba82f699cb7474d4ffbe8fd68e3
+提交      03661fb（main）
+tag       v1.6.46 → 03661fb
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.46
+资产      dsh-aurabot-qq-1.6.46.tgz  19,645,525 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45787267928（ubuntu + macos 双平台 success）
 ```
