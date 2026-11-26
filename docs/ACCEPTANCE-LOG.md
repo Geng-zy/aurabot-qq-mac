@@ -1778,4 +1778,9 @@ oxlint      0 error / 19 warning
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.55.tgz（465 条目，19,639,245 字节）
 sha256    620b698047b0f49c95dd6fcbe8aa65a350640f34f9c40261c8b02e639493d2ff
+提交      a0e1b36（main）
+tag       v1.6.55 → a0e1b36
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.55
+CI        第一次 run 45866755167：ubuntu success、macos 排队 15 分钟 steps=0 被取消
+          重新派发 run 45869219757：ubuntu success + macos success（01:44 双绿，steps 14/14）
 ```
