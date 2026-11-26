@@ -17,7 +17,7 @@
       }
       const useExisting = async () => {
         const r = await post('/setup/done', { existingConnection: true })
-        toast(r.message, r.ok ? 'ok' : 'err')
+        notify(toast, r)
         if (r.ok) { try { localStorage.removeItem('aurabot.wiz') } catch (e) {} reload(); onClose && onClose() }
       }
       const body = [
@@ -37,7 +37,7 @@
         h('div', null,
           h('p', { className: 'ab-desc' }, '确认你的 OneBot 服务登录的是机器人号 ' + (st.config.botQQ || '') + '，然后点「连接」。插件连上后会先核对登录的号，不是机器人号就断开。'),
           h('div', { className: 'ab-flex' },
-            h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '连接'),
+            h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '连接'),
             h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接')),
           conn && login ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, login.uin === st.config.botQQ ? '✓ 连上了：' + login.nickname + '（' + login.uin + '）' : '⚠ 连上的是 ' + login.uin + '，不是机器人号') : h('div', { className: 'ab-muted ab-small', style: { marginTop: 10 } }, '点「连接」后稍等几秒，连上了这里会显示。')),
         // 3. 完成
@@ -64,7 +64,7 @@
             ? h(Btn, { kind: 'primary', disabled: !canNext, onClick: next }, '下一步')
             : h(Btn, { kind: 'primary', onClick: async () => {
               if (!(await save({ ...draft, enabled: true, dryRun: live === 'dry' }))) return
-              const r = await post('/setup/done'); toast(r.message, r.ok ? 'ok' : 'err')
+              const r = await post('/setup/done'); notify(toast, r)
               if (r.ok) { try { localStorage.removeItem('aurabot.wiz') } catch (e) {} reload(); onClose && onClose() }
             } }, '完成，让大肥鱼上线')))
     }

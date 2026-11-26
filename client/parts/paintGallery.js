@@ -18,7 +18,7 @@
         desc: 'ta画过的图都存在本机（不会自动删），这里只是面板里显示多少张。想看全部或者清理，点「打开文件夹」。',
         right: h('div', { className: 'ab-flex' },
           h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新'),
-          h(Btn, { small: true, kind: 'ghost', onClick: () => post('/image/open-folder').then((r) => toast(r.message, r.ok ? 'ok' : 'err')).catch(() => toast('打不开文件夹', 'err')) }, '打开文件夹')),
+          h(Btn, { small: true, kind: 'ghost', onClick: () => post('/image/open-folder').then((r) => notify(toast, r)).catch(() => toast('打不开文件夹', 'err')) }, '打开文件夹')),
       },
         h(Row, { label: '面板显示最近', hint: '最多 50 张；只影响面板显示，不删文件' },
           f.num('imageGen.galleryShown', { min: 1, max: 50 }), h('span', { className: 'ab-muted' }, '张')),

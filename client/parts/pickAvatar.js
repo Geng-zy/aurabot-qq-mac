@@ -7,7 +7,7 @@
       if (file.size > 5 * 1024 * 1024) return toast('图片太大了，最多 5MB', 'err')
       const data = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(file) })
       const r = await post('/avatar/upload', { data })
-      toast(r.message, r.ok ? 'ok' : 'err')
+      notify(toast, r)
       reload()
     }
     const avatarSrc = (st) => API + '/avatar?v=' + ((st.avatar && st.avatar.at) || 0)

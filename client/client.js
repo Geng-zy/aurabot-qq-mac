@@ -454,7 +454,7 @@ window.__ModuleLoader__.load({
     f.text('voice.asrApi.model', { size: 'wide', placeholder: ph('FunAudioLLM/SenseVoiceSmall', 'whisper-1', 'whisper-1') }),
     h(ModelPicker, { kind: 'asr', keyFrom: 'asr', toast, baseUrl: a.baseUrl || ph('https://api.siliconflow.cn/v1', 'https://api.openai.com/v1', ''), apiKey: a.apiKey, value: a.model, onPick: (m) => setDraft(setPath(draft, 'voice.asrApi.model', m)) }))),
     h(Row, { key: 'k', label: 'API Key', hint: '只存在本机，面板不回显；本地服务可留空。硅基的 Key 可以和「记忆」页的向量 Key 是同一个' },
-    f.text('voice.asrApi.apiKey', { type: 'password', placeholder: a.apiKeySet ? '已保存（不改就留空）' : '没有就留空' })),
+    f.secret('voice.asrApi.apiKey')),
     h(Row, { key: 'l', label: '语言', hint: '可留空；只对支持 language 的模型有效' },
     f.text('voice.asrApi.language', { placeholder: 'zh' })),
     h(Row, { key: 'p', label: '先用谁', hint: 'QQ 自带一般 1~2 秒；硅基 SenseVoice 实测约 14 秒，建议先 QQ' },
@@ -688,7 +688,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-flex', style: { marginTop: 10, flexWrap: 'wrap' } },
     h(Btn, { small: true, kind: 'primary', onClick: () => pickAvatar(toast, reload) }, '换一张'),
     custom ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/avatar/reset'); toast(r.message, 'ok'); reload() } }, '恢复默认') : null,
-    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('把这张图设成机器人号的 QQ 头像？')) return; const r = await post('/avatar/sync-qq'); toast(r.message, r.ok ? 'ok' : 'err') } }, '同步成 QQ 头像')),
+    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('把这张图设成机器人号的 QQ 头像？')) return; const r = await post('/avatar/sync-qq'); notify(toast, r) } }, '同步成 QQ 头像')),
     h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '这是面板里显示的头像；点「同步成 QQ 头像」才会改机器人号在 QQ 上的头像。'))
     }
 
@@ -942,7 +942,7 @@ window.__ModuleLoader__.load({
     if (action === 'install' && result.running) setStatus(result)
     setBusy('')
     if (result.image) setPreview(result.image)
-    if (result.message) { setNotice(result.message); toast(result.message, result.ok ? 'ok' : 'err') }
+    if (result.message) { setNotice(result.message); notify(toast, result) }
     }
     const download = status?.remainingBytes ? `约 ${(status.remainingBytes / 1024 ** 3).toFixed(1)} GiB 权重` : ''
     const label = status?.running ? status.step : !status ? '正在检查…' : status.supported === false ? '此设备不支持' : status.ready ? '已就绪' : status.supported ? '尚未部署' : '状态读取失败'
@@ -1110,7 +1110,7 @@ window.__ModuleLoader__.load({
     const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 10, gap: 12 } },
     h(Btn, { small: true, kind: 'primary', onClick: runDiag }, '一键诊断'),
     h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
-    h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
+    h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '重新连接'))
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '连接状态' },
     h('div', { className: 'ab-kv' },
@@ -1136,7 +1136,7 @@ window.__ModuleLoader__.load({
     h('input', { className: 'ab-input', value: moveTo, placeholder: exPath('Aurabot/qq-chats'), onChange: (e) => setMoveTo(e.target.value) }),
     h(Btn, { small: true, disabled: !moveTo.trim(), onClick: async () => {
     const r = await post('/workspace/move', { to: moveTo.trim() })
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     if (r.ok) { setMoveTo(''); reload() }
     } }, '搬过去'))),
     h(Btn, { small: true, kind: 'ghost', onClick: async () => {
@@ -1405,7 +1405,7 @@ window.__ModuleLoader__.load({
     if (s.type === 'number') return f.num(p, { min: s.min, max: s.max, step: s.step })
     if (s.type === 'select') return f.select(p, (s.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o)))
     if (s.type === 'textarea') return h('textarea', { className: 'ab-textarea', value: getPath(draft, p) ?? '', placeholder: s.placeholder, onChange: (e) => setDraft(setPath(draft, p, e.target.value)) })
-    if (s.type === 'password') return f.text(p, { type: 'password', placeholder: getPath(draft, p + 'Set') ? '已保存（不改就留空）' : s.placeholder || '' })
+    if (s.type === 'password') return f.secret(p, { fallback: s.placeholder || '' })
     return f.text(p, { placeholder: s.placeholder })
     }
     return h('div', { className: 'ab-grid' },
@@ -1840,7 +1840,7 @@ window.__ModuleLoader__.load({
     options: [{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'seedream', label: '豆包 Seedream' }, { value: 'xai', label: 'xAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'sensenova', label: 'SenseNova' }, { value: 'codex', label: '已登录的 Codex 订阅' }] })),
     !codex ? h(Row, { label: '服务地址' }, input('baseUrl', { placeholder: 'https://example.com/v1' })) : null,
     h(Row, { label: '模型' }, input('model')),
-    !codex ? h(Row, { label: 'API Key' }, input('apiKey', { type: 'password', placeholder: item.apiKeySet ? '已保存' : '可留空' }),
+    !codex ? h(Row, { label: 'API Key' }, input('apiKey', { type: 'password', placeholder: secretPlaceholder(item.apiKeySet, { savedText: '已保存', fallback: '可留空' }) }),
     item.apiKeySet ? h(Btn, { small: true, onClick: () => set('apiKey', null) }, item.apiKey === null ? '保存后清空' : '清空') : null) : null,
     h('div', { className: 'ab-flex' },
     h(Btn, { small: true, disabled: index === 0, onClick: () => move(index, -1) }, '上移'),
@@ -1912,7 +1912,7 @@ window.__ModuleLoader__.load({
     h(Row, { label: '接口地址', hint: '可以用 {prompt} {model} {size} {width} {height} {image}（参考图 base64）' },
     f.text('imageGen.custom.url', { size: 'wide', placeholder: 'https://image.pollinations.ai/prompt/{prompt}' })),
     h(Row, { label: 'API Key', hint: '会以 Authorization: Bearer 发出；不需要就留空' },
-    f.text('imageGen.apiKey', { type: 'password', placeholder: c.apiKeySet ? '已保存（不改就留空）' : '没有就留空' })),
+    f.secret('imageGen.apiKey')),
     h('div', { className: 'ab-label', style: { marginTop: 12 } },
     h('b', null, isPost ? '请求体参数' : 'URL 参数'),
     h('small', null, '参数名和值都自己填；值里可以用 {prompt}、{image}（参考图 base64）；参考图需配置 {image} 才能使用')),
@@ -1934,7 +1934,7 @@ window.__ModuleLoader__.load({
     f.text('imageGen.custom.responsePath', { size: 'wide', placeholder: '如 data.0.url（留空自动找）' })),
     ) : h('div', null,
     h(Row, { label: '服务地址', hint: '一般以 /v1 结尾' }, f.text('imageGen.baseUrl', { size: 'wide', placeholder: 'https://api.siliconflow.cn/v1' })),
-    h(Row, { label: 'API Key', hint: '只存在本机，不会显示出来' }, f.text('imageGen.apiKey', { type: 'password', placeholder: c.apiKeySet ? '已保存（不改就留空）' : '没有就留空' })),
+    h(Row, { label: 'API Key', hint: '只存在本机，不会显示出来' }, f.secret('imageGen.apiKey')),
     h(Row, { label: '模型' }, h('div', { style: { flex: 1 } },
     f.text('imageGen.model', { size: 'wide', placeholder: '例如 Kwai-Kolors/Kolors' }),
     h(ModelPicker, { kind: 'image', keyFrom: 'imageGen', toast, baseUrl: (draft.imageGen || {}).baseUrl, apiKey: (draft.imageGen || {}).apiKey, value: (draft.imageGen || {}).model, onPick: (m) => setDraft(setPath(draft, 'imageGen.model', m)) }))),
@@ -2182,7 +2182,7 @@ window.__ModuleLoader__.load({
     setBusy(target + label)
     try {
     const r = await post(path, { slot: target })
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     if (r.image) setImg(r.image)
     await load()
     } catch (error) {
@@ -2285,7 +2285,7 @@ window.__ModuleLoader__.load({
     h('div', { style: { height: 6, borderRadius: 3, background: 'var(--ab-foam-2)', marginTop: 8, overflow: 'hidden' } },
     h('div', { style: { height: '100%', width: (STAGE_BAR[prog.stage] || Math.max(12, 10 + percent * 0.8)) + '%', background: 'var(--ab-sea)', transition: 'width .3s' } }))) : null
     const done = async (r) => {
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     await load()
     reload()
     }
@@ -2469,7 +2469,7 @@ window.__ModuleLoader__.load({
     return
     }
     setResult(response)
-    toast(response.message, response.ok ? 'ok' : 'err')
+    notify(toast, response)
     await load()
     } finally {
     setBusy('')
@@ -2725,7 +2725,7 @@ window.__ModuleLoader__.load({
     get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {})
     get('/mind/followups').then((r) => setFollows((r && r.list) || [])).catch(() => {})
     }
-    const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
+    const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); notify(toast, r); load() }
     useEffect(() => { load() }, [])
     if (d && !d.ok) return h(Card, { title: '关系' }, h(Empty, { text: d.message || '心智核心没起来' }))
     // 忘掉一个人：删除要确认两次；「以后不记」可以选要不要连以前的一起移走；都先进恢复区，30 天内能放回来
@@ -2743,7 +2743,7 @@ window.__ModuleLoader__.load({
     const r = await post('/mind/people/forget', body)
     toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err'); load()
     }
-    const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
+    const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); notify(toast, r); load() }
 
     const list = d?.list || []
     const needle = q.trim().toLowerCase()
@@ -3030,7 +3030,7 @@ window.__ModuleLoader__.load({
     const selected = rows.find((v) => String(v.id) === first)
     const change = async (path, body) => {
     const r = await post(path, body)
-    if (r.message) toast(r.message, r.ok ? 'ok' : 'err')
+    if (r.message) notify(toast, r)
     setComparison(null)
     setExtra([]); setHasMore(true); setFirst(''); setSecond('')
     load()
@@ -3349,7 +3349,7 @@ window.__ModuleLoader__.load({
     ])),
     offline ? h('div', { className: 'ab-muted ab-small' },
     vp?.backend !== 'local' ? '保存设置后切换到离线模型。' : vp.error || '本机模型 bge-small-zh-v1.5 已就绪。') : null,
-    !offline ? h(Row, { label: '向量服务密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「设置 → 记忆」里打开）都用它' }, f.text('mind.embedKey', { type: 'password', placeholder: mc.embedKeySet ? '已保存（不改就留空）' : '没有就留空' })) : null,
+    !offline ? h(Row, { label: '向量服务密钥', hint: '只存在本机，不会显示出来。按意思想起相近的事（向量）和精排（「设置 → 记忆」里打开）都用它' }, f.secret('mind.embedKey')) : null,
     !offline && ms ? h(Row, { label: '向量模型', hint: '现在用的：' + (ms['memory.embedModel'] || '—') + '。换了以后，旧记忆她每晚睡觉时分批重新算' },
     h('div', { style: { flex: 1 } }, h(ModelPicker, { kind: 'embedding', keyFrom: 'mind', toast, baseUrl: ms['memory.embedUrl'], apiKey: mc.embedKey, value: ms['memory.embedModel'], onPick: (m) => pickMind('memory.embedModel', m) }))) : null,
     !offline && ms ? h(Row, { label: '精排模型', hint: '现在用的：' + (ms['memory.rerankModel'] || '—') + (ms['memory.rerank'] ? '' : '（精排没开，在「设置 → 记忆」打开）') },
@@ -3527,9 +3527,9 @@ window.__ModuleLoader__.load({
     function OneBotFields({ draft, f }) {
     return h(Fragment, null,
     h(Row, { label: 'WebSocket 地址', hint: '正向 WebSocket（OneBot v11），收消息靠它，必填。DSH 在 Docker 里的话，要填 DSH 容器能访问到的地址' }, f.text('platforms.qq.wsUrl', { size: 'wide', placeholder: 'ws://127.0.0.1:3001' })),
-    h(Row, { label: 'WebSocket 令牌', hint: '对方设了 access_token 就填，没设留空' }, f.text('platforms.qq.wsToken', { type: 'password', placeholder: draft.platforms?.qq?.wsTokenSet ? '已保存' : '没有就留空' })),
+    h(Row, { label: 'WebSocket 令牌', hint: '对方设了 access_token 就填，没设留空' }, f.secret('platforms.qq.wsToken', { savedText: '已保存' })),
     h(Row, { label: 'HTTP 地址', hint: '可选。填了就用 HTTP 调接口，不填就都走 WebSocket' }, f.text('platforms.qq.httpUrl', { size: 'wide', placeholder: 'http://127.0.0.1:3000' })),
-    h(Row, { label: 'HTTP 令牌' }, f.text('platforms.qq.httpToken', { type: 'password', placeholder: draft.platforms?.qq?.httpTokenSet ? '已保存' : '没有就留空' })))
+    h(Row, { label: 'HTTP 令牌' }, f.secret('platforms.qq.httpToken', { savedText: '已保存' })))
     }
 
     /** 平台入口：QQ / Telegram 共用状态卡；后续适配器会在这里出现。 */
@@ -3721,7 +3721,7 @@ window.__ModuleLoader__.load({
     desc: 'ta画过的图都存在本机（不会自动删），这里只是面板里显示多少张。想看全部或者清理，点「打开文件夹」。',
     right: h('div', { className: 'ab-flex' },
     h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新'),
-    h(Btn, { small: true, kind: 'ghost', onClick: () => post('/image/open-folder').then((r) => toast(r.message, r.ok ? 'ok' : 'err')).catch(() => toast('打不开文件夹', 'err')) }, '打开文件夹')),
+    h(Btn, { small: true, kind: 'ghost', onClick: () => post('/image/open-folder').then((r) => notify(toast, r)).catch(() => toast('打不开文件夹', 'err')) }, '打开文件夹')),
     },
     h(Row, { label: '面板显示最近', hint: '最多 50 张；只影响面板显示，不删文件' },
     f.num('imageGen.galleryShown', { min: 1, max: 50 }), h('span', { className: 'ab-muted' }, '张')),
@@ -3930,7 +3930,7 @@ window.__ModuleLoader__.load({
     if (file.size > 5 * 1024 * 1024) return toast('图片太大了，最多 5MB', 'err')
     const data = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(file) })
     const r = await post('/avatar/upload', { data })
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     reload()
     }
     const avatarSrc = (st) => API + '/avatar?v=' + ((st.avatar && st.avatar.at) || 0)
@@ -3958,7 +3958,7 @@ window.__ModuleLoader__.load({
     h(Card, { section: 'telegram', title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },
     h(Row, { label: '启用 Telegram' }, f.sw('platforms.telegram.enabled')),
     h(Row, { label: 'Bot API 地址', hint: '默认 https://api.telegram.org；服务器访问不了 Telegram 时填可用反代' }, f.text('platforms.telegram.apiBase', { placeholder: 'https://api.telegram.org' })),
-    h(Row, { label: 'Bot Token', hint: '只保存在本机配置里' }, f.text('platforms.telegram.token', { type: 'password', placeholder: draft.platforms?.telegram?.tokenSet ? '已保存' : '123456:ABC...' })),
+    h(Row, { label: 'Bot Token', hint: '只保存在本机配置里' }, f.secret('platforms.telegram.token', { savedText: '已保存', fallback: '123456:ABC...' })),
     h(Row, { label: '管理员 Telegram ID', hint: '你的 Telegram 用户 ID，可先用 @userinfobot 查' }, f.text('platforms.telegram.ownerQQ')),
     h(Row, { label: '私聊白名单', hint: '允许私聊的 Telegram 用户 ID，一行一个' }, f.list('platforms.telegram.allow.private', { placeholder: '每行一个用户 ID' })),
     h(Row, { label: '群白名单', hint: '允许的 Telegram 群 ID，一行一个（群 ID 通常是负数）' }, f.list('platforms.telegram.allow.groups', { placeholder: '每行一个群 ID' })))
@@ -4001,7 +4001,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-flex', style: { marginTop: 10 } },
     h('span', { className: 'ab-muted ab-small' }, s ? '今天评论了 ' + s.count + ' 条' + (s.lastReplyCheck ? '，上次检查新评论 ' + timeAgo(s.lastReplyCheck) : '') + (s.lastRun ? '，上次逛空间 ' + timeAgo(s.lastRun) : '') : ''),
     h('div', { className: 'ab-spacer' }),
-    h(Btn, { small: true, onClick: async () => { toast('ta去逛空间了…'); const r = await post('/qzone/social/run'); toast(r.message, r.ok ? 'ok' : 'err'); load() } }, '现在逛一次')),
+    h(Btn, { small: true, onClick: async () => { toast('ta去逛空间了…'); const r = await post('/qzone/social/run'); notify(toast, r); load() } }, '现在逛一次')),
     s && s.history && s.history.length ? h('div', { className: 'ab-list', style: { marginTop: 10 } }, s.history.map((x, i) => h('div', { key: i, className: 'ab-li' },
     h('div', { className: 'meta' }, timeAgo(x.at), h('br'), SOCIAL_KIND[x.kind] || x.kind),
     h('div', { className: 'body' }, h('b', null, x.who), x.post ? h('span', { className: 'ab-muted' }, ' 的「' + x.post + '」') : null, x.text ? h('div', null, x.text) : null)))) : null,
@@ -4352,7 +4352,7 @@ window.__ModuleLoader__.load({
     }, [s && s.install.running, s?.profileJob?.running, s && Boolean(s.current), s && s.queue.length])
     if (!s) return h(Empty, { icon: '⏳', text: '加载中…' })
     const search = async () => { if (!q.trim()) return; setFound(null); const r = await get('/song/search?q=' + encodeURIComponent(q)); setFound(r.list || []); if (!r.ok) toast(r.message, 'err') }
-    const sing = async (song) => { const r = await post('/song/request', { songId: song.id, song: song.name, pitch }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
+    const sing = async (song) => { const r = await post('/song/request', { songId: song.id, song: song.name, pitch }); notify(toast, r); load() }
     const voices = s.voices.map((v) => ({ value: v.id, label: v.id, desc: v.hasIndex ? '带 .index' : '' }))
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '翻唱', right: f.sw('song.enabled'), desc: '让ta用自己的声音唱歌：点歌 → 从网易云下载 → 分离人声和伴奏 → 用 RVC 换成ta的声音 → 混音 → 发语音条。管理员在 QQ 里说「唱首歌」，或者发 /sing 歌名 都行。' },
@@ -4405,7 +4405,7 @@ window.__ModuleLoader__.load({
     ),
     h(Card, { fold: 'song-netease', title: '网易云音乐', desc: '不登录也能唱免费歌；会员歌、版权歌要填网易云的 Cookie。' },
     h(Row, { label: 'Cookie（MUSIC_U）', hint: '电脑浏览器登录 music.163.com → F12 → 应用 / 存储 → Cookie → 复制 MUSIC_U 的值。只存在本机，不显示' },
-    f.text('song.neteaseCookie', { type: 'password', size: 'wide', placeholder: draft.song.neteaseCookieSet ? '已保存（不改就留空）' : '没有就留空' })),
+    f.secret('song.neteaseCookie', { size: 'wide' })),
     h('div', { className: 'ab-flex', style: { marginTop: 6 } },
     h(Btn, { small: true, onClick: async () => { const r = await get('/song/account'); setAcct(r) } }, '检查登录'),
     acct ? h('span', { className: 'ab-small', style: { color: acct.ok ? 'var(--ab-ok)' : 'var(--ab-warn)' } }, acct.ok ? '已登录：' + acct.nickname + (acct.vip ? '（会员）' : '（不是会员，只能下免费歌）') : acct.message) : null),
@@ -5425,10 +5425,37 @@ window.__ModuleLoader__.load({
     h('div', { style: { whiteSpace: 'pre-wrap', marginTop: 6 } }, notes)) : null
     }
 
+    /**
+    * 把接口返回直接提示给管理员：成功绿色、失败红色，文案取 message。
+    * 原来 18 处写的是 notify(r)，改造时容易漏掉一半。
+    */
+    // toast 是页面组件拿到的 prop（在 aurabotPage.js 里创建），所以显式收进来
+    function notify(toast, result, fallback = '好了') {
+    const ok = Boolean(result && result.ok)
+    toast((result && result.message) || (ok ? fallback : '没成功'), ok ? 'ok' : 'err')
+    return ok
+    }
+
+    /**
+    * 密钥输入框的占位文案：服务端不会回显密钥，只回一个 `<path>Set` 布尔。
+    * 已保存过 → 提示「不改就留空」；没保存过 → 用调用方给的示例。
+    */
+    function secretPlaceholder(saved, { savedText = '已保存（不改就留空）', fallback = '没有就留空' } = {}) {
+    return saved ? savedText : fallback
+    }
+
     function useField(draft, setDraft) {
     return {
     sw: (path, extra) => h(Switch, { on: !!getPath(draft, path), onChange: (v) => setDraft(setPath(draft, path, v)), ...(extra || {}) }),
     text: (path, props) => h('input', { className: cx('ab-input', props && props.size), value: getPath(draft, path) ?? '', placeholder: props && props.placeholder, type: (props && props.type) || 'text', onChange: (e) => setDraft(setPath(draft, path, e.target.value)) }),
+    // 密钥框：type 固定 password，占位文案按 `<path>Set` 自动切换（密钥不回显，留空 = 沿用旧值）
+    secret: (path, props = {}) => h('input', {
+    className: cx('ab-input', props.size),
+    type: 'password',
+    value: getPath(draft, path) ?? '',
+    placeholder: secretPlaceholder(getPath(draft, path + 'Set'), props),
+    onChange: (e) => setDraft(setPath(draft, path, e.target.value)),
+    }),
     area: (path, props) => h('textarea', { className: cx('ab-input', props && props.size), rows: (props && props.rows) || 3, spellCheck: false, style: { fontFamily: 'ui-monospace, Consolas, monospace', fontSize: 12, lineHeight: 1.5, resize: 'vertical' }, value: getPath(draft, path) ?? '', placeholder: props && props.placeholder, onChange: (e) => setDraft(setPath(draft, path, e.target.value)) }),
     num: (path, props) => h('input', { className: 'ab-input sm', type: 'number', min: props && props.min, max: props && props.max, step: (props && props.step) || 1, value: getPath(draft, path) ?? '', onChange: (e) => setDraft(setPath(draft, path, e.target.value === '' ? '' : Number(e.target.value))) }),
     percent: (path) => h(Range, { min: 0, max: 100, value: pct(getPath(draft, path)), onChange: (v) => setDraft(setPath(draft, path, v / 100)), fmt: (v) => v + '%' }),
@@ -5548,7 +5575,7 @@ window.__ModuleLoader__.load({
     },
     })),
     h(Row, { key: 'u', label: '服务地址', hint: '云端填 https://api.breeze.blue；自建就填自己的地址' }, f.text('voice.breeze.url', { size: 'wide', placeholder: 'https://api.breeze.blue' })),
-    draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'k', label: 'API Key', hint: 'Breeze 控制台 → API Keys 生成，brz_ 开头；已保存就不回显' }, f.text('voice.breeze.key', { type: 'password', placeholder: draft.voice.breeze?.keySet ? '已保存' : 'brz_…', size: 'wide' })),
+    draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'k', label: 'API Key', hint: 'Breeze 控制台 → API Keys 生成，brz_ 开头；已保存就不回显' }, f.secret('voice.breeze.key', { savedText: '已保存', fallback: 'brz_…', size: 'wide' })),
     draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'v', label: '音色 id', hint: '云端只用这个 id（不发描述，音色最稳）；也可以点下面的「列出音色」直接挑' }, f.text('voice.breeze.voiceId', { size: 'wide', placeholder: 'voc_…' })),
     draft.voice.breeze?.mode === 'local' ? null : h(BreezeVoices, { key: 'voices', b: draft.voice.breeze, draft, setDraft }),
     h(Row, { key: 'm', label: '模型', hint: '默认 breeze-tts-2' }, f.text('voice.breeze.model', { placeholder: 'breeze-tts-2' })),
@@ -5556,7 +5583,7 @@ window.__ModuleLoader__.load({
     draft.voice.breeze?.mode === 'local' ? h(Row, { key: 'i', label: '语气说明', hint: '本地模式用：这段描述就是音色设计（voice design），不填就用模型默认声音' }, f.text('voice.breeze.instructions', { size: 'wide', placeholder: '清亮柔软、略带奶气的普通话少女音' })) : null,
     draft.voice.breeze?.mode === 'local' ? h(Row, { key: 'g', label: '指令遵循强度', hint: '本地模式的 cfg_scale，越大越贴着描述走（默认 4）' }, f.range('voice.breeze.guidanceScale', 0, 10, 0.5, (v) => (String(v || '4')))) : null,
     draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'em', label: '账号邮箱', hint: '填了才能自动领每日额度（免费额度约 250 句短话）' }, f.text('voice.breeze.email', { size: 'wide', placeholder: 'you@example.com' })),
-    draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'pw', label: '账号密码', hint: '存在本机 config.json（和别的密钥一样，面板里不回显）；留空 = 用已保存的' }, f.text('voice.breeze.password', { type: 'password', placeholder: draft.voice.breeze?.passwordSet ? '已保存' : '不填就不自动领额度' })),
+    draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'pw', label: '账号密码', hint: '存在本机 config.json（和别的密钥一样，面板里不回显）；留空 = 用已保存的' }, f.secret('voice.breeze.password', { savedText: '已保存', fallback: '不填就不自动领额度' })),
     draft.voice.breeze?.mode === 'local' ? null : h(Row, { key: 'ac', label: '自动领每日额度', hint: '每小时醒一次，一天最多领一次；失败只记日志' }, f.sw('voice.breeze.autoClaim')),
     draft.voice.breeze?.mode === 'local' ? null : h(BreezeQuota, { key: 'quota', b: draft.voice.breeze, toast }),
     ] : null,
@@ -5601,7 +5628,7 @@ window.__ModuleLoader__.load({
     const folder = profDir.trim()
     if (!folder) { toast('先填数据集文件夹的完整路径', 'err'); return }
     const r = await post('/song/voice/profile', { id, folder })
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     if (r.ok) { setProfFor(''); setProfDir('') }
     onChange()
     }
@@ -5611,7 +5638,7 @@ window.__ModuleLoader__.load({
     setBusy('正在导入「' + file.name + '」（' + Math.round(file.size / 1024 / 1024) + 'MB）…')
     const r = await fetch(API + '/song/import?name=' + encodeURIComponent(file.name), { method: 'POST', body: file })
     .then((x) => x.json()).catch((e) => ({ ok: false, message: '上传失败：' + e.message }))
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     }
     setBusy('')
     onChange()
@@ -5646,7 +5673,7 @@ window.__ModuleLoader__.load({
     h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
     h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => { setProfFor(profFor === v.id ? '' : v.id); setProfDir('') } },
     profFor === v.id ? '收起' : v.hasProfile ? '重新生成档案' : '生成音色档案'),
-    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); toast(r.message, r.ok ? 'ok' : 'err'); onChange() } }, '删除')),
+    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); notify(toast, r); onChange() } }, '删除')),
     profFor === v.id ? h('div', { className: 'ab-flex', style: { margin: '6px 0 10px' } },
     h('input', { className: 'ab-input', style: { flex: 1 }, value: profDir, placeholder: '「' + v.id + '」的数据集文件夹完整路径（本人的干声录音，wav / flac / mp3），如 ' + exPath('Downloads/数据集'),
     onChange: (e) => setProfDir(e.target.value), onKeyDown: (e) => e.key === 'Enter' && buildProfile(v.id) }),
@@ -5703,7 +5730,7 @@ window.__ModuleLoader__.load({
     }
     const useExisting = async () => {
     const r = await post('/setup/done', { existingConnection: true })
-    toast(r.message, r.ok ? 'ok' : 'err')
+    notify(toast, r)
     if (r.ok) { try { localStorage.removeItem('aurabot.wiz') } catch (e) {} reload(); onClose && onClose() }
     }
     const body = [
@@ -5723,7 +5750,7 @@ window.__ModuleLoader__.load({
     h('div', null,
     h('p', { className: 'ab-desc' }, '确认你的 OneBot 服务登录的是机器人号 ' + (st.config.botQQ || '') + '，然后点「连接」。插件连上后会先核对登录的号，不是机器人号就断开。'),
     h('div', { className: 'ab-flex' },
-    h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '连接'),
+    h(Btn, { kind: 'primary', small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '连接'),
     h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接')),
     conn && login ? h('div', { className: 'ab-note', style: { marginTop: 10 } }, login.uin === st.config.botQQ ? '✓ 连上了：' + login.nickname + '（' + login.uin + '）' : '⚠ 连上的是 ' + login.uin + '，不是机器人号') : h('div', { className: 'ab-muted ab-small', style: { marginTop: 10 } }, '点「连接」后稍等几秒，连上了这里会显示。')),
     // 3. 完成
@@ -5750,7 +5777,7 @@ window.__ModuleLoader__.load({
     ? h(Btn, { kind: 'primary', disabled: !canNext, onClick: next }, '下一步')
     : h(Btn, { kind: 'primary', onClick: async () => {
     if (!(await save({ ...draft, enabled: true, dryRun: live === 'dry' }))) return
-    const r = await post('/setup/done'); toast(r.message, r.ok ? 'ok' : 'err')
+    const r = await post('/setup/done'); notify(toast, r)
     if (r.ok) { try { localStorage.removeItem('aurabot.wiz') } catch (e) {} reload(); onClose && onClose() }
     } }, '完成，让大肥鱼上线')))
     }

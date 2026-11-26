@@ -1,0 +1,16 @@
+[
+  {
+    "path": "test/client-form-kit.test.js",
+    "area": "test",
+    "owner": "test-client",
+    "verdict": "keep",
+    "evidence": "42 行 3 个用例；断言面板片段里不再手写「已保存 ? … : …」的密钥占位，也不再手写 toast(x.message, x.ok ? …)；并断言 secretPlaceholder/notify/f.secret 都有唯一定义。"
+  },
+  {
+    "path": "docs/repo-audit/batch15-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B7 第二刀（面板表单小工具收敛）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。"
+  }
+]

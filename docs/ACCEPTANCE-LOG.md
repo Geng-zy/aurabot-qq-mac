@@ -988,3 +988,58 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.44
 资产      dsh-aurabot-qq-1.6.44.tgz  19,642,490 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45778066468（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B7（第二刀）· 面板表单小工具收敛
+
+```text
+f.secret(path, props)        密钥框：type=password + 「已保存就不回显」占位，13 处手写 → 1 处
+notify(toast, result, fb)    成功绿/失败红 + 文案取 message，21 处手写 → 1 处
+secretPlaceholder(saved, o)  不走 f 的两处（extPage 通用字段、imageFallbacks 本地 input）也复用
+生成物                        client/client.js 5809 行（比上一版 +26：多的是共享实现）
+```
+
+**为什么行数反而多了**：13 处密钥文案 + 21 处提示各只省一两个字符，共享实现本身 26 行。
+这一刀换的是**locality**——以后改「已保存（不改就留空）」这句文案，只动 `secretPlaceholder` 一处；
+改成功/失败的落点策略，只动 `notify` 一处。行数不是目标，「改一处忘一处」才是。
+
+### 过程中被 lint 抓住的作用域问题
+
+`notify` 第一版写成模块级函数直接调 `toast(...)`，oxlint 报 `no-undef: 'toast' is not defined`。
+原因：`toast` 是页面组件拿到的 **prop**（在 `aurabotPanel`/`aurabotPage.js` 里创建后逐层传下去），
+不是模块级函数。改成 `notify(toast, result, fallback)` 显式收进来；20 个调用点同步补参数。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1627 passed / 0 failed / 0 skipped（比 1.6.44 多 3 个表单守卫）
+语法检查    596 个文件通过
+oxlint      0 error / 158 warning
+清单闸门    680 个文件全部有结论，0 待审
+client 构建 重新生成，无漂移
+```
+
+新增 `test/client-form-kit.test.js`：
+- 面板片段里不许再出现 `<x>Set ? '已保存…' : …` 这种手写占位；
+- 不许再出现 `toast(x.message, x.ok ? …)`；
+- 三个共享实现各自只有一份。
+
+### 2. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-161851
+加载    2026-11-26 16:18:56 [core] Aurabot v1.6.45 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.45，onebot=connected
+产物    装好的 client/client.js：
+        function notify(toast, result …) 命中 1；secretPlaceholder 命中 3；
+        `toast(r.message, r.ok ?` 命中 0（旧写法清零）
+同源    client/parts/useField.js、client/client.js 与 Air 同哈希
+```
+
+### 3. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.45.tgz（460 条目，19,644,499 字节）
+sha256    5e8d131791fc393fa8e84fe49ebf3dc4a56273c67715b40292d02e81a968c9c7
+```

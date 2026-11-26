@@ -14,7 +14,7 @@
       const testBtns = h('div', { className: 'ab-flex', style: { marginTop: 10, gap: 12 } },
         h(Btn, { small: true, kind: 'primary', onClick: runDiag }, '一键诊断'),
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
-        h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); toast(r.message, r.ok ? 'ok' : 'err'); reload() } }, '重新连接'))
+        h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '重新连接'))
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '连接状态' },
           h('div', { className: 'ab-kv' },
@@ -40,7 +40,7 @@
               h('input', { className: 'ab-input', value: moveTo, placeholder: exPath('Aurabot/qq-chats'), onChange: (e) => setMoveTo(e.target.value) }),
               h(Btn, { small: true, disabled: !moveTo.trim(), onClick: async () => {
                 const r = await post('/workspace/move', { to: moveTo.trim() })
-                toast(r.message, r.ok ? 'ok' : 'err')
+                notify(toast, r)
                 if (r.ok) { setMoveTo(''); reload() }
               } }, '搬过去'))),
             h(Btn, { small: true, kind: 'ghost', onClick: async () => {

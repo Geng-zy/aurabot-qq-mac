@@ -24,7 +24,7 @@
       const selected = rows.find((v) => String(v.id) === first)
       const change = async (path, body) => {
         const r = await post(path, body)
-        if (r.message) toast(r.message, r.ok ? 'ok' : 'err')
+        if (r.message) notify(toast, r)
         setComparison(null)
         setExtra([]); setHasMore(true); setFirst(''); setSecond('')
         load()

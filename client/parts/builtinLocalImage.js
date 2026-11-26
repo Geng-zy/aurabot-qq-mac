@@ -27,7 +27,7 @@
         if (action === 'install' && result.running) setStatus(result)
         setBusy('')
         if (result.image) setPreview(result.image)
-        if (result.message) { setNotice(result.message); toast(result.message, result.ok ? 'ok' : 'err') }
+        if (result.message) { setNotice(result.message); notify(toast, result) }
       }
       const download = status?.remainingBytes ? `约 ${(status.remainingBytes / 1024 ** 3).toFixed(1)} GiB 权重` : ''
       const label = status?.running ? status.step : !status ? '正在检查…' : status.supported === false ? '此设备不支持' : status.ready ? '已就绪' : status.supported ? '尚未部署' : '状态读取失败'

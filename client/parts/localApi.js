@@ -9,7 +9,7 @@
         setBusy(target + label)
         try {
           const r = await post(path, { slot: target })
-          toast(r.message, r.ok ? 'ok' : 'err')
+          notify(toast, r)
           if (r.image) setImg(r.image)
           await load()
         } catch (error) {

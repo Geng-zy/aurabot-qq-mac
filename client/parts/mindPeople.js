@@ -23,7 +23,7 @@
         get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {})
         get('/mind/followups').then((r) => setFollows((r && r.list) || [])).catch(() => {})
       }
-      const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
+      const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); notify(toast, r); load() }
       useEffect(() => { load() }, [])
       if (d && !d.ok) return h(Card, { title: '关系' }, h(Empty, { text: d.message || '心智核心没起来' }))
       // 忘掉一个人：删除要确认两次；「以后不记」可以选要不要连以前的一起移走；都先进恢复区，30 天内能放回来
@@ -41,7 +41,7 @@
         const r = await post('/mind/people/forget', body)
         toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err'); load()
       }
-      const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); toast(r.message, r.ok ? 'ok' : 'err'); load() }
+      const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); notify(toast, r); load() }
 
       const list = d?.list || []
       const needle = q.trim().toLowerCase()

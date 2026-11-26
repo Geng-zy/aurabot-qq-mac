@@ -12,7 +12,7 @@
         if (s.type === 'number') return f.num(p, { min: s.min, max: s.max, step: s.step })
         if (s.type === 'select') return f.select(p, (s.options || []).map((o) => (typeof o === 'string' ? { value: o, label: o } : o)))
         if (s.type === 'textarea') return h('textarea', { className: 'ab-textarea', value: getPath(draft, p) ?? '', placeholder: s.placeholder, onChange: (e) => setDraft(setPath(draft, p, e.target.value)) })
-        if (s.type === 'password') return f.text(p, { type: 'password', placeholder: getPath(draft, p + 'Set') ? '已保存（不改就留空）' : s.placeholder || '' })
+        if (s.type === 'password') return f.secret(p, { fallback: s.placeholder || '' })
         return f.text(p, { placeholder: s.placeholder })
       }
       return h('div', { className: 'ab-grid' },

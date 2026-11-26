@@ -8,7 +8,7 @@
         const folder = profDir.trim()
         if (!folder) { toast('先填数据集文件夹的完整路径', 'err'); return }
         const r = await post('/song/voice/profile', { id, folder })
-        toast(r.message, r.ok ? 'ok' : 'err')
+        notify(toast, r)
         if (r.ok) { setProfFor(''); setProfDir('') }
         onChange()
       }
@@ -18,7 +18,7 @@
           setBusy('正在导入「' + file.name + '」（' + Math.round(file.size / 1024 / 1024) + 'MB）…')
           const r = await fetch(API + '/song/import?name=' + encodeURIComponent(file.name), { method: 'POST', body: file })
             .then((x) => x.json()).catch((e) => ({ ok: false, message: '上传失败：' + e.message }))
-          toast(r.message, r.ok ? 'ok' : 'err')
+          notify(toast, r)
         }
         setBusy('')
         onChange()
@@ -53,7 +53,7 @@
                 h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
               h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => { setProfFor(profFor === v.id ? '' : v.id); setProfDir('') } },
                 profFor === v.id ? '收起' : v.hasProfile ? '重新生成档案' : '生成音色档案'),
-              h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); toast(r.message, r.ok ? 'ok' : 'err'); onChange() } }, '删除')),
+              h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); notify(toast, r); onChange() } }, '删除')),
             profFor === v.id ? h('div', { className: 'ab-flex', style: { margin: '6px 0 10px' } },
               h('input', { className: 'ab-input', style: { flex: 1 }, value: profDir, placeholder: '「' + v.id + '」的数据集文件夹完整路径（本人的干声录音，wav / flac / mp3），如 ' + exPath('Downloads/数据集'),
                 onChange: (e) => setProfDir(e.target.value), onKeyDown: (e) => e.key === 'Enter' && buildProfile(v.id) }),

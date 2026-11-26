@@ -29,7 +29,7 @@
             return
           }
           setResult(response)
-          toast(response.message, response.ok ? 'ok' : 'err')
+          notify(toast, response)
           await load()
         } finally {
           setBusy('')

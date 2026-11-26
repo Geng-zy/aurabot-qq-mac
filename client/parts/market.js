@@ -34,7 +34,7 @@
         h('div', { style: { height: 6, borderRadius: 3, background: 'var(--ab-foam-2)', marginTop: 8, overflow: 'hidden' } },
           h('div', { style: { height: '100%', width: (STAGE_BAR[prog.stage] || Math.max(12, 10 + percent * 0.8)) + '%', background: 'var(--ab-sea)', transition: 'width .3s' } }))) : null
       const done = async (r) => {
-        toast(r.message, r.ok ? 'ok' : 'err')
+        notify(toast, r)
         await load()
         reload()
       }

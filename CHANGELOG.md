@@ -2,6 +2,21 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.45
+
+- B7（第二刀）面板表单小工具收敛：**省的不是行数，是「改一处忘一处」**。
+  - `f.secret(path, props)`：密钥框的 `type=password` 与占位文案（已保存 → 「不改就留空」）压成一个方法，
+    13 处手写收敛到 1 处；文案差异用 `savedText` / `fallback` 参数保留，界面文字不变。
+  - `notify(result, fallback)`：成功绿、失败红、文案取 message —— 21 处
+    `toast(r.message, r.ok ? 'ok' : 'err')` 改成一个调用。
+  - `secretPlaceholder(saved, opts)`：不走 `f` 的两处（extPage 的通用字段、imageFallbacks 的本地 input）也复用它。
+- 新增 `test/client-form-kit.test.js`：面板片段里不许再手写这两种模式，且三个共享实现必须各自只有一份。
+- 生成物 `client/client.js` 5783 → 5809 行（多了共享实现的 26 行）；这是刻意的取舍：
+  13 处密钥文案与 21 处提示以后只改一个地方。
+- 回归：全量 1627 个测试通过（新增 3 个守卫），语法 596 文件，oxlint 0 error / 158 warning。
+- 过程中被 lint 抓住一次作用域问题：`toast` 是页面组件拿到的 prop（在 aurabotPage.js 里创建），
+  不是模块级函数；`notify` 改成显式收 `toast` 作为第一个参数后解决。
+
 ## 1.6.44
 
 - B7（第一刀）面板样式清死码：`client/parts/styles.js` 739 → 634 行，删掉 108 条规则 / 37 个没人用的类名

@@ -41,14 +41,14 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.44 highlights
+## 1.6.45 highlights
 
-### Dead CSS removed from the panel (B7, first slice)
+### Panel form helpers consolidated (B7, second slice)
 
-- `client/parts/styles.js` shrinks 739 → 634 lines: 108 rules that can never match and 37 unused class names (28 `.ab-pm-*` left over from a deleted page) are gone. The built `client/client.js` goes 5887 → 5783 lines.
-- Dead-class detection checks three things: literal references, dynamic prefixes such as `ab-hit-${x}`, and compound selectors whose root class is dead (`.ab-pm-search .ab-sel`), which caught five more rules on a second pass.
-- New `test/client-css.test.js`: every style class must be used and every `var(--ab-*)` must be declared — deleting a page without its styles now fails the suite.
-- No visual change: only rules that could never match were removed.
+- `f.secret(path)`: the `type=password` field plus the "already saved, leave blank to keep" placeholder become one method; thirteen hand-written copies collapse to one (wording differences kept as parameters, so no visible text changes).
+- `notify(result)`: green on success, red on failure, message from the result — twenty-one copies of `toast(r.message, r.ok ? 'ok' : 'err')` become one call.
+- New `test/client-form-kit.test.js` forbids both patterns from coming back.
+- This slice **adds** 26 lines of shared implementation instead of removing lines: the win is locality — the key-placeholder policy now lives in one function.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -134,12 +134,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.44.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.45.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.44.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.45.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

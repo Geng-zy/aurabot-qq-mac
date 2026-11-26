@@ -22,7 +22,7 @@
               options: [{ value: 'openai', label: 'OpenAI 兼容' }, { value: 'seedream', label: '豆包 Seedream' }, { value: 'xai', label: 'xAI' }, { value: 'gemini', label: 'Gemini' }, { value: 'sensenova', label: 'SenseNova' }, { value: 'codex', label: '已登录的 Codex 订阅' }] })),
             !codex ? h(Row, { label: '服务地址' }, input('baseUrl', { placeholder: 'https://example.com/v1' })) : null,
             h(Row, { label: '模型' }, input('model')),
-            !codex ? h(Row, { label: 'API Key' }, input('apiKey', { type: 'password', placeholder: item.apiKeySet ? '已保存' : '可留空' }),
+            !codex ? h(Row, { label: 'API Key' }, input('apiKey', { type: 'password', placeholder: secretPlaceholder(item.apiKeySet, { savedText: '已保存', fallback: '可留空' }) }),
               item.apiKeySet ? h(Btn, { small: true, onClick: () => set('apiKey', null) }, item.apiKey === null ? '保存后清空' : '清空') : null) : null,
             h('div', { className: 'ab-flex' },
               h(Btn, { small: true, disabled: index === 0, onClick: () => move(index, -1) }, '上移'),
