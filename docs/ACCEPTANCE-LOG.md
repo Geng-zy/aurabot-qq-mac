@@ -982,4 +982,9 @@ client 构建 node scripts/build-client.mjs 重新生成，无漂移
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.44.tgz（460 条目，19,642,490 字节）
 sha256    dfe33f4bc4ceabf4c2ebb9246117cbf8f4725b2cd2d07c556220571f5a119fed
+提交      e59d503（main）
+tag       v1.6.44 → e59d503
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.44
+资产      dsh-aurabot-qq-1.6.44.tgz  19,642,490 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45778066468（ubuntu + macos 双平台 success）
 ```
