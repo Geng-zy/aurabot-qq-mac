@@ -310,4 +310,9 @@ Mini：purge-scope-integration / channels-caps / module-files-paths / channels-c
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.34.tgz（443 条目，19,631,840 字节）
 sha256    5363157ff4e20f343e43a7b45923da6e0746b52e94910bd4d557e192b375dd9e
+提交      f8181f0（main）
+tag       v1.6.34 → f8181f0
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.34
+资产      dsh-aurabot-qq-1.6.34.tgz  19,631,840 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45744321874（ubuntu + macos 双平台 success）
 ```
