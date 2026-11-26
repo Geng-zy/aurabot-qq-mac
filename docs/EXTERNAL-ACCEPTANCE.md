@@ -2,6 +2,27 @@
 
 这些项目需要真实账号、密钥、硬件或人工 GUI 操作，离线测试只能验证接线、权限和状态转换，不能替代实机验收。
 
+## 0. 本次重构期间（v1.6.31 → v1.6.50）已经做过的实机验证
+
+下面这些不是「待验」，是有记录的事实（细节见 `docs/ACCEPTANCE-LOG.md`）：
+
+- [x] **DSH 0.2.2-rc.3 + dsh-purge 1.7.20** 真实装载：20 个版本，每次都确认
+      `Aurabot v<版本> 已加载`、`已连上 QQ 网关（WS）`、面板 `/aurabot/api/state` 版本一致。
+- [x] **真实 purge 模块集成**：每批在 Mini 上跑 `purge-scope-integration`，用装的 `dsh-purge-community@1.7.20`
+      的 identity 做断言（最近一次 112 passed / 0 failed / 2 skipped）。
+- [x] **本地备份**：真建了一份 127 文件 / 21.4MB 的备份并 `verify`（`verified:true`）；
+      另把同一份 zip 改坏 1 个字节再 verify → 明确报「备份文件校验失败：data/stickers/…gif」（流式 CRC 生效）。
+- [x] **面板接口**：`/aurabot/api/state`、`/mind/self`、`/mind/people`、`/local/status`、
+      `/backup/state`、`/backup/create`、`/backup/verify`、`/local/trust` 都在真实进程里调过。
+- [x] **本地脚本信任链**：在 Mini 上放一个临时脚本走完「未确认 → 面板确认 → 改脚本后重新未确认」，
+      验完把脚本、`.trusted.json`、config 条目都清理干净。
+- [x] **测试工具链**：`/tmp` 副本上跑 `scripts/repo-inventory.mjs` 得到 430/0；
+      `scripts/verify-release.mjs` 把 19 个 Release 资产的 sha256 与记录逐条比对，全部一致。
+
+**没有做过**（仍需真实账号/人工 GUI）：下面第 1–5 节的打勾项，尤其是真实 QQ/Telegram 出站消息、
+群管动作、云备份往返、付费模型与语音、面板的人工点击流程。这些需要操作者本人决定何时执行。
+
+
 ## 1. QQ / OneBot
 
 - [ ] 测试机器人号连接 OneBot v11 网关，`/platforms` 显示已连接且机器人号核对通过。

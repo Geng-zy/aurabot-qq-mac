@@ -137,7 +137,7 @@
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
 | `docs/ACCEPTANCE-LOG.md` | doc | docs | 1417 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
-| `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 57 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
+| `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
 | `docs/HANDOFF.md` | doc | docs | 96 | 0 | 0 | 保留·补文档 | doc | 96 行；测试体系表（L23-28）把 6 个区域映射到入口文件与针对性测试，L30 说明 e2e/fake DSH 跑法与 `node scripts/check-syntax.mjs`；Node 版本已统一到 24（package.json engines >=24.0.0 与 pr-check.yml node 24 一致） |
 | `docs/HOST-COMPAT.md` | doc | docs | 71 | 0 | 0 | 保留 | docs | 71 行；逐条列出插件用到的宿主符号（5 个事件、6 个服务、stopReason 等）与 rc.3 安装目录里的证据文件，结论「无 rc.5 专属代码」；核对命令可复跑。 |
