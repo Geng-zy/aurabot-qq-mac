@@ -1710,3 +1710,72 @@ tag       v1.6.54 → df9cd8b
 Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.54
 CI        run 45863978656 → ubuntu-latest success、macos-latest success（01:09 双绿）
 ```
+
+---
+
+## B15 · `backup.js` 第三刀：发布事务独立
+
+```text
+src/core/backup.js         767 → 689 行（三刀累计 1059 → 689）
+src/core/backup-publish.js 新增 97 行
+搬走  withRestoreStage（单飞锁）
+      publishStage（先写 .restore-publish.json 日志 → runRestoreMoves 换上去 → 成功才删日志）
+      recoverPublish（启动/取消/新导入前按日志决定「继续回滚」还是「只清旧目录」）
+      restoreBusy()（锁的只读视图，给 cancelRestore / retryPendingSessions 等入口做互斥）
+```
+
+### 为什么这一刀敢动
+
+**上一批先补了 6 个直接用例**（非 zip 被拒、暂存可查、重复暂存被拒、取消幂等、入口挡空输入、取消后不留残留）。
+没有那些测试就搬这段，等于把风险藏起来。
+
+### 切分脚本第二次踩同一个坑的边缘
+
+按行号删除时把 `stageBackup` 的收尾 `}` 一起吃掉了（`SyntaxError: Illegal return statement`）。
+这次不再修修补补：改成「从 `git show HEAD:` 取原始文件 + 按函数名 + 花括号配对，**只在成功匹配后删除**」，
+脚本自己也加了「找不到就退出、不删任何东西」。之后一次通过。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1656 passed / 0 failed / 0 skipped
+语法检查    607 个文件通过
+oxlint      0 error / 19 warning
+清单闸门    701 行，0 待审
+备份专项    backup / backup-stage / backup-restart / backup-webdav / backup-push 全过
+```
+
+### 2. Mini 实机：真的走了一遍「打包 → 暂存 → 应用」
+
+发布事务动的是数据，不能拿真机数据乱试。所以在 mini 上用**临时数据目录**跑完整链路
+（代码是装好的那份包，不是仓库副本）：
+
+```text
+1) 打包      2 文件
+2) 暂存      ok，2 文件；pendingRestore() = true
+3) 应用      applyPendingRestore → 2
+4) marker    改过的内容 → 回到「旧内容」（备份时的值）
+5) config    ownerName 新名字 → 回到「旧名字」
+6) 残留      .restore* 命中 0
+```
+
+**这条比单测更有价值**：它证明拆出来的 `publishStage`/`recoverPublish` 在真实文件系统上确实把
+「恢复前写入的改动」正确回退成了备份里的版本。
+
+真机自身的部署仍是常规验证：
+
+```text
+回滚点  ~/aurabot-release-backups/20261127-011816
+加载    2026-11-27 01:18:22 [core] Aurabot v1.6.55 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.55，onebot=connected
+真备份  POST /backup/create → 133 文件 / 21,960,008 字节
+状态    pending=None、deferredSessions=None（没有待恢复项）
+错误    01:18 之后新增 [error] 0 条
+```
+
+### 3. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.55.tgz（465 条目，19,639,245 字节）
+sha256    620b698047b0f49c95dd6fcbe8aa65a350640f34f9c40261c8b02e639493d2ff
+```

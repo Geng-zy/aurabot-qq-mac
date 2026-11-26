@@ -4,7 +4,7 @@
     "area": "core",
     "owner": "core-data",
     "verdict": "keep",
-    "evidence": "767 行（1.6.54 已执行第二刀：路径安全层进 backup-fs.js 135 行，899 → 767；1.6.41 第一刀把 ZIP 编解码搬进 backup-zip.js 198 行）。本文件保留：打包（createBackup）、.restore 发布与 journal 回滚、会话恢复、pending API、保留策略、检查与列表；备份相关四个测试文件 51 个用例 + test/backup-stage.test.js 6 个暂存用例覆盖。"
+    "evidence": "689 行（1.6.55 第三刀：发布事务进 backup-publish.js 97 行；1.6.54 第二刀路径安全层进 backup-fs.js 135 行；1.6.41 第一刀 ZIP 编解码进 backup-zip.js 198 行，1059 → 689）。本文件保留：打包（createBackup）、stageBackup/stageRestore、会话恢复、pending API、保留策略、检查与列表、stageReceivedBackup。"
   },
   {
     "path": "src/core/bridge.js",

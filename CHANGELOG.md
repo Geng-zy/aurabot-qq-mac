@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.55
+
+- B15 拆 `backup.js` 第三刀：**恢复的发布事务**独立成 `src/core/backup-publish.js`（97 行），`backup.js` 767 → 689 行
+  （三刀累计 1059 → 689）。搬走：
+  - `withRestoreStage`（单飞锁）、`publishStage`（先写 `.restore-publish.json` 日志 → `runRestoreMoves` 换上去 →
+    成功才删日志）、`recoverPublish`（启动/取消/新导入前按日志决定「继续回滚」还是「只清旧目录」）、
+    以及锁的只读视图 `restoreBusy()`（`cancelRestore`/`retryPendingSessions` 等入口用它做互斥）。
+- 这一刀敢动，是因为**上一批先补了 6 个直接用例**（非 zip 被拒、暂存可查、重复暂存被拒、取消幂等、
+  入口挡空输入、取消后不留残留）。没有那些测试，搬这段等于把风险藏起来。
+- 切分脚本第二次踩同一个坑的边缘：按行号删除时把 `stageBackup` 的收尾 `}` 一起吃掉了
+  （`SyntaxError: Illegal return statement`）。这次直接改用「从 `git show HEAD:` 取原始文件 + 按函数名 + 花括号配对」，
+  并把脚本写成只在成功匹配后删除 —— 之后一次通过。
+- 回归：全量 1656 个测试通过，语法 607 文件，oxlint 0 error / 19 warning。
+
 ## 1.6.54
 
 - B14 拆 `backup.js` 第二刀：把**路径安全层**整段搬到 `src/core/backup-fs.js`（135 行），`backup.js` 899 → 767 行。

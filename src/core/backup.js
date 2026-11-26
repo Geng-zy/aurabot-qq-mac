@@ -11,9 +11,10 @@ import { homedir } from 'node:os'
 import { join, parse } from 'node:path'
 import { dataDir, dshHome } from './store.js'
 import {
-  checkPath, dataBoundary, fileId, listFiles, moveChecked, openCheckedOutput, removeChecked,
+  checkPath, dataBoundary, fileId, listFiles, openCheckedOutput, removeChecked,
   runRestoreMoves, safeName, sameRenamedFile, unsafePath, verifyFile,
 } from './backup-fs.js'
+import { publishStage, recoverPublish, restoreBusy, withRestoreStage } from './backup-publish.js'
 import {
   MAX_ZIP, MAX_FILE, DEFLATE_MAX, MAX_EXPANDED, MAX_DIRECTORY, MAX_MANIFEST, MANIFEST,
   centralHeader, dosTime, localHeader, readEntries, readEntry, verifyEntryStreaming,
@@ -258,85 +259,6 @@ function checkEntryName(name, { key, session, rel, legacySessionMarker, names })
   }
 }
 
-let restoreInProgress = false
-
-async function withRestoreStage(run) {
-  if (restoreInProgress) throw new Error('另一个备份正在暂存')
-  restoreInProgress = true
-  try { return await run() } finally { restoreInProgress = false }
-}
-function publishStage(data, job) {
-  const plan = [
-    ['.restore', 'data', true],
-    ['.restore-sessions', 'sessions', true],
-    ['.restore-pending.json', 'pending.json', false],
-    ['.restore-sessions-pending.json', 'sessions-marker', false],
-    ['.restore-stage-id', 'stage-id', false],
-  ].map(([rel, name, directory]) => ({
-    rel, name, directory,
-    current: checkPath(data, rel, { directory }),
-    incoming: checkPath(data, job + '/' + name, { directory }),
-  }))
-  const journal = { job, phase: 'prepared', at: Date.now(), steps: plan.map(({ rel, name, directory, current }) => ({ rel, name, directory, hadCurrent: Boolean(current.info) })) }
-  writeFileSync(checkPath(data, '.restore-publish.json').path, JSON.stringify(journal), { mode: 0o600 })
-  try {
-    runRestoreMoves((move) => {
-      for (const { rel, name, directory, current, incoming } of plan) {
-        if (current.info) move(data, { rel, key: current.key }, data, job + '/old-' + name, directory)
-        if (incoming.info) move(data, { rel: job + '/' + name, key: incoming.key }, data, rel, directory)
-      }
-    })
-    journal.phase = 'published'
-    writeFileSync(checkPath(data, '.restore-publish.json').path, JSON.stringify(journal), { mode: 0o600 })
-    removeChecked(data, '.restore-publish.json')
-  } catch (error) {
-    // 进程内 runRestoreMoves 已经回滚；清掉日志，避免下次启动重复回滚已恢复的旧目录。
-    try { removeChecked(data, '.restore-publish.json') } catch {}
-    throw error
-  }
-}
-
-/** 启动/取消/新导入前，把上次中断的发布回滚到旧版本；已发布成功的只清理旧目录。 */
-function recoverPublish(data) {
-  const journalPath = checkPath(data, '.restore-publish.json')
-  if (!journalPath.info) return
-  let journal = null
-  try { journal = JSON.parse(readFileSync(journalPath.path, 'utf8')) } catch { removeChecked(data, '.restore-publish.json'); return }
-  const job = String(journal?.job || '')
-  if (!job || !/^\.restore-stage-[a-f0-9-]+\.tmp$/.test(job)) { removeChecked(data, '.restore-publish.json'); return }
-  if (journal.phase === 'published') {
-    removeChecked(data, job, true)
-    removeChecked(data, '.restore-publish.json')
-    return
-  }
-  const stepped = []
-  for (const step of [...(journal.steps || [])].reverse()) {
-    const rel = String(step.rel || '')
-    const name = String(step.name || '')
-    if (!rel || !name) continue
-    const directory = Boolean(step.directory)
-    try {
-      const current = checkPath(data, rel, { directory })
-      const old = checkPath(data, job + '/old-' + name, { directory })
-      if (current.info && old.info) {
-        removeChecked(data, rel, directory)
-        moveChecked(dataBoundary(dataDir()), { rel: job + '/old-' + name, key: old.key }, data, rel, directory)
-        stepped.push(rel)
-      } else if (!current.info && old.info) {
-        moveChecked(dataBoundary(dataDir()), { rel: job + '/old-' + name, key: old.key }, data, rel, directory)
-        stepped.push(rel)
-      } else if (!step.hadCurrent && current.info) {
-        removeChecked(data, rel, directory)
-        stepped.push(rel)
-      }
-    } catch (error) {
-      throw Object.assign(new Error('上次恢复发布中断，回滚失败：' + rel + '；' + error.message), { code: 'RESTORE_ROLLBACK_FAILED' })
-    }
-  }
-  removeChecked(data, job, true)
-  removeChecked(data, '.restore-publish.json')
-}
-
 async function stageBackup(path, received) {
   const flags = constants.O_RDONLY | (constants.O_NONBLOCK ?? 0) | (received ? (constants.O_NOFOLLOW ?? 0) : 0)
   const fh = await open(path, flags)
@@ -468,7 +390,7 @@ export function applyPendingRestore(now = Date.now()) {
   if (existsSync(dataDir())) recoverPublish(dataBoundary(dataDir()))
   const resumed = resumePendingSessions()
   if (resumed || checkPath(dataBoundary(dataDir()), '.restore-sessions-pending.json').info) return resumed
-  if (restoreInProgress) throw new Error('另一个备份正在暂存')
+  if (restoreBusy()) throw new Error('另一个备份正在暂存')
   const root = dataDir()
   if (!existsSync(root)) return 0
   const data = dataBoundary(root)
@@ -591,7 +513,7 @@ export function setPendingModules(list) {
 
 export function cancelRestore() {
   try { if (existsSync(dataDir())) recoverPublish(dataBoundary(dataDir())) } catch {}
-  if (restoreInProgress) throw new Error('另一个备份正在暂存')
+  if (restoreBusy()) throw new Error('另一个备份正在暂存')
   rmSync(stageDir(), { recursive: true, force: true })
   rmSync(sessionStage(), { recursive: true, force: true })
   rmSync(pendingFile(), { force: true })
@@ -620,13 +542,13 @@ export function pendingSessions() {
 
 /** 面板「继续恢复」：外盘已挂回时只迁入剩余会话。 */
 export function retryPendingSessions() {
-  if (restoreInProgress) throw new Error('另一个备份正在暂存')
+  if (restoreBusy()) throw new Error('另一个备份正在暂存')
   return resumePendingSessions()
 }
 
 /** 面板「取消等待」：只清延期会话，不动已提交的普通数据。 */
 export function cancelPendingSessions() {
-  if (restoreInProgress) throw new Error('另一个备份正在暂存')
+  if (restoreBusy()) throw new Error('另一个备份正在暂存')
   rmSync(sessionMarker(), { force: true })
   rmSync(sessionStage(), { recursive: true, force: true })
 }

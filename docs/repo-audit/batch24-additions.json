@@ -1,0 +1,9 @@
+[
+  {
+    "path": "src/core/backup-publish.js",
+    "area": "core",
+    "owner": "core-backup",
+    "verdict": "keep",
+    "evidence": "97 行；恢复的发布事务：withRestoreStage（单飞锁）、publishStage（先写 .restore-publish.json 日志、runRestoreMoves 换上去、成功才删日志）、recoverPublish（启动/取消/新导入前按日志回滚或只清旧目录）、restoreBusy。只依赖 backup-fs.js 与 node 内置；被 backup.js 的 stageBackup / cancelRestore / applyPendingRestore / retryPendingSessions 引用；test/backup-stage.test.js 6 个用例 + backup/backup-restart 覆盖。"
+  }
+]
