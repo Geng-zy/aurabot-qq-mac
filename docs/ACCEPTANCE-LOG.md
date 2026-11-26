@@ -597,3 +597,69 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.38
 资产      dsh-aurabot-qq-1.6.38.tgz  19,637,179 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45757754389（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B5（第三刀）· config.js 按「数据 / 规则 / 磁盘」拆开
+
+范围：`src/core/config.js` 844 → 三份（177 / 261 / 430），三个源码契约测试按新结构改读取范围。
+
+```text
+src/core/config-defaults.js   261 行：DEFAULTS（纯数据）
+src/core/config-normalize.js  430 行：normalize + deepMerge + isObj/bool/num/qq/list/hhmm/dateKey/headerLines/bodyText/normalizeNotice
+src/core/config.js            177 行：loadConfig / saveConfig / publicConfig / mergeFromPanel / ownerAuthorizationRevision /
+                              reconcilePlatformAliases / registerSecretField / OPT_IN_ON_UPDATE，并 re-export DEFAULTS 与 normalize
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1616 passed / 0 failed / 0 skipped
+语法检查    577 个文件通过（新增两份）
+oxlint      0 error / 157 warning
+清单闸门    655 个文件全部有结论，0 待审
+```
+
+拆的过程中出现 3 个红：
+- `normalize` 里用了 `LEVELS`／`PROFILE_PERM_*`，import 跟着默认值表搬走了 → 补回；
+- `config.js` 的 `parentOf`／`mergeFromPanel` 用 `isObj`／`deepMerge` → 两者改为从 normalize 导出并接上；
+- 三个源码契约测试（browser-panel / security-panel / wording）断言某段文本在 `config.js` 里 →
+  按新结构改读 `config-defaults.js`（默认值）与 `config-normalize.js`（归一化），**断言的事实一条没放松**。
+
+### 2. 等价性实证（本批最关键的一条）
+
+把 1.6.38 的 `config.js` 用 `git show` 临时放回 `src/core/__old_config.js`（相对 import 能解析），
+让新旧两版 `normalize()` 跑同一批输入：
+
+```text
+SAME 空配置 / 老向导配置 / 脏值 / 语音段 / 人格与工作区 / 通知段 / 平台镜像 / 生图回退 / 旧称呼 / null 与数组
+SAME DEFAULTS 完全一致（逐字节）
+结论：normalize 行为完全等价
+```
+
+临时文件用完即删，没进仓库。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / macos / features / security-panel / browser-panel / e2e
+      → tests 140 / pass 140 / fail 0 / skipped 0
+```
+
+### 4. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-132045
+加载    2026-11-26 13:20:51 [core] Aurabot v1.6.39 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 13:20:54 [onebot] 已连上 QQ 网关（WS）
+配置    /aurabot/api/state → version=1.6.39，onebot=connected，ownerName=老板（真配置读出来了），
+        security.ssrfMode=strict（归一化补的默认值生效）
+同源    config.js / config-defaults.js / config-normalize.js 与 Air 同哈希
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.39.tgz（446 条目，19,637,779 字节）
+sha256    f10e2fadd84bc379b5ca7172bc57d1f99aa2c0eba1069489f46d5cc51182ce0d
+```

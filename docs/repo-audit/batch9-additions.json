@@ -1,0 +1,23 @@
+[
+  {
+    "path": "src/core/config-defaults.js",
+    "area": "core",
+    "owner": "core-config",
+    "verdict": "keep",
+    "evidence": "261 行；纯数据（DEFAULTS 表），被 src/core/config-normalize.js 与 config.js re-export；`test/macos.test.js:161/176`、`test/browser-panel.test.js:18`、`test/security-panel.test.js` 直接断言表里的默认值。"
+  },
+  {
+    "path": "src/core/config-normalize.js",
+    "area": "core",
+    "owner": "core-config",
+    "verdict": "keep",
+    "evidence": "430 行；normalize + deepMerge + 小工具（isObj/bool/num/qq/list/hhmm/dateKey/headerLines/bodyText/normalizeNotice）；被 src/core/config.js 调用（loadConfig/saveConfig 各 1 处），另有 12 个测试文件直接 import normalize；与 1.6.38 的实现逐输入比对：10 组样例输出完全一致。"
+  },
+  {
+    "path": "docs/repo-audit/batch9-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B5 第三刀 config 拆分的审计补充，3 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  }
+]

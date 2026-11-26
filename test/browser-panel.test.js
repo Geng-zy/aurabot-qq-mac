@@ -4,7 +4,10 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 const client = readFileSync(new URL('../client/client.js', import.meta.url), 'utf8')
-const config = readFileSync(new URL('../src/core/config.js', import.meta.url), 'utf8')
+// 1.6.39 起 config.js 拆成三份：默认值 → config-defaults.js，归一化 → config-normalize.js，
+// 读写门面留在 config.js。契约测试按「这段代码现在住哪」读取。
+const defaults = readFileSync(new URL('../src/core/config-defaults.js', import.meta.url), 'utf8')
+const normalize = readFileSync(new URL('../src/core/config-normalize.js', import.meta.url), 'utf8')
 
 test('浏览器页接上了页签、导航、组件、路由和脏检查', () => {
   assert.match(client, /id: 'system'[^\n]*pages: \[([^\]]|\n)*id: 'browser', label: '浏览器'/, '浏览器页要注册在系统组')
@@ -15,9 +18,9 @@ test('浏览器页接上了页签、导航、组件、路由和脏检查', () =>
 })
 
 test('全局开关落在 browser 段：默认关 + 归一化补默认值', () => {
-  assert.match(config, /browser:\s*\{\s*useDshSidebar:\s*false\s*\}/, 'DEFAULTS 缺 browser.useDshSidebar: false')
-  assert.ok(config.includes("c.browser.useDshSidebar = bool(c.browser.useDshSidebar, false)"), '缺 browser.useDshSidebar 归一化')
-  assert.ok(config.includes('if (!isObj(c.browser)) c.browser = {}'), '老配置缺 browser 段兜底')
+  assert.match(defaults, /browser:\s*\{\s*useDshSidebar:\s*false\s*\}/, 'DEFAULTS 缺 browser.useDshSidebar: false')
+  assert.ok(normalize.includes("c.browser.useDshSidebar = bool(c.browser.useDshSidebar, false)"), '缺 browser.useDshSidebar 归一化')
+  assert.ok(normalize.includes('if (!isObj(c.browser)) c.browser = {}'), '老配置缺 browser 段兜底')
 })
 
 test('面板开关改的就是 browser.useDshSidebar，且开关卡片文案齐全', () => {

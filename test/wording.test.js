@@ -29,7 +29,9 @@ test('源码、面板和文档里不再出现旧角色称呼', () => {
 })
 
 test('默认称呼和管理员字段都已改成管理员', () => {
-  const config = readFileSync(join(ROOT, 'src/core/config.js'), 'utf8')
-  assert.match(config, /ownerName:\s*'管理员'/)
-  assert.match(config, /c\.ownerName === '\\u4e3b\\u4eba'\) c\.ownerName = '管理员'/)
+  // 1.6.39 起：默认值在 config-defaults.js，迁移规则在 config-normalize.js
+  const defaults = readFileSync(join(ROOT, 'src/core/config-defaults.js'), 'utf8')
+  const normalize = readFileSync(join(ROOT, 'src/core/config-normalize.js'), 'utf8')
+  assert.match(defaults, /ownerName:\s*'管理员'/)
+  assert.match(normalize, /c\.ownerName === '\\u4e3b\\u4eba'\) c\.ownerName = '管理员'/)
 })

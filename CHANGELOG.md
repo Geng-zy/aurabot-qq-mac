@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.39
+
+- B5（第三刀）`config.js` 拆分：844 行 → 三份，按「数据 / 规则 / 磁盘」分开
+  - `src/core/config-defaults.js`（261 行）：DEFAULTS 表，纯数据；
+  - `src/core/config-normalize.js`（430 行）：normalize + deepMerge + 一组小工具（isObj/bool/num/qq…）；
+  - `src/core/config.js`（177 行）：只剩读盘、存盘、对外公开、面板合并，并 re-export `DEFAULTS` / `normalize`（对外契约不变）。
+- 等价性用老实现直接对照：把 1.6.38 的 `config.js` 临时放回仓内，对 10 组输入（空配置/老向导/脏值/语音段/
+  人格/通知/平台镜像/生图回退/旧称呼/null 与数组）逐一比对 `normalize()` 输出，全部一致；`DEFAULTS` 也逐字节一致。
+- 三个源码契约测试按新结构改了读取范围（默认值读 defaults、归一化读 normalize），断言的事实一条没放松。
+- 回归：全量 1616 个测试通过，语法 577 文件，oxlint 0 error / 157 warning。
+
 ## 1.6.38
 
 - 修线上故障（自 1.6.9 起潜伏）：`hub.js` 调用 `createGroupContext` 时漏传 `pending`，

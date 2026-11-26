@@ -41,14 +41,14 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.38 highlights
+## 1.6.39 highlights
 
-### A production bug that had been latent for twenty-odd releases
+### core: `config.js` split by data / rules / disk (B5, third slice)
 
-- When a group message carried images and the chat already had a pending batch, `addGroupImages` threw `Cannot read properties of undefined (reading 'get')` and the whole group message was dropped. Root cause: the 1.6.9 extraction of group context into its own module missed passing `pending` at the `hub.js` call site.
-- 1.6.37 added stack frames to that error log; this release used a mechanical cross-check of "factory destructured params vs hub call arguments" to locate and fix it.
-- New `test/chat-wiring.test.js` guard: every chat factory must receive all its parameters, and no zombie parameters are allowed.
-- Five never-used parameters removed (lint warnings 164 → 157).
+- 844 lines become three files: `config-defaults.js` (the DEFAULTS table, pure data), `config-normalize.js` (normalisation plus a handful of small helpers) and `config.js` (177 lines: read, write, expose to the panel).
+- Public contract unchanged: `config.js` still exports `DEFAULTS` and `normalize`, so 12 test files and the panel code did not move.
+- **Equivalence is measured, not claimed**: the previous implementation was temporarily dropped back into the tree and both `normalize()` versions were run over ten inputs; outputs matched exactly, and `DEFAULTS` is byte-identical.
+- Three source-contract tests now read the new files; none of their assertions were loosened.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -134,12 +134,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.38.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.39.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.38.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.39.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
