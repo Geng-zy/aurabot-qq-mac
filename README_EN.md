@@ -41,13 +41,13 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.47 highlights
+## 1.6.48 highlights
 
-### Host tool discovery hardened (B8, second slice)
+### Stop reading a stale "current preset" (B8, third slice)
 
-- Detecting host maintenance tools (`purge_*`) used to rely on one field plus a regex over the host's English error text. There are now four paths in reliability order: `restrictableNames` → `knownNames` (a new fallback field) → probe-error parsing → unknown (`null`).
-- The message parser is now `parseKnownToolNames` with its own tests: quotes, Chinese colon, ASCII and full-width commas, `(none)`.
-- A failed probe logs at `debug` only — the function runs on every session mount, so `warn` would flood the log; the signal is carried by tests and panel state instead.
+- Persona and execution-constraint injection depend on which preset the session runs *now*. The code only read `session.header.agentPreset`, and the host's own docs say that header is a creation-time fact — switching preset mid-session does not update it.
+- Creating a session now records the preset used (including the recovered-attach path), so precedence becomes **recorded > `agent.preset` > header**, and the prompt listener no longer touches the header directly.
+- Sessions that never switch preset behave exactly as before; four new cases cover the precedence and the stale-header scenario.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -133,12 +133,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.47.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.48.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.47.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.48.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

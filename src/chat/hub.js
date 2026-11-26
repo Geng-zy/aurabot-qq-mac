@@ -1332,6 +1332,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError: (...a) => backoffError(...a),
     cleanOrphan: (...a) => cleanOrphan(...a), controller, ensureWorkspace, getConfig, getMind: () => mind,
     isDisposed: () => disposed, log, map, parseChat, presetFor, recoverSessionAttach: (...a) => recoverSessionAttach(...a),
+    notePreset: (...a) => purge.notePreset(...a),
     recoveredAttachStillCurrent: (...a) => recoveredAttachStillCurrent(...a), saveMap, sessionCreating,
     sessionFailure: (...a) => sessionFailure(...a), sessionFailures, titleFor, workspaceDirOf,
   })

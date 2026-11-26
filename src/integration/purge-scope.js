@@ -25,12 +25,28 @@ export function isAurabotPersonaPreset(preset) {
   return AURABOT_PERSONA_PRESETS.has(String(preset || ''))
 }
 
-export function presetOfAgent(agent) {
+/**
+ * 这个 agent 现在跑的是哪个预设。
+ *
+ * 三条来源，优先级从高到低：
+ *   1. 我们自己在建会话时记下的（`notePreset`）—— 只有它保证是「当前」的；
+ *   2. `agent.preset` —— 宿主若给了就是现成的；
+ *   3. `session.header.agentPreset` —— **创建时的**事实，会话中途换过预设就是过期的。
+ * 宿主的 dsh-agent-preset-registry 文档写得很直白：重建要读 agentPreset 投影，不能只读 header。
+ * 我们没有投影的读取口子，所以用「建会话时自己记」来代替，header 只当兜底。
+ *
+ * @param {object} agent
+ * @param {(sessionId: string) => string} [lookup] 见 createPurgeScope().presetFor
+ */
+export function presetOfAgent(agent, lookup) {
   try {
-    return String(agent?.session?.header?.agentPreset || agent?.preset || '')
-  } catch { 
+    const id = String(agent?.session?.id || '')
+    const noted = id && typeof lookup === 'function' ? lookup(id) : ''
+    if (noted) return String(noted)
+    return String(agent?.preset || agent?.session?.header?.agentPreset || '')
+  } catch {
     return ''
-   }
+  }
 }
 
 export const IDENTITY_LOCK_MARK = '【身份锁定】'
@@ -89,7 +105,7 @@ export function decorateAssembly(assembly, { preset = '', exec = true } = {}) {
  * 在宿主 ctx 上挂 system-prompt/assemble 监听。
  * 只处理 isAurabotAgent 为真的会话；监听失败不影响宿主启动。
  */
-export function installPurgePromptGuard(ctx, { log, isAurabotAgent, enabled = () => true } = {}) {
+export function installPurgePromptGuard(ctx, { log, isAurabotAgent, enabled = () => true, presetFor = () => '' } = {}) {
   if (!ctx || typeof ctx.on !== 'function') return () => {}
   const listener = async (...args) => {
     const next = args.length >= 3 ? args[args.length - 1] : null
@@ -100,7 +116,7 @@ export function installPurgePromptGuard(ctx, { log, isAurabotAgent, enabled = ()
       if (enabled() === false) return assembly
       const agent = args[1]?.agent
       if (!agent || !isAurabotAgent?.(agent)) return assembly
-      return decorateAssembly(assembly, { preset: presetOfAgent(agent) })
+      return decorateAssembly(assembly, { preset: presetOfAgent(agent, presetFor) })
     } catch (error) {
       log?.debug?.('执行约束没有挂上：', error.message)
       return assembly
@@ -120,10 +136,18 @@ export function maintenanceToolNames(agent, { log } = {}) {
 }
 
 export function createPurgeScope({ log } = {}) {
+  // 会话 id → 我们建它时用的预设。宿主 header 只是创建事实，中途换预设不会改它，
+  // 所以自己记一份当前值（见 presetOfAgent 的注释）。
+  const presets = new Map()
   return {
     isTool: isHostMaintenanceTool,
     toolNames: (agent) => maintenanceToolNames(agent, { log }),
+    /** 建会话成功后调用：记住这个会话跑的是哪个预设。 */
+    notePreset: (sessionId, preset) => { if (sessionId && preset) presets.set(String(sessionId), String(preset)) },
+    /** 会话销毁时调用，别让这张表无限长。 */
+    forgetPreset: (sessionId) => presets.delete(String(sessionId)),
+    presetFor: (sessionId) => presets.get(String(sessionId)) || '',
     decorate: (assembly, options) => decorateAssembly(assembly, options),
-    installPromptGuard: (ctx, options = {}) => installPurgePromptGuard(ctx, { log, ...options }),
+    installPromptGuard: (ctx, options = {}) => installPurgePromptGuard(ctx, { log, presetFor: (id) => presets.get(String(id)) || '', ...options }),
   }
 }

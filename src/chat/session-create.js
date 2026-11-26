@@ -1,4 +1,5 @@
-export function createSessionCreate({ SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError, cleanOrphan, controller, ensureWorkspace, getConfig, isDisposed, log, map, parseChat, presetFor, recoverSessionAttach, recoveredAttachStillCurrent, saveMap, sessionCreating, sessionFailure, sessionFailures, titleFor, workspaceDirOf }) {
+export function createSessionCreate({
+  notePreset = () => {}, SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError, cleanOrphan, controller, ensureWorkspace, getConfig, isDisposed, log, map, parseChat, presetFor, recoverSessionAttach, recoveredAttachStillCurrent, saveMap, sessionCreating, sessionFailure, sessionFailures, titleFor, workspaceDirOf }) {
   async function createSession(chat, level, assertCurrent) {
     const failure = sessionFailure(chat.chatId)
     if (failure && Date.now() < failure.until) throw backoffError(chat.chatId, failure)
@@ -46,6 +47,8 @@ export function createSessionCreate({ SESSION_BACKOFF_MS, assertActive, audience
       }
     }
     assertActive()
+    // 记下「这个会话跑的是哪个预设」：宿主 header 只是创建事实，中途换预设时它会过期
+    try { notePreset(r.sessionId, preset) } catch {}
     // 调试会话和正式会话分开，标题也标出来，免得在侧栏里点错
     const debug = getConfig().debug
     const title = titleFor(chat) + (debug ? '（调试）' : '')

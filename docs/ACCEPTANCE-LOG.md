@@ -1196,3 +1196,69 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.47
 CI        workflow_dispatch ref=main → run 45792379376
           ubuntu 先绿；macos 排队约 20 分钟后跑完，最终双平台 success
 ```
+
+---
+
+## B8（第三刀）· 当前预设的来源加固
+
+### 假设与宿主事实
+
+```text
+我们的旧假设   session.header.agentPreset = 这个会话现在跑的预设
+宿主文档       "The creation header names the preset a session STARTED with, and it is deep-frozen"；
+               "Reconstruction reads the `agentPreset` Session projection, never the header alone."
+               （dsh-agent-preset-registry/lib/types/session.js:1-12）
+结论           header 是创建事实；会话中途换预设后它是过期的，而我们正好用它决定人设/执行约束
+```
+
+### 改动
+
+```text
+src/integration/purge-scope.js
+  presetOfAgent(agent, lookup)    优先级改为：自记 > agent.preset > session.header.agentPreset
+  createPurgeScope().notePreset()  建会话成功时记下当前预设
+  createPurgeScope().presetFor()   查询（installPromptGuard 通过它拿到，不再直接摸 header）
+  createPurgeScope().forgetPreset() 会话销毁时清
+src/chat/session-create.js        建会话成功（含重挂成功）后调用 notePreset
+src/chat/hub.js                   把 notePreset 接到 purge 上
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1644 passed / 0 failed / 0 skipped（比 1.6.47 多 4 个）
+语法检查    599 个文件通过
+oxlint      0 error / 158 warning
+清单闸门    686 个文件全部有结论，0 待审
+```
+
+新增 `test/purge-preset.test.js`（4 个用例）：自记优先于 header（用 header=private、记成 social 的场景）、
+退回 agent.preset、退回 header、取不到 id/抛错、遗忘。
+
+### 2. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / purge-preset / persona-hoist / system-session-backoff
+      → tests 32 / pass 32 / fail 0 / skipped 0
+```
+
+### 3. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-184531
+加载    2026-11-26 18:45:36 [core] Aurabot v1.6.48 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.48，onebot=connected
+错误    部署后新增 [error] 0 条
+同源    src/integration/purge-scope.js、src/chat/session-create.js 与 Air 同哈希
+```
+
+**行为影响面**：只有「Aurabot 自己建的会话中途换过预设」才会走到新路径；没换过预设的会话结果不变。
+这条链路要真实会话切换才能观察到，本轮没有构造那种场景，证据边界同上一批：
+单测 + 宿主文档行号 + 真实 purge 集成测试 + 启动无报错。
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.48.tgz（460 条目，19,648,177 字节）
+sha256    214745e88cec63bf82575b018c6467218ecd0e603069bcb4b87a8d184033de6f
+```

@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.48
+
+- B8（第三刀）「当前预设」的来源加固：`presetOfAgent` 原来只看 `session.header.agentPreset`，
+  而宿主的 `dsh-agent-preset-registry` 文档写得很清楚——header 只记**创建时**的预设，
+  会话中途换过预设不会改它，重建要读 `agentPreset` 投影。
+  - 新增 `createPurgeScope().notePreset(sessionId, preset)`：建会话成功时（含重挂成功）记下当前预设；
+  - `presetOfAgent(agent, lookup)` 优先级改为 **自记 > `agent.preset` > header**；
+  - `installPromptGuard` 把 `presetFor` 沿调用链下传，监听器不再直接摸 header；
+  - 新增 `forgetPreset`，会话销毁时可清（当前由 hub 决定何时调用）。
+- 新增 `test/purge-preset.test.js`（4 个用例）：优先级、header 过期场景、取不到 id/抛错、遗忘。
+- 回归：全量 1644 个测试通过（新增 4 个），语法 599 文件，oxlint 0 error / 158 warning。
+- 行为影响面：只在「Aurabot 自己建的会话中途换过预设」时才会用到新路径；没换过预设的会话结果不变。
+
 ## 1.6.47
 
 - B8（第二刀）宿主工具发现加固：`src/integration/host-tools.js` 原来只有两条半路径，最脆的一条靠
