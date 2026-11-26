@@ -4,15 +4,15 @@
 事实（行数、依赖、被依赖、测试引用）来自 `git ls-files` + 源码解析；结论来自 `docs/repo-audit/*.json`。
 口径见 [REFACTOR-PLAN.md](REFACTOR-PLAN.md)；宿主兼容判定见 [HOST-COMPAT.md](HOST-COMPAT.md)。
 
-纳入清单的文件：**680**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**430**。
+纳入清单的文件：**682**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**430**。
 
 | 结论 | 文件数 |
 |---|---|
-| 保留 | 513 |
+| 保留 | 514 |
 | 保留·补文档 | 53 |
 | 拆分 | 50 |
 | 合并 | 31 |
-| 保留·生成物 | 26 |
+| 保留·生成物 | 27 |
 | 第三方 | 7 |
 
 列说明：**被依赖**＝有多少个仓内文件 import 它；**测试引用**＝有多少个测试文件提到它（不是覆盖率，只是线索）。
@@ -26,7 +26,7 @@
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
 | `assets/platform-architecture.svg` | asset | assets | 43 | 0 | 0 | 保留 | asset | 43 行 SVG / 4381 字节；README.md:21 与 README_EN.md:21 用作「平台架构」示意图 |
 | `assets/platform-banner.svg` | asset | assets | 57 | 0 | 0 | 保留 | asset | 57 行 SVG / 3770 字节；README.md:3 与 README_EN.md:3 的页首 banner |
-| `CHANGELOG.md` | config | root | 1910 | 0 | 0 | 保留 | repo | 1726 行；顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
+| `CHANGELOG.md` | config | root | 1922 | 0 | 0 | 保留 | repo | 1726 行；顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
 | `client/client.js` | client-build | client | 5810 | 0 | 0 | 保留·生成物 | client-shell | 5887 行；由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论 |
 | `client/client.template.js` | client-template | client | 280 | 0 | 1 | 拆分 | client-shell | 280 行；DSH 入口：__ModuleLoader__.load 包装 + require('react')/hooks 解构 + primitives()/isMacLike()（宿主能力探测）+ inject/PANEL_ID/API/PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS + 工具 get/post/clipboard/clone/setPath/getPath/pct/cx/fmtTokens/fmtCost/chatLabel/峰谷 4 函数/音调 3 函数/timeAgo/REACT_MOOD_BANDS + 结尾 exports.__panelTest/apply/inject/AurabotPage/WhaleIcon；被全部 104 个片段以 h/useState/useEffect/useRef/get/post/clipboard/cx/setPath/getPath/getPath/pct 与 API 引用（h 出现在 101 个片段、get 53、post 45、cx 32、setPath 22）；锁：primitives-guard.test.js（loader→factory→apply 注册 2 个 slot、缺 primitives 时渲染 MissingPrimitivesPage）、persona-filter-select.test.js 与 panel-mind.test.js（__panelTest 的 22 个键）、about-panel.test.js（PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS 必须是 4 空格顶格单行常量）；结构事实：113 行代码 + 19 行注释 + 149 行空行，其中第 127–269 行是 143 行连续空行（CSS 迁去 parts/styles.js 后留下的洞），第 126 行「样式（只注入一次）」已成空标题；可移出到 parts：timeAgo（6 个片段用）、fmtTokens（mindMemory/overview）、fmtCost 与 chatLabel（overview）、BJ_OFFSET/pad2/bjPartsOf/fmtNextChange（只有 costCard 用）、pitchNum/pitchText/pitchLabel（只有 voice 用）、REACT_MOOD_BANDS（只有 stickers 用）、仓库 3 个常量（about/market/simulate 用）；必须留在模板：loader 包装、require/hooks、primitives 与 isMacLike、API、结尾 exports 与 return module.exports。拆完模板约 110 行，净省约 170 行（含 143 行空行） |
 | `client/parts/about.js` | client-part | client | 20 | 0 | 0 | 保留 | client-shell | 20 行；关于页（版本、API 版本、手册/仓库/发布/提交/鸣谢/模块库链接），只依赖 Card 与模板常量 PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS；被 wizard.js 的 TAB_CONTENT.about 引用；锁：about-panel.test.js 在 vm 里只注入 h 和 Card 就跑 About(...) 并核对 7 个链接 href，因此本文件必须保持只用 h/Card 和 3 个常量；client-build |
@@ -135,7 +135,7 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 1051 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 1115 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 57 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -154,6 +154,7 @@
 | `docs/repo-audit/batch13-additions.json` | doc | docs | 37 | 0 | 0 | 保留·生成物 | audit | B6 第二刀（适配层门面化）的审计补充，5 条；被 scripts/repo-inventory.mjs 读取。 |
 | `docs/repo-audit/batch14-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | B7 第一刀（面板样式清死码）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。 |
 | `docs/repo-audit/batch15-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | B7 第二刀（面板表单小工具收敛）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。 |
+| `docs/repo-audit/batch16-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | B8 第一刀（本地脚本信任链落地）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。 |
 | `docs/repo-audit/batch2-additions.json` | doc | docs | 30 | 0 | 0 | 保留·生成物 | audit | B2 新增（post-only.js / route-kit.js / panel-post-only.test.js 及其自身）的审计补充，4 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。 |
 | `docs/repo-audit/batch4-additions.json` | doc | docs | 23 | 0 | 0 | 保留·生成物 | audit | B4 新增两个测试的审计补充，3 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。 |
 | `docs/repo-audit/batch5-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | B3 第一刀新增测试的审计补充，2 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。 |
@@ -169,7 +170,7 @@
 | `docs/repo-audit/media-adapters.json` | doc | docs | 415 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
 | `docs/repo-audit/mind.json` | doc | docs | 289 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
 | `docs/repo-audit/tests-scripts-config.json` | doc | docs | 1444 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
-| `docs/REPO-INVENTORY.md` | doc | docs | 701 | 0 | 0 | 保留·生成物 | docs | 626 行生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
+| `docs/REPO-INVENTORY.md` | doc | docs | 703 | 0 | 0 | 保留·生成物 | docs | 626 行生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-relationships.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 与 README_EN.md 的 <img> 直接引用（关系页截图），删了 README 会出现坏图。 |
 | `docs/screenshots/aurabot-search.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md / README_EN.md 的功能搜索截图引用；同样属于 README 资源。 |
 | `docs/SESSION-HANDOFF.md` | doc | docs | 1311 | 0 | 0 | 保留 | docs | 1308 行交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。 |
@@ -393,7 +394,7 @@
 | `src/integration/persona-hoist.js` | source | integration | 154 | 2 | 2 | 保留·补文档 | integration | 154 行；0 内部依赖；仅被 src/host.js:78 引用；被 test/persona-hoist.test.js（6 test）覆盖 split/hoist/rewrite，test/integration-architecture.test.js 断言 4 处标记。补文档（宿主假设）：包装对象是 llm.adapters（DSH 0.2.2-rc.3 里为 dsh-llm/lib/index.js:1917 的私有字段 Map）与每个 adapter 的 prepareCall(provider, model, signal)/stream(options)（同文件 1854、2334、2428 行），并对 deep-frozen 请求做浅拷贝重建；dsh-llm/README.md 第 12、109 行写明请求 deep-frozen「adapters read them and never rewrite them」，这套做法与宿主设计相反，须进 docs/repo-audit/host-compat.json |
 | `src/integration/purge-scope.js` | source | integration | 129 | 5 | 3 | 保留·补文档 | integration | 129 行；内部依赖 1 个（./host-tools.js:13）；被 src/host.js:73、src/chat/hub.js:75、src/host/prompt-vars.js:9 引用；被 test/purge-scope.test.js（10 test）、test/purge-scope-integration.test.js（1 test）、test/integration-architecture.test.js 覆盖；导出 13 个。补文档（宿主契约分级）：ctx.on('system-prompt/assemble', …, {global:true}) 与 waterfall 位置参数 (assembly, context, next) 在 rc.3 成立（dsh-system-prompt/lib/index.js:401，context.agent 由 dsh-agent/lib/index.js:409 提供，{global:true} 是 cordis 支持的监听选项）；易碎的是 ① context.agent 未出现在 assemble 的 JSDoc（只写 scope/toolSet），② session.header.agentPreset 只是创建时的预设值——dsh-agent-preset-registry/lib/types/session.js:4-13 明说重建要读 agentPreset 投影而不是 header，运行中切过预设会读到旧值，③ decorateAssembly 塞的 order 字段宿主不认（assemble 产出的 section 只有 name/text/interpolate，见 dsh-system-prompt/lib/index.js:389-395），执行约束实际靠 patch 的 dsh-purge 前缀保留规则生效（同文件 402-408） |
 | `src/integration/README.md` | source | integration | 54 | 0 | 0 | 保留 | integration | 54 行；0 import（文档类，仓库事实表把 src/ 前缀记为 source 才需要结论）；描述 integration 三文件的边界（22-30 行表）、契约（36-46 行）与测试命令（48-53 行）；与代码一致——AURABOT_PERSONA_PRESETS 4 个预设对应 cordis.patch.yml 里 4 处 AURABOT:PERSONA 标记，test/integration-architecture.test.js:34-44 断言该数量 |
-| `src/local/local.js` | source | local | 177 | 7 | 3 | 保留 | local-router | 177 行；被 src/host.js:26、src/features/imagegen.js:187（动态 import）、src/channels/qq/features/voice/index.js:10、src/song/studio.js:880（动态 import）import，4 个层级直连、无门面；test/local.test.js、test/video.test.js、test/imagegen-img2img.test.js 覆盖；内部依赖 3 个（core/store.js、core/net.js、core/image-info.js）+ templates 目录常量。职责：SLOTS 5 槽位（17-23 行）、模板投放（147-154 行）、超时/竞态包装（100-144 行）、返回值归一（toImageBuffer 26-52 行、localAudioFile 57-61 行）。缺陷事实：approved() 定义在 82-94 行，全仓 0 调用点（grep approved\\( 仅 82 行定义），call() 不做哈希校验，status() 第 169 行把 approved 硬编码为 true，因此 config.local.hashes 与 .trusted.json 仅由 /local/trust 路由写入、运行时不再比对。 |
+| `src/local/local.js` | source | local | 190 | 8 | 4 | 保留 | local-router | 177 行；被 src/host.js:26、src/features/imagegen.js:187（动态 import）、src/channels/qq/features/voice/index.js:10、src/song/studio.js:880（动态 import）import，4 个层级直连、无门面；test/local.test.js、test/video.test.js、test/imagegen-img2img.test.js 覆盖；内部依赖 3 个（core/store.js、core/net.js、core/image-info.js）+ templates 目录常量。职责：SLOTS 5 槽位（17-23 行）、模板投放（147-154 行）、超时/竞态包装（100-144 行）、返回值归一（toImageBuffer 26-52 行、localAudioFile 57-61 行）。缺陷事实：approved() 定义在 82-94 行，全仓 0 调用点（grep approved\\( 仅 82 行定义），call() 不做哈希校验，status() 第 169 行把 approved 硬编码为 true，因此 config.local.hashes 与 .trusted.json 仅由 /local/trust 路由写入、运行时不再比对。 |
 | `src/local/templates/asr.mjs` | source | local | 21 | 0 | 0 | 保留 | local-templates | 21 行；0 静态 import，由 src/local/local.js:21 SLOTS.asr.file 指向、template('asr') 复制到数据目录后按 mtime 动态 import（local.js:112）；test/ 无直接引用，消费方 src/chat/transcribe.js:44 取返回值并兼容字符串与 {text} 两种形状（同文件 46 行 String(typeof r === 'string' ? r : r?.text || '')），与文档 43-45 行一致；0 内部依赖。 |
 | `src/local/templates/image.mjs` | source | local | 32 | 0 | 0 | 保留 | local-templates | 32 行；0 静态 import，由 src/local/local.js:19 SLOTS.image.file 指向并复制；test/imagegen-img2img.test.js 覆盖参考图分支（20 个 test 块，含 supportsImage 声明与 img2img）；契约一致：local.js:114 校验 mod.supportsImage !== true 时抛「这个生图服务不支持参考图」，返回 {base64} 由 local.js:38-42 解码，与文档 29-34 行逐项对齐（参数含 signal、outDir、image 纯 base64）；0 内部依赖。 |
 | `src/local/templates/README-本地接口.md` | source | local | 56 | 0 | 0 | 保留·补文档 | local-templates | 56 行；0 代码 import，被 src/local/local.js:14 的 README 常量引用、template() 在 149 行 copyFileSync 到数据目录 local/，是用户脚本唯一契约文档；0 测试（test/ 无引用）。文档缺口：表格 6-11 行只列 tts/image/song-convert/asr，缺 video.mjs 行（SLOTS 第 22 行有 video 槽位）；21 行超时清单不含生视频 20 分钟与 videoTimeoutMin 配置项；signal 只在 image.mjs 段落（30 行）说明，tts/asr/song-convert/video 四个槽位 local.js 同样注入 signal 但文档未写。 |
@@ -588,6 +589,7 @@
 | `test/leak-guard.test.js` | test | test | 170 | 0 | 0 | 保留 | security | 组 其他；锁 src/security/leak-guard.js（该文件共 2 个 src import：src/chat/reply.js、src/security/leak-guard.js）；170 行；18 个顶层 test()；非 e2e（模块级单元测试） |
 | `test/llm.test.js` | test | test | 118 | 0 | 0 | 保留 | core | 组 其他；锁 src/core/llm.js（该文件共 1 个 src import）；118 行；7 个顶层 test()；非 e2e（模块级单元测试）；首行注释「思考强度：不支持的模型不能传 reasoningEffort（否则 DSH 整轮报错），支持的要按能力收敛」 |
 | `test/local-image.test.js` | test | test | 48 | 0 | 0 | 保留 | features | 组 其他；锁 src/features/local-image.js（该文件共 2 个 src import：src/features/local-image.js、src/core/config.js）；48 行；2 个顶层 test()；非 e2e（模块级单元测试） |
+| `test/local-trust.test.js` | test | test | 66 | 0 | 0 | 保留 | test-local | 62 行 4 个用例；直接测本地脚本的信任链：首次调用记 TOFU、改脚本后 call 拒绝、面板确认（config.local.hashes）后恢复、status 只是查询不写盘。每个用例独立数据目录。 |
 | `test/local.test.js` | test | test | 121 | 0 | 0 | 保留 | local | 组 其他；锁 src/local/local.js（该文件共 4 个 src import：src/local/local.js、src/core/config.js、src/features/imagegen.js 等）；121 行；6 个顶层 test()；非 e2e（模块级单元测试）；首行注释「本地接口：模板、开关、脚本改完立即生效、出错记录、生图返回值统一、翻唱报错翻译」 |
 | `test/long-tasks.test.js` | test | test | 39 | 0 | 0 | 保留 | chat | 组 其他；锁 src/chat/access.js（该文件共 4 个 src import：src/core/config.js、src/chat/access.js、src/persona/personas.js 等）；39 行；4 个顶层 test()；非 e2e（模块级单元测试） |
 | `test/macos.test.js` | test | test | 244 | 0 | 0 | 保留 | song | 组 其他；锁 src/song/studio.js（该文件共 6 个 src import：src/song/studio.js、src/core/python.js、src/voice/tts.js 等）；244 行；19 个顶层 test()；非 e2e（模块级单元测试）；首行注释「macOS 版：路径、下载源、安装参数、命令和兜底语音」 |

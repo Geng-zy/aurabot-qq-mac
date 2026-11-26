@@ -41,14 +41,14 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.45 highlights
+## 1.6.46 highlights
 
-### Panel form helpers consolidated (B7, second slice)
+### "Re-confirm after editing a local script" is now enforced (B8, first slice)
 
-- `f.secret(path)`: the `type=password` field plus the "already saved, leave blank to keep" placeholder become one method; thirteen hand-written copies collapse to one (wording differences kept as parameters, so no visible text changes).
-- `notify(result)`: green on success, red on failure, message from the result — twenty-one copies of `toast(r.message, r.ok ? 'ok' : 'err')` become one call.
-- New `test/client-form-kit.test.js` forbids both patterns from coming back.
-- This slice **adds** 26 lines of shared implementation instead of removing lines: the win is locality — the key-placeholder policy now lives in one function.
+- It used to be **documented but not implemented**: `approved()` existed but nothing called it, `status()` hard-coded `approved: true`, and the panel's "confirm this script" button never appeared — an edited script was executed silently.
+- `call()` now checks the trust state before importing: first use records the fingerprint (TOFU) and proceeds; after the script changes it refuses and points at the panel confirmation.
+- `status()` reports the real state and is **read-only** — merely opening the panel no longer trusts a script.
+- When a script is refused, built-in engines still take over, so features keep working.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -134,12 +134,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.45.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.46.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.45.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.46.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

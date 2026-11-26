@@ -1049,3 +1049,67 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.45
 CI        workflow_dispatch ref=main → run 45783100852
           ubuntu 先绿；macos 在 GitHub 排队约 12 分钟后跑完，最终双平台 success
 ```
+
+---
+
+## B8（第一刀）· 本地脚本的信任链真正落地（安全相关）
+
+### 缺陷（声明了但没执行）
+
+```text
+approved(slot)     写好了，但 call() 从来没调用 → 「改了脚本要重新确认」只是个传说
+status()           approved 硬编码 true → 面板的「确认这个脚本」按钮永远不出现
+结果               用户改过的本地脚本会被静默执行
+```
+
+### 改动
+
+```text
+src/local/local.js
+  trustState(slot)   纯查询：{ hash, approved, firstUse }，不写盘
+  rememberTrust()    首次使用（TOFU）才写 .trusted.json
+  approved()         改成 trustState 的便捷视图
+  call()             导入脚本前校验：firstUse → 记 TOFU 放行；已确认但指纹变了 → 抛
+                     「xxx 在确认之后又改过了：去面板「本地脚本」里点「确认这个脚本」再用」
+  status()           报真实 approved / firstUse（不再是硬编码 true）
+降级               被拒时 TTS/生图等照旧回退内置引擎（hub 那层本来就有 try/catch），功能不卡死
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1631 passed / 0 failed / 0 skipped（比 1.6.45 多 4 个）
+语法检查    597 个文件通过
+oxlint      0 error / 158 warning
+清单闸门    682 个文件全部有结论，0 待审
+```
+
+新增 `test/local-trust.test.js`（4 个用例，每个用例独立数据目录）：
+TOFU 记指纹 / 改脚本后 call 拒绝 / 面板确认后恢复且执行新脚本 / status 只读不写盘。
+
+### 2. Mini 实机（造临时脚本走一遍完整链路，验完清理）
+
+```text
+1) 放进脚本         status → exists=true approved=false firstUse=true
+2) POST /local/trust 「脚本已确认；以后改了脚本要重新确认」
+                    status → approved=true firstUse=false
+3) 改脚本            status → approved=false（指纹变化被识别）
+清理                删脚本与 .trusted.json、从 config.local.hashes 移除 tts；
+                    status 恢复「无脚本」，面板 ok=true
+```
+
+另外：这台机器本来就没有本地脚本（5 个 slot 全空），所以这次改动在生产路径上不会改变现有行为；
+上面的链路是用临时脚本证明的。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / local-trust / local / features → tests 16 / pass 16 / fail 0 / skipped 0
+```
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.46.tgz（460 条目，19,645,525 字节）
+sha256    e860442a78337341489a144d9e0c4b9c4637cba82f699cb7474d4ffbe8fd68e3
+```

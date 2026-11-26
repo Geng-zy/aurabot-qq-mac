@@ -79,19 +79,25 @@ export function createLocal({ getConfig, log }) {
   function storedHashes() {
     try { const v = JSON.parse(readFileSync(sidecar(), 'utf8')); return v && typeof v === 'object' ? v : {} } catch { return {} }
   }
-  function approved(slot) {
+  /**
+   * 这个脚本现在算不算「确认过」。
+   * 纯查询、不写盘：面板打开 /local/status 不该顺手信任一个脚本（那是首次调用时才做的事）。
+   * @returns {{hash: string, approved: boolean, firstUse: boolean}}
+   */
+  function trustState(slot) {
     const hash = hashOf(slot)
-    if (!hash) return false
+    if (!hash) return { hash: '', approved: false, firstUse: false }
     const configured = getConfig().local?.hashes?.[slot]
-    if (typeof configured === 'string') return configured === hash
-    // 首次使用（TOFU）：记住当前脚本；之后改了脚本必须重新确认，不能静默执行。
-    const stored = storedHashes()
-    if (!stored[slot]) {
-      try { writeFileSync(sidecar(), JSON.stringify({ ...stored, [slot]: hash }), { encoding: 'utf8', mode: 0o600 }) } catch {}
-      return true
-    }
-    return stored[slot] === hash
+    if (typeof configured === 'string') return { hash, approved: configured === hash, firstUse: false }
+    const stored = storedHashes()[slot]
+    if (!stored) return { hash, approved: false, firstUse: true }
+    return { hash, approved: stored === hash, firstUse: false }
   }
+  /** 首次使用（TOFU）：记住当前脚本；之后改了脚本必须重新确认，不能静默执行。 */
+  function rememberTrust(slot, hash) {
+    try { writeFileSync(sidecar(), JSON.stringify({ ...storedHashes(), [slot]: hash }), { encoding: 'utf8', mode: 0o600 }) } catch {}
+  }
+  const approved = (slot) => trustState(slot).approved
   /** 这一项现在由本地脚本接管吗。本地脚本是可信代码：开关打开且文件在就生效。 */
   function active(slot) {
     return Boolean(getConfig().local?.[slot]) && existsSync(pathOf(slot))
@@ -108,6 +114,10 @@ export function createLocal({ getConfig, log }) {
     let timer, onAbort
     try {
       activeSignal.throwIfAborted()
+      // 「改了脚本要重新确认」必须在这里落地：面板的「确认这个脚本」写的是 config.local.hashes
+      const trust = trustState(slot)
+      if (trust.firstUse) rememberTrust(slot, trust.hash) // 首次使用：记住这一版
+      else if (!trust.approved) throw new Error(`${spec.file} 在确认之后又改过了：去面板「本地脚本」里点「确认这个脚本」再用`)
       // 带上修改时间：脚本改了就重新加载
       const mod = await import(pathToFileURL(file).href + '?v=' + statSync(file).mtimeMs)
       activeSignal.throwIfAborted()
@@ -163,12 +173,15 @@ export function createLocal({ getConfig, log }) {
   }
 
   function status() {
-    return Object.entries(SLOTS).map(([slot, s]) => ({
-      slot, title: s.title, file: s.file, path: pathOf(slot),
-      exists: existsSync(pathOf(slot)), enabled: Boolean(getConfig().local?.[slot]), active: active(slot),
-      hash: hashOf(slot), approved: true,
-      last: last[slot] || null, prompt: promptFor(slot),
-    }))
+    return Object.entries(SLOTS).map(([slot, s]) => {
+      const trust = trustState(slot)
+      return {
+        slot, title: s.title, file: s.file, path: pathOf(slot),
+        exists: existsSync(pathOf(slot)), enabled: Boolean(getConfig().local?.[slot]), active: active(slot),
+        hash: trust.hash, approved: trust.approved, firstUse: trust.firstUse,
+        last: last[slot] || null, prompt: promptFor(slot),
+      }
+    })
   }
 
   function trust(slot) { if (!SLOTS[slot]) return { ok: false, message: '没有这一项' }; const hash = hashOf(slot); return hash ? { ok: true, slot, hash } : { ok: false, message: '脚本不存在' } }

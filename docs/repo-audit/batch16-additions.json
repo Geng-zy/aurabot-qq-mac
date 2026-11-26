@@ -1,0 +1,16 @@
+[
+  {
+    "path": "test/local-trust.test.js",
+    "area": "test",
+    "owner": "test-local",
+    "verdict": "keep",
+    "evidence": "62 行 4 个用例；直接测本地脚本的信任链：首次调用记 TOFU、改脚本后 call 拒绝、面板确认（config.local.hashes）后恢复、status 只是查询不写盘。每个用例独立数据目录。"
+  },
+  {
+    "path": "docs/repo-audit/batch16-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B8 第一刀（本地脚本信任链落地）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。"
+  }
+]
