@@ -791,4 +791,9 @@ GET 闸门  GET /backup/verify → 405「这个接口只能用 POST」（B2 的�
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.41.tgz（455 条目，19,642,759 字节）
 sha256    46536851a8f8585cf85fefc11f22bd112b4d092b5651f70a7e69d6164e6fc6b2
+提交      6f19adc（main）
+tag       v1.6.41 → 6f19adc
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.41
+资产      dsh-aurabot-qq-1.6.41.tgz  19,642,759 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45768663434（ubuntu + macos 双平台 success）
 ```
