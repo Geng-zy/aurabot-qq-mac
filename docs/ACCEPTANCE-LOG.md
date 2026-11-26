@@ -1480,4 +1480,29 @@ oxlint      0 error / 158 warning
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.51.tgz（461 条目，19,635,172 字节）
 sha256    b056fb483767da07efa749fa40da58125b5aee1dc1a4c5d0f96cae3ae89f4d3c
+提交      1ad2840（main）
+tag       v1.6.51 → 1ad2840
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.51
 ```
+
+### 4. CI 状况：macOS runner 拿不到机器（连续三次，有具体形态）
+
+```text
+run 45838591057  ubuntu success(22:24→22:27) | macos started 22:23:55 → 22:38:56 cancelled，steps=0
+run 45841300451  ubuntu success(22:40→22:43) | macos started 22:40:02 → 22:55:03 cancelled，steps=0
+run 之后再派发一次（见下一条记录）
+```
+
+三次都是同一个形态：**macOS job 等了 15 分钟、一步都没跑（steps=0）就被平台取消**。
+不是测试失败、不是代码问题，也不是并发组互相取消（那段时间本仓没有其它 run）。
+
+对照事实：
+
+```text
+本机（MacBook Air，macOS）全量       1650 passed / 0 failed / 0 skipped  ← macOS 上的实际执行证据
+run 45835628991（22:06）            macos-latest success（约 6 分钟跑完）
+前 20 个版本的 macOS job            全部 success
+```
+
+处理原则：**不改 CI 语义把它变绿**。继续派发，等平台给机器；结果如实记在下一批。
+
