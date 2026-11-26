@@ -924,3 +924,62 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.43
 资产      dsh-aurabot-qq-1.6.43.tgz  19,645,374 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45775841449（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B7（第一刀）· 面板样式清死码
+
+```text
+client/parts/styles.js   739 → 634 行（删 108 条规则 / 37 个死类名）
+client/client.js         5887 → 5783 行（生成物，重新构建）
+```
+
+死类名判定分三层，逐层收紧：
+1. 字面量：片段与模板里出现过这个名字；
+2. 动态前缀：`ab-hit-${i}` 这种拼接，前缀算用到；
+3. 复合选择器的根类名：`.ab-pm-search .ab-sel` 的根 `.ab-pm-search` 已死 → 整条规则永远匹配不到，
+   这一层又抓出 5 条（第一轮只按「选择器全部类名都死」漏掉了它们）。
+
+`.ab-select` 没有任何元素使用，从三条分组选择器里摘掉（`.ab-input,.ab-textarea` 保留）。
+
+### 反向检查（用了但没有样式规则）
+
+扫出 13 个，逐个核对后分两类：
+- `ab-hit` / `ab-section` 只作为 **id** 使用（`'ab-hit-' + i`），不是类名 —— 误报；
+- `ab-btn` / `ab-btn-small` / `ab-link` / `ab-feed` / `ab-settings-body` / `ab-overview-paths` 是
+  **惰性挂钩**：元素上有 className，但没有对应规则，视觉上无影响。
+
+对第二类**不做改动**：给它们补样式等于改外观，删 className 等于动 DOM，两者都超出「清死码」的范围。
+这条记在这里备查，等这些页面真要重做时一起处理。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1624 passed / 0 failed / 0 skipped（比 1.6.43 多 2 个样式守卫）
+语法检查    595 个文件通过
+oxlint      0 error / 157 warning
+清单闸门    678 个文件全部有结论，0 待审
+client 构建 node scripts/build-client.mjs 重新生成，无漂移
+```
+
+新增 `test/client-css.test.js`：样式里每个 `.ab-*` 类都必须有人用（含动态前缀）；
+`var(--ab-*)` 必须都有声明。
+
+### 2. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-154704
+加载    2026-11-26 15:47:09 [core] Aurabot v1.6.44 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.44，onebot=connected
+产物    装好的 client/client.js 里 `ab-pm` 命中 0（死规则确实没进包）
+```
+
+界面无法在无凭据下截图（DSH 面板要登录），本批是纯 CSS 删除 + 构建产物核对，
+视觉风险由「规则只可能匹配不到」这一点兜住；样式守卫测试防止回潮。
+
+### 3. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.44.tgz（460 条目，19,642,490 字节）
+sha256    dfe33f4bc4ceabf4c2ebb9246117cbf8f4725b2cd2d07c556220571f5a119fed
+```
