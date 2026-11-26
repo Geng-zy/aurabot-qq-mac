@@ -4,15 +4,15 @@
 事实（行数、依赖、被依赖、测试引用）来自 `git ls-files` + 源码解析；结论来自 `docs/repo-audit/*.json`。
 口径见 [REFACTOR-PLAN.md](REFACTOR-PLAN.md)；宿主兼容判定见 [HOST-COMPAT.md](HOST-COMPAT.md)。
 
-纳入清单的文件：**691**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**432**。
+纳入清单的文件：**695**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**434**。
 
 | 结论 | 文件数 |
 |---|---|
-| 保留 | 539 |
-| 拆分 | 44 |
+| 保留 | 542 |
+| 拆分 | 43 |
 | 保留·补文档 | 40 |
+| 保留·生成物 | 32 |
 | 合并 | 31 |
-| 保留·生成物 | 30 |
 | 第三方 | 7 |
 
 列说明：**被依赖**＝有多少个仓内文件 import 它；**测试引用**＝有多少个测试文件提到它（不是覆盖率，只是线索）。
@@ -26,7 +26,7 @@
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
 | `assets/platform-architecture.svg` | asset | assets | 43 | 0 | 0 | 保留 | asset | 43 行 SVG / 4381 字节；README.md:21 与 README_EN.md:21 用作「平台架构」示意图 |
 | `assets/platform-banner.svg` | asset | assets | 57 | 0 | 0 | 保留 | asset | 57 行 SVG / 3770 字节；README.md:3 与 README_EN.md:3 的页首 banner |
-| `CHANGELOG.md` | config | root | 1991 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
+| `CHANGELOG.md` | config | root | 2005 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
 | `client/client.js` | client-build | client | 5810 | 0 | 0 | 保留·生成物 | client-shell | 随发布更新（行数见清单「行」列）：由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论 |
 | `client/client.template.js` | client-template | client | 280 | 0 | 1 | 拆分 | client-shell | 280 行；DSH 入口：__ModuleLoader__.load 包装 + require('react')/hooks 解构 + primitives()/isMacLike()（宿主能力探测）+ inject/PANEL_ID/API/PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS + 工具 get/post/clipboard/clone/setPath/getPath/pct/cx/fmtTokens/fmtCost/chatLabel/峰谷 4 函数/音调 3 函数/timeAgo/REACT_MOOD_BANDS + 结尾 exports.__panelTest/apply/inject/AurabotPage/WhaleIcon；被全部 104 个片段以 h/useState/useEffect/useRef/get/post/clipboard/cx/setPath/getPath/getPath/pct 与 API 引用（h 出现在 101 个片段、get 53、post 45、cx 32、setPath 22）；锁：primitives-guard.test.js（loader→factory→apply 注册 2 个 slot、缺 primitives 时渲染 MissingPrimitivesPage）、persona-filter-select.test.js 与 panel-mind.test.js（__panelTest 的 22 个键）、about-panel.test.js（PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS 必须是 4 空格顶格单行常量）；结构事实：113 行代码 + 19 行注释 + 149 行空行，其中第 127–269 行是 143 行连续空行（CSS 迁去 parts/styles.js 后留下的洞），第 126 行「样式（只注入一次）」已成空标题；可移出到 parts：timeAgo（6 个片段用）、fmtTokens（mindMemory/overview）、fmtCost 与 chatLabel（overview）、BJ_OFFSET/pad2/bjPartsOf/fmtNextChange（只有 costCard 用）、pitchNum/pitchText/pitchLabel（只有 voice 用）、REACT_MOOD_BANDS（只有 stickers 用）、仓库 3 个常量（about/market/simulate 用）；必须留在模板：loader 包装、require/hooks、primitives 与 isMacLike、API、结尾 exports 与 return module.exports。拆完模板约 110 行，净省约 170 行（含 143 行空行） |
 | `client/parts/about.js` | client-part | client | 20 | 0 | 0 | 保留 | client-shell | 20 行；关于页（版本、API 版本、手册/仓库/发布/提交/鸣谢/模块库链接），只依赖 Card 与模板常量 PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS；被 wizard.js 的 TAB_CONTENT.about 引用；锁：about-panel.test.js 在 vm 里只注入 h 和 Card 就跑 About(...) 并核对 7 个链接 href，因此本文件必须保持只用 h/Card 和 3 个常量；client-build |
@@ -135,7 +135,7 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 1517 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 1577 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -160,6 +160,7 @@
 | `docs/repo-audit/batch19-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/batch2-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/batch20-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch21-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/batch4-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/batch5-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/batch6-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
@@ -169,12 +170,13 @@
 | `docs/repo-audit/channels.json` | doc | docs | 394 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 channels.json。 |
 | `docs/repo-audit/chat-host.json` | doc | docs | 408 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 chat-host.json。 |
 | `docs/repo-audit/client.json` | doc | docs | 744 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
-| `docs/repo-audit/core-security.json` | doc | docs | 275 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
+| `docs/repo-audit/core-data.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/core-security.json` | doc | docs | 268 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
 | `docs/repo-audit/features-modules.json` | doc | docs | 282 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。 |
 | `docs/repo-audit/media-adapters.json` | doc | docs | 415 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
 | `docs/repo-audit/mind.json` | doc | docs | 289 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
 | `docs/repo-audit/tests-scripts-config.json` | doc | docs | 254 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
-| `docs/REPO-INVENTORY.md` | doc | docs | 712 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
+| `docs/REPO-INVENTORY.md` | doc | docs | 716 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-relationships.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 与 README_EN.md 的 <img> 直接引用（关系页截图），删了 README 会出现坏图。 |
 | `docs/screenshots/aurabot-search.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md / README_EN.md 的功能搜索截图引用；同样属于 README 资源。 |
 | `docs/SESSION-HANDOFF.md` | doc | docs | 1315 | 0 | 0 | 保留 | docs | 随发布更新（行数见清单「行」列）：交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。 |
@@ -310,7 +312,9 @@
 | `src/chat/voice-file.js` | source | chat | 37 | 3 | 1 | 保留 | chat-transport | 37 行；importer 2（src/chat/hub.js L415、src/chat/send-voice.js:5）；内部依赖 2 个（core/img.js、voice/duration.js）、注入依赖 5 个；test/audio-duration.test.js 直接覆盖 audioDurationSec；工作区有未提交改动（git status: M src/chat/voice-file.js，v1.6.31 语音修复）。 |
 | `src/chat/workspace.js` | source | chat | 46 | 1 | 0 | 保留 | chat-session | 46 行；唯一 importer src/chat/hub.js（L1339）；内部依赖 0、注入依赖 12 个；0 个直接测试，test/system-session-backoff.test.js 覆盖工作区挂载失败与退避（ensureWorkspace/workspacePathOf）；docs/SESSION-HANDOFF.md:424 记『工作区/平台/标题』。L37 重写了 src/chat/access.js:7-14 的平台 owner 解析（重复实现之一）。 |
 | `src/core/access.js` | source | core | 147 | 3 | 0 | 保留 | core-access | 147 行；谁能跟她说话与权限档位（LEVELS/checkAllowed/profilePermDefault），只依赖 core/ids.js；被 config 归一化、chat/hub、features 多处引用（原路径 chat/access.js 现在是 re-export）；test/group-owner-tools.test.js、test/h05-*.test.js 覆盖权限判定。 |
-| `src/core/backup-push.js` | source | core | 469 | 5 | 4 | 拆分 | core-data | 469 行（>300）；内部依赖 2 个（./store.js:21、./backup.js:22）；被 src/host.js:45 引用；被 test/backup-push.test.js（20 test）、test/backup-webdav.test.js、test/e2e.test.js、test/system-processes.test.js 覆盖；导出 6 个。拆因：单文件承担 4 件事——Gitee git 推送（gitEnv 60、pushBackup 337）、WebDAV 列举与下载（listWebdavBackups 249、downloadWebdavBackup 256）、保留淘汰计划（prunePlan 73）、输出令牌脱敏（redact 50） |
+| `src/core/backup-push.js` | source | core | 285 | 5 | 4 | 保留 | core-backup | 285 行（1.6.52 已执行：WebDAV 进 backup-webdav.js、共用件进 backup-shared.js，469 → 285）；只剩 Gitee 链；对外 re-export 保持不变。 |
+| `src/core/backup-shared.js` | source | core | 45 | 2 | 0 | 保留 | core-backup | 45 行；云备份两个后端共用的东西：测试钩子 pushHooks、令牌打码 redact、保留计划 prunePlan、文件名/分支白名单正则、validateCandidate。被 backup-push.js 与 backup-webdav.js 引用；backup-push.js 仍按老名字 re-export，对外 API 不变。备份四个测试文件 51 用例覆盖。 |
+| `src/core/backup-webdav.js` | source | core | 160 | 1 | 0 | 保留 | core-backup | 160 行；WebDAV 后端全链：地址/凭据校验（含坚果云 /dav 自动补全）、MKCOL 建文件夹、PROPFIND 列目录、下载、上传后按份数清理。被 backup-push.js 的 pushBackup 按 provider 分流调用，并经 re-export 供 host/routes 使用；test/backup-webdav.test.js 覆盖列表/下载/上传/错误码文案。 |
 | `src/core/backup-zip.js` | source | core | 198 | 1 | 0 | 保留 | core-backup | 198 行；备份用 ZIP 编解码（写本地头/中央目录、读目录、边解压边校验 CRC）与格式上限常量；被 src/core/backup.js 引用（createBackup 写、stageBackup/inspect 读，共 8 处调用）；读目录的名字策略通过 checkName 钩子留在 backup.js，模块本身不含业务判断；test/backup.test.js、backup-restart/webdav/push 共 45 个用例覆盖往返。 |
 | `src/core/backup.js` | source | core | 897 | 4 | 6 | 拆分 | core-data | 897 行（1.6.41 已执行第一刀：ZIP 编解码与格式上限进 core/backup-zip.js 198 行；读目录的名字策略用 checkName 钩子留在本文件）；剩余是 .restore 发布/journal 回滚/会话恢复/保留策略。 |
 | `src/core/bridge.js` | source | core | 220 | 1 | 0 | 保留·补文档 | core-runtime | 220 行；内部依赖 4 个（../tools/tools.js:11、../chat/reply.js:12、../chat/access.js:13、../channels/index.js:14）；仅被 src/host.js:46 引用；无测试直接 import，只有 ensureToken/resetToken 经 host 路由被 test/csrf-publicbase.test.js（/bridge/token 403 分支）和 test/modules.test.js（令牌重置）覆盖，ops/service/dispose/refresh 无测试。补文档理由：ctx.provide('aurabot') 服务面（91-100 行）、3 个 aurabot_* 全局工具（109-131）、/aurabot/api/open/* 鉴权（169-191）没有契约文档，docs/FEATURES-AND-IMPLEMENTATION.md 只有一句概述；同时这里集中了 3 处 core→chat/channels 反向依赖 |
@@ -345,7 +349,7 @@
 | `src/core/qzone-audience.js` | source | core | 51 | 2 | 0 | 保留 | core-policy | 51 行；空间日记可见范围常量与归一化，0 内部依赖；config 归一化直接引用，QQ 日记功能经兼容出口使用；test/diary-audience.test.js 覆盖可见范围。 |
 | `src/core/redact.js` | source | core | 29 | 6 | 1 | 保留 | core-base | 29 行；0 内部依赖；被 5 个文件引用（src/host.js:19、src/host/http.js:7、src/chat/hub.js:24、src/chat/chat-log.js:6、src/core/logger.js:6）；被 test/pure.test.js:10 覆盖；导出 2 个（registerSecret/redact） |
 | `src/core/sticker-path.js` | source | core | 17 | 2 | 0 | 保留 | core-media | 17 行；表情包文件名的安全解析（只认纯文件名 + 图片扩展名），目录由调用方给；被 core/media（按 md5 找图）与 features/stickers（stickerPath）使用，替掉 core→features 的反向依赖。 |
-| `src/core/store.js` | source | core | 52 | 37 | 3 | 保留 | core-base | 52 行；0 内部依赖；被 34 个 src 文件引用（src/host.js:32、src/core/config.js:4、src/chat/hub.js:12、src/persona/personas.js:8 等）；被 test/chat-log.test.js:8 直接引用，另有 test/diary-media.test.js、test/qzone.test.js 依赖其数据目录隔离；导出 6 个（dshHome/dataDir/ensureDir/readJson/readJsonStrict/writeJson） |
+| `src/core/store.js` | source | core | 52 | 38 | 3 | 保留 | core-base | 52 行；0 内部依赖；被 34 个 src 文件引用（src/host.js:32、src/core/config.js:4、src/chat/hub.js:12、src/persona/personas.js:8 等）；被 test/chat-log.test.js:8 直接引用，另有 test/diary-media.test.js、test/qzone.test.js 依赖其数据目录隔离；导出 6 个（dshHome/dataDir/ensureDir/readJson/readJsonStrict/writeJson） |
 | `src/core/tasks.js` | source | core | 137 | 3 | 2 | 保留 | core-runtime | 137 行；内部依赖 3 个（./store.js:2、../channels/ids.js:3、../tools/tools.js:4）；被 src/host.js:33 引用；被 test/creative-tasks.test.js:7、test/song.test.js:8 覆盖；导出 1 个工厂 createTasks。1 处 core→channels 反向依赖（../channels/ids.js 本身 0 import，是可下移的纯函数） |
 | `src/core/text.js` | source | core | 13 | 7 | 1 | 保留 | core-base | 13 行；0 内部依赖；被 6 个文件引用（src/chat/hub.js:29、src/core/llm.js:4、src/host/prompt-vars.js:7、src/channels/qq/features/diary/sources.js:8 等）；被 test/text.test.js:3 覆盖 #151 代理字符截断；导出 3 个（cleanText/clipText/cleanContent） |
 | `src/core/tokens.js` | source | core | 54 | 3 | 0 | 保留 | core-usage | 54 行；token 估算（estimateTokens）与每日预算 createBudget（依赖注入的 store）；0 内部依赖；被 mind 的 inner/outreach 与 mind-adapter 使用；原路径 src/mind/budget.js 保留兼容出口。 |

@@ -1,12 +1,5 @@
 [
   {
-    "path": "src/core/backup-push.js",
-    "area": "core",
-    "owner": "core-data",
-    "verdict": "split",
-    "evidence": "469 行（>300）；内部依赖 2 个（./store.js:21、./backup.js:22）；被 src/host.js:45 引用；被 test/backup-push.test.js（20 test）、test/backup-webdav.test.js、test/e2e.test.js、test/system-processes.test.js 覆盖；导出 6 个。拆因：单文件承担 4 件事——Gitee git 推送（gitEnv 60、pushBackup 337）、WebDAV 列举与下载（listWebdavBackups 249、downloadWebdavBackup 256）、保留淘汰计划（prunePlan 73）、输出令牌脱敏（redact 50）"
-  },
-  {
     "path": "src/core/backup.js",
     "area": "core",
     "owner": "core-data",

@@ -1,0 +1,16 @@
+[
+  {
+    "path": "src/core/backup-shared.js",
+    "area": "core",
+    "owner": "core-backup",
+    "verdict": "keep",
+    "evidence": "45 行；云备份两个后端共用的东西：测试钩子 pushHooks、令牌打码 redact、保留计划 prunePlan、文件名/分支白名单正则、validateCandidate。被 backup-push.js 与 backup-webdav.js 引用；backup-push.js 仍按老名字 re-export，对外 API 不变。备份四个测试文件 51 用例覆盖。"
+  },
+  {
+    "path": "src/core/backup-webdav.js",
+    "area": "core",
+    "owner": "core-backup",
+    "verdict": "keep",
+    "evidence": "160 行；WebDAV 后端全链：地址/凭据校验（含坚果云 /dav 自动补全）、MKCOL 建文件夹、PROPFIND 列目录、下载、上传后按份数清理。被 backup-push.js 的 pushBackup 按 provider 分流调用，并经 re-export 供 host/routes 使用；test/backup-webdav.test.js 覆盖列表/下载/上传/错误码文案。"
+  }
+]

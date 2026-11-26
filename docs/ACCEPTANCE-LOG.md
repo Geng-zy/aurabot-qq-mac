@@ -1515,3 +1515,63 @@ macos-latest   completed/success  steps=14   ← 等到机器后正常跑完
 
 所以前面两次是平台容量问题，不是代码或配置问题。1.6.51 的双平台 CI：**success**。
 
+
+---
+
+## B12 · 云备份后端分家
+
+```text
+src/core/backup-push.js    469 → 285 行（只剩 Gitee 那条链）
+src/core/backup-webdav.js  新增 160 行（WebDAV 全链）
+src/core/backup-shared.js  新增 45 行（两后端共用）
+搬到 webdav   webdavSettings / ensureWebdavFolder / webdavFetch / webdavList /
+              listWebdavBackups / downloadWebdavBackup / pushBackupWebdav
+搬到 shared   pushHooks（测试钩子）/ redact（令牌打码）/ prunePlan（保留计划）/
+              BACKUP_ZIP_RE / NAME_RE / BRANCH_RE / MARKER / validateCandidate
+保留在 push   gitEnv（令牌走环境变量不进命令行）/ runGit / giteeApi / assertPrivate /
+              createRepo / ensureRemote / resetHistory / 分卷推送
+```
+
+**对外 API 一个字没改**：`backup-push.js` 仍 `export { pushHooks, redact, prunePlan, listWebdavBackups, downloadWebdavBackup }`，
+`host.js` 与三个测试文件的 import 一句没动。
+
+### 为什么按后端分，而不是按「工具/业务」分
+
+这两条链**互相不调用**，只是共用打码与文件名规则。混在 469 行里只能靠注释分界；分家后各自
+160 / 285 行，出错时不用在两套协议（git refspec 与 WebDAV 方法）之间跳。
+
+### 过程中抓到的问题
+
+- 第一次切分把 `pushBackup` 的 JSDoc 头一起带进了 `backup-webdav.js`，语法检查直接报错 → 裁掉；
+- 审计里 `src/core/backup-push.js` **同时存在于 `core-security.json` 与 `core-data.json`**，
+  清单闸门报「重复出现」→ 删掉旧的那条，保留新结论。这条闸门本来就是为了防这种漂移。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1650 passed / 0 failed / 0 skipped
+语法检查    604 个文件通过
+oxlint      0 error / 19 warning（备份相关文件零告警）
+清单闸门    695 行，0 待审
+备份专项    backup / backup-push / backup-webdav / system-processes → 51/51
+```
+
+### 2. 真实 Purge 模块 + 实机（Mini）
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-234332
+加载    2026-11-26 23:43:38 [core] Aurabot v1.6.52 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.52，onebot=connected
+备份    /aurabot/api/backup/state → ok，本地 1 份备份仍可列出
+错误    23:20 之后新增 [error] 0 条
+测试    backup-webdav / backup-push / backup / backup-restart / purge-scope-integration
+        → 46 passed / 0 failed / 0 skipped
+同源    三个文件与 Air 同哈希
+```
+
+### 3. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.52.tgz（463 条目，19,635,879 字节）
+sha256    b0c37826fb2ccd14c393cd525c6b9e1cff03bb77c0c3e6e1c7bfea00b9da6789
+```

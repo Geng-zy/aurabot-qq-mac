@@ -1,0 +1,9 @@
+[
+  {
+    "path": "src/core/backup-push.js",
+    "area": "core",
+    "owner": "core-backup",
+    "verdict": "keep",
+    "evidence": "285 行（1.6.52 已执行：WebDAV 进 backup-webdav.js、共用件进 backup-shared.js，469 → 285）；只剩 Gitee 链；对外 re-export 保持不变。"
+  }
+]

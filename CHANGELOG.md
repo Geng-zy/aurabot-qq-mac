@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.52
+
+- B12 云备份后端分家：`src/core/backup-push.js` **469 → 285 行**。
+  - `src/core/backup-webdav.js`（160 行）：WebDAV 整条链——地址/凭据校验（含坚果云 `/dav` 自动补全）、
+    MKCOL 建文件夹、PROPFIND 列目录、下载、上传后按份数清理；
+  - `src/core/backup-shared.js`（45 行）：两个后端共用的东西——测试钩子 `pushHooks`、令牌打码 `redact`、
+    保留计划 `prunePlan`、文件名/分支白名单正则、`validateCandidate`；
+  - `backup-push.js` 只剩 Gitee（git）那条链，并按老名字 re-export
+    `pushHooks`/`redact`/`prunePlan`/`listWebdavBackups`/`downloadWebdavBackup` —— **对外 API 一个字没改**。
+- 为什么按后端分而不是按「工具/业务」分：这两条链互相不调用，只是共用打码与文件名规则；
+  混在 469 行里只能靠注释分界，分家之后各自 160 / 285 行，出错时不用在两套协议之间跳。
+- 回归：全量 1650 个测试通过；备份相关四个测试文件 51 个用例全过（backup / push / webdav / system-processes）；
+  语法 605 文件，oxlint 0 error / 19 warning。
+
 ## 1.6.51
 
 - B11（`hub.js` 拆分第一刀）：把 4 个**纯函数**从 1459 行的组合根里搬出来，新建 `src/chat/hub-pure.js`（45 行）：
