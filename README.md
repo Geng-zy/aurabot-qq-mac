@@ -43,18 +43,18 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.32 更新
+## 1.6.33 更新
 
-### 宿主组合根瘦身（B1）
+### 面板写操作闸显式化（B2）
 
-- `src/host.js` 从 855 行降到 658 行：面板路由表搬进 `src/host/routes.js`（133 条路由的唯一注册点）、云备份定时器搬进 `src/host/backup-schedule.js`、心智装配搬进 `src/host/mind.js`、头像位置搬进 `src/host/avatar.js`。
-- 新增路由快照测试 `test/host-routes.test.js`：`/aurabot/api/*` 每增删改一条都要显式更新快照，重构不会悄悄丢接口。
-- 行为不变：全量 1577 个测试通过，路由表逐条一致。
+- 以前「写操作只能 POST」靠路径里的动词猜（save/delete/…）。有一类接口路径看着是查询、其实要读包体，GET 拿到空对象照样往下跑：`GET /aurabot/api/notice/toggle` 会把「审批通知」开关写盘。
+- 现在新增显式登记表 `src/host/post-only.js`（20 条），闸门改成「路径词根 ∪ 显式登记」，两条都不满足才放行 GET；`/debug/say`、`/modules/tool`、`/mind/permission/decide` 同类问题一并挡住，统一回 405 + `Allow: POST`。
+- 新增回归测试，其中「GET 不再改配置」这条在旧实现下会失败。
+- `MIND_OFF` 等重复回执收进 `src/panel/route-kit.js`，5 个心智路由文件不再各写一份。
 
-### 上一版修好的语音条
+### 上一版（B1）
 
-- QQ 的 `record` 段必须带时长；旧实现只靠 ffmpeg 探时长，没装 ffmpeg 的机器上语音一条都发不出去。现在插件自己解析 WAV / MP3 / OGG / M4A。
-- `say` 失败留下的 0 采样空 WAV 会被拦下，改发文字，不再发没声音的语音条。
+- `src/host.js` 855 → 658 行，拆出 routes / backup-schedule / mind / avatar 四个模块；133 条路由锁成快照。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -140,12 +140,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.32.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.33.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.32.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.33.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

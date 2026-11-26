@@ -1,11 +1,11 @@
+import { MIND_OFF } from '../panel/route-kit.js'
 // 心智实时状态、投喂、睡眠和内心活动。
 
 export function registerMindLiveRoutes({ route, readBody, getMind, getConfig, shortRef, localInstaller }) {
-  const mindOff = { ok: false, message: '心智核心没起来，看日志里的原因' }
 
   route('/mind/now', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const f = mind.mind.feeling()
     const cfgNow = mind.mind.settings()
     return {
@@ -32,7 +32,7 @@ export function registerMindLiveRoutes({ route, readBody, getMind, getConfig, sh
 
   route('/mind/feed', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     if (!String(b.food || '').trim()) return { ok: false, message: '填一个吃的' }
     return mind.feed(String(b.food), String(getConfig().ownerQQ || ''), '')
@@ -40,20 +40,20 @@ export function registerMindLiveRoutes({ route, readBody, getMind, getConfig, sh
 
   route('/mind/wake', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const ev = mind.wakeUp(String(getConfig().ownerQQ || ''))
     return ev ? { ok: true, message: `叫醒了（睡了 ${ev.hours.toFixed(1)} 小时）` } : { ok: false, message: '她没在睡' }
   })
 
   route('/mind/sleepnow', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     return mind.mind.body.sleepNow() ? { ok: true, message: '让她睡了' } : { ok: false, message: '她已经在睡了' }
   })
 
   route('/mind/inner', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const m = mind.mind
     const f = m.feeling()
     return {

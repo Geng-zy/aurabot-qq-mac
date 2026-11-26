@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.33
+
+- B2 面板写操作闸显式化：新增 `src/host/post-only.js`（20 条「需要请求包体」的路径白名单），
+  `route()` 的闸门改成「路径词根 ∪ 显式登记」，两条都不满足才放行 GET。
+  修掉的真实缺陷：`GET /aurabot/api/notice/toggle` 会拿到空包体，把「审批通知」开关写盘；
+  `/debug/say`、`/modules/tool`、`/mind/permission/decide` 同类问题一并拦住（现在统一 405 + `Allow: POST`）。
+- 新增 `test/panel-post-only.test.js`：源码契约（读包体的 route 必须登记）、无僵尸条目、GET 必 405、
+  以及一条「GET 不再改配置」的行为回归——它在旧闸门下失败、新闸门下通过。
+- 新增 `src/panel/route-kit.js`：`MIND_OFF` 与 `ok/fail` 收成一份，5 个心智路由文件不再各写一遍同样的回执。
+- 回归：全量 1581 个测试通过（新增 4 个），语法 567 文件，oxlint 0 error / 164 warning。
+- 路由表不变（133 条），`/aurabot/api/*` 的路径与返回字段不动；重复路由按「对外可能有人调」保留，不动契约。
+
 ## 1.6.32
 
 - B1 宿主组合根瘦身：`src/host.js` 855 → 658 行，拆出四个文件——

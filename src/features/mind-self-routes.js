@@ -1,11 +1,11 @@
+import { MIND_OFF } from '../panel/route-kit.js'
 // 心智自我、版本和性格路由。
 
 export function registerMindSelfRoutes({ route, readBody, query, getMind, getConfig, readPersona, savePersona }) {
-  const mindOff = { ok: false, message: '心智核心没起来，看日志里的原因' }
 
   route('/mind/self', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const m = mind.mind
     const ver = (kind, n) => m.listVersions(kind, n).map((v) => ({
       id: v.id, at: v.at, by: v.by, reason: v.reason, pinned: v.pinned,
@@ -26,21 +26,21 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/self/change', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     return mind.changeSelf({ what: b.what, content: b.content, why: b.why || '管理员在面板里改的', trait: b.trait, dir: b.dir }, 'owner')
   })
 
   route('/mind/self/goal/drop', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     return { ok: mind.mind.self.dropGoal(String(b.text || '')) }
   })
 
   route('/mind/self/restore', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     try {
       if (b.kind === 'persona') {
@@ -61,7 +61,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/version/pin', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     mind.mind.pinVersion(Number(b.id), b.pinned !== false)
     return { ok: true }
@@ -69,7 +69,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/version/list', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const { kind, before } = query(req)
     if (!['persona', 'self', 'traits', 'habits'].includes(kind)) return { ok: false, message: '不认识的版本类别' }
     const cursor = Number(before)
@@ -79,7 +79,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/version/compare', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const { first, second } = query(req)
     const a = mind.mind.getVersion(first)
     const b = mind.mind.getVersion(second)
@@ -88,7 +88,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/version/delete', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     try {
       const n = b.id ? mind.mind.deleteVersion(b.id) : mind.mind.deleteVersions(String(b.kind), { from: Number(b.from), through: Number(b.through) })
@@ -98,7 +98,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/traits/confirm', async (req) => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     const b = await readBody(req)
     mind.mind.personality.confirm(b.base || {})
     return { ok: true, message: '确认好了：这就是她本来的样子' }
@@ -106,7 +106,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/traits/infer', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     try {
       const r = await mind.inferTraits({ force: true })
       return r ? { ok: true, inferred: r, message: '推好了，看看像不像她，再确认' } : { ok: false, message: '没推出来（人格卡是空的，或者模型没接上）' }
@@ -117,7 +117,7 @@ export function registerMindSelfRoutes({ route, readBody, query, getMind, getCon
 
   route('/mind/traits/alerts/read', async () => {
     const mind = getMind()
-    if (!mind) return mindOff
+    if (!mind) return MIND_OFF
     mind.mind.personality.readAlerts()
     return { ok: true }
   })

@@ -55,6 +55,7 @@ import { createOverview } from './host/overview.js'
 import { createHttpKit } from './host/http.js'
 import { registerAllRoutes } from './host/routes.js'
 import { createAvatarStore } from './host/avatar.js'
+import { POST_ONLY } from './host/post-only.js'
 import { createBackupScheduler } from './host/backup-schedule.js'
 import { installPersonaHoist } from './integration/persona-hoist.js'
 
@@ -360,9 +361,10 @@ export function apply(ctx) {
       if (panelBlocked(req, res)) return undefined
       if (!opts.skipHostCheck && adminHostBlocked(req, res)) return undefined // DNS rebinding 防护（含 GET）
       if (csrfBlocked(req, res)) return undefined
-      if (writeLike.test(path) && !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      // 写操作/需要包体的接口只能 POST：路径词根兜底 + 显式登记（见 host/post-only.js）
+      if ((writeLike.test(path) || POST_ONLY.has(path)) && !['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
         try { res.setHeader('Allow', 'POST') } catch {}
-        send(res, 405, { ok: false, message: '写操作只能用 POST' })
+        send(res, 405, { ok: false, message: '这个接口只能用 POST' })
         return undefined
       }
       return handler(req, res)

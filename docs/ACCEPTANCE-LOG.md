@@ -169,3 +169,73 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.32
 资产      dsh-aurabot-qq-1.6.32.tgz  19,629,634 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45738085526（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B2 · 面板写操作闸显式化 + 重复回执收敛
+
+范围：`src/host/`、`src/panel/`（新增）、5 个 `src/features/mind-*-routes.js` 的重复常量。**路由表不增不减（133 条）**。
+
+### 修掉的真实缺陷
+
+```text
+GET /aurabot/api/notice/toggle
+  → readBody 返回 {} → kind='approval'、value=true → setConfig 把 notice.approval 写盘
+同类：/debug/say（空文本进调试回合）、/modules/tool、/modules/simulate、/modules/fork、
+      /mind/permission/decide、/knowledge/rename、/backup/* 等共 20 条读包体的接口
+```
+
+### 改动
+
+```text
+src/host/post-only.js          新增  41 行：20 条「需要请求包体」的显式登记表
+src/host.js                    route() 闸门：writeLike 词根 ∪ POST_ONLY；405 文案改「这个接口只能用 POST」
+src/panel/route-kit.js         新增  20 行：MIND_OFF（原 5 份重复）+ ok/fail
+test/panel-post-only.test.js   新增 102 行 4 个用例
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1581 passed / 0 failed / 0 skipped（比 1.6.32 多 4 个）
+语法检查    567 个文件通过
+oxlint      0 error / 164 warning
+client 构建 无漂移
+清单闸门    639 个文件全部有结论，0 待审
+```
+
+**红-绿证据**：把闸门临时退回旧写法（只认路径词根）后，
+「GET /notice/toggle 不再偷偷改配置」与「GET 一律 405」两条用例都失败；改回新闸门后全绿。
+fixture 里把 `notice.approval` 设成 `false` 才能测出来（默认值是 `true`，空包体写回 `true` 看不出变化）。
+
+### 2. 模拟网关（Air）
+
+`test/e2e.test.js` 全绿；本批只动 HTTP 管理面的方法闸，不碰收发路径。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / purge-scope / persona-hoist / host-routes / panel-post-only
+      → tests 23 / pass 23 / fail 0 / skipped 0（用 mini 上装的 dsh-purge-community@1.7.20）
+```
+
+### 4. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-101717
+加载    2026-11-26 10:17:30 [core] Aurabot v1.6.33 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 10:17:33 [onebot] 已连上 QQ 网关（WS）
+面板    GET /aurabot/api/state → 200，version=1.6.33，onebot=connected
+新闸门  GET /aurabot/api/notice/toggle → 405 {"ok":false,"message":"这个接口只能用 POST"}
+读接口  GET /aurabot/api/state → 200（没有被误伤）
+错误    日志 [error]/Cannot/undefined is not 命中 0
+同源    post-only.js / route-kit.js / mind-live-routes.js 与 Air 逐一同哈希
+```
+
+### 5. 候选包
+
+```text
+/tmp/dsh-aurabot-qq-1.6.33.tgz
+条目 443，字节 19,630,700
+sha256 b200c819dce3aabda716e64447df2248bac57afdc2874161306df43ea3a00095
+```

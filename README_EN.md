@@ -41,18 +41,18 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.32 highlights
+## 1.6.33 highlights
 
-### Slimmer host composition root (B1)
+### Explicit write gating for the panel API (B2)
 
-- `src/host.js` drops from 855 to 658 lines: the panel route table moves to `src/host/routes.js` (the single place that registers all 133 routes), the cloud-backup timer to `src/host/backup-schedule.js`, mind wiring to `src/host/mind.js`, and the avatar location to `src/host/avatar.js`.
-- A new route snapshot test (`test/host-routes.test.js`) pins every `/aurabot/api/*` path, so a refactor cannot silently drop an endpoint.
-- No behaviour change: 1577 tests pass and the route table is identical.
+- "Writes must be POST" used to be inferred from verbs in the path (save/delete/…). Some endpoints look like queries but read a request body, so a GET ran them with an empty body: `GET /aurabot/api/notice/toggle` persisted the approval-notice switch.
+- `src/host/post-only.js` now lists the 20 body-reading endpoints explicitly and the gate is "path heuristics ∪ explicit list". `/debug/say`, `/modules/tool` and `/mind/permission/decide` are covered too, all answering 405 with `Allow: POST`.
+- A regression test covers it; the GET-does-not-mutate case fails against the old gate.
+- `MIND_OFF` and friends moved into `src/panel/route-kit.js`, so five mind route files stop duplicating the same receipt.
 
-### Voice notes, fixed in the previous release
+### Previous release (B1)
 
-- QQ requires a `duration` on every `record` segment. The old code only probed it with ffmpeg, so machines without ffmpeg could never send a voice note. AuraBot now parses WAV / MP3 / OGG / M4A itself.
-- A header-only WAV from a failed `say` is rejected and the reply falls back to text instead of sending silence.
+- `src/host.js` 855 → 658 lines via routes / backup-schedule / mind / avatar modules; all 133 routes pinned by a snapshot test.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -138,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.32.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.33.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.32.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.33.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

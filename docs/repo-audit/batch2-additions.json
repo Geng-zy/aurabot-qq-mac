@@ -1,0 +1,30 @@
+[
+  {
+    "path": "src/host/post-only.js",
+    "area": "host",
+    "owner": "host",
+    "verdict": "keep",
+    "evidence": "41 行；20 条「需要请求包体」的面板路径白名单，被 src/host.js 的 route() 闸读取；test/panel-post-only.test.js 三道检查（源码契约/无僵尸条目/GET 必 405）覆盖；删掉会让 GET /notice/toggle 重新改配置。"
+  },
+  {
+    "path": "src/panel/route-kit.js",
+    "area": "panel",
+    "owner": "panel",
+    "verdict": "keep",
+    "evidence": "20 行；MIND_OFF 常量与 ok/fail 形状，被 5 个 src/features/mind-*-routes.js import（原各写一份）；心智相关 266 个测试覆盖调用方行为。"
+  },
+  {
+    "path": "test/panel-post-only.test.js",
+    "area": "test",
+    "owner": "test-panel",
+    "verdict": "keep",
+    "evidence": "102 行 4 个用例；扫 src/features 的 route 源码核对读包体者已登记，并实测 GET 打 20 条路径返回 405；其中「GET /notice/toggle 不改配置」在旧闸门下失败、新闸门下通过（红-绿证据）。"
+  },
+  {
+    "path": "docs/repo-audit/batch2-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B2 新增（post-only.js / route-kit.js / panel-post-only.test.js 及其自身）的审计补充，4 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  }
+]
