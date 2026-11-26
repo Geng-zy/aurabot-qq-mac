@@ -147,13 +147,6 @@
     "evidence": "审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。"
   },
   {
-    "path": "docs/repo-audit/batch0-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "本批新增文件的审计补充（duration.js、三个新测试、四份新文档、八份审计数据），22 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
-  },
-  {
     "path": "docs/ACCEPTANCE-LOG.md",
     "area": "doc",
     "owner": "docs",

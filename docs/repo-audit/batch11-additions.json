@@ -5,12 +5,5 @@
     "owner": "core-backup",
     "verdict": "keep",
     "evidence": "198 行；备份用 ZIP 编解码（写本地头/中央目录、读目录、边解压边校验 CRC）与格式上限常量；被 src/core/backup.js 引用（createBackup 写、stageBackup/inspect 读，共 8 处调用）；读目录的名字策略通过 checkName 钩子留在 backup.js，模块本身不含业务判断；test/backup.test.js、backup-restart/webdav/push 共 45 个用例覆盖往返。"
-  },
-  {
-    "path": "docs/repo-audit/batch11-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B5 第五刀 backup-zip 拆分的审计补充，2 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
   }
 ]

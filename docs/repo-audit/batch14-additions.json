@@ -5,12 +5,5 @@
     "owner": "test-client",
     "verdict": "keep",
     "evidence": "44 行 2 个用例；断言 client/parts/styles.js 里定义的 193 个 .ab-* 类全部有人用（含 `ab-x-${}` 动态前缀），并断言 var(--ab-*) 都有声明。删掉的 108 条死规则（37 个死类名）不会再长回来。"
-  },
-  {
-    "path": "docs/repo-audit/batch14-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B7 第一刀（面板样式清死码）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。"
   }
 ]

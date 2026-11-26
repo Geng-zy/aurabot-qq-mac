@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.49
+
+- B9 清单闸门稳定化：这条闸门这一路把流水卡了 6 次 —— 每加一个测试文件、每写一份 `docs/repo-audit/*.json`
+  都要人工补一行审计，而**测试文件的依据本来就是「全量跑过」**，手写一行只会变成负担。
+  - `scripts/repo-inventory.mjs` 新增 `autoVerdict()`：`test/**` 自动记 `keep`（evidence 写明「验证依据是全量运行」），
+    `docs/repo-audit/**` 自动记 `keepGenerated`；
+  - 源码 / 客户端 / 脚本 / 文档**仍然必须人工结论** —— 闸门另加一条反向断言：
+    `src/host.js`、`client/client.js`、`scripts/*.mjs`、`docs/HANDOFF.md` 这类文件绝不能被自动放行；
+  - 清理 18 份 `batch*-additions.json` 里「自己审计自己」的冗余行（共 18 行），现在由自动结论覆盖。
+- 新增 `npm run inventory`，清单生成有可发现的入口（原来只能记 `node scripts/repo-inventory.mjs --write`）。
+- 实测：临时加一个测试文件 → 清单 `待审 0`，闸门直接通过；删掉后重生成仍然 0。
+- 回归：全量测试通过，语法 599 文件，oxlint 0 error / 158 warning。
+
 ## 1.6.48
 
 - B8（第三刀）「当前预设」的来源加固：`presetOfAgent` 原来只看 `session.header.agentPreset`，

@@ -48,10 +48,23 @@ function audits() {
 
 const git = tracked()
 
-test('审计结论覆盖每一个受版本控制的文件', { skip: !git && '不是 git 检出' }, () => {
+// 与 scripts/repo-inventory.mjs 的 autoVerdict 保持一致：测试文件与审计数据的依据就是「全量运行」，
+// 不要求逐个手写；源码 / 客户端 / 脚本 / 文档仍然必须人工结论。
+const AUTO = [
+  { test: (p) => p.startsWith('test/') || p.endsWith('.test.js'), why: '测试文件' },
+  { test: (p) => p.startsWith('docs/repo-audit/'), why: '审计数据' },
+]
+const isAuto = (p) => AUTO.some((a) => a.test(p))
+
+test('审计结论覆盖每一个需要人工结论的文件（测试与审计数据自动放行）', { skip: !git && '不是 git 检出' }, () => {
   const rows = audits()
-  const missing = git.filter((p) => !rows.has(p))
+  const missing = git.filter((p) => !rows.has(p) && !isAuto(p))
   assert.deepEqual(missing, [], `这些文件还没有审计结论：\n${missing.join('\n')}`)
+})
+
+test('自动放行的只有测试文件与审计数据，不能拿它绕开源码审计', () => {
+  const bad = ['src/host.js', 'client/client.js', 'scripts/build-client.mjs', 'docs/HANDOFF.md'].filter(isAuto)
+  assert.deepEqual(bad, [], `这些不该被自动放行：${bad.join(', ')}`)
 })
 
 test('审计结论里没有指向不存在文件的条目', { skip: !git && '不是 git 检出' }, () => {

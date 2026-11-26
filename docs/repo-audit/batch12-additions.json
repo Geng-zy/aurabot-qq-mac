@@ -19,12 +19,5 @@
     "owner": "test-mind",
     "verdict": "keep",
     "evidence": "62 行 3 个用例；扫 src/mind/** 的 import，断言只依赖 mind 与 core，兼容出口走白名单且必须是单行 re-export；另断言 mind 里不出现 child_process。"
-  },
-  {
-    "path": "docs/repo-audit/batch12-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B6 第一刀（mind 分层修正）的审计补充：persona-limits、local-runner、mind-layering 测试及其自身，4 条；被 scripts/repo-inventory.mjs 读取。"
   }
 ]

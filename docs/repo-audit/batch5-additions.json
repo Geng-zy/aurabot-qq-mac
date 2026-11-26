@@ -5,12 +5,5 @@
     "owner": "test-chat",
     "verdict": "keep",
     "evidence": "75 行 6 个用例；直接测 src/chat/attention.js 的 createAttentionRanking（优先级 3/2/1/0、单一注意力压制、ownerCuts 豁免、放行顺序、忙时压住）；这段逻辑原先埋在 hub.js 里 0 直接测试。"
-  },
-  {
-    "path": "docs/repo-audit/batch5-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B3 第一刀新增测试的审计补充，2 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
   }
 ]

@@ -43,17 +43,17 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.48 更新
+## 1.6.49 更新
 
-### 「当前预设」别读到过期值（B8 第三刀）
+### 全仓清单闸门稳定化（B9）
 
-- 人格与执行约束的注入要按「这个会话现在跑哪个预设」决定。以前只看 `session.header.agentPreset`——宿主的文档明确说那只是**创建时**的事实，中途换过预设不会改它。
-- 现在建会话时记一份当前预设（含重挂成功的路径），优先级变成 **自己记的 > `agent.preset` > header**；监听器不再直接摸 header。
-- 没换过预设的会话结果不变；新增 4 个用例覆盖优先级与 header 过期场景。
+- 这条闸门以前要求**每个**受版本控制的文件都有人工审计行 —— 每加一个测试文件都要补一行，这一路把流水卡了 6 次。
+- 现在 `test/**` 与 `docs/repo-audit/**` 的结论自动生成（测试的依据本来就是「全量跑过」），**源码、客户端、脚本、文档仍然必须人工结论**，并加了一条反向断言防止用自动规则绕开。
+- 顺手清掉 18 份审计文件里「自己审计自己」的冗余行，新增 `npm run inventory` 入口。
 
 ### 前几批
 
-1.6.47 宿主工具发现加固；1.6.46 本地脚本信任链；1.6.45 表单小工具；1.6.44 面板样式；1.6.43 适配层门面化；1.6.42 心智越界归位；1.6.41 backup 拆 ZIP；1.6.40 core 反向依赖 10→0；1.6.39 config 拆分；1.6.38 修线上潜伏 bug；1.6.37 zip 去重；1.6.36 会话事件；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 写操作闸；1.6.32 组合根；1.6.31 语音条 + 清单。
+1.6.48 当前预设来源；1.6.47 宿主工具发现；1.6.46 本地脚本信任链；1.6.45 表单小工具；1.6.44 面板样式；1.6.43 适配层门面化；1.6.42 心智越界归位；1.6.41 backup 拆 ZIP；1.6.40 core 反向依赖 10→0；1.6.39 config 拆分；1.6.38 修线上潜伏 bug；1.6.37 zip 去重；1.6.36 会话事件；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 写操作闸；1.6.32 组合根；1.6.31 语音条 + 清单。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -139,12 +139,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.48.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.49.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.48.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.49.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

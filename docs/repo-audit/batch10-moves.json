@@ -61,12 +61,5 @@
     "owner": "test-core",
     "verdict": "keep",
     "evidence": "52 行 2 个用例；扫 src/core/*.js 的 import，断言不出现指向 chat/channels/features/voice/song/mind/mind-adapter/modules/local/persona 的路径；并断言 6 个兼容出口只剩一行 re-export。1.6.40 之前 core 有 10 条反向边，靠这条守住。"
-  },
-  {
-    "path": "docs/repo-audit/batch10-moves.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B5 第四刀的审计补充：8 个搬进 core 的模块 + 分层守卫测试，共 10 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
   }
 ]

@@ -12,12 +12,5 @@
     "owner": "test-channels",
     "verdict": "keep",
     "evidence": "48 行 5 个用例；校验 QQ/Telegram 适配器通过 validateChannel、caps 声明的能力都有方法实现、反例（recall:true 但无方法）会在注册时报错、actions.recall 真的调 delete_msg。"
-  },
-  {
-    "path": "docs/repo-audit/batch4-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B4 新增两个测试的审计补充，3 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
   }
 ]

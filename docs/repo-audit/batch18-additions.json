@@ -5,12 +5,5 @@
     "owner": "test-integration",
     "verdict": "keep",
     "evidence": "44 行 4 个用例；钉住预设来源的优先级（自记 > agent.preset > session.header.agentPreset），并用「header=private、中途记成 social」的场景说明 header 会过期；另测取不到 id / 抛错 / 遗忘。"
-  },
-  {
-    "path": "docs/repo-audit/batch18-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B8 第三刀（当前预设来源加固）的审计补充，2 条；被 scripts/repo-inventory.mjs 读取。"
   }
 ]

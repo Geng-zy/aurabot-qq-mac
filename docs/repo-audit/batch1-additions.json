@@ -40,12 +40,5 @@
     "owner": "test-host",
     "verdict": "keepGenerated",
     "evidence": "134 行路由快照，由 test/host-routes.test.js 读取；当前 133 条（含 /aurabot/api 前缀路由）；改动面板路由时必须同步更新。"
-  },
-  {
-    "path": "docs/repo-audit/batch1-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B1 新增文件（host 四个子模块 + 路由快照测试 + fixture）的审计补充，6 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
   }
 ]

@@ -109,6 +109,33 @@ function areaOf(rel) {
   return parts.length > 1 ? parts[0] : 'root'
 }
 
+/**
+ * 自动结论：只给「依据本来就是全量运行」的那两类文件。
+ *
+ * - 测试文件：它们的验证依据就是「全量跑过」，逐个手写一条只会把清单变成负担
+ *   （本仓为这件事返工过 6 次）。这里按目录自动生成，并在 evidence 里写清「怎么被验证的」。
+ * - 审计数据文件：本来就是这份清单的输入。
+ *
+ * 源码 / 客户端 / 脚本 / 文档仍然必须人工结论：那才是「每个自有源文件有归属」要管的东西。
+ */
+function autoVerdict(rec) {
+  if (rec.kind === 'test') {
+    return {
+      verdict: 'keep',
+      owner: 'test',
+      evidence: `测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；${rec.lines ? `共 ${rec.lines} 行；` : ''}本行由 scripts/repo-inventory.mjs 自动生成。`,
+    }
+  }
+  if (rec.path.startsWith('docs/repo-audit/')) {
+    return {
+      verdict: 'keepGenerated',
+      owner: 'audit',
+      evidence: '审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。',
+    }
+  }
+  return null
+}
+
 function loadAudits() {
   const map = new Map()
   let names = []
@@ -150,6 +177,8 @@ export function buildInventory() {
     if (text) {
       rec.imports = parseImports(text).map((s) => resolveSpec(s, abs)).filter(Boolean).map((p) => relative(ROOT, p))
     }
+    const auto = autoVerdict(rec)
+    if (auto) rec.auto = auto
     records.push(rec)
     byAbs.set(rel, rec)
   }
@@ -187,7 +216,7 @@ function md({ records }, audits) {
   lines.push('| 文件 | 类别 | 区域 | 行 | 被依赖 | 测试引用 | 结论 | 归属 | 依据 |')
   lines.push('|---|---|---|---|---|---|---|---|---|')
   for (const r of records.sort((a, b) => a.path.localeCompare(b.path))) {
-    const a = audits.get(r.path)
+    const a = audits.get(r.path) || r.auto
     if (!a) missing.push(r.path)
     lines.push(`| \`${r.path}\` | ${r.kind} | ${r.area} | ${r.lines ?? '—'} | ${r.importers.length} | ${(r.tests || []).length} | ${a ? VERDICTS[a.verdict] : '**待审**'} | ${a?.owner ?? '—'} | ${a?.evidence ?? '—'} |`)
   }
@@ -197,7 +226,7 @@ function md({ records }, audits) {
 function header({ records }, audits) {
   const counts = new Map()
   for (const r of records) {
-    const a = audits.get(r.path)
+    const a = audits.get(r.path) || r.auto
     const k = a ? VERDICTS[a.verdict] : '待审'
     counts.set(k, (counts.get(k) || 0) + 1)
   }
@@ -246,7 +275,7 @@ if (isMain) {
     console.log(`受版本控制的文件：${inv.records.length}`)
     for (const [k, n] of summary(inv)) console.log(`  ${k.padEnd(14)} ${n}`)
     const own = inv.records.filter((r) => ['source', 'client-part', 'client-template', 'script'].includes(r.kind))
-    const missing = own.filter((r) => !audits.has(r.path))
+    const missing = own.filter((r) => !audits.has(r.path) && !r.auto)
     console.log(`\n自有代码文件：${own.length}，已有结论：${own.length - missing.length}，待审：${missing.length}`)
     for (const r of missing.slice(0, 40)) console.log(`  - ${r.path}`)
     if (missing.length > 40) console.log(`  …还有 ${missing.length - 40} 个`)

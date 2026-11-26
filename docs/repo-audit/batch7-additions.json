@@ -5,12 +5,5 @@
     "owner": "test-core",
     "verdict": "keep",
     "evidence": "72 行 6 个用例；直接测 src/core/zip.js 的两种读取者：宽松版按 want 过滤、严格版覆盖正常解包、路径穿越/绝对路径/反斜杠拒绝、加密条目拒绝、CRC 不符报错、解压总大小上限。"
-  },
-  {
-    "path": "docs/repo-audit/batch7-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B5 第一刀新增测试的审计补充，2 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
   }
 ]

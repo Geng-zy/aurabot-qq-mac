@@ -26,12 +26,5 @@
     "owner": "test-mind",
     "verdict": "keep",
     "evidence": "40 行 2 个用例；断言 mind-adapter 只能从 ../mind/index.js 取心智能力（其余 mind/* 一律算绕过），并断言门面导出了适配层要用的 10 个策略函数。"
-  },
-  {
-    "path": "docs/repo-audit/batch13-additions.json",
-    "area": "audit",
-    "owner": "audit",
-    "verdict": "keepGenerated",
-    "evidence": "B6 第二刀（适配层门面化）的审计补充，5 条；被 scripts/repo-inventory.mjs 读取。"
   }
 ]
