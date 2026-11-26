@@ -591,4 +591,9 @@ Mini：purge-scope-integration / chat-wiring / group-context-images / chat-sessi
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.38.tgz（444 条目，19,637,179 字节）
 sha256    259fa5c4e8433bfeb0f62e46821ed6329f4a4ee6a7e180cfe4c6253c4a3c01f5
+提交      282936b（main）
+tag       v1.6.38 → 282936b
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.38
+资产      dsh-aurabot-qq-1.6.38.tgz  19,637,179 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45757754389（ubuntu + macos 双平台 success）
 ```
