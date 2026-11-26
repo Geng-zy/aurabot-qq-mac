@@ -381,3 +381,63 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.35
 资产      dsh-aurabot-qq-1.6.35.tgz  19,633,299 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45747561541（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B3（第二刀）· 会话事件状态机先补测试、再拆记账规则
+
+范围：`src/chat/session-events.js`（230 → 215 行，依赖 43 → 41）、新增 `src/chat/usage-accounting.js`、一个新测试。
+
+### 改动
+
+```text
+src/chat/session-events.js     记账那段（20 行）改为调用 accountUsage；少 3 个依赖，多 1 个
+src/chat/usage-accounting.js   新增 50 行：token 求和、system 会话累 st.system.tokens、
+                               紧跟 tool/call 的算到工具模块、其余按 sessionTarget 的 provider/model
+test/chat-session-events.test.js 新增 222 行 10 个用例（7 个状态机 + 3 个记账）
+```
+
+顺序说明：先写测试把现有行为钉住（7 条判定全绿），再抽记账规则，抽完测试不改语义只换依赖形状 —— 全程没有「先改代码再补测试」。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1605 passed / 0 failed / 0 skipped（比 1.6.35 多 10 个）
+语法检查    572 个文件通过
+oxlint      0 error / 164 warning
+清单闸门    647 个文件全部有结论，0 待审
+```
+
+直接测试覆盖到的判定：正常一轮发一次、旧会话不发但释放、隐私拦截改发 `[沉默]`、
+非正常结束不发但释放、工具用量归模块、system 轮次交 promise（不发 QQ）、调试等待方收正文。
+
+### 2. 模拟网关（Air）
+
+`test/e2e.test.js` 全绿；本批只动会话事件的内部组织，收发路径不变。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / chat-session-events / chat-attention-ranking / panel-post-only
+      → tests 21 / pass 21 / fail 0 / skipped 0
+```
+
+### 4. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-113643
+加载    2026-11-26 11:36:58 [core] Aurabot v1.6.36 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 11:37:01 [onebot] 已连上 QQ 网关（WS）
+面板    GET /aurabot/api/state → 200，version=1.6.36，onebot=connected
+闸门    GET /aurabot/api/notice/toggle → 405
+账本    usage.json 最近写入 11:35（记账路径在跑）
+错误    日志 [error]/Cannot access/ReferenceError/accountUsage 命中 0
+同源    session-events.js、usage-accounting.js 与 Air 同哈希
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.36.tgz（444 条目，19,635,147 字节）
+sha256    9d7fb4da1f3d3dca0b2b23235e6719eea9e86103a2996e8ecb70a636116a5783
+```

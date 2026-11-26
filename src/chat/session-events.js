@@ -1,6 +1,6 @@
 export function createSessionEventHandler({
   sessionKey, sessionToChat, chatOfSession, turnState, running, turnCurrent, markRunning,
-  sessionTarget, moduleOfTool, recordUsage, moduleLabel, reasoningOf, assistantReplyText,
+  accountUsage, sessionTarget, reasoningOf, assistantReplyText,
   cleaningFor, blockSessionPrivacy, log, getConfig, getMind, noteUsage, takeInterim, extractReply,
   guardReply, chainSend, deliver, map, audienceRevision, release, rememberFinished,
   slowNoticeSent, clearSlowNotices, clearRunning, stopTyping, rescueFromThinking, isSilence,
@@ -52,23 +52,8 @@ export function createSessionEventHandler({
       // 算到那个工具所属的模块名下，别把生图的消耗全算成聊天。
       // 系统会话（外部模块后台 / 日记 / 目的引擎那种）本来就按来源记，不受影响。
       if (d.usage) {
-        const used = ['inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
-          .reduce((sum, key) => sum + (Number(d.usage[key]) || 0), 0)
-        if (st.system) st.system.tokens = (st.system.tokens || 0) + used
-        if (st.deliveryReceipt) st.deliveryTokens += used
-        const target = sessionTarget.get(key)
-        const viaTool = st.lastTool && st.lastTool.turn === d.turn ? moduleOfTool(st.lastTool.name) : ''
-        st.lastTool = null
-        try {
-          recordUsage({
-            module: viaTool || moduleLabel(chatId),
-            chat: chatId,
-            provider: target?.provider || '',
-            model: target?.model || '',
-            usage: d.usage,
-            at: event.time,
-          })
-        } catch {}
+        // 记账规则住在 usage-accounting.js：工具调用后的那次模型调用算到工具模块名下
+        accountUsage({ st, chatId, target: sessionTarget.get(key), usage: d.usage, turn: d.turn, time: event.time })
       }
       if (d.interrupted) return
       // 顺手记下思考：万一这一轮她一个字正文都没写，turn/end 时还有机会把定稿捞回来

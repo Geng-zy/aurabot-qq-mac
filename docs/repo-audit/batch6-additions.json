@@ -1,0 +1,23 @@
+[
+  {
+    "path": "src/chat/usage-accounting.js",
+    "area": "chat",
+    "owner": "chat-usage",
+    "verdict": "keep",
+    "evidence": "50 行；一次调用的 token 归属规则（四类 token 求和、system 会话累 st.system.tokens、紧跟 tool/call 的算到工具模块、其余按 sessionTarget 的 provider/model）；被 src/chat/session-events.js 调用 1 处；test/chat-session-events.test.js 里 3 个用例直接测它。"
+  },
+  {
+    "path": "test/chat-session-events.test.js",
+    "area": "test",
+    "owner": "test-chat",
+    "verdict": "keep",
+    "evidence": "222 行 10 个用例；用假依赖袋直接驱动 createSessionEventHandler（原来 0 直接测试）：正常一轮发一次、旧会话不发但释放、隐私拦截改发沉默、非正常结束不发、工具用量归模块、system 轮次交 promise、调试等待方收正文；另 3 个用例测 usage-accounting。"
+  },
+  {
+    "path": "docs/repo-audit/batch6-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B3 第二刀新增文件（usage-accounting.js + 会话事件测试）的审计补充，3 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  }
+]

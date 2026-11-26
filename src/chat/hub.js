@@ -49,6 +49,7 @@ import { createReferenceTools } from './reference.js'
 import { createTranscriber } from './transcribe.js'
 import { createImageTools } from './images.js'
 import { createSessionEventHandler } from './session-events.js'
+import { createUsageAccounting } from './usage-accounting.js'
 import { createTurnState } from './turn-state.js'
 import { createOnMessageHandler } from './on-message.js'
 import { createNotifyEvents } from './notify-events.js'
@@ -1241,9 +1242,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     stopTyping, turnEpochs, turnMaxMs, turnSeq, withPromptCapture, isDisposed: () => disposed,
   })
 
+  // 用量记账单独一个模块（谁该为这次 token 付费的规则在那边）
+  const accountUsage = createUsageAccounting({ recordUsage, moduleLabel, moduleOfTool })
   const onSessionEvent = createSessionEventHandler({
     sessionKey, sessionToChat, chatOfSession, turnState, running, turnCurrent, markRunning,
-    sessionTarget, moduleOfTool, recordUsage, moduleLabel, reasoningOf, assistantReplyText,
+    accountUsage, sessionTarget, reasoningOf, assistantReplyText,
     cleaningFor, blockSessionPrivacy, log, getConfig, getMind: () => mind, noteUsage, takeInterim, extractReply,
     guardReply, chainSend, deliver: (...a) => deliver(...a), map, audienceRevision, release, rememberFinished,
     slowNoticeSent, clearSlowNotices, clearRunning, stopTyping, rescueFromThinking, isSilence,

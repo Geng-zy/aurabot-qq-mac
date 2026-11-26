@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.36
+
+- B3（第二刀）会话事件状态机：`src/chat/session-events.js` 从 230 行降到 215 行，依赖 43 → 41。
+  「这次 token 该记在谁名下」的规则抽到 `src/chat/usage-accounting.js`（50 行）：
+  四类 token 求和、system 会话累 `st.system.tokens`、紧跟 `tool/call` 的那次算到工具所属模块、
+  其余按 `sessionTarget` 的 provider/model；`recordUsage` 抛错不影响这一轮。
+- 新增 `test/chat-session-events.test.js`（222 行 10 个用例）：这个状态机原来 0 直接测试、只靠 e2e 间接覆盖。
+  现在用假依赖袋直接钉住七条判定——正常一轮发一次、旧会话不发但释放、隐私拦截改发 `[沉默]`、
+  非正常结束不发、工具用量归模块、system 轮次交 promise、调试等待方收正文；另 3 个用例测记账模块。
+- 回归：全量 1605 个测试通过（新增 10 个），语法 572 文件，oxlint 0 error / 164 warning。
+- 行为不变：`hub.js` 只多一行装配（`createUsageAccounting`），其余调用点位不动。
+
 ## 1.6.35
 
 - B3（第一刀）聊天中枢：把「单一注意力」的排序与放行规则从 `src/chat/hub.js` 搬进
