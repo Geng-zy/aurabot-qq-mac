@@ -1,9 +1,1 @@
-[
-  {
-    "path": "test/host-tools.test.js",
-    "area": "test",
-    "owner": "test-integration",
-    "verdict": "keep",
-    "evidence": "58 行 9 个用例；直接测宿主全局工具发现的四条路径（restrictableNames → knownNames → 探针报错解析 → 未知返回 null），以及 parseKnownToolNames 对引号/中文冒号/多种分隔符/(none) 的容忍；探测失败只留 debug 不刷 warn。"
-  }
-]
+[]

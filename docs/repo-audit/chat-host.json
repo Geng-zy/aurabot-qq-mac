@@ -4,7 +4,7 @@
     "area": "host",
     "owner": "host",
     "verdict": "split",
-    "evidence": "855 行（>300）；src 内 0 个文件 import 它（DSH 按 package.json main 加载的插件入口），被 14 个测试 import（test/e2e.test.js:184 host.apply、test/panel-access-gate.test.js、test/system-processes.test.js、test/modules.test.js 等）；内部依赖 63 个（core/、channels/、chat/、features/*-routes.js、host/*）。单文件 6 类职责：配置与密钥登记（L114-173）、平台通道接线（L182-235）、心智适配器装配（L284-343）、createHub 注入 25 项（L344-408）、21 处 register*Routes（L701-834）、云备份定时与看门狗（L766-820、L662-672）。B1『host.js 只留装配』未达成。"
+    "evidence": "664 行（1.6.32 已执行第一刀：路由表进 src/host/routes.js、云备份定时器进 backup-schedule.js、心智装配进 mind.js、头像进 avatar.js，855 → 664）；剩余主体是组合根装配与 setConfig 的跨子系统副作用；被 14 个测试 import。"
   },
   {
     "path": "src/host/http.js",
@@ -52,8 +52,8 @@
     "path": "src/chat/attention.js",
     "area": "chat",
     "owner": "chat-attention",
-    "verdict": "split",
-    "evidence": "218 行；唯一 importer src/chat/hub.js（L1329）；注入依赖 38 个；0 个直接测试（test/e2e.test.js、test/hub-lifecycle.test.js 经 test/helpers/qq-in.js:3 的 hub.onMessage 走到 enqueue/flush）。三块互不相关：合并窗口 enqueue（L2-28）、群聊秘书 LLM 否决并写 dataDir('secretary-stats.json')（L40-87）、单一注意力排队与保留重试（L89-217，含 L191 的 retainSessionMessages 会话退避重存）。"
+    "verdict": "keep",
+    "evidence": "271 行（1.6.35 已执行：单一注意力的排序/放行规则进 createAttentionRanking）；新增 test/chat-attention-ranking.test.js 6 个直接用例。"
   },
   {
     "path": "src/chat/chat-log.js",
@@ -130,7 +130,7 @@
     "area": "chat",
     "owner": "chat",
     "verdict": "split",
-    "evidence": "1471 行（>300）；importer 22（src/host.js:24 + 21 个测试，如 test/hub-lifecycle.test.js、test/e2e.test.js、test/system-session-backoff.test.js）；内部依赖 64 个；返回对象 72 个键（L1380-1470）；44 个 new Map() + 15 个 new Set() 共享状态。仍持有 6 类职责：会话映射与读盘（L150-192）、外部事件入口与 QQ 兼容壳（L196-261、L339-352）、单轮守卫与释放（L538-603）、提示词注入装配（L752-902）、后台/子智能体回合（L936-1203）、dispose 逐表清理（L1211-1254，一处列 30 张表）。"
+    "evidence": "1459 行（1.6.35 搬走单一注意力排序后 1471 → 1455）；返回对象 72 键、44 Map + 15 Set；21 个测试是安全网，后续沿「会话/回合」与「投递」两条缝继续拆。"
   },
   {
     "path": "src/chat/image-policy.js",
@@ -249,7 +249,7 @@
     "area": "chat",
     "owner": "chat-output",
     "verdict": "split",
-    "evidence": "586 行（>300）；importer 19（src/chat/{hub,chat-log}.js、src/core/bridge.js、src/mind-adapter/index.js、src/channels/qq/features/{qq-api,qq-tools,diary/qzone,qzone-social/social}.js + 11 个测试）；内部依赖 3 个；11 个直接测试（test/reply.test.js、test/dsml-leak.test.js、test/html-fragments.test.js、test/leak-guard.test.js 等）。16 个导出扛 5 类职责：Markdown/内部标记清洗（L19-118）、工具调用文本剥离（L186-295）、出站清洗与分段封顶（L307-396）、parseReply 拆气泡（L399-510）、流水与回执叙述（L517-561）。docs/SESSION-HANDOFF.md 未记其接口。"
+    "evidence": "576 行（>300）；importer 19（src/chat/{hub,chat-log}.js、src/core/bridge.js、src/mind-adapter/index.js、src/channels/qq/features/{qq-api,qq-tools,diary/qzone,qzone-social/social}.js + 11 个测试）；内部依赖 3 个；11 个直接测试（test/reply.test.js、test/dsml-leak.test.js、test/html-fragments.test.js、test/leak-guard.test.js 等）。16 个导出扛 5 类职责：Markdown/内部标记清洗（L19-118）、工具调用文本剥离（L186-295）、出站清洗与分段封顶（L307-396）、parseReply 拆气泡（L399-510）、流水与回执叙述（L517-561）。docs/SESSION-HANDOFF.md 未记其接口。"
   },
   {
     "path": "src/chat/run-subagent-turn.js",
@@ -319,14 +319,14 @@
     "area": "chat",
     "owner": "chat-session",
     "verdict": "keepDoc",
-    "evidence": "81 行；唯一 importer src/chat/hub.js（L1344）；内部依赖 0、注入依赖 22 个；0 个直接测试，经 test/system-session-backoff.test.js、test/hub-lifecycle.test.js 间接覆盖；docs/SESSION-HANDOFF.md 的 4.2 拆分清单未收录本文件、无职责说明。"
+    "evidence": "84 行；唯一 importer src/chat/hub.js（L1344）；内部依赖 0、注入依赖 22 个；0 个直接测试，经 test/system-session-backoff.test.js、test/hub-lifecycle.test.js 间接覆盖；docs/SESSION-HANDOFF.md 的 4.2 拆分清单未收录本文件、无职责说明。"
   },
   {
     "path": "src/chat/session-events.js",
     "area": "chat",
     "owner": "chat-turn",
-    "verdict": "split",
-    "evidence": "230 行；唯一 importer src/chat/hub.js（L1265）；注入依赖 43 个；0 个直接测试，经 hub.onSessionEvent 被 10 个测试驱动（test/hub-lifecycle.test.js、test/output-guard.test.js、test/turn-timeout.test.js 等）。三块职责混在一个 reducer：token 用量记账与模块归属（L54-72）、chat.everyStep 中间段投递（L92-112）、turn/end 终稿投递/重写/恢复/后台轮次（L115-226，含 6 条 return 分支）。"
+    "verdict": "keep",
+    "evidence": "215 行（1.6.36 已执行：记账规则进 chat/usage-accounting.js 50 行，依赖 43 → 41）；补了 test/chat-session-events.test.js 10 个直接用例（原先 0 个）。"
   },
   {
     "path": "src/chat/session-recovery.js",

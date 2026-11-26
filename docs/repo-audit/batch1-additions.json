@@ -26,19 +26,5 @@
     "owner": "host",
     "verdict": "keep",
     "evidence": "12 行；头像文件位置与状态（file/info）的唯一来源，被 src/host.js（概览）与 src/host/routes.js（头像路由）共用；删掉会让两处各写一份 statSync 判断。"
-  },
-  {
-    "path": "test/host-routes.test.js",
-    "area": "test",
-    "owner": "test-host",
-    "verdict": "keep",
-    "evidence": "54 行 2 个用例；对比 test/fixtures/host-routes.json 的 133 条路由，锁住 /aurabot/api/* 契约；第二个用例断言所有路由都在前缀下且数量 >100。"
-  },
-  {
-    "path": "test/fixtures/host-routes.json",
-    "area": "test",
-    "owner": "test-host",
-    "verdict": "keepGenerated",
-    "evidence": "134 行路由快照，由 test/host-routes.test.js 读取；当前 133 条（含 /aurabot/api 前缀路由）；改动面板路由时必须同步更新。"
   }
 ]

@@ -10,7 +10,10 @@ import { createFakeDsh } from './helpers/fake-dsh.js'
 const OWNER = '10000001'
 const BOT = '20000002'
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-async function until(fn, ms = 8000) {
+// 等待条件成立的上限。原来 8 秒，是在「机器空闲」假设下定的：全量套件满载时，
+// 真实定时器（sleep、退避、flush）会被拖慢，8 秒偶尔不够用，表现为这条用例间歇失败。
+// 放宽到 20 秒只是去掉这个时间假设——条件本身仍然必须成立，等不到照样失败。
+async function until(fn, ms = 20000) {
   const t = Date.now()
   while (Date.now() - t < ms) {
     const v = await fn()

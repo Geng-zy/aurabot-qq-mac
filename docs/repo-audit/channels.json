@@ -18,7 +18,7 @@
     "area": "channels",
     "owner": "channels",
     "verdict": "keepDoc",
-    "evidence": "141 行、1 个内部依赖（ids.js）、8 处 import 含 2 个测试（test/channels-contract.test.js、test/platform-hub.test.js）；是 host.js:182 createChannelManager 的唯一上游契约面。文档缺口有实证：46-62 行 CAPS 15 个键不含 images/text/reply，而 src/chat/send-sticker.js:10 读 caps.images、src/channels/telegram/index.js:6 声明 text/reply/images；13-37 行 typedef 未写 quote/forward/sendFile/voiceWav/voiceText，这 5 个方法却被 src/chat/quote.js:24、src/chat/on-message.js:313、src/chat/send-file.js:29、src/chat/transcribe.js:14 依赖，validateChannel 也不校验。保留代码，补 CAPS 词表与方法清单。"
+    "evidence": "165 行、1 个内部依赖（ids.js）、8 处 import 含 2 个测试（test/channels-contract.test.js、test/platform-hub.test.js）；是 host.js:182 createChannelManager 的唯一上游契约面。文档缺口有实证：46-62 行 CAPS 15 个键不含 images/text/reply，而 src/chat/send-sticker.js:10 读 caps.images、src/channels/telegram/index.js:6 声明 text/reply/images；13-37 行 typedef 未写 quote/forward/sendFile/voiceWav/voiceText，这 5 个方法却被 src/chat/quote.js:24、src/chat/on-message.js:313、src/chat/send-file.js:29、src/chat/transcribe.js:14 依赖，validateChannel 也不校验。保留代码，补 CAPS 词表与方法清单。"
   },
   {
     "path": "src/channels/manager.js",
@@ -74,7 +74,7 @@
     "area": "channels/qq-features",
     "owner": "channels-qq-features",
     "verdict": "keep",
-    "evidence": "34 行、1 个内部依赖（core/net.js）、1 处 import（qq/index.js:10）、0 个测试直接引用；react 经 test/react.test.js:58-61 断言（calls[0].action 为 set_msg_emoji_like、params.set 为 true），typing 经 test/hub-lifecycle.test.js:335 间接覆盖。5 个方法各有实体：typing 只在私聊调 set_input_status（18-19 行），voiceWav 走 get_record 再回落 fetchImage（24-25 行），不是纯改名。"
+    "evidence": "41 行、1 个内部依赖（core/net.js）、1 处 import（qq/index.js:10）、0 个测试直接引用；react 经 test/react.test.js:58-61 断言（calls[0].action 为 set_msg_emoji_like、params.set 为 true），typing 经 test/hub-lifecycle.test.js:335 间接覆盖。5 个方法各有实体：typing 只在私聊调 set_input_status（18-19 行），voiceWav 走 get_record 再回落 fetchImage（24-25 行），不是纯改名。"
   },
   {
     "path": "src/channels/qq/features/config.js",

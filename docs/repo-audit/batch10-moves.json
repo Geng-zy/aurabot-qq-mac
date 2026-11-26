@@ -46,20 +46,13 @@
     "area": "core",
     "owner": "core-media",
     "verdict": "keep",
-    "evidence": "18 行；表情包文件名的安全解析（只认纯文件名 + 图片扩展名），目录由调用方给；被 core/media（按 md5 找图）与 features/stickers（stickerPath）使用，替掉 core→features 的反向依赖。"
+    "evidence": "17 行；表情包文件名的安全解析（只认纯文件名 + 图片扩展名），目录由调用方给；被 core/media（按 md5 找图）与 features/stickers（stickerPath）使用，替掉 core→features 的反向依赖。"
   },
   {
     "path": "src/core/delivery-text.js",
     "area": "core",
     "owner": "core-bridge",
     "verdict": "keep",
-    "evidence": "24 行；投递结果 → 给管理员的一句话（describeDelivery），纯函数；被 core/bridge 与 chat/reply（re-export）使用，替掉 core→chat/reply 的反向依赖；test/e2e.test.js 的回执断言覆盖文案。"
-  },
-  {
-    "path": "test/core-layering.test.js",
-    "area": "test",
-    "owner": "test-core",
-    "verdict": "keep",
-    "evidence": "52 行 2 个用例；扫 src/core/*.js 的 import，断言不出现指向 chat/channels/features/voice/song/mind/mind-adapter/modules/local/persona 的路径；并断言 6 个兼容出口只剩一行 re-export。1.6.40 之前 core 有 10 条反向边，靠这条守住。"
+    "evidence": "20 行；投递结果 → 给管理员的一句话（describeDelivery），纯函数；被 core/bridge 与 chat/reply（re-export）使用，替掉 core→chat/reply 的反向依赖；test/e2e.test.js 的回执断言覆盖文案。"
   }
 ]

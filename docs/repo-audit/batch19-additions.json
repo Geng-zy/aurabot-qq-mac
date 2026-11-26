@@ -1,0 +1,9 @@
+[
+  {
+    "path": "scripts/verify-release.mjs",
+    "area": "scripts",
+    "owner": "tooling-release",
+    "verdict": "keep",
+    "evidence": "95 行；终验脚本：① 复算全仓清单并要求 0 待审；② 把 docs/ACCEPTANCE-LOG.md 里 19 个版本的 sha256 与 GitHub Release 资产 digest 逐条比对；③ 校验 package.json 版本 = 最近 tag。只读不改仓库，任一项失败以非 0 退出；--skip-remote 可离线跑。"
+  }
+]

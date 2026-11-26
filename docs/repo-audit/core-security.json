@@ -11,7 +11,7 @@
     "area": "core",
     "owner": "core-data",
     "verdict": "split",
-    "evidence": "1059 行（>300）；内部依赖 1 个（./store.js:12）；被 src/host.js:44、src/core/backup-push.js:22 引用；被 test/backup.test.js（18 test）、test/backup-restart.test.js（1 test）覆盖；导出 17 个。拆因：手写 zip 写入（localHeader 192、centralHeader 208、createBackup 232）+ zip 读取与流式校验（readEntries 350、verifyEntryStreaming 421、readEntry 447）+ .restore 发布事务与回滚（withRestoreStage 469、publishStage 501、recoverPublish 533）+ 启动时恢复与待恢复会话（resumePendingSessions 722、applyPendingRestore 761）+ 保留策略（pruneLocalBackups 927、prunePreRestore 940）"
+    "evidence": "897 行（1.6.41 已执行第一刀：ZIP 编解码与格式上限进 core/backup-zip.js 198 行；读目录的名字策略用 checkName 钩子留在本文件）；剩余是 .restore 发布/journal 回滚/会话恢复/保留策略。"
   },
   {
     "path": "src/core/bridge.js",
@@ -31,15 +31,15 @@
     "path": "src/core/community.js",
     "area": "core",
     "owner": "core-modules",
-    "verdict": "split",
-    "evidence": "328 行（>300）；内部依赖 2 个（./store.js:15、./modules.js:16）；被 src/host.js:40 引用；被 test/community.test.js（16 test）覆盖；导出 7 个。拆因：两个职责——自带 zip 解包 readZip(71-111) 与 模块库索引/下载/安装/更新/卸载（createCommunity 113-328）；readZip 是第二份实现：grep 'readZip' 得到 src/core/zip.js:19（返回数组、支持 want 过滤）与本文件 71（返回 Map、校验 CRC、限解压总量），中央目录解析逻辑各写一遍"
+    "verdict": "keep",
+    "evidence": "296 行（1.6.37 已执行：内联 ZIP 解析搬进 core/zip.js 的 readZipStrict，328 → 296）；严格校验与报错文案保留，test/community.test.js 16/16。"
   },
   {
     "path": "src/core/config.js",
     "area": "core",
     "owner": "core-base",
-    "verdict": "split",
-    "evidence": "844 行（>300）；内部依赖 5 个（./store.js:4、../chat/group-policy.js:5、../chat/access.js:6、../chat/chat-model.js:7、../channels/qq/features/diary/qzone-audience.js:8）；被 60 个文件引用（src 6：src/host.js:17、src/chat/hub.js:11、src/channels/qq/inbox.js:1、src/channels/qq/features/voice/index.js:12、src/core/module-loader.js:7、src/modules/imagegen/index.js:17；test 54 个含 test/pure.test.js、test/backup.test.js）；导出 10 个。拆因：默认值表 DEFAULTS(10-263，254 行) + 归一化与旧值迁移 normalize(323-682，360 行) + 密钥登记与对外脱敏（SECRETS 683、registerSecretField 683）+ 读写与面板视图（loadConfig 699、saveConfig 734、publicConfig 746、mergeFromPanel 780）四件事混在一个文件；4 处 core→chat/channels 反向依赖也全集中在这 4 行 import"
+    "verdict": "keep",
+    "evidence": "177 行（1.6.39 已执行：DEFAULTS → config-defaults.js 261 行、normalize/deepMerge → config-normalize.js 430 行，本文件只留读写门面并 re-export）；被 60 个文件引用，接口 DEFAULTS/normalize 保持不变。"
   },
   {
     "path": "src/core/image-info.js",
@@ -200,7 +200,7 @@
     "area": "core",
     "owner": "core-data",
     "verdict": "keep",
-    "evidence": "53 行；0 内部依赖；被 src/core/python.js:12、src/song/studio.js:13 引用；无直接测试，经 test/song.test.js（读模型 zip）与 test/macos.test.js（解压 uv 包）间接覆盖；导出 1 个 readZip。去重基线：grep 'readZip' 显示 src/core/community.js:71 是第二份独立实现（返回 Map、校验 CRC），合并方向是 community.js 改用本文件"
+    "evidence": "121 行；0 内部依赖；被 src/core/python.js:12、src/song/studio.js:13 引用；无直接测试，经 test/song.test.js（读模型 zip）与 test/macos.test.js（解压 uv 包）间接覆盖；导出 1 个 readZip。去重基线：grep 'readZip' 显示 src/core/community.js:71 是第二份独立实现（返回 Map、校验 CRC），合并方向是 community.js 改用本文件"
   },
   {
     "path": "src/integration/README.md",
@@ -213,8 +213,8 @@
     "path": "src/integration/host-tools.js",
     "area": "integration",
     "owner": "integration",
-    "verdict": "keepDoc",
-    "evidence": "52 行；0 内部依赖；被 src/integration/purge-scope.js:13、src/chat/tool-scope.js:10 引用；无直接测试，经 test/tool-scope.test.js（3 test）、test/purge-scope.test.js（10 test）、test/purge-scope-integration.test.js、test/group-owner-tools.test.js 间接覆盖。补文档（宿主假设分级）：① agent.ctx.tools.view(agent).restrictableNames 未在 dsh-tools/README.md 的公开面里出现（公开面是 get/definitions/schemas/executable）；② 探测分支靠正则解析英文报错 /known global tools?\\s*[:：]\\s*(.+)$/，对应 DSH 0.2.2-rc.3 的 dsh-tools/lib/index.js:466 单条写死文案，改词即失效；③ 稳定契约只有 purge_ 前缀（REFACTOR-PLAN 1.1 第 3 条）"
+    "verdict": "keep",
+    "evidence": "78 行（1.6.47 已执行：发现路径 2.5 → 4 条，报错解析抽成 parseKnownToolNames 并单独测）；新增 test/host-tools.test.js 9 个用例；探测失败只打 debug。"
   },
   {
     "path": "src/integration/persona-hoist.js",
@@ -227,15 +227,15 @@
     "path": "src/integration/purge-scope.js",
     "area": "integration",
     "owner": "integration",
-    "verdict": "keepDoc",
-    "evidence": "129 行；内部依赖 1 个（./host-tools.js:13）；被 src/host.js:73、src/chat/hub.js:75、src/host/prompt-vars.js:9 引用；被 test/purge-scope.test.js（10 test）、test/purge-scope-integration.test.js（1 test）、test/integration-architecture.test.js 覆盖；导出 13 个。补文档（宿主契约分级）：ctx.on('system-prompt/assemble', …, {global:true}) 与 waterfall 位置参数 (assembly, context, next) 在 rc.3 成立（dsh-system-prompt/lib/index.js:401，context.agent 由 dsh-agent/lib/index.js:409 提供，{global:true} 是 cordis 支持的监听选项）；易碎的是 ① context.agent 未出现在 assemble 的 JSDoc（只写 scope/toolSet），② session.header.agentPreset 只是创建时的预设值——dsh-agent-preset-registry/lib/types/session.js:4-13 明说重建要读 agentPreset 投影而不是 header，运行中切过预设会读到旧值，③ decorateAssembly 塞的 order 字段宿主不认（assemble 产出的 section 只有 name/text/interpolate，见 dsh-system-prompt/lib/index.js:389-395），执行约束实际靠 patch 的 dsh-purge 前缀保留规则生效（同文件 402-408）"
+    "verdict": "keep",
+    "evidence": "约 155 行（1.6.48 已执行：当前预设改为 自记 > agent.preset > header，新增 notePreset/presetFor/forgetPreset）；新增 test/purge-preset.test.js 4 个用例。"
   },
   {
     "path": "src/persona/personas.js",
     "area": "persona",
     "owner": "persona",
     "verdict": "keep",
-    "evidence": "167 行；内部依赖 2 个（../core/store.js:8、../channels/qq/faces.js:9）；被 src/host.js:38、src/host/prompt-vars.js:8、src/mind/self/index.js:9 引用；测试 11 个文件（test/personas.test.js、test/faces.test.js、test/freedom.test.js、test/pure.test.js、test/output-guard.test.js 等）；导出 9 个。1 处 persona→channels 反向依赖（faces.js 只提供 FACE_EXAMPLES 常量）需随 B5 下移｜1.6.42：MAX_PERSONA_CHARS 下沉到 core/persona-limits.js（消除 mind→persona 的上行依赖），personas.js 仍 re-export。"
+    "evidence": "169 行；内部依赖 2 个（../core/store.js:8、../channels/qq/faces.js:9）；被 src/host.js:38、src/host/prompt-vars.js:8、src/mind/self/index.js:9 引用；测试 11 个文件（test/personas.test.js、test/faces.test.js、test/freedom.test.js、test/pure.test.js、test/output-guard.test.js 等）；导出 9 个。1 处 persona→channels 反向依赖（faces.js 只提供 FACE_EXAMPLES 常量）需随 B5 下移｜1.6.42：MAX_PERSONA_CHARS 下沉到 core/persona-limits.js（消除 mind→persona 的上行依赖），personas.js 仍 re-export。"
   },
   {
     "path": "src/security/approval.js",

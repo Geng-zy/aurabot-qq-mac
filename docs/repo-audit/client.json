@@ -11,7 +11,7 @@
     "area": "client",
     "owner": "client-shell",
     "verdict": "keepGenerated",
-    "evidence": "5887 行；由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论"
+    "evidence": "随发布更新（行数见清单「行」列）：由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论"
   },
   {
     "path": "client/parts/PageNav.js",
@@ -668,8 +668,8 @@
     "path": "client/parts/styles.js",
     "area": "client",
     "owner": "client-styles",
-    "verdict": "split",
-    "evidence": "738 行；全部样式：CSS 模板字符串、230 个类名、713 个 { 块（含 5 个 @media、4 个 @keyframes）；被 useStyle.js 引用（第 13 行 el.textContent = CSS）；锁：client-build 断言产物含 .ab-root{；实测问题：83 行 .ab-pm-* 规则没有任何片段使用（28 个 ab-pm 类全是死代码，removed 的页遗留），另有 9 个未使用类（ab-drive/ab-drives/ab-g4/ab-memory-entry/ab-select/ab-stat/ab-step/ab-steps/ab-tab）；反向缺口：9 个片段在用的类名没有任何规则（ab-link、ab-btn、ab-btn-small 在 knowledge.js，ab-body-state、ab-feed、ab-feelings 在 mindNow.js，ab-overview-paths、ab-reception 在 overview.js，ab-settings-body 在 mindSettings.js）；66 个片段另有 315 处内联 style 对象；拆法：tokens+基础（.ab-root 变量与重置约 120 行）/ 控件（btn/input/sel/seg/chip/badge/savebar 等约 300 行）/ 页面（feed/psec/pm/starmap 等约 300 行）三片；先删 83 行 ab-pm 再拆，净省约 83 行"
+    "verdict": "keep",
+    "evidence": "634 行（1.6.44 已执行：删掉 108 条规则 / 37 个死类名，739 → 634；生成物 client.js 5887 → 5783）；新增 test/client-css.test.js 防回潮。"
   },
   {
     "path": "client/parts/switch.js",
@@ -696,8 +696,8 @@
     "path": "client/parts/useField.js",
     "area": "client",
     "owner": "client-hooks",
-    "verdict": "split",
-    "evidence": "26 行；草稿字段工厂（sw/text/area/num/percent/range/list/select/choices），26 行，被 26 个片段调用；同时导出 HOST 与 exPath（示例路径），被 connect/backup/hostToolPermissions/song/voiceImport/wizard 6 个片段引用；锁：client-build；hostToolPermissions 与 group-owner-tools 依赖 f.choices/f.list 的产出形状；拆法：HOST/exPath（4 行）移入 client-utils 的主目录常量，useField 只留字段工厂，预估 26→22 行；另需补一份字段工厂接口文档（9 个方法、路径点号语义）"
+    "verdict": "keep",
+    "evidence": "53 行（1.6.45 已执行：新增 secretPlaceholder / f.secret / notify 三个共享实现，把 13 处密钥占位与 21 处提示收敛）；新增 test/client-form-kit.test.js 3 个用例。"
   },
   {
     "path": "client/parts/useStyle.js",

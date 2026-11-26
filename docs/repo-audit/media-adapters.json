@@ -4,7 +4,7 @@
     "area": "local",
     "owner": "local-router",
     "verdict": "keep",
-    "evidence": "177 行；被 src/host.js:26、src/features/imagegen.js:187（动态 import）、src/channels/qq/features/voice/index.js:10、src/song/studio.js:880（动态 import）import，4 个层级直连、无门面；test/local.test.js、test/video.test.js、test/imagegen-img2img.test.js 覆盖；内部依赖 3 个（core/store.js、core/net.js、core/image-info.js）+ templates 目录常量。职责：SLOTS 5 槽位（17-23 行）、模板投放（147-154 行）、超时/竞态包装（100-144 行）、返回值归一（toImageBuffer 26-52 行、localAudioFile 57-61 行）。缺陷事实：approved() 定义在 82-94 行，全仓 0 调用点（grep approved\\\\( 仅 82 行定义），call() 不做哈希校验，status() 第 169 行把 approved 硬编码为 true，因此 config.local.hashes 与 .trusted.json 仅由 /local/trust 路由写入、运行时不再比对。"
+    "evidence": "约 190 行（1.6.46 已执行：补上脚本信任链——trustState 纯查询 / rememberTrust TOFU / call() 前校验 / status 报真实状态）；新增 test/local-trust.test.js 4 个用例。"
   },
   {
     "path": "src/local/templates/README-本地接口.md",

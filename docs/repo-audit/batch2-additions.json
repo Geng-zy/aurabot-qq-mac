@@ -12,12 +12,5 @@
     "owner": "panel",
     "verdict": "keep",
     "evidence": "20 行；MIND_OFF 常量与 ok/fail 形状，被 5 个 src/features/mind-*-routes.js import（原各写一份）；心智相关 266 个测试覆盖调用方行为。"
-  },
-  {
-    "path": "test/panel-post-only.test.js",
-    "area": "test",
-    "owner": "test-panel",
-    "verdict": "keep",
-    "evidence": "102 行 4 个用例；扫 src/features 的 route 源码核对读包体者已登记，并实测 GET 打 20 条路径返回 405；其中「GET /notice/toggle 不改配置」在旧闸门下失败、新闸门下通过（红-绿证据）。"
   }
 ]

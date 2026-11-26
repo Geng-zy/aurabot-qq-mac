@@ -1,9 +1,1 @@
-[
-  {
-    "path": "test/zip-readers.test.js",
-    "area": "test",
-    "owner": "test-core",
-    "verdict": "keep",
-    "evidence": "72 行 6 个用例；直接测 src/core/zip.js 的两种读取者：宽松版按 want 过滤、严格版覆盖正常解包、路径穿越/绝对路径/反斜杠拒绝、加密条目拒绝、CRC 不符报错、解压总大小上限。"
-  }
-]
+[]

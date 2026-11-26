@@ -7,20 +7,6 @@
     "evidence": "196 行；被 src/chat/voice-file.js（audioDurationSec 首选）与 src/voice/tts.js（isZeroSampleWav）import，2 处生产调用；test/audio-duration.test.js 10 个用例覆盖 WAV/MP3/OGG/M4A 与 0 采样判定；接口只有 durationFromFile/isZeroSampleWav 两个导出，深模块。"
   },
   {
-    "path": "test/audio-duration.test.js",
-    "area": "test",
-    "owner": "test-voice",
-    "verdict": "keep",
-    "evidence": "125 行，10 个用例；覆盖 src/voice/duration.js 与 src/chat/voice-file.js 的 audioDurationSec；用 buildWav 与手工帧头构造 fixtures，不依赖 ffmpeg 与真实音频。"
-  },
-  {
-    "path": "test/repo-inventory.test.js",
-    "area": "test",
-    "owner": "test-tooling",
-    "verdict": "keep",
-    "evidence": "84 行，3 个用例；读 docs/repo-audit/*.json + git ls-files，锁住「每个文件有结论、结论不指向幽灵文件、verdict/owner/证据合法」；是全仓清单的机械闸门。"
-  },
-  {
     "path": "docs/REFACTOR-PLAN.md",
     "area": "doc",
     "owner": "docs",
@@ -39,14 +25,14 @@
     "area": "doc",
     "owner": "docs",
     "verdict": "keepGenerated",
-    "evidence": "626 行生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。"
+    "evidence": "随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。"
   },
   {
     "path": "docs/SESSION-HANDOFF.md",
     "area": "doc",
     "owner": "docs",
     "verdict": "keep",
-    "evidence": "1308 行交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。"
+    "evidence": "随发布更新（行数见清单「行」列）：交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。"
   },
   {
     "path": "client/README.md",

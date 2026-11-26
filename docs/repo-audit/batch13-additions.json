@@ -19,12 +19,5 @@
     "owner": "core-text",
     "verdict": "keep",
     "evidence": "46 行；中文关键词抽取 keywords()，纯文本处理、0 内部依赖；被记忆检索与 mind-adapter 使用；原路径 src/mind/memory/words.js 保留兼容出口。"
-  },
-  {
-    "path": "test/adapter-facade.test.js",
-    "area": "test",
-    "owner": "test-mind",
-    "verdict": "keep",
-    "evidence": "40 行 2 个用例；断言 mind-adapter 只能从 ../mind/index.js 取心智能力（其余 mind/* 一律算绕过），并断言门面导出了适配层要用的 10 个策略函数。"
   }
 ]

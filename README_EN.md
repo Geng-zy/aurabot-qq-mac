@@ -41,13 +41,14 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.49 highlights
+## 1.6.50 highlights
 
-### Repository inventory gate stabilised (B9)
+### Final verification: make the ledger checkable (B10)
 
-- The gate used to demand a hand-written audit row for **every** tracked file, which meant a manual step for each new test file — six round trips this session.
-- `test/**` and `docs/repo-audit/**` rows are now generated automatically (their evidence is "the full suite runs"), while **source, client, scripts and docs still require a human verdict**; a reverse assertion makes sure the auto rule cannot be used to bypass source review.
-- Eighteen redundant "self-audit" rows were removed, and `npm run inventory` is now a discoverable entry point.
+- **Evidence brought back in line with reality**: spot checks showed executed verdicts still describing the pre-refactor state (`host.js` claimed 855 lines, actually 664). Twelve rows now state post-refactor facts; nine files that change every release say "see the line column" instead of freezing a count. The ledger's claimed-vs-actual line mismatch is now **0/688**.
+- **Verification is now a script**: `npm run verify` (`scripts/verify-release.mjs`) recomputes the inventory, compares all 19 release-asset sha256 values, and checks version/tag agreement. On its first run it caught "one file still pending" — its own row — which is the gate doing its job.
+- **19/19 release assets match the recorded hashes byte for byte.**
+- One intermittent e2e failure was traced to an 8-second wait that assumed an idle machine; the window is now 20 seconds with the reason written down.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -133,12 +134,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.49.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.50.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.49.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.50.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

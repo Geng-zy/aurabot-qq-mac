@@ -1,16 +1,1 @@
-[
-  {
-    "path": "test/module-files-paths.test.js",
-    "area": "test",
-    "owner": "test-channels",
-    "verdict": "keep",
-    "evidence": "44 行 3 个用例；校验 BUILTINS + QQ_FEATURES 的 sourcePath 与 files 都在 src/ 下存在且写法统一；profile 的 files=['qq-profile.js'] 在这条测试下先红后绿（修复为 src 相对路径）。"
-  },
-  {
-    "path": "test/channels-caps.test.js",
-    "area": "test",
-    "owner": "test-channels",
-    "verdict": "keep",
-    "evidence": "48 行 5 个用例；校验 QQ/Telegram 适配器通过 validateChannel、caps 声明的能力都有方法实现、反例（recall:true 但无方法）会在注册时报错、actions.recall 真的调 delete_msg。"
-  }
-]
+[]

@@ -4,7 +4,7 @@
     "area": "core",
     "owner": "core-config",
     "verdict": "keep",
-    "evidence": "11 行；人格卡字数上限常量（MAX_PERSONA_CHARS=12000）；被 src/persona/personas.js（校验）与 src/mind/self/index.js（截断）引用；下沉到 core 后消除了 mind→persona 这唯一一条上行依赖；persona 仍 re-export 保持对外契约。"
+    "evidence": "8 行；人格卡字数上限常量（MAX_PERSONA_CHARS=12000）；被 src/persona/personas.js（校验）与 src/mind/self/index.js（截断）引用；下沉到 core 后消除了 mind→persona 这唯一一条上行依赖；persona 仍 re-export 保持对外契约。"
   },
   {
     "path": "src/mind-adapter/local-runner.js",
@@ -12,12 +12,5 @@
     "owner": "mind-local",
     "verdict": "keep",
     "evidence": "177 行；本地模型（mlx_lm）的进程管理：起进程、读输出、探活；只依赖 node 内置；被 mind-adapter 的 index/context-text/install 三处引用（原路径 src/mind/local/runner.js 现在是兼容出口）；test/mind-inner.test.js 覆盖 createLocalModel；心智核心里不再出现 child_process（新守卫测试）。"
-  },
-  {
-    "path": "test/mind-layering.test.js",
-    "area": "test",
-    "owner": "test-mind",
-    "verdict": "keep",
-    "evidence": "62 行 3 个用例；扫 src/mind/** 的 import，断言只依赖 mind 与 core，兼容出口走白名单且必须是单行 re-export；另断言 mind 里不出现 child_process。"
   }
 ]

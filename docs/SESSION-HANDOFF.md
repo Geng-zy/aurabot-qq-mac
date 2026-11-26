@@ -17,14 +17,18 @@
 ### 0.1 当前基线
 
 ```text
-上一个发布             3658ee3 / v1.6.30
-package.json           1.6.49
-全量测试               1577 passed / 0 failed / 0 skipped
-语法检查               564 个文件通过
-oxlint                 0 errors / 164 warnings
-全仓清单               633 个文件全部有审计结论（docs/REPO-INVENTORY.md）
-Mac mini               见 docs/ACCEPTANCE-LOG.md 的 B0 段
+上一个发布             v1.6.50（终验版本；1.6.31–1.6.49 共 19 个批发布都在 docs/ACCEPTANCE-LOG.md）
+package.json           1.6.50
+全量测试               1645 passed / 0 failed / 0 skipped
+语法检查               600 个文件通过
+oxlint                 0 errors / 158 warnings
+全仓清单               688 行，自有代码文件 430 个，0 待审（docs/REPO-INVENTORY.md）
+终验脚本               node scripts/verify-release.mjs（清单 0 待审 + 19 个 Release 资产哈希 + 版本一致）
+Mac mini               装的是 1.6.50；真实 purge 1.7.20；每批实机证据见 ACCEPTANCE-LOG
 ```
+
+清单口径（1.6.49 起）：`test/**` 与 `docs/repo-audit/**` 的结论自动生成，**源码 / 客户端 / 脚本 / 文档
+仍必须人工结论** —— 闸门里有反向断言防止用自动规则绕开源码审计。
 
 ### 0.2 新会话第一步
 

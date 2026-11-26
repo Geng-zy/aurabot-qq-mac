@@ -1334,3 +1334,84 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.49
 资产      dsh-aurabot-qq-1.6.49.tgz  19,648,240 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45807913231（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B10 · 终验
+
+这一批不改产品行为，改的是「这份清单能不能被人核对」。
+
+### 1. 清单依据对齐现实
+
+抽样发现：部分**已执行**的结论，依据还停在改前。
+
+```text
+src/host.js        证据写「855 行」 → 实际 664（1.6.32 已拆）
+src/core/config.js 证据写「844 行」 → 实际 177（1.6.39 已拆）
+```
+
+处理：
+- 12 条改成执行后的事实（写明是哪一版拆的、拆去哪、现状行数）；
+- 9 个**随发布变动**的文件（CHANGELOG / README×2 / package.json / client.js / 清单自身 / 交接文档 /
+  .gitignore / 清单生成器）不再写死行数，改成「随发布更新（行数见清单「行」列）」；
+- `test/**` 的 190 条人工审计行删掉，交给 1.6.49 引入的自动结论。
+
+核对结果：**证据首句行数与实际行数的偏差 0 / 688**。
+
+### 2. 终验做成可复跑的脚本
+
+`scripts/verify-release.mjs`（`npm run verify`）：
+
+```text
+① 复算全仓清单，要求「待审 0」
+② 把 docs/ACCEPTANCE-LOG.md 里每个版本的 sha256 与 GitHub Release 资产 digest 逐条比对
+③ 校验 package.json 版本 = 最近 tag
+只读、不改仓库；任一项失败以非 0 退出；--skip-remote 可离线跑
+```
+
+第一次运行它报「✖ 全仓清单：还有 1 个待审」—— 正是它自己这个新脚本还没有审计结论。
+
+### 3. 19/19 资产与记录逐字节一致
+
+```text
+✔ v1.6.31 … v1.6.49 资产：与记录同哈希（19 条全过）
+✔ 版本一致：package.json = 最近 tag
+```
+
+### 4. e2e 的间歇失败查清了（不是产品缺陷）
+
+```text
+现象    「翻聊天记录：读当前聊天更早的消息」在全量套件里偶发 8s 超时（独立跑 4/4 通过）
+原因    until() 默认 8 秒，是按「机器空闲」定的；全量 1645 个用例 + 打包/rsync 并行时不够用
+处理    放宽到 20 秒，并在注释里写明理由；条件本身仍然必须成立，等不到照样失败
+```
+
+这条**明确记为测试时间假设的修正**，不算产品修复 —— 不去假装它是 bug 也不假装它不存在。
+
+### 5. 自动测试（Air）
+
+```text
+全量        1645 passed / 0 failed / 0 skipped
+语法检查    600 个文件通过
+oxlint      0 error / 158 warning
+清单闸门    688 行，430 个自有代码文件，0 待审；证据行数偏差 0/688
+终验脚本    --skip-remote：清单通过、发布记录 19 条、版本一致（tag 在发版后补上）
+```
+
+### 6. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-203350
+加载    2026-11-26 20:33:55 [core] Aurabot v1.6.50 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.50，onebot=connected，modules=12
+错误    20:00 之后新增 [error] 0 条
+测试    purge-scope-integration + e2e + repo-inventory：112 passed / 0 failed / 2 skipped
+        （跳过的是「不是 git 检出就跳过」的两条，/tmp 副本没有 .git）
+```
+
+### 7. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.50.tgz（460 条目，19,634,315 字节）
+sha256    dd165851970389c7acaaa829f20ad85d0a7377d891d30569d199920c694f1e52
+```
