@@ -858,4 +858,9 @@ Mini：purge-scope-integration / mind-layering / mind-core / mind-inner / mind-a
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.42.tgz（457 条目，19,643,757 字节）
 sha256    500c12109a027ff2811d44e38a0e0a7400f46ec06cfff7ad1f033e95174e2515
+提交      1dfecd8（main）
+tag       v1.6.42 → 1dfecd8
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.42
+资产      dsh-aurabot-qq-1.6.42.tgz  19,643,757 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45772378244（ubuntu + macos 双平台 success）
 ```
