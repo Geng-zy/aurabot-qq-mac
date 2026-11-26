@@ -1,5 +1,5 @@
 // 给心智核心注册她自己能做的事：找管理员、自己吃点东西。
-import { wantsMeal, wantsOwnerChat } from '../mind/motivation/index.js'
+import { wantsMeal, wantsOwnerChat } from '../mind/index.js'
 
 export function registerOffers({ mind, now, canReachOwner, actionBudget, reachOwner, handleBodyEvent }) {
   mind.motivation.offer({

@@ -11,14 +11,14 @@
     "area": "mind",
     "owner": "mind-core",
     "verdict": "keep",
-    "evidence": "54 行；import：mind-adapter/inner.js、mind-adapter/outreach.js、mind/index.js、mind/memory/index.js；测试：无直接 import；test/mind-memory.test.js:255 写 budget.unlimitedDay 验无限预算分支，test/mind-inner.test.js:510 覆盖预算耗尽 code=BUDGET 的分支；内部依赖 0（无）；写 usage 表（store.js:86），charge/spent/allow/reserve 四个函数即全部接口，reserve 返回的 finish 回调与 memory.ask 的 finally 成对出现（memory/index.js:119-132）；54 行、0 内部依赖，职责单一"
+    "evidence": "re-export shim → src/core/tokens.js（原实现是纯函数/纯工具，适配层也要用；搬到 core 后 mind-adapter 不再绕过门面）。"
   },
   {
     "path": "src/mind/clock.js",
     "area": "mind",
     "owner": "mind-core",
     "verdict": "keep",
-    "evidence": "246 行；import：channels/qq/features/diary/qzone.js、mind-adapter/index.js、mind-adapter/module-api.js、mind-adapter/outreach.js、mind/body/index.js、mind/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/memory/visibility.js、mind/personality/index.js、mind/replay.js；测试：test/mind-core.test.js、test/mind-features.test.js、test/mind-period.test.js 直接 import；内部依赖 0（无）；14 个导出：时区校验、dayKey、parseHm/parseRange/inRange/parsePeriod、parseBirthday/isBirthday/currentAge、describeNow、zonedToEpoch、shortTime；被 src/channels/qq/features/diary/qzone.js 直接 import，属 channels 越层借用（见汇总的分层违规清单）；文件自身 0 内部依赖，纯函数，无状态"
+    "evidence": "re-export shim → src/core/clock.js（原实现是纯函数/纯工具，适配层也要用；搬到 core 后 mind-adapter 不再绕过门面）。"
   },
   {
     "path": "src/mind/conversation.js",
@@ -207,7 +207,7 @@
     "area": "mind/memory",
     "owner": "mind-memory",
     "verdict": "keep",
-    "evidence": "46 行；import：mind-adapter/index.js、mind/memory/index.js、mind/memory/keywords.js；测试：test/mind-fixes.test.js 直接 import keywords；mind-adapter/index.js 也 import；内部依赖 0（无）；从一句话里挑线索词：Intl.Segmenter 分词 + 停用词 + 单字回退，返回 {w, weight}；46 行、0 内部依赖；被 memory/index.js、keywords.js、mind-adapter/index.js 三处使用"
+    "evidence": "re-export shim → src/core/keywords.js（原实现是纯函数/纯工具，适配层也要用；搬到 core 后 mind-adapter 不再绕过门面）。"
   },
   {
     "path": "src/mind/memory/working.js",

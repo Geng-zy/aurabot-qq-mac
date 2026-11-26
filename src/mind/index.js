@@ -22,7 +22,11 @@ import { makePlace, shortId } from './place.js'
 import { createConversation } from './conversation.js'
 import { publicPersonaStyle } from './self/public-style.js'
 
-export { PARAMS, GROUPS } from './params.js'
+export { PARAMS, GROUPS, paramOf } from './params.js'
+export { effortForScene, speechScene } from './conversation.js'
+export { wantsMeal, wantsOwnerChat } from './motivation/index.js'
+export { createEmbedClient, createRerankClient } from './memory/vectors.js'
+export { parseJson } from './memory/text.js'
 export { placeOf, shortId } from './place.js'
 
 const noopLog = { debug() {}, info() {}, warn() {}, error() {} }

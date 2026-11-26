@@ -1,6 +1,6 @@
 // 主动联系管理员、分享排队和“上次找你还没回”的状态。
-import { estimateTokens } from '../mind/budget.js'
-import { inRange, minuteOfDay, parseRange } from '../mind/clock.js'
+import { estimateTokens } from '../core/tokens.js'
+import { inRange, minuteOfDay, parseRange } from '../core/clock.js'
 
 export function createOutreach({ mind, opts, ownerOf, ownerChat, parseChat, now, debug, isClosed }) {
   const SHARE_TTL = 2 * 86400000

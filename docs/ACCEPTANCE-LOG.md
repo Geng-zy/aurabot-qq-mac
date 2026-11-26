@@ -864,3 +864,58 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.42
 资产      dsh-aurabot-qq-1.6.42.tgz  19,643,757 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45772378244（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B6（第二刀）· 适配层只看门面
+
+### 现状与做法
+
+```text
+改前  mind-adapter 有 13 条 import 直连 mind 内部：
+      clock / budget / memory/words / memory/vectors / memory/index / params / conversation / motivation / place / local/runner
+改后  只剩两个入口：core 的通用件、mind/index.js 门面
+      · 通用工具搬进 core（旧路径一行兼容出口）：clock(246) / budget→tokens(54) / memory/words→keywords(46)
+      · 心智自己的策略由门面统一导出：paramOf / effortForScene / speechScene / wantsMeal / wantsOwnerChat /
+        createEmbedClient / createRerankClient / parseJson（shortId、placeOf 本来就在门面上）
+      · 适配层对自己目录里的 local-runner.js 直接引用，不再绕兼容出口
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1622 passed / 0 failed / 0 skipped（比 1.6.42 多 2 个门面守卫）
+语法检查    594 个文件通过
+oxlint      0 error / 157 warning
+清单闸门    676 个文件全部有结论，0 待审
+```
+
+新增 `test/adapter-facade.test.js`：
+- mind-adapter 的 import 里，凡是指向 `../mind/*` 的只允许 `../mind/index.js`；
+- 门面必须继续导出适配层要用的 10 个函数（少一个就红）。
+
+### 2. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / adapter-facade / mind-layering / mind-adapter / mind-core
+      → tests 49 / pass 49 / fail 0 / skipped 0
+```
+
+### 3. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-152544
+加载    2026-11-26 15:25:49 [core] Aurabot v1.6.43 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 15:25:52 [onebot] 已连上 QQ 网关（WS）
+面板    /aurabot/api/state → version=1.6.43，onebot=connected
+心智    GET /aurabot/api/mind/self → ok，identity.name=大肥鱼（门面路径通）
+错误    15:25 部署后新增 [error] 0 条
+同源    core/clock.js、core/tokens.js、core/keywords.js、mind/index.js 与 Air 同哈希
+```
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.43.tgz（460 条目，19,645,374 字节）
+sha256    7eef698b2928d5d09efde3155d22b5b59b8bb1bdbdafd5bb258f3fd79eeb825a
+```

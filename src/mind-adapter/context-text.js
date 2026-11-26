@@ -2,7 +2,7 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { existsSync } from 'node:fs'
-import { hasLocalModel } from '../mind/local/runner.js'
+import { hasLocalModel } from './local-runner.js'
 
 /** 非管理员想让她记成长久规矩的话：她不会因为群友一句话就记成规矩。 */
 export function looksLikeRule(text) {

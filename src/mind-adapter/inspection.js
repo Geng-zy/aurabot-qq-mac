@@ -1,5 +1,5 @@
 import { parsePerson, privateChatOf } from '../channels/ids.js'
-import { shortId } from '../mind/place.js'
+import { shortId } from '../mind/index.js'
 import { defineTool, str } from '../tools/tools.js'
 
 const clip = (s, max = 120) => [...String(s || '').replace(/\s+/g, ' ').trim()].slice(0, max).join('')

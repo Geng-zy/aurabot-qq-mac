@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.43
+
+- B6（第二刀）适配层门面化：`mind-adapter` 原来有 13 条 import 直连 `mind/clock.js`、`mind/budget.js`、
+  `mind/memory/vectors.js` 等内部文件。现在只认两个入口——core 的通用件、`mind/index.js` 门面：
+  - 通用工具搬进 core（旧路径留一行兼容出口）：`mind/clock.js` → `core/clock.js`（246 行）、
+    `mind/budget.js` → `core/tokens.js`（54 行）、`mind/memory/words.js` → `core/keywords.js`（46 行）；
+  - 心智自己的策略函数由门面统一导出：`paramOf`、`effortForScene`、`speechScene`、`wantsMeal`、
+    `wantsOwnerChat`、`createEmbedClient`、`createRerankClient`、`parseJson`（`shortId`/`placeOf` 本来就有）；
+  - 适配层对自己目录内的 `local-runner.js`（上一版搬过来的）直接引用，不再走兼容出口。
+- 新增 `test/adapter-facade.test.js`：断言 mind-adapter 只能从 `../mind/index.js` 取心智能力，
+  并断言门面把适配层要用的 10 个策略函数都导出了。
+- 回归：全量 1622 个测试通过（新增 2 个），语法 594 文件，oxlint 0 error / 157 warning。
+
 ## 1.6.42
 
 - B6（第一刀）心智核心的分层修正，两处「放错层的代码」归位：

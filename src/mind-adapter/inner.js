@@ -1,6 +1,6 @@
 // 内心活动：走神、想事、自己去做一件事、后台模型预算。
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { estimateTokens } from '../mind/budget.js'
+import { estimateTokens } from '../core/tokens.js'
 
 export function createInner({ mind, opts, now, log, isClosed, debug, local, checkOutreach: checkOutreachFn }) {
   let lastChatAt = 0 // 任何她能感知到的活动：做动作时先让一让

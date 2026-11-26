@@ -1,5 +1,5 @@
 // 给扩展模块用的心智接口：只能添经历、查记忆、交出想做的事，不能替她做决定。
-import { parseRange, inRange, minuteOfDay } from '../mind/clock.js'
+import { parseRange, inRange, minuteOfDay } from '../core/clock.js'
 
 export function createMindModuleApi({ mind, mem, outreach, opts, now, debug, ownerOf, ownerChat, parseChat, windowOf, personOf, refOfChat, notRemembered, canThink, actionBudget, runAction, granted, canReachOwner, reachOwner }) {
   return function moduleApi(moduleId, source) {

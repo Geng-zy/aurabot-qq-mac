@@ -1,0 +1,37 @@
+[
+  {
+    "path": "src/core/clock.js",
+    "area": "core",
+    "owner": "core-time",
+    "verdict": "keep",
+    "evidence": "246 行；时区/作息区间/日期键/年龄等纯时间函数，0 内部依赖；被 mind（作息、生日、睡觉）、mind-adapter（场景时段）与配置归一化（hhmm）使用；原路径 src/mind/clock.js 保留一行兼容出口；test/offpeak.test.js、mind 系用例覆盖。"
+  },
+  {
+    "path": "src/core/tokens.js",
+    "area": "core",
+    "owner": "core-usage",
+    "verdict": "keep",
+    "evidence": "54 行；token 估算（estimateTokens）与每日预算 createBudget（依赖注入的 store）；0 内部依赖；被 mind 的 inner/outreach 与 mind-adapter 使用；原路径 src/mind/budget.js 保留兼容出口。"
+  },
+  {
+    "path": "src/core/keywords.js",
+    "area": "core",
+    "owner": "core-text",
+    "verdict": "keep",
+    "evidence": "46 行；中文关键词抽取 keywords()，纯文本处理、0 内部依赖；被记忆检索与 mind-adapter 使用；原路径 src/mind/memory/words.js 保留兼容出口。"
+  },
+  {
+    "path": "test/adapter-facade.test.js",
+    "area": "test",
+    "owner": "test-mind",
+    "verdict": "keep",
+    "evidence": "40 行 2 个用例；断言 mind-adapter 只能从 ../mind/index.js 取心智能力（其余 mind/* 一律算绕过），并断言门面导出了适配层要用的 10 个策略函数。"
+  },
+  {
+    "path": "docs/repo-audit/batch13-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B6 第二刀（适配层门面化）的审计补充，5 条；被 scripts/repo-inventory.mjs 读取。"
+  }
+]

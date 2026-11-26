@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { LOCAL_DEFAULT } from './index.js'
-import { hasLocalModel } from '../mind/local/runner.js'
+import { hasLocalModel } from './local-runner.js'
 import { ensurePinnedUv, shouldUseCnMirror, CN_PYPI, uvBaseEnv, sharedUvDir, sharedPythonDir, PY_VERSION } from '../core/python.js'
 
 export const LOCAL_STACK = {
