@@ -1414,4 +1414,22 @@ oxlint      0 error / 158 warning
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.50.tgz（460 条目，19,634,315 字节）
 sha256    dd165851970389c7acaaa829f20ad85d0a7377d891d30569d199920c694f1e52
+提交      ca0d7f3（main）
+tag       v1.6.50 → ca0d7f3
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.50
+资产      dsh-aurabot-qq-1.6.50.tgz  19,634,315 字节  state=uploaded
+终验脚本  node scripts/verify-release.mjs → 清单 0 待审、20/20 资产同哈希、版本一致，全部通过
+```
+
+### 8. CI 状况（如实记录）
+
+```text
+run 45821348237（workflow_dispatch ref=main）
+  ubuntu-latest  success
+  macos-latest   GitHub 的 macOS runner 排队 → 30 分钟未分配被平台取消 → 已 gh run rerun --failed
+                 重排后仍排队（21:00 → 22:05 期间多次轮询都是 queued）
+
+这不是测试失败：本机是 Mac，全量 1645 个用例就是在 macOS 上跑的；CI 的 macOS job 跑的是同一条命令。
+前 19 个版本的 macOS job 都是 success（例如 1.6.49 run 45807913231）。
+结论：**等平台队列**，下一轮回来确认；不为了让它变绿去改 CI 语义。
 ```
