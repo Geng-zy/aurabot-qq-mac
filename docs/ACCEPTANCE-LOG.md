@@ -1504,5 +1504,14 @@ run 45835628991（22:06）            macos-latest success（约 6 分钟跑完�
 前 20 个版本的 macOS job            全部 success
 ```
 
-处理原则：**不改 CI 语义把它变绿**。继续派发，等平台给机器；结果如实记在下一批。
+处理原则：**不改 CI 语义把它变绿**。继续派发，等平台给机器。
+
+第三次派发（run 45846782697）：
+
+```text
+ubuntu-latest  completed/success  steps=14
+macos-latest   completed/success  steps=14   ← 等到机器后正常跑完
+```
+
+所以前面两次是平台容量问题，不是代码或配置问题。1.6.51 的双平台 CI：**success**。
 
