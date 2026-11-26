@@ -1328,4 +1328,9 @@ Mini 上跑 scripts/repo-inventory.mjs 也正常：430 个自有代码文件、�
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.49.tgz（460 条目，19,648,240 字节）
 sha256    ade0999d989e91eb4798292ea5660165f43d42bdfabb46b60b194cb3d18fbd15
+提交      93b20e7（main）
+tag       v1.6.49 → 93b20e7
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.49
+资产      dsh-aurabot-qq-1.6.49.tgz  19,648,240 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45807913231（ubuntu + macos 双平台 success）
 ```
