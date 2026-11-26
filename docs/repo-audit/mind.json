@@ -60,7 +60,7 @@
     "area": "mind/local",
     "owner": "mind-local",
     "verdict": "keep",
-    "evidence": "177 行；import：mind-adapter/context-text.js、mind-adapter/index.js、mind-adapter/install.js；测试：test/mind-inner.test.js 直接 import createLocalModel（45、86 行注入假 spawn/fetch）；内部依赖 0（无）；本机 mlx_lm server 进程管理：hasLocalModel 11-19、check 49-57、ensure 73-123（180 秒就绪轮询）、chat 129-154、idleCheck、status；177 行、0 内部依赖、不 import 任何 mind 文件；唯一使用方是 src/mind-adapter/index.js:18、context-text.js:5、install.js:15。它不是心智域代码，归属应是 media（REFACTOR-PLAN 表格的 src/local/）；本批只记录不动，迁移时 mind-adapter 的 3 处 import 与 test/mind-inner.test.js:11 一起改"
+    "evidence": "re-export shim → src/mind-adapter/local-runner.js（原 177 行 mlx_lm 进程管理：起进程/读输出/探活，只依赖 node 内置）。它只被 mind-adapter 的三处与一个测试使用，心智核心自己不用，所以搬去适配层；现路径保留一行 re-export。"
   },
   {
     "path": "src/mind/memory/curve.js",

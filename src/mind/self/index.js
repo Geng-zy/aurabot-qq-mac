@@ -6,7 +6,7 @@
 
 import { parseJson } from '../memory/index.js'
 import { TRAIT, TRAITS } from '../personality/traits.js'
-import { MAX_PERSONA_CHARS } from '../../persona/personas.js'
+import { MAX_PERSONA_CHARS } from '../../core/persona-limits.js'
 
 const DAY = 86400000
 const WHAT = {

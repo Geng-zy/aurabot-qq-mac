@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dataDir } from '../core/store.js'
 import { FACE_EXAMPLES } from '../channels/qq/faces.js'
+import { MAX_PERSONA_CHARS } from '../core/persona-limits.js'
 
 const BUNDLED = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'personas')
 const dir = () => dataDir('personas')
@@ -40,7 +41,8 @@ export function parsePersona(id, raw) {
 }
 
 const safeId = (id) => String(id || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40)
-export const MAX_PERSONA_CHARS = 12000
+// 常量住在 core，避免 mind ↔ persona 互依赖；这里 re-export 保持对外契约不变
+export { MAX_PERSONA_CHARS } from '../core/persona-limits.js'
 
 export function listPersonas() {
   seedPersonas()

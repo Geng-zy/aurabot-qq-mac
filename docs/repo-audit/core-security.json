@@ -235,7 +235,7 @@
     "area": "persona",
     "owner": "persona",
     "verdict": "keep",
-    "evidence": "167 行；内部依赖 2 个（../core/store.js:8、../channels/qq/faces.js:9）；被 src/host.js:38、src/host/prompt-vars.js:8、src/mind/self/index.js:9 引用；测试 11 个文件（test/personas.test.js、test/faces.test.js、test/freedom.test.js、test/pure.test.js、test/output-guard.test.js 等）；导出 9 个。1 处 persona→channels 反向依赖（faces.js 只提供 FACE_EXAMPLES 常量）需随 B5 下移"
+    "evidence": "167 行；内部依赖 2 个（../core/store.js:8、../channels/qq/faces.js:9）；被 src/host.js:38、src/host/prompt-vars.js:8、src/mind/self/index.js:9 引用；测试 11 个文件（test/personas.test.js、test/faces.test.js、test/freedom.test.js、test/pure.test.js、test/output-guard.test.js 等）；导出 9 个。1 处 persona→channels 反向依赖（faces.js 只提供 FACE_EXAMPLES 常量）需随 B5 下移｜1.6.42：MAX_PERSONA_CHARS 下沉到 core/persona-limits.js（消除 mind→persona 的上行依赖），personas.js 仍 re-export。"
   },
   {
     "path": "src/security/approval.js",

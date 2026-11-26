@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.42
+
+- B6（第一刀）心智核心的分层修正，两处「放错层的代码」归位：
+  - `src/mind/local/runner.js`（177 行 mlx_lm 进程管理）→ `src/mind-adapter/local-runner.js`。
+    它只依赖 node 内置、只被 mind-adapter 的三处与一个测试使用，心智核心自己从不调用；
+    现在 `src/mind/` 里连 `child_process` 都不出现了。旧路径保留一行兼容出口。
+  - `MAX_PERSONA_CHARS` 从 `persona/personas.js` 下沉到 `src/core/persona-limits.js`。
+    它造成「心智核心反向依赖 persona」这唯一一条上行边；常量放中性层后两边都从 core 取。
+    `personas.js` 仍 re-export，对外契约不变。
+- 新增 `test/mind-layering.test.js`：mind 只许依赖 mind 与 core；兼容出口走显式白名单且必须是
+  「一行 re-export」；并断言 mind 里不出现 `child_process`。
+- 回归：全量 1620 个测试通过（新增 2 个），语法 590 文件，oxlint 0 error / 157 warning。
+
 ## 1.6.41
 
 - B5（第五刀）`backup.js` 1059 → 897 行：把备份用的 **ZIP 编解码**整段搬到 `src/core/backup-zip.js`（198 行）——

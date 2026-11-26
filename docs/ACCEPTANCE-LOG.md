@@ -797,3 +797,65 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.41
 资产      dsh-aurabot-qq-1.6.41.tgz  19,642,759 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45768663434（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B6（第一刀）· 心智核心的两处越界归位
+
+```text
+1) src/mind/local/runner.js（177 行 mlx_lm 进程管理）→ src/mind-adapter/local-runner.js
+   证据：只 import node 内置；只被 mind-adapter 的 index / context-text / install 与一个测试引用；
+        mind 里没有任何文件调用它。搬走后 src/mind/** 不再出现 child_process。
+   旧路径保留一行 re-export（mind 里唯一的兼容出口，测试用白名单锁住）。
+
+2) MAX_PERSONA_CHARS：persona/personas.js → src/core/persona-limits.js
+   证据：mind/self 与 persona/personas 都要用这份上限，原本造成「mind → persona」唯一一条上行依赖；
+        放中性层后两边都从 core 取；personas.js 仍 re-export，对外契约不变。
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1620 passed / 0 failed / 0 skipped（比 1.6.41 多 2 个分层守卫）
+语法检查    590 个文件通过
+oxlint      0 error / 157 warning
+清单闸门    671 个文件全部有结论，0 待审
+```
+
+新增 `test/mind-layering.test.js`（3 个用例）：
+- mind 的 import 只许指向 mind 与 core；
+- 兼容出口走显式白名单（当前只有 `src/mind/local/runner.js`），且必须只剩一行 re-export；
+- mind 目录里不许出现 `child_process`。
+
+搬运过程中踩了一次路径错误（shim 写成 `../mind-adapter/...`，少了一层），测试立刻报
+`Cannot find module .../src/mind/mind-adapter/local-runner.js`，改成 `../../` 后恢复。
+
+### 2. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / mind-layering / mind-core / mind-inner / mind-adapter / memory-upgrade
+      → tests 78 / pass 78 / fail 0 / skipped 0
+```
+
+### 3. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-145446
+加载    2026-11-26 14:54:51 [core] Aurabot v1.6.42 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 14:54:54 [onebot] 已连上 QQ 网关（WS）
+面板    /aurabot/api/state → version=1.6.42，onebot=connected，mind 段有 sleep/usage/counts
+心智    GET /aurabot/api/mind/self → ok，identity.name=大肥鱼（走 persona 常量那条路）
+        GET /aurabot/api/mind/people → ok，人物列表正常
+本地模型 POST /aurabot/api/mind/local/install/status → ok 结构完整
+        （running=false / supported=true / root=~/Aurabot/mind / paths 齐全）
+闸门    GET /mind/local/install/status → 405「这个接口只能用 POST」（B2 的闸门照旧）
+错误    14:54 部署后新增 [error] 0 条（当天仅剩 11:44 那两条历史记录）
+同源    mind-adapter/local-runner.js、core/persona-limits.js、mind/self/index.js 与 Air 同哈希
+```
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.42.tgz（457 条目，19,643,757 字节）
+sha256    500c12109a027ff2811d44e38a0e0a7400f46ec06cfff7ad1f033e95174e2515
+```

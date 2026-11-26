@@ -1,0 +1,30 @@
+[
+  {
+    "path": "src/core/persona-limits.js",
+    "area": "core",
+    "owner": "core-config",
+    "verdict": "keep",
+    "evidence": "11 行；人格卡字数上限常量（MAX_PERSONA_CHARS=12000）；被 src/persona/personas.js（校验）与 src/mind/self/index.js（截断）引用；下沉到 core 后消除了 mind→persona 这唯一一条上行依赖；persona 仍 re-export 保持对外契约。"
+  },
+  {
+    "path": "src/mind-adapter/local-runner.js",
+    "area": "mind-adapter",
+    "owner": "mind-local",
+    "verdict": "keep",
+    "evidence": "177 行；本地模型（mlx_lm）的进程管理：起进程、读输出、探活；只依赖 node 内置；被 mind-adapter 的 index/context-text/install 三处引用（原路径 src/mind/local/runner.js 现在是兼容出口）；test/mind-inner.test.js 覆盖 createLocalModel；心智核心里不再出现 child_process（新守卫测试）。"
+  },
+  {
+    "path": "test/mind-layering.test.js",
+    "area": "test",
+    "owner": "test-mind",
+    "verdict": "keep",
+    "evidence": "62 行 3 个用例；扫 src/mind/** 的 import，断言只依赖 mind 与 core，兼容出口走白名单且必须是单行 re-export；另断言 mind 里不出现 child_process。"
+  },
+  {
+    "path": "docs/repo-audit/batch12-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B6 第一刀（mind 分层修正）的审计补充：persona-limits、local-runner、mind-layering 测试及其自身，4 条；被 scripts/repo-inventory.mjs 读取。"
+  }
+]
