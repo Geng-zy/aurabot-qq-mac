@@ -61,6 +61,7 @@ import { createAttentionQueue, createAttentionRanking } from './attention.js'
 import { createSessionRecovery } from './session-recovery.js'
 import { createWorkspaceHelpers } from './workspace.js'
 import { createSessionCreate } from './session-create.js'
+import { IMAGE_SOURCE_PREFIX, flatHistory, keyOf, withoutImageBlocks } from './hub-pure.js'
 import { createAgentResolve } from './agent-resolve.js'
 import { createModelTarget } from './model-target.js'
 import { createMount } from './mount.js'
@@ -582,16 +583,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   function attentionBlocked(chatId, p) { return attentionRanking.blocked(chatId, p) }
   function drainAttention() { return attentionRanking.drain() }
 
-  const IMAGE_SOURCE_PREFIX = '【下一张图的来源】'
-
-  function withoutImageBlocks(content, keep) {
-    return content.filter((part, i) => {
-      if (part.type === 'image') return part === keep
-      if (part.type !== 'text' || !part.text.startsWith(IMAGE_SOURCE_PREFIX)) return true
-      const next = content[i + 1]
-      return next?.type !== 'image' || next === keep
-    })
-  }
 
   async function admit(content) {
     const images = content.filter((part) => part.type === 'image')
@@ -648,23 +639,6 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   const historyRetry = new Set()
 
   /** 把 OneBot 的历史消息拍平成「谁：内容」。 */
-  function flatHistory(list, allowSender) {
-    const out = []
-    for (const m of Array.isArray(list) ? list : []) {
-      const senderId = String(m?.sender?.user_id ?? m?.user_id ?? '')
-      if (!allowSender(senderId)) continue
-      const who = m?.sender?.card || m?.sender?.nickname || m?.nickname || senderId
-      let text = ''
-      const seg = m?.message ?? m?.raw_message ?? ''
-      if (typeof seg === 'string') text = seg
-      else if (Array.isArray(seg)) text = seg.map((s) => (s?.type === 'text' ? (s.data?.text || '') : s?.type === 'image' ? '[图片]' : s?.type === 'face' ? '[表情]' : '')).join('')
-      text = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 120)
-      if (!who && !text) continue
-      out.push(`${who}：${text}`)
-    }
-    return out
-  }
-
   /** 只在这个会话第一次说话时，把最近的历史补给她的上下文。 */
   async function seedHistoryOnce(sessionId, chat, content, query) {
     const key = sessionKey(sessionId)

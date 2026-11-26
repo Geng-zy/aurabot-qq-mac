@@ -1,0 +1,9 @@
+[
+  {
+    "path": "src/chat/hub-pure.js",
+    "area": "chat",
+    "owner": "chat-hub",
+    "verdict": "keep",
+    "evidence": "45 行；从 chat/hub.js 搬出的纯函数（不碰 Map/网络/配置）：withoutImageBlocks 只留指定图片并连带其来源标记、keyOf 生成模型身份键、flatHistory 把网关历史压成「谁：说了什么」（单条截断 120 字）；IMAGE_SOURCE_PREFIX 常量随之下沉。被 hub.js 引用；新增 test/chat-hub-pure.test.js 5 个直接用例。"
+  }
+]

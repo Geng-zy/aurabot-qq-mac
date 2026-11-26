@@ -1435,3 +1435,49 @@ run 45821348237（workflow_dispatch ref=main，head ca0d7f3）
 先前那次不是测试失败、这次也不是「改 CI 让它变绿」：僵尸 run 里连 job 都没有，
 新派发的 run 跑的是同一条命令、同一份代码（57d1f85 只改了文档）。
 
+
+---
+
+## B11 · `hub.js` 拆分第一刀（纯函数）
+
+```text
+src/chat/hub.js       1459 → 1433 行
+src/chat/hub-pure.js  新增 45 行
+搬走   withoutImageBlocks（只留指定图片，连带它前面的「下一张图的来源」标记）
+       keyOf（模型身份键 provider::model::档位）
+       flatHistory（网关历史压成「谁：说了什么」，单条截断 120 字）
+       IMAGE_SOURCE_PREFIX 常量
+```
+
+为什么先搬这四个：它们不碰 Map、不碰网络、不读配置 —— 是 hub 里唯一能**脱离会话状态直接测**的部分。
+其余 1400 多行的主体都闭包在 hub 的局部状态上，硬拆会变成「把参数表搬来搬去」，那不算拆。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1650 passed / 0 failed / 0 skipped（比 1.6.50 多 5 个）
+语法检查    602 个文件通过
+oxlint      0 error / 158 warning
+清单闸门    691 行，0 待审
+```
+
+新增 `test/chat-hub-pure.test.js` 5 个用例，其中两个是以前没人测过的细节：
+「来源标记要跟着它的图一起消失」、「第 4 条要截到 120 字」。
+
+### 2. 真实 Purge 模块 + 实机（Mini）
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-222036
+加载    2026-11-26 22:20:42 [core] Aurabot v1.6.51 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.51，onebot=connected
+错误    22:30–22:59 新增 [error] 0 条
+测试    chat-hub-pure + e2e + purge-scope-integration → 115 passed / 0 failed / 0 skipped
+同源    src/chat/hub-pure.js、src/chat/hub.js 与 Air 同哈希
+```
+
+### 3. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.51.tgz（461 条目，19,635,172 字节）
+sha256    b056fb483767da07efa749fa40da58125b5aee1dc1a4c5d0f96cae3ae89f4d3c
+```
