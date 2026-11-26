@@ -1421,15 +1421,17 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.50
 终验脚本  node scripts/verify-release.mjs → 清单 0 待审、20/20 资产同哈希、版本一致，全部通过
 ```
 
-### 8. CI 状况（如实记录）
+### 8. CI（含一次平台故障，已复查）
 
 ```text
-run 45821348237（workflow_dispatch ref=main）
+run 45821348237（workflow_dispatch ref=main，head ca0d7f3）
   ubuntu-latest  success
-  macos-latest   GitHub 的 macOS runner 排队 → 30 分钟未分配被平台取消 → 已 gh run rerun --failed
-                 重排后仍排队（21:00 → 22:05 期间多次轮询都是 queued）
-
-这不是测试失败：本机是 Mac，全量 1645 个用例就是在 macOS 上跑的；CI 的 macOS job 跑的是同一条命令。
-前 19 个版本的 macOS job 都是 success（例如 1.6.49 run 45807913231）。
-结论：**等平台队列**，下一轮回来确认；不为了让它变绿去改 CI 语义。
+  macos-latest   macOS runner 排队 30 分钟未分配 → 平台取消 → gh run rerun --failed
+                 重跑产生的 run 是**僵尸**：jobs 总数 0、attempt=1、updated_at 停住 → 永远不会完成
+处理             重新派发 run 45835628991（head 57d1f85）
+结果             ubuntu-latest + macos-latest **双平台 success**（约 6 分钟跑完）
 ```
+
+先前那次不是测试失败、这次也不是「改 CI 让它变绿」：僵尸 run 里连 job 都没有，
+新派发的 run 跑的是同一条命令、同一份代码（57d1f85 只改了文档）。
+
