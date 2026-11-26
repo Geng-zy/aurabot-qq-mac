@@ -41,13 +41,13 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.52 highlights
+## 1.6.53 highlights
 
-### Cloud-backup backends split (B12)
+### Direct tests for the restore path (B13)
 
-- `backup-push.js` shrinks **469 → 285 lines**: the whole WebDAV path became `backup-webdav.js` (160 lines, including Nutstore's `/dav` auto-append and the MKCOL/PROPFIND/PUT/DELETE flow), while shared pieces (test hooks, token redaction, retention plan, filename allowlists) moved to `backup-shared.js` (45 lines).
-- `backup-push.js` now holds only the Gitee (git) path and re-exports the original names — **the public API is unchanged**.
-- Split by backend because the two paths never call each other; they only share redaction and filename rules.
+- The restore path (`.restore` publish / journal rollback) had exactly **one** end-to-end test and no failure-branch coverage. Six direct cases now cover: non-zip rejected, pending visible after staging, a second staging rejected by the single-flight lock, idempotent cancel, empty input rejected at the entry point, and no `.restore-*` leftovers after cancelling.
+- Writing them exposed a genuine small leak: `cancelRestore()` left `.restore-stage-id` behind. Fixed in code — the test assertion stayed strict instead of being relaxed.
+- Note for future work: `stageRestore` is async, so a first attempt with `assert.throws` wedged the lock; `assert.rejects` is the correct tool.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -133,12 +133,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.52.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.53.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.52.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.53.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

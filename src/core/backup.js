@@ -729,6 +729,8 @@ export function cancelRestore() {
   rmSync(pendingFile(), { force: true })
   rmSync(sessionMarker(), { force: true })
   rmSync(sessionStage(), { recursive: true, force: true })
+  // 暂存时 publishStage 会把阶段号放到数据目录根部；取消恢复就一起清掉，别留一个孤儿标记
+  try { rmSync(join(dataDir(), '.restore-stage-id'), { force: true }) } catch {}
   try { rmSync(join(backupsDir(), 'incoming.zip'), { force: true }) } catch {}
 }
 

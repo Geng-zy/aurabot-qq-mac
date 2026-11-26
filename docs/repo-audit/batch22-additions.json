@@ -1,0 +1,9 @@
+[
+  {
+    "path": "test/backup-stage.test.js",
+    "area": "test",
+    "owner": "test-backup",
+    "verdict": "keep",
+    "evidence": "70 行 6 个用例；直测恢复暂存/取消：非 zip 被拒且不留待恢复项、真备份暂存后可查到 pending、重复暂存被拒（单飞锁）、取消幂等、stageReceivedBackup 入口挡空/非 Buffer、取消后数据目录不留 .restore-* 残留。"
+  }
+]

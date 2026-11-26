@@ -1579,3 +1579,65 @@ tag       v1.6.52 → ce4591c
 Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.52
 CI        run 45852200820 → ubuntu-latest success、macos-latest success（00:22 双绿）
 ```
+
+---
+
+## B13 · 恢复路径补直接测试 + 修掉一个清理泄漏
+
+### 现状（写测试前）
+
+```text
+.restore 发布 / journal 回滚 / 会话恢复 只有一条端到端用例（备份 → 恢复 → 重启）
+失败分支：非备份文件、重复暂存、取消、入口空输入 —— 一条都没测过
+```
+
+所以这批先补测试，不动结构：没有直接测试就搬这段路径，等于把风险从「不知道」变成「看不见」。
+
+### 1. 新增 test/backup-stage.test.js（6 个用例）
+
+```text
+非 zip → 拒绝，且不留待恢复项
+真备份 → 暂存成功、pendingRestore() 能查到 files
+重复暂存 → 被单飞锁拒绝（另一个备份正在暂存）
+取消幂等 → 没有待恢复项时 cancelRestore 不炸
+stageReceivedBackup → 空 Buffer / 非 Buffer 在入口被挡
+取消后 → 数据目录不留任何 .restore-* 残留
+```
+
+### 2. 写测试时抓到的两件事
+
+**真实小泄漏**：`cancelRestore()` 没清数据目录根部的 `.restore-stage-id`。
+`publishStage` 会把阶段号放到那里，取消时却没删。它不致命（在备份 SKIP 名单里、下次发布会覆盖），
+但「取消」应该什么都不留 —— **改代码，没有放宽断言**。
+
+**测试自己踩的坑**：`stageRestore` 与 `stageReceivedBackup` 都是异步函数，第一版用 `assert.throws`
+直接卡住单飞锁、留下未处理的 rejection；改成 `assert.rejects` + `await` 才对。
+这类坑记在这里，下次拆这段路径时不用再踩一遍。
+
+### 3. 自动测试（Air）
+
+```text
+全量        1656 passed / 0 failed / 0 skipped（比 1.6.52 多 6 个）
+语法检查    605 个文件通过
+oxlint      0 error / 19 warning
+清单闸门    697 行，0 待审
+```
+
+### 4. 真实 Purge 模块 + 实机（Mini）
+
+```text
+回滚点  ~/aurabot-release-backups/20261127-003358
+加载    2026-11-27 00:34:03 [core] Aurabot v1.6.53 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.53，onebot=connected
+残留    数据目录里 .restore* 命中 0（实机核对，不只是测试里断言）
+错误    00:20 之后新增 [error] 0 条
+测试    backup-stage / backup / backup-restart / purge-scope-integration → 26 passed / 0 failed
+同源    src/core/backup.js 与 Air 同哈希
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.53.tgz（463 条目，19,636,200 字节）
+sha256    b7704051334dd69b95a433bb85660158287ccc086914b9c2bebea28986c60123
+```

@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.53
+
+- B13 恢复路径补直接测试，顺带修掉一个小泄漏。写测试前先说清现状：`.restore` 发布与 journal 回滚这段
+  **只有一条端到端用例**（备份 → 恢复 → 重启），失败分支一条都没测过。
+- 新增 `test/backup-stage.test.js`（6 个用例）：
+  非 zip 被拒且不留待恢复项、真备份暂存后可查到 pending、**重复暂存被单飞锁拒绝**、
+  取消幂等、`stageReceivedBackup` 入口挡住空/非 Buffer、取消后数据目录不留 `.restore-*` 残留。
+- 写测试时发现一个真实小泄漏：`cancelRestore()` 没清数据目录根部的 `.restore-stage-id`
+  （`publishStage` 放上去的阶段号）。它不是致命问题（在备份 `SKIP` 名单里，下次发布会覆盖），
+  但「取消」应该什么都不留 —— 补上清理，测试保持严格断言而不是放宽。
+- 写测试本身也踩了两次：`stageRestore` / `stageReceivedBackup` 都是**异步**函数，第一版用
+  `assert.throws` 导致未处理的 rejection 与卡住的单飞锁；改成 `assert.rejects` + `await` 后正常。
+- 回归：全量 1656 个测试通过（新增 6 个），语法 604 文件，oxlint 0 error / 19 warning。
+
 ## 1.6.52
 
 - B12 云备份后端分家：`src/core/backup-push.js` **469 → 285 行**。
