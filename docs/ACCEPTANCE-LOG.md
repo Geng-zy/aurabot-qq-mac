@@ -232,10 +232,14 @@ Mini：purge-scope-integration / purge-scope / persona-hoist / host-routes / pan
 同源    post-only.js / route-kit.js / mind-live-routes.js 与 Air 逐一同哈希
 ```
 
-### 5. 候选包
+### 5. 发布
 
 ```text
-/tmp/dsh-aurabot-qq-1.6.33.tgz
-条目 443，字节 19,630,700
-sha256 b200c819dce3aabda716e64447df2248bac57afdc2874161306df43ea3a00095
+候选包    /tmp/dsh-aurabot-qq-1.6.33.tgz（443 条目，19,630,700 字节）
+sha256    b200c819dce3aabda716e64447df2248bac57afdc2874161306df43ea3a00095
+提交      e924276（main）
+tag       v1.6.33 → e924276
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.33
+资产      dsh-aurabot-qq-1.6.33.tgz  19,630,700 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45741622764（ubuntu + macos 双平台 success）
 ```
