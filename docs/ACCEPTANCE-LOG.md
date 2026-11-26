@@ -918,4 +918,9 @@ Mini：purge-scope-integration / adapter-facade / mind-layering / mind-adapter /
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.43.tgz（460 条目，19,645,374 字节）
 sha256    7eef698b2928d5d09efde3155d22b5b59b8bb1bdbdafd5bb258f3fd79eeb825a
+提交      869e733（main）
+tag       v1.6.43 → 869e733
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.43
+资产      dsh-aurabot-qq-1.6.43.tgz  19,645,374 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45775841449（ubuntu + macos 双平台 success）
 ```
