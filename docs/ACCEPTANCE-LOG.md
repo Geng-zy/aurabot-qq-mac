@@ -446,3 +446,69 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.36
 资产      dsh-aurabot-qq-1.6.36.tgz  19,635,147 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45750233692（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B5（第一刀）· core zip 读取去重
+
+范围：`src/core/zip.js`（+strict 读取者）、`src/core/community.js`（328 → 296 行）、`src/host.js`（错误日志补堆栈）、一个新测试。
+
+### 判定先说：三种读取者不是重复实现
+
+| 读取者 | 输入来源 | 策略 | 结论 |
+|---|---|---|---|
+| `zip.js readZip` | 模型权重包（`python.js`、`song/studio.js`） | 内存宽松、按 `want` 挑文件、不校验 CRC/不限大小 | 保留 |
+| `zip.js readZipStrict` | 网络下载的社区模块包 | 拒绝加密、拒绝路径穿越、限解压总量、逐条校验 CRC 与长度 | **由 community.js 的内联实现搬来** |
+| `backup.js readEntries/readEntry` | 备份文件 | 从文件句柄流式读、分块 CRC、4GB/目录上限、边解边写盘 | 保留（流式，不能整块进内存） |
+
+真正重复的是「解析中央目录」这一段（community 里 40 行），已合并；三处策略与报错文案逐条保留，
+`test/community.test.js` 原样通过（16/16）。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1611 passed / 0 failed / 0 skipped（比 1.6.36 多 6 个）
+语法检查    573 个文件通过
+oxlint      0 error / 164 warning
+清单闸门    649 个文件全部有结论，0 待审
+```
+
+自测抓到自己引入的坑：`inflateRawSync({ maxOutputLength: Infinity })` 抛 `RangeError`，
+现在只在有限上限时传（默认路径已不可能踩到）。
+
+### 2. 模拟网关（Air）
+
+`test/e2e.test.js` 全绿；本批只动 core 的解析与日志，不碰收发。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / zip-readers / community / song
+      → tests 40 / pass 40 / fail 0 / skipped 0
+（第一次跑出 1 个失败是同步脚本没带 docs/，MODULE-TUTORIAL 那条读不到文件；
+  补上 docs 后 40/40 —— 属于验证脚本的问题，不是代码问题，已修正同步范围）
+```
+
+### 4. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-120224
+加载    2026-11-26 12:16:06 [core] Aurabot v1.6.37 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 12:16:09 [onebot] 已连上 QQ 网关（WS）
+面板    GET /aurabot/api/state → 200，version=1.6.37，onebot=connected，modules=12
+接口    GET /aurabot/api/modules → ok=true，12 条（严格 zip 读取者所在模块可用）
+同源    src/core/zip.js、src/core/community.js、src/host.js 与 Air 同哈希（host.js 含新日志）
+```
+
+### 5. 待查（本批新增的观测点）
+
+Mini 上 11:44–11:45 出现 2 次 `[error] [core] 处理消息出错： Cannot read properties of undefined (reading 'get')`，
+近 5 天日志里**只有这一次**，没有堆栈。本批已把该日志改成同时打印消息所在聊天与前三条堆栈帧；
+下次复现即可定位。消息处理失败不会中断机器人（`.catch` 兜住，后续消息正常）。
+
+### 6. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.37.tgz（444 条目，19,636,565 字节）
+sha256    03f146e9362ed84cec63d9ad46cb77f25f4bc5a75da96ba1064a99fe1322db41
+```

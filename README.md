@@ -43,17 +43,17 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.36 更新
+## 1.6.37 更新
 
-### 会话事件状态机：先补测试，再拆规则（B3 第二刀）
+### core：zip 读取去重，但先分清「重复」和「不同的安全边界」（B5 第一刀）
 
-- `src/chat/session-events.js` 决定「这一轮发不发、发什么」，此前 **0 个直接测试**、只靠 e2e 间接覆盖。
-- 现在补了 10 个直接用例（正常一轮、旧会话、隐私拦截、非正常结束、工具用量归属、system 轮次、调试等待方）——把这些判定钉死之后再动刀。
-- 「这次 token 记在谁名下」的规则抽成 `src/chat/usage-accounting.js`：system 会话单独累、紧跟 `tool/call` 的那次算到工具模块、落账失败不影响这一轮。
+- 社区模块安装里那份内联的 zip 解析（40 行）搬进 `src/core/zip.js` 的 `readZipStrict`，`community.js` 328 → 296 行；拒绝加密、拒绝路径穿越、限总量、逐条校验 CRC 全部保留，报错文案不变。
+- 判定记录：仓里三种读取者服务三种威胁模型（模型权重包 / 网络模块包 / 备份文件流式），**不是重复实现**。只合并解析逻辑，不合并策略；备份那份流式读取不动，理由写在代码注释里。
+- 新增 6 个用例，分别钉住宽松版与严格版的行为。
 
 ### 前几批
 
-- 1.6.35 单一注意力可测化；1.6.34 渠道契约；1.6.33 面板写操作闸；1.6.32 宿主组合根；1.6.31 语音条 + 全仓清单。
+1.6.36 会话事件状态机；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 面板写操作闸；1.6.32 宿主组合根；1.6.31 语音条 + 全仓清单。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -139,12 +139,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.36.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.37.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.36.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.37.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

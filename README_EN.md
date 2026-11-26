@@ -41,17 +41,13 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.36 highlights
+## 1.6.37 highlights
 
-### Session-event state machine: tests first, then extract the rule (B3, second slice)
+### core: de-duplicate the zip readers, after separating "duplicate" from "different trust boundaries" (B5, first slice)
 
-- `src/chat/session-events.js` decides whether a turn is delivered and what it says; it had **no direct tests**, only indirect e2e coverage.
-- Ten direct cases now pin those decisions (normal turn, stale session, privacy block, abnormal end, tool usage attribution, system turns, debug waiters) before any further surgery.
-- The "who pays for these tokens" rule moved to `src/chat/usage-accounting.js`: system sessions accumulate separately, the call right after `tool/call` is charged to the tool's module, and a failing ledger write cannot take the turn down.
-
-### Earlier releases
-
-- 1.6.35 testable single-attention ordering; 1.6.34 channel contract; 1.6.33 panel write gate; 1.6.32 host composition root; 1.6.31 voice notes + repository inventory.
+- The inline zip parser used when installing community modules (40 lines) moved into `src/core/zip.js` as `readZipStrict`; `community.js` shrinks 328 → 296 lines. Rejecting encryption, path traversal, total size and per-entry CRC are all preserved with identical messages.
+- Recorded decision: the three readers exist for three threat models (model weight bundles / downloaded module bundles / streamed backup files) and are **not duplicates**. Only the parsing is shared; policies stay separate, and the streaming reader is untouched for reasons written in the code.
+- Six new cases pin both the tolerant and the strict reader.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -137,12 +133,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.36.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.37.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.36.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.37.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

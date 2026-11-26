@@ -11,9 +11,9 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve, sep } from 'node:path'
-import { inflateRawSync, crc32 } from 'node:zlib'
 import { dataDir } from './store.js'
 import { API_VERSION, builtinDir, userDir } from './modules.js'
+import { readZipStrict, safeRelativePath } from './zip.js'
 
 export const REGISTRY_URL = 'https://raw.githubusercontent.com/aureth-labs/dsh-aurabot-qq-mods/registry/index.json'
 // 这个 macOS 分叉自己的模块库：只有装了分叉的人看得到。和原项目同 id 的模块以这里为准（已经配合心智核心）
@@ -67,47 +67,15 @@ export function compareVersions(a, b) {
   return 0
 }
 
-/** 解开 zip，返回 Map(路径 → Buffer)。不合法的路径、压缩方式、校验和一律抛错。 */
+/**
+ * 解开社区模块的 zip，返回 Map(路径 → Buffer)。
+ * 严格解析（拒绝加密、拒绝路径穿越、限制解压总大小、逐条校验 CRC）住在 `core/zip.js` 的 readZipStrict，
+ * 这里只保留「社区模块」这层的策略与返回形状。
+ */
 export function readZip(buf) {
-  let end = -1
-  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 65535); i--) if (buf.readUInt32LE(i) === 0x06054b50) { end = i; break }
-  if (end < 0) throw new Error('不是有效的 zip')
-  const count = buf.readUInt16LE(end + 10)
-  let p = buf.readUInt32LE(end + 16)
   const files = new Map()
-  let total = 0
-  for (let i = 0; i < count; i++) {
-    if (p + 46 > buf.length || buf.readUInt32LE(p) !== 0x02014b50) throw new Error('zip 目录损坏')
-    const flags = buf.readUInt16LE(p + 8)
-    const method = buf.readUInt16LE(p + 10)
-    const crc = buf.readUInt32LE(p + 16)
-    const packed = buf.readUInt32LE(p + 20)
-    const size = buf.readUInt32LE(p + 24)
-    const nameLen = buf.readUInt16LE(p + 28)
-    const extraLen = buf.readUInt16LE(p + 30)
-    const commentLen = buf.readUInt16LE(p + 32)
-    const local = buf.readUInt32LE(p + 42)
-    const name = buf.toString('utf8', p + 46, p + 46 + nameLen)
-    p += 46 + nameLen + extraLen + commentLen
-    if (flags & 1) throw new Error('zip 不能加密')
-    if (name.endsWith('/')) continue
-    if (!safeName(name)) throw new Error(`zip 里有不安全的路径：${name}`)
-    if (method !== 0 && method !== 8) throw new Error(`zip 用了不支持的压缩方式：${name}`)
-    total += size
-    if (total > MAX_FILE_BYTES) throw new Error('解压后太大')
-    if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) throw new Error('zip 文件头损坏')
-    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28)
-    const raw = buf.subarray(start, start + packed)
-    const data = method === 8 ? inflateRawSync(raw, { maxOutputLength: MAX_FILE_BYTES }) : Buffer.from(raw)
-    if (data.length !== size || crc32(data) !== crc) throw new Error(`zip 校验失败：${name}`)
-    files.set(name, data)
-  }
+  for (const { name, data } of readZipStrict(buf, { validateName: safeRelativePath, maxTotalBytes: MAX_FILE_BYTES })) files.set(name, data)
   return files
-}
-
-function safeName(name) {
-  if (!name || name.includes('\\') || name.includes('\0') || name.startsWith('/') || /^[a-zA-Z]:/.test(name)) return false
-  return name.split('/').every((seg) => seg && seg !== '.' && seg !== '..')
 }
 
 export function createCommunity({ mods, getConfig, setConfig, log, version, alive = () => true, registryUrl = process.env.AURABOT_REGISTRY_URL || REGISTRY_URL, macRegistryUrl = process.env.AURABOT_MAC_REGISTRY_URL ?? MAC_REGISTRY_URL, fetcher = fetch, retryMs = RETRY_MS }) {

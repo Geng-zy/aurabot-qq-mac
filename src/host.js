@@ -197,7 +197,11 @@ export function apply(ctx) {
       }
       const key = msg.chatId
       const previous = inboundChains.get(key) || Promise.resolve()
-      const run = previous.then(() => hub.onMessage(msg)).catch((error) => log.error('处理消息出错：', error.message))
+      // 消息处理出错时把位置也记下来：只打 message 时查不到是哪一行（2026-11-26 踩过一次）
+      const run = previous.then(() => hub.onMessage(msg)).catch((error) => log.error(
+        `处理消息出错（${msg?.chatId || '?'}）：`, error.message,
+        String(error.stack || '').split('\n').slice(1, 4).map((l) => l.trim()).join(' | '),
+      ))
       const tail = run.finally(() => { if (inboundChains.get(key) === tail) inboundChains.delete(key) })
       tail.catch(() => {})
       inboundChains.set(key, tail)
