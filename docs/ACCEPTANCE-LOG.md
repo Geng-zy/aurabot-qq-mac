@@ -1042,4 +1042,10 @@ client 构建 重新生成，无漂移
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.45.tgz（460 条目，19,644,499 字节）
 sha256    5e8d131791fc393fa8e84fe49ebf3dc4a56273c67715b40292d02e81a968c9c7
+提交      726a782（main）
+tag       v1.6.45 → 726a782
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.45
+资产      dsh-aurabot-qq-1.6.45.tgz  19,644,499 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45783100852
+          ubuntu 先绿；macos 在 GitHub 排队约 12 分钟后跑完，最终双平台 success
 ```
