@@ -662,4 +662,9 @@ Mini：purge-scope-integration / macos / features / security-panel / browser-pan
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.39.tgz（446 条目，19,637,779 字节）
 sha256    f10e2fadd84bc379b5ca7172bc57d1f99aa2c0eba1069489f46d5cc51182ce0d
+提交      a80baef（main）
+tag       v1.6.39 → a80baef
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.39
+资产      dsh-aurabot-qq-1.6.39.tgz  19,637,779 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45761620480（ubuntu + macos 双平台 success）
 ```
