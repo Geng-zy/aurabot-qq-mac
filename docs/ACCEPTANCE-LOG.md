@@ -1118,3 +1118,75 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.46
 资产      dsh-aurabot-qq-1.6.46.tgz  19,645,525 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45787267928（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B8（第二刀）· 宿主维护工具发现加固
+
+### 改前 / 改后
+
+```text
+改前  1. tools.view(agent).restrictableNames
+      2. 探针 restrict({deny:[probe]}) → 从英文报错里正则抠名单
+      失败 → []（等于「没有要限制的维护工具」= 放行方向）
+
+改后  1. tools.view(agent).restrictableNames      rc.3 有，首选
+      2. tools.view(agent).knownNames            新增的备份字段（同一个 view 对象里）
+      3. 探针报错 → parseKnownToolNames(message)  抽成纯函数，单独测
+      失败 → null（未知），调用方按「不限制」处理，并留 debug 说明
+```
+
+### 宿主侧事实（rc.3 安装目录里查的，不是猜的）
+
+```text
+/Applications/DeepSeek Harness.app/.../dsh-tools/lib/index.js
+  488  const restrictableNames = new Set();
+  487  const knownNames = new Set();
+  502  return { visible, knownNames, restrictableNames, … }
+  466  报错文案：… known global tools: … 或 "(none)"
+```
+
+### 1. 自动测试（Air）
+
+```text
+全量        1640 passed / 0 failed / 0 skipped（比 1.6.46 多 9 个）
+语法检查    598 个文件通过
+oxlint      0 error / 158 warning
+清单闸门    684 个文件全部有结论，0 待审
+```
+
+新增 `test/host-tools.test.js`（9 个用例）：四条发现路径逐一验证、`parseKnownToolNames` 容错
+（引号 / 中文冒号 / 中英文逗号 / `(none)`）、`purge_` 前缀过滤、失败时只留 debug 不刷 warn。
+
+**踩到一个连带影响**：第一版在探测失败时打了 `warn`，把 `system-session-backoff` 里
+「warn 计数 = 3」的断言顶成 4。这个函数每个会话挂载都会走一次，`warn` 会刷屏，
+改成 `debug` 并把测试的断言改成「只留 debug、不刷 warn」。
+
+### 2. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / host-tools / purge-scope / persona-hoist
+      → tests 26 / pass 26 / fail 0 / skipped 0（用 mini 上装的 dsh-purge-community@1.7.20）
+```
+
+### 3. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-172426
+加载    2026-11-26 17:24:30 [core] Aurabot v1.6.47 已加载｜总开关 开｜试运行 关
+面板    /aurabot/api/state → version=1.6.47，onebot=connected，modules=12
+错误    部署后新增 [error] 0 条
+同源    src/integration/host-tools.js 与 Air 同哈希
+```
+
+**证据边界（不夸大）**：`hostMaintenanceToolNames` 需要会话级 agent，只在挂载会话时执行；
+本轮没有让真实 QQ 账号发消息触发挂载，所以「在 mini 上真的认出了 purge_* 三条工具」这件事
+**没有直接日志证据**。可核对的事实是：rc.3 的 `view()` 确实返回 `restrictableNames`/`knownNames`（上面引了行号）、
+四条路径都有单测、真实 purge 1.7.20 的集成用例全过、mini 启动无报错。
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.47.tgz（460 条目，19,646,706 字节）
+sha256    f9e0c7f7739f2d0ca91202feac30b3388f9edc4f3ac3b8f6c61712772c94f931
+```
