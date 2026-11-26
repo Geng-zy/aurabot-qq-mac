@@ -375,4 +375,9 @@ Mini：purge-scope-integration / chat-attention-ranking / panel-post-only / chan
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.35.tgz（443 条目，19,633,299 字节）
 sha256    fdbfe95f812b3712f91a7c5bf0a443fc2ab35ca6fd226277e0ca6c561de17055
+提交      73439e6（main）
+tag       v1.6.35 → 73439e6
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.35
+资产      dsh-aurabot-qq-1.6.35.tgz  19,633,299 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45747561541（ubuntu + macos 双平台 success）
 ```
