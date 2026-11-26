@@ -43,13 +43,17 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.34 更新
+## 1.6.35 更新
 
-### 渠道层契约补齐（B4）
+### 聊天中枢：单一注意力搬到可测的地方（B3 第一刀）
 
-- 修 `profile` 功能声明里的文件路径：以前写成 `qq-profile.js`，面板「复制内置模块」会去找不存在的 `src/qq-profile.js`。现在统一用 src 相对路径，并加了回归测试逐个校验内置模块与 QQ 功能的文件声明。
-- 修 `caps.recall` 说得到做不到：QQ 一直声明支持撤回，但连接上没有 `recall` 方法。现在补上（走 `delete_msg`），并让 `validateChannel` 在注册时校验「说了能做就必须有方法」。
-- 上一版（B2）的写操作闸继续有效：需要请求包体的 20 条面板接口只接受 POST。
+- 「她一次只回一个聊天」的排序与放行规则原来埋在 `hub.js` 的四十多个共享状态中间，没有任何直接测试。
+- 现在收进 `src/chat/attention.js` 的 `createAttentionRanking`：管理员 > 私聊 > 必须回 > 普通；`ownerCuts` 打开时管理员消息不受压制；放行顺序按优先级再按到达时间。
+- 行为不变，`hub.js` 1471 → 1455 行；新增 6 个直接测试。
+
+### 前几批
+
+- 1.6.34 渠道契约（fork 路径、caps 与实现一致）；1.6.33 面板写操作闸；1.6.32 宿主组合根瘦身；1.6.31 语音条修复 + 全仓清单。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -135,12 +139,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.34.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.35.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.34.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.35.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

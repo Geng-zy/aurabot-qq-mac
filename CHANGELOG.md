@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.35
+
+- B3（第一刀）聊天中枢：把「单一注意力」的排序与放行规则从 `src/chat/hub.js` 搬进
+  `src/chat/attention.js` 的 `createAttentionRanking`——它原来埋在 40 多个共享状态中间、0 直接测试。
+  现在只依赖 6 个入口（ownerIn/getMind/attentionQueue/busy/pending/flush/isBusy/isDisposed），可直接测。
+- 新增 `test/chat-attention-ranking.test.js`：优先级（管理员 3 > 私聊 2 > 必须回 1 > 普通 0）、
+  单一注意力压制、`ownerCuts` 豁免、放行顺序（管理员优先再按到达时间）、有聊天在回复时不放行。
+- `hub.js` 1471 → 1455 行；行为不变（全量测试与 B2/B4 的闸门照旧）。
+- 回归：全量 1595 个测试通过（新增 6 个），语法 570 文件，oxlint 0 error / 164 warning。
+
 ## 1.6.34
 
 - B4 渠道层契约补齐（两处真实缺陷，都有先红后绿的回归）：

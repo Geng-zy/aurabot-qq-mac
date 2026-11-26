@@ -56,7 +56,7 @@ import { createSendSegments } from './send-segments.js'
 import { createDeliverTurn } from './deliver-turn.js'
 import { createTurnHelpers } from './turn-helpers.js'
 import { createGroupContext } from './group-context.js'
-import { createAttentionQueue } from './attention.js'
+import { createAttentionQueue, createAttentionRanking } from './attention.js'
 import { createSessionRecovery } from './session-recovery.js'
 import { createWorkspaceHelpers } from './workspace.js'
 import { createSessionCreate } from './session-create.js'
@@ -573,34 +573,13 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
   // ---------- 单一注意力（心智核心的设置）----------
   const attentionQueue = new Map() // chatId → { at, priority }：在等她回完别处的聊天
   const ownerIn = (p) => [...(p?.senders || [])].some((u) => isOwner(getConfig(), u, p.chat.chatId)) || (p?.chat?.kind === 'private' && isOwner(getConfig(), p.chat.userId, p.chat.chatId))
-  function attentionPriority(chatId, p) {
-    if (ownerIn(p)) return 3
-    if (p?.chat?.kind === 'private') return 2
-    if (p?.mustReply) return 1
-    return 0
-  }
-  function attentionBlocked(chatId, p) {
-    let a = null
-    try { a = mind?.attention?.() } catch {}
-    if (!a?.single) return false
-    if (a.ownerCuts && ownerIn(p)) return false
-    return [...busy.keys()].some((k) => k !== chatId && !k.startsWith('system:') && isBusy(k))
-  }
-  /** 她回完一个聊天：看看谁在等（管理员的先，其次先来的）。 */
-  function drainAttention() {
-    if (!attentionQueue.size || disposed) return
-    if ([...busy.keys()].some((k) => !k.startsWith('system:') && isBusy(k))) return
-    const waiting = [...attentionQueue.entries()].filter(([id]) => pending.get(id)?.waiting)
-    attentionQueue.clear()
-    for (const [id, item] of waiting) attentionQueue.set(id, item)
-    if (!waiting.length) return
-    waiting.sort((a, b) => b[1].priority - a[1].priority || a[1].at - b[1].at)
-    const next = waiting[0][0]
-    attentionQueue.delete(next)
-    const p = pending.get(next)
-    if (p) p.waiting = false
-    flush(next).catch(() => {})
-  }
+  // 单一注意力的排序/放行规则住在 attention.js（可以从那里直接测）。
+  // 这里用惰性委托：isBusy / flush 在文件后面才初始化，函数声明可以被提前调用，
+  // 真正在 createAttentionQueue 之前才把 ranking 装好（踩过 TDZ：Cannot access 'isBusy' before initialization）。
+  let attentionRanking = null
+  function attentionPriority(chatId, p) { return attentionRanking.priority(chatId, p) }
+  function attentionBlocked(chatId, p) { return attentionRanking.blocked(chatId, p) }
+  function drainAttention() { return attentionRanking.drain() }
 
   const IMAGE_SOURCE_PREFIX = '【下一张图的来源】'
 
@@ -1324,6 +1303,11 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     IMAGE_SOURCE_PREFIX, MAX_MESSAGE_IMAGES, animatedNote, canSeeFor, engagedHint, groupBuf,
     groupEngagedRun, groupKey, groupName, groupRefs, imagesOf, indentBody, inlineLabel, log,
     pickAutoReply, quoteImages, quoteInline, quoteWho, quotedInfo, sameNameNote, senderLabel
+  })
+
+  attentionRanking = createAttentionRanking({
+    ownerIn, getMind: () => mind, attentionQueue, busy, pending,
+    flush: (id) => { flush(id).catch(() => {}) }, isBusy, isDisposed: () => disposed,
   })
 
   const { enqueue, flush } = createAttentionQueue({

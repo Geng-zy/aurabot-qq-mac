@@ -41,13 +41,17 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.34 highlights
+## 1.6.35 highlights
 
-### Channel contract gaps closed (B4)
+### Chat hub: single-attention ordering moves somewhere testable (B3, first slice)
 
-- The `profile` feature declared `files: ['qq-profile.js']`, which the panel's "copy built-in module" action resolved to a non-existent `src/qq-profile.js`. It now uses src-relative paths, and a regression test checks every builtin and QQ feature file declaration.
-- `caps.recall` promised something the QQ channel never implemented. `recall(messageId)` now exists (via `delete_msg`), and `validateChannel` rejects a channel that declares a capability without the matching method.
-- The B2 write gate still applies: the 20 body-reading panel endpoints only accept POST.
+- The "reply to one chat at a time" ordering and release rules lived inside `hub.js` among forty-plus shared states with no direct tests.
+- They now live in `src/chat/attention.js` as `createAttentionRanking`: owner > private > must-reply > normal, `ownerCuts` exempts owner messages, release order is priority then arrival time.
+- No behaviour change; `hub.js` goes 1471 → 1455 lines; six direct tests added.
+
+### Earlier releases
+
+- 1.6.34 channel contract (fork paths, caps vs implementation); 1.6.33 panel write gate; 1.6.32 host composition root; 1.6.31 voice notes + repository inventory.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -133,12 +137,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.34.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.35.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.34.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.35.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

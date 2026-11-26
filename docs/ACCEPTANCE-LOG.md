@@ -316,3 +316,63 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.34
 资产      dsh-aurabot-qq-1.6.34.tgz  19,631,840 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45744321874（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B3（第一刀）· 单一注意力排序搬出 hub
+
+范围：`src/chat/attention.js`（+105 行）、`src/chat/hub.js`（1471 → 1455 行）、一个新测试。
+
+### 改动
+
+```text
+src/chat/attention.js   + createAttentionRanking({ ownerIn, getMind, attentionQueue, busy, pending, flush, isBusy, isDisposed })
+                          priority / blocked / drain 三条纯策略，原来是 hub 里的三个函数
+src/chat/hub.js         ownerIn 留在原地（它要 isOwner+getConfig），其余三条改成惰性委托
+test/chat-attention-ranking.test.js  新增 75 行 6 个用例
+```
+
+踩到的坑（已修）：第一次直接在 hub 里 `createAttentionRanking({ isBusy, ... })`，
+`isBusy` 是后定义的 `const` → `ReferenceError: Cannot access 'isBusy' before initialization`，
+全量 363 个用例一起红。改成「函数声明 + 惰性委托」：`attentionPriority/attentionBlocked/drainAttention`
+仍是提升的函数声明，`attentionRanking` 在 `createAttentionQueue` 之前才装配。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1595 passed / 0 failed / 0 skipped（比 1.6.34 多 6 个）
+语法检查    570 个文件通过
+oxlint      0 error / 164 warning（新模块一开始多 1 条未使用参数，已去掉）
+清单闸门    644 个文件全部有结论，0 待审
+```
+
+### 2. 模拟网关（Air）
+
+`test/e2e.test.js` 全绿：单一注意力在群聊排队、私聊优先等路径照旧。
+
+### 3. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / chat-attention-ranking / panel-post-only / channels-caps
+      → tests 16 / pass 16 / fail 0 / skipped 0
+```
+
+### 4. Mini 实机
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-111115
+加载    2026-11-26 11:11:29 [core] Aurabot v1.6.35 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 11:11:32 [onebot] 已连上 QQ 网关（WS）
+面板    GET /aurabot/api/state → 200，version=1.6.35，onebot=connected
+闸门    GET /aurabot/api/notice/toggle → 405（B2 照旧）
+运行    注意力相关日志命中 21 行（她在按新的排序规则判断接不接话）
+错误    日志 [error]/Cannot access/ReferenceError 命中 0
+同源    src/chat/hub.js、src/chat/attention.js 与 Air 同哈希
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.35.tgz（443 条目，19,633,299 字节）
+sha256    fdbfe95f812b3712f91a7c5bf0a443fc2ab35ca6fd226277e0ca6c561de17055
+```

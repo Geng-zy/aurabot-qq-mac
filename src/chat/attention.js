@@ -216,3 +216,56 @@ export function createAttentionQueue({ MAX_MESSAGE_IMAGES, RANK, askModel, atten
   /** 她这一轮说完了（或者没说）：放开，把这期间攒下的消息交给她。 */
   return { enqueue, flush, scheduleAttentionRetry, recordSecretary }
 }
+
+/**
+ * 单一注意力（心智核心的「一次只回一个聊天」）的排序与放行规则。
+ *
+ * 从 hub.js 搬出来的原因：这几条规则是纯策略（谁的优先级高、谁在排队、回完该放谁），
+ * 却和 hub 的 40 多个共享状态混在一起，改动时没人敢动。现在它只依赖 6 个入口，可以直接测。
+ *
+ * @param {object} d
+ * @param {(p: object) => boolean} d.ownerIn 这条待回复里有没有管理员
+ * @param {() => object|null} d.getMind 心智核心（拿 attention 设置）
+ * @param {Map<string, object>} d.attentionQueue 等待中的聊天
+ * @param {Map<string, object>} d.busy 正在回复的聊天（chatId → runToken）
+ * @param {Map<string, object>} d.pending 每个聊天待合并的消息
+ * @param {(chatId: string) => void} d.flush 把某个聊天放行
+ * @param {boolean} d.isBusy 有没有聊天正在回（system:* 不算）
+ * @param {() => boolean} d.isDisposed
+ */
+export function createAttentionRanking({ ownerIn, getMind, attentionQueue, busy, pending, flush, isBusy, isDisposed }) {
+  /** 优先级：管理员 > 私聊 > 必须回 > 普通。 */
+  function priority(chatId, p) {
+    if (ownerIn(p)) return 3
+    if (p?.chat?.kind === 'private') return 2
+    if (p?.mustReply) return 1
+    return 0
+  }
+
+  /** 单一注意力开着时，别的聊天正在回就先压住；管理员的消息（ownerCuts）不受限。 */
+  function blocked(chatId, p) {
+    let a = null
+    try { a = getMind()?.attention?.() } catch {}
+    if (!a?.single) return false
+    if (a.ownerCuts && ownerIn(p)) return false
+    return [...busy.keys()].some((k) => k !== chatId && !k.startsWith('system:') && isBusy(k))
+  }
+
+  /** 她回完一个聊天：看看谁在等（管理员的先，其次先来的）。 */
+  function drain() {
+    if (!attentionQueue.size || isDisposed()) return
+    if ([...busy.keys()].some((k) => !k.startsWith('system:') && isBusy(k))) return
+    const waiting = [...attentionQueue.entries()].filter(([id]) => pending.get(id)?.waiting)
+    attentionQueue.clear()
+    for (const [id, item] of waiting) attentionQueue.set(id, item)
+    if (!waiting.length) return
+    waiting.sort((a, b) => b[1].priority - a[1].priority || a[1].at - b[1].at)
+    const next = waiting[0][0]
+    attentionQueue.delete(next)
+    const p = pending.get(next)
+    if (p) p.waiting = false
+    flush(next)
+  }
+
+  return { priority, blocked, drain }
+}
