@@ -6,10 +6,14 @@
 import { randomUUID } from 'node:crypto'
 import { open, mkdir, readdir, rename, rm } from 'node:fs/promises'
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
-import { crc32, createInflateRaw, deflateRawSync, inflateRawSync } from 'node:zlib'
+import { crc32, deflateRawSync } from 'node:zlib'
 import { homedir } from 'node:os'
 import { join, parse, relative } from 'node:path'
 import { dataDir, dshHome } from './store.js'
+import {
+  MAX_ZIP, MAX_FILE, DEFLATE_MAX, MAX_EXPANDED, MAX_DIRECTORY, MAX_MANIFEST, MANIFEST,
+  centralHeader, dosTime, localHeader, readEntries, readEntry, verifyEntryStreaming,
+} from './backup-zip.js'
 
 /**
  * 旧记忆模块的文件（已由心智核心接管，只剩迁移来源）。备份时当普通文件带上；
@@ -38,14 +42,7 @@ export const MIND_DIR = 'mind'
 const MIND_DB = ['mind.sqlite', 'mind.sqlite-wal', 'mind.sqlite-shm'].map((n) => MIND_DIR + '/' + n)
 const inMind = (rel) => rel === MIND_DIR || rel.startsWith(MIND_DIR + '/')
 
-const MANIFEST = 'aurabot-backup.json'
 const SCHEMA = 1
-const MAX_ZIP = 0xfffffff0 // 没做 zip64：超过 4GB 明确报错，不生成坏文件
-const MAX_FILE = 2 ** 31 - 1 // Buffer 和 readFile 的边界
-const DEFLATE_MAX = 64 * 1024 * 1024
-const MAX_EXPANDED = 8 * 1024 ** 3
-const MAX_DIRECTORY = 32 * 1024 ** 2
-const MAX_MANIFEST = 8 * 1024 ** 2
 const STORE_EXT = /\.(png|jpe?g|gif|webp|mp3|mp4|m4a|ogg|opus|webm|zip|7z|rar|pth|index|onnx|safetensors)$/i
 const KEEP_BACKUPS = 10
 const KEEP_PRE_RESTORE = 10
@@ -187,48 +184,6 @@ function safeName(name) {
       && !/^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³])(?:\.|$)/iu.test(seg))))
 }
 
-const dosTime = (d) => ({ time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1), date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate() })
-
-function localHeader(entry) {
-  const name = Buffer.from(entry.name)
-  const h = Buffer.alloc(30)
-  h.writeUInt32LE(0x04034b50, 0)
-  h.writeUInt16LE(20, 4)
-  h.writeUInt16LE(0x0800, 6) // 文件名是 UTF-8
-  h.writeUInt16LE(entry.method, 8)
-  h.writeUInt16LE(entry.time, 10)
-  h.writeUInt16LE(entry.date, 12)
-  h.writeUInt32LE(entry.crc, 14)
-  h.writeUInt32LE(entry.packed, 18)
-  h.writeUInt32LE(entry.size, 22)
-  h.writeUInt16LE(name.length, 26)
-  return Buffer.concat([h, name])
-}
-
-function centralHeader(entry) {
-  const name = Buffer.from(entry.name)
-  const h = Buffer.alloc(46)
-  h.writeUInt32LE(0x02014b50, 0)
-  h.writeUInt16LE(20, 4)
-  h.writeUInt16LE(20, 6)
-  h.writeUInt16LE(0x0800, 8)
-  h.writeUInt16LE(entry.method, 10)
-  h.writeUInt16LE(entry.time, 12)
-  h.writeUInt16LE(entry.date, 14)
-  h.writeUInt32LE(entry.crc, 16)
-  h.writeUInt32LE(entry.packed, 20)
-  h.writeUInt32LE(entry.size, 24)
-  h.writeUInt16LE(name.length, 28)
-  h.writeUInt32LE(entry.offset, 42)
-  return Buffer.concat([h, name])
-}
-
-/** 打包数据目录，返回 { file, name, files, bytes, skipped }。configOnly = 只带配置/记忆/人格等文本数据，不带媒体、聊天流水和 DSH 会话。 */
-/**
- * 打包数据目录。configOnly = 只带配置、心智核心、人格等文本数据，不带画作、表情包这些媒体。
- * captureMind：返回 Map<相对路径, Buffer>，由宿主接上心智核心（没接就不带心智数据）。
- * 拿不到完整的库就让备份失败，不能把缺一半的心智当成功交给管理员。
- */
 export async function createBackup({ version = '', workspaceDir = '', now = new Date(), onProgress = () => {}, captureMind = null, configOnly = false } = {}) {
   const root = dataDir()
   await mkdir(root, { recursive: true })
@@ -335,133 +290,16 @@ export async function createBackup({ version = '', workspaceDir = '', now = new 
   }
 }
 
-async function readExact(file, length, position) {
-  const bytes = Buffer.allocUnsafe(length)
-  let offset = 0
-  while (offset < length) {
-    const { bytesRead } = await file.read(bytes, offset, length - offset, position + offset)
-    if (!bytesRead) throw new Error('备份文件读取不完整')
-    offset += bytesRead
+/**
+ * 读备份时对条目名字的检查：只认备份里该有的路径。
+ * 这条规则（哪些目录进包、哪些是历史遗留标记）属于备份策略，所以留在 backup.js，
+ * 由 backup-zip.js 的 readEntries 通过 checkName 钩子回调。
+ */
+function checkEntryName(name, { key, session, rel, legacySessionMarker, names }) {
+  if (names.has(key) || !safeName(name)
+      || (name !== MANIFEST && !legacySessionMarker && (!session && (!name.startsWith('data/') || skipped(rel))))) {
+    throw unsafePath(name)
   }
-  return bytes
-}
-
-/** 只支持 Aurabot 使用的单卷 ZIP32；在分配或解压前核对文件范围。 */
-async function readEntries(fh, size) {
-  if (size < 22 || size > MAX_ZIP) throw new Error('不是有效的备份文件')
-  const tailLen = Math.min(size, 22 + 65535)
-  const tail = await readExact(fh, tailLen, size - tailLen)
-  let end = tailLen - 22
-  while (end >= 0 && (tail.readUInt32LE(end) !== 0x06054b50 || end + 22 + tail.readUInt16LE(end + 20) !== tailLen)) end--
-  if (end < 0) throw new Error('不是有效的备份文件')
-  const count = tail.readUInt16LE(end + 10)
-  const dirSize = tail.readUInt32LE(end + 12)
-  const dirOffset = tail.readUInt32LE(end + 16)
-  if (tail.readUInt32LE(end + 4) || tail.readUInt16LE(end + 8) !== count || !count
-      || dirSize < count * 46 || dirSize > MAX_DIRECTORY || dirOffset + dirSize !== size - tailLen + end) {
-    throw new Error('备份目录范围无效或超过限制')
-  }
-  const dir = await readExact(fh, dirSize, dirOffset)
-  const entries = []
-  const names = new Set()
-  let p = 0
-  let expanded = 0
-  for (let i = 0; i < count; i++) {
-    if (p + 46 > dir.length || dir.readUInt32LE(p) !== 0x02014b50) throw new Error('备份文件的目录损坏')
-    const nameLen = dir.readUInt16LE(p + 28)
-    const next = p + 46 + nameLen + dir.readUInt16LE(p + 30) + dir.readUInt16LE(p + 32)
-    if (!nameLen || next > dir.length || dir.readUInt16LE(p + 34)) throw new Error('备份文件的目录损坏')
-    const entry = {
-      flags: dir.readUInt16LE(p + 8), method: dir.readUInt16LE(p + 10), crc: dir.readUInt32LE(p + 16),
-      packed: dir.readUInt32LE(p + 20), size: dir.readUInt32LE(p + 24), offset: dir.readUInt32LE(p + 42),
-      name: dir.toString('utf8', p + 46, p + 46 + nameLen),
-    }
-    const { name, method, packed, size: length, offset, flags } = entry
-    const key = process.platform === 'win32' ? name.toLowerCase() : name
-    const session = name.startsWith('dsh-sessions/')
-    const rel = name.slice(session ? 13 : 5)
-    const legacySessionMarker = name === '.restore-sessions-pending.json' || name === 'data/.restore-sessions-pending.json'
-    if (names.has(key) || !safeName(name)
-        || (name !== MANIFEST && !legacySessionMarker && (!session && (!name.startsWith('data/') || skipped(rel))))) throw unsafePath(name)
-    names.add(key)
-    expanded += length
-    if ((flags & ~0x0808) || (method !== 0 && method !== 8)
-        || length > MAX_FILE || expanded > MAX_EXPANDED || offset + 30 + packed > dirOffset
-        || (method === 0 && packed !== length)
-        || (method === 8 && (length > DEFLATE_MAX || packed > DEFLATE_MAX + 1024 * 1024))
-        || (name === MANIFEST && length > MAX_MANIFEST)) {
-      throw new Error('备份条目格式无效或超过资源限制')
-    }
-    entries.push(entry)
-    p = next
-  }
-  if (p !== dir.length) throw new Error('备份文件的目录损坏')
-
-  let dataEnd = 0
-  for (const entry of [...entries].sort((a, b) => a.offset - b.offset)) {
-    if (entry.offset < dataEnd) throw new Error('备份条目范围重叠')
-    const head = await readExact(fh, 30, entry.offset)
-    if (head.readUInt32LE(0) !== 0x04034b50 || head.readUInt16LE(6) !== entry.flags
-        || head.readUInt16LE(8) !== entry.method || (!(entry.flags & 8)
-          && (head.readUInt32LE(14) !== entry.crc || head.readUInt32LE(18) !== entry.packed || head.readUInt32LE(22) !== entry.size))) {
-      throw new Error('备份条目头与目录不一致')
-    }
-    const nameLength = head.readUInt16LE(26)
-    entry.start = entry.offset + 30 + nameLength + head.readUInt16LE(28)
-    dataEnd = entry.start + entry.packed
-    if (!nameLength || dataEnd > dirOffset
-        || (await readExact(fh, nameLength, entry.offset + 30)).toString('utf8') !== entry.name) {
-      throw new Error('备份条目范围无效')
-    }
-  }
-  return entries
-}
-
-/** 校验大条目时边解压边算 CRC，不把 96MiB 媒体整块留在内存。 */
-async function verifyEntryStreaming(fh, entry) {
-  const invalid = () => new Error('备份文件校验失败：' + entry.name)
-  if (entry.method === 0) {
-    await readEntry(fh, entry, { writeFile: async () => {} })
-    return
-  }
-  const inflater = createInflateRaw({ maxOutputLength: Math.max(entry.size, 1) })
-  let size = 0
-  let checksum = 0
-  let failure = null
-  inflater.on('data', (chunk) => { size += chunk.length; checksum = crc32(chunk, checksum) })
-  inflater.on('error', (error) => { failure = error })
-  for (let offset = 0; offset < entry.packed;) {
-    const part = await readExact(fh, Math.min(1024 * 1024, entry.packed - offset), entry.start + offset)
-    offset += part.length
-    if (!inflater.write(part)) await new Promise((resolve) => inflater.once('drain', resolve))
-  }
-  await new Promise((resolve, reject) => {
-    inflater.once('end', resolve)
-    inflater.once('error', reject)
-    inflater.end()
-  })
-  if (failure) throw invalid()
-  if (size !== entry.size || checksum !== entry.crc) throw invalid()
-}
-
-async function readEntry(fh, entry, output) {
-  const invalid = () => new Error('备份文件校验失败：' + entry.name)
-  if (output && entry.method === 0) {
-    let checksum = 0
-    for (let offset = 0; offset < entry.size;) {
-      const part = await readExact(fh, Math.min(1024 * 1024, entry.size - offset), entry.start + offset)
-      checksum = crc32(part, checksum)
-      await output.writeFile(part)
-      offset += part.length
-    }
-    if (checksum !== entry.crc) throw invalid()
-    return
-  }
-  const packed = await readExact(fh, entry.packed, entry.start)
-  const data = entry.method === 8 ? inflateRawSync(packed, { maxOutputLength: Math.max(entry.size, 1) }) : packed
-  if (data.length !== entry.size || crc32(data) !== entry.crc) throw invalid()
-  if (output) await output.writeFile(data)
-  else return data
 }
 
 let restoreInProgress = false
@@ -580,7 +418,7 @@ async function stageBackup(path, received) {
     const opened = await fh.stat({ bigint: true })
     if (!opened.isFile() || opened.size > BigInt(MAX_ZIP)) throw new Error('不是有效的备份文件')
     if (received && fileId(verifyFile(received.data, received).info) !== fileId(opened)) throw unsafePath(received.rel)
-    const entries = await readEntries(fh, Number(opened.size))
+    const entries = await readEntries(fh, Number(opened.size), { checkName: checkEntryName })
     const head = entries.find((entry) => entry.name === MANIFEST)
     if (!head) throw new Error('这不是 Aurabot 的备份文件')
     if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')
@@ -956,7 +794,7 @@ async function inspectBackupFile(full, label) {
   try {
     const st = await fh.stat({ bigint: true })
     if (!st.isFile() || st.size > BigInt(MAX_ZIP)) throw new Error('不是有效的备份文件')
-    const entries = await readEntries(fh, Number(st.size))
+    const entries = await readEntries(fh, Number(st.size), { checkName: checkEntryName })
     const head = entries.find((entry) => entry.name === MANIFEST)
     if (!head) throw new Error('这不是 Aurabot 的备份文件')
     if (!entries.some((entry) => entry.name === 'data/config.json')) throw new Error('备份里没有配置文件')

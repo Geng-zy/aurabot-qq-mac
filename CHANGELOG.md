@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.41
+
+- B5（第五刀）`backup.js` 1059 → 897 行：把备份用的 **ZIP 编解码**整段搬到 `src/core/backup-zip.js`（198 行）——
+  写本地头/中央目录、读中央目录、边解压边校验 CRC，以及格式上限（4GB / 32MiB 目录 / 8GiB 展开等）。
+- 读目录时的「哪些路径能进备份」是业务规则，没有跟着搬：`readEntries` 现在收一个 `checkName` 钩子，
+  `backup.js` 把自己的规则（safeName + skipped + 历史遗留标记）原样传进去。模块本身不含策略判断。
+- 保留原样：发布（`.restore` 事务 / journal 回滚）、会话恢复、保留策略、检查与列表都不动——
+  这些动的是数据恢复路径，换文件解决不了问题，留给后续批次配合直接测试再做。
+- 回归：全量 1618 个测试通过，其中备份相关的 4 个测试文件（backup / backup-restart / backup-webdav / backup-push）
+  共 45 个用例全过；语法 587 文件，oxlint 0 error / 157 warning。
+
 ## 1.6.40
 
 - B5（第四刀）分层修正：`src/core/` 对上层（chat / channels / features / voice / song / mind / module）的反向依赖

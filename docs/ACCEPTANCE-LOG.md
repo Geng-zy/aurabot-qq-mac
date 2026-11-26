@@ -733,3 +733,62 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.40
 资产      dsh-aurabot-qq-1.6.40.tgz  19,640,438 字节  state=uploaded
 CI        workflow_dispatch ref=main → run 45766624146（ubuntu + macos 双平台 success）
 ```
+
+---
+
+## B5（第五刀）· backup.js 拆出 ZIP 编解码
+
+范围：`src/core/backup.js` 1059 → 897 行，新增 `src/core/backup-zip.js`（198 行）。
+
+```text
+搬走：dosTime / localHeader / centralHeader（写）、readExact / readEntries / verifyEntryStreaming / readEntry（读），
+      以及格式上限常量（MAX_ZIP 4GB、MAX_DIRECTORY 32MiB、MAX_EXPANDED 8GiB、MAX_MANIFEST、DEFLATE_MAX）与 MANIFEST 名
+留下：备份什么（SKIP/CONFIG_ONLY_SKIP/skipped）、.restore 发布与 journal 回滚、会话恢复、保留策略、检查与列表
+```
+
+关键取舍：`readEntries` 原来内联了「哪些路径能进备份」的业务规则（safeName + skipped + 历史遗留标记）。
+这些规则**没有跟着搬**——函数改成收一个 `checkName` 钩子，`backup.js` 把自己的规则原样传进去。
+字节格式属于编解码，路径政策属于业务，两件事分开。
+
+### 1. 自动测试（Air）
+
+```text
+全量        1618 passed / 0 failed / 0 skipped
+备份专项    backup / backup-restart / backup-webdav / backup-push → 45/45
+语法检查    587 个文件通过
+oxlint      0 error / 157 warning
+清单闸门    667 个文件全部有结论，0 待审
+```
+
+### 2. 真实 Purge 模块（Mini）
+
+```text
+Mini：purge-scope-integration / backup / backup-restart / backup-webdav / backup-push
+      → 与 Air 同源的整仓测试（见下一段实机证据里同时跑的备份接口）
+```
+
+### 3. Mini 实机（数据路径真跑，非破坏性）
+
+```text
+回滚点  ~/aurabot-release-backups/20261126-142836
+加载    2026-11-26 14:28:41 [core] Aurabot v1.6.41 已加载｜总开关 开｜试运行 关
+网关    2026-11-26 14:28:44 [onebot] 已连上 QQ 网关（WS）
+建备份  POST /aurabot/api/backup/create → ok
+        aurabot-backup-20261126-062919-110-55eed39a.zip
+        127 个文件 / 展开 21,412,957 字节 / 压缩后 18,892,788 字节 / 78 个会话
+校验    POST /aurabot/api/backup/verify → { ok:true, verified:true, files:127, sessions:78, version:"1.6.41" }
+负例    把同一份 zip 拷一份、改坏中间 1 个字节再用 verify：
+        { ok:false, message:"备份文件校验失败：data/stickers/collected-9e93c9ed….gif" }
+        —— 流式 CRC 校验器在真实数据上确实生效，不是空跑。测试副本已删除。
+GET 闸门  GET /backup/verify → 405「这个接口只能用 POST」（B2 的闸门照旧）
+```
+
+**没有做真实恢复**：恢复会替换数据目录，属于破坏性操作；本批只验证写入与校验（含负例），
+`.restore` 发布与回滚逻辑一行未改，继续由 `backup-restart` 的离线用例守着。
+
+### 4. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.41.tgz（455 条目，19,642,759 字节）
+sha256    46536851a8f8585cf85fefc11f22bd112b4d092b5651f70a7e69d6164e6fc6b2
+```
