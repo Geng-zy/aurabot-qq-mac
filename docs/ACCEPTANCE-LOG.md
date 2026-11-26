@@ -511,4 +511,9 @@ Mini 上 11:44–11:45 出现 2 次 `[error] [core] 处理消息出错： Cannot
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.37.tgz（444 条目，19,636,565 字节）
 sha256    03f146e9362ed84cec63d9ad46cb77f25f4bc5a75da96ba1064a99fe1322db41
+提交      a6f76e8（main）
+tag       v1.6.37 → a6f76e8
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.37
+资产      dsh-aurabot-qq-1.6.37.tgz  19,636,565 字节  state=uploaded
+CI        workflow_dispatch ref=main → run 45754398866（ubuntu + macos 双平台 success）
 ```
