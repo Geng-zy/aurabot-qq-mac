@@ -1,11 +1,12 @@
 # AuraBot macOS 新会话交接
 
-最后更新：2026-11-26  
-适用版本：`v1.6.31`  
-仓库目录：`/Users/geng/Desktop/Project/dsh/aurabot-qq-mac`  
-维护仓库：<https://github.com/Geng-zy/aurabot-qq-mac>  
-默认分支：`main`  
-兼容维护分支：`beta/v1.5.10`
+```text
+最后更新   2026-11-26
+适用版本   v1.6.32
+仓库目录   /Users/geng/Desktop/Project/dsh/aurabot-qq-mac
+维护仓库   https://github.com/Geng-zy/aurabot-qq-mac
+默认分支   main（发布只用 main + 版本 tag + GitHub Release）
+```
 
 这份文档是给“新开一个会话继续干”的人/模型看的，不是对外用户手册。先看「五分钟接手」，再按需查后面的章节。
 
@@ -17,11 +18,11 @@
 
 ```text
 上一个发布             3658ee3 / v1.6.30
-package.json           1.6.31
-全量测试               1575 passed / 0 failed / 0 skipped
-语法检查               559 个文件通过
-oxlint                 0 errors / 165 warnings
-全仓清单               627 个文件全部有审计结论（docs/REPO-INVENTORY.md）
+package.json           1.6.32
+全量测试               1577 passed / 0 failed / 0 skipped
+语法检查               564 个文件通过
+oxlint                 0 errors / 164 warnings
+全仓清单               633 个文件全部有审计结论（docs/REPO-INVENTORY.md）
 Mac mini               见 docs/ACCEPTANCE-LOG.md 的 B0 段
 ```
 
@@ -236,7 +237,7 @@ ssh aurabot-mini
 ```bash
 scp -i ~/.ssh/aurabot_macmini_ed25519 \
   -o IdentitiesOnly=yes \
-  /tmp/dsh-aurabot-qq-1.6.31.tgz \
+  /tmp/dsh-aurabot-qq-1.6.32.tgz \
   gengzhiyu@100.89.128.72:/tmp/
 ```
 
@@ -304,11 +305,10 @@ mini 睡眠会导致 SSH 断、测试超时、DSH 插件不加载。建议：
 ### 2.1 分支
 
 ```text
-main            主开发/发布分支
-beta/v1.5.10    兼容维护分支
+main            唯一开发/发布分支
 ```
 
-每次发布通常把 `main` 快进到 `beta/v1.5.10`，再打 tag。
+`beta/v1.5.10` 已删除：发布只走 `main` + 版本 tag + GitHub Release，不再维护兼容分支。
 
 ### 2.2 远端
 
@@ -332,16 +332,16 @@ https://github.com/Geng-zy/aurabot-qq-mac.git
 ### 2.4 包内容审计
 
 ```bash
-tar -tzf /tmp/dsh-aurabot-qq-1.6.31.tgz | head
-tar -tzf /tmp/dsh-aurabot-qq-1.6.31.tgz | grep -v '^package/' | head
-tar -tzf /tmp/dsh-aurabot-qq-1.6.31.tgz | wc -l
+tar -tzf /tmp/dsh-aurabot-qq-1.6.32.tgz | head
+tar -tzf /tmp/dsh-aurabot-qq-1.6.32.tgz | grep -v '^package/' | head
+tar -tzf /tmp/dsh-aurabot-qq-1.6.32.tgz | wc -l
 ```
 
 期望：
 
 - 所有路径以 `package/` 开头；
 - 没有 `logs/`、`sessions.json`、`config.json`、`backups/`；
-- 1.6.31 实测 433 个条目。
+- 1.6.32 实测 433 个条目。
 
 ---
 
@@ -563,8 +563,8 @@ DSH/pnpm 在启动/安装时会按这个 tarball 解析。只替换 `node_module
 
 ```bash
 cd /Users/geng/Desktop/Project/dsh/aurabot-qq-mac
-/Users/geng/.bun/bin/bun pm pack --ignore-scripts --filename /tmp/dsh-aurabot-qq-1.6.31.tgz
-shasum -a 256 /tmp/dsh-aurabot-qq-1.6.31.tgz
+/Users/geng/.bun/bin/bun pm pack --ignore-scripts --filename /tmp/dsh-aurabot-qq-1.6.32.tgz
+shasum -a 256 /tmp/dsh-aurabot-qq-1.6.32.tgz
 ```
 
 传到 mini：
@@ -572,14 +572,14 @@ shasum -a 256 /tmp/dsh-aurabot-qq-1.6.31.tgz
 ```bash
 scp -i ~/.ssh/aurabot_macmini_ed25519 \
   -o IdentitiesOnly=yes \
-  /tmp/dsh-aurabot-qq-1.6.31.tgz \
-  gengzhiyu@100.89.128.72:/tmp/dsh-aurabot-qq-1.6.31.tgz
+  /tmp/dsh-aurabot-qq-1.6.32.tgz \
+  gengzhiyu@100.89.128.72:/tmp/dsh-aurabot-qq-1.6.32.tgz
 ```
 
 在 mini 上执行：
 
 ```bash
-cp /tmp/dsh-aurabot-qq-1.6.31.tgz /tmp/dsh-aurabot-qq-final21.tgz
+cp /tmp/dsh-aurabot-qq-1.6.32.tgz /tmp/dsh-aurabot-qq-final21.tgz
 
 cd ~/.dsh/profiles/desktop
 
@@ -599,7 +599,7 @@ grep "Aurabot v" ~/.dsh/plugins-data/aurabot/logs/aurabot-$(date +%F).log | tail
 期望：
 
 ```text
-Aurabot v1.6.31 已加载
+Aurabot v1.6.32 已加载
 ```
 
 ### 6.3 为什么用 `pkill -9`
@@ -788,11 +788,8 @@ shasum -a 256 /tmp/dsh-aurabot-qq-<ver>.tgz
 ```bash
 git add -A
 git commit -m "..."
-git checkout beta/v1.5.10
-git merge --ff-only main
 git tag -a v<ver> -m "AuraBot v<ver>"
-git checkout main
-git push origin main beta/v1.5.10 refs/tags/v<ver>
+git push origin main refs/tags/v<ver>
 ```
 
 ### 9.4 创建 Release
@@ -957,7 +954,7 @@ const body = src.slice(start, end < 0 ? src.length : end)
 3. 网关（SnowLuma/NapCat 一类）直接以 `Input does not contain a known duration` 拒收。
 4. 拒收后走「改发文字」，所以群里只看到文字，像是「她不想发语音」。
 
-1.6.31 起的处理：
+1.6.32 起的处理：
 
 - `src/voice/duration.js` 自己解 WAV / MP3 / OGG / M4A 容器，没有 ffmpeg 也能给出秒数；认不出才回落 ffmpeg。
 - `src/voice/tts.js` 检查 `say` / `afconvert` 退出码，并要求结果不是 0 采样的 WAV（`say` 失败会留下正好 4096 字节的空 WAV，旧的大小校验过得去）。
@@ -1136,7 +1133,7 @@ const pending = new Map()
 1.6.28  未使用变量清理
 1.6.29  安全 warning 清理 + 正则实验回滚
 1.6.30  最终审计/版本文档同步
-1.6.31  语音条补 duration（不依赖 ffmpeg）+ 空语音拦截
+1.6.32  语音条补 duration（不依赖 ffmpeg）+ 空语音拦截
 ```
 
 ---
@@ -1256,7 +1253,7 @@ client.template.js 280 行
 ```text
 你在 /Users/geng/Desktop/Project/dsh/aurabot-qq-mac 继续维护 AuraBot macOS 插件。
 先读 docs/SESSION-HANDOFF.md 和 docs/EXTERNAL-ACCEPTANCE.md。
-当前基线：v1.6.31，3658ee3，1562 tests passed，0 lint errors。
+当前基线：v1.6.32，3658ee3，1562 tests passed，0 lint errors。
 先跑 caffeinate 全量测试确认基线，不要假设上次状态。
 不要为清 warning 改 API/正则；不要只替换 node_modules 目录升级 Mac mini。
 Mac mini：gengzhiyu@100.89.128.72，SSH key ~/.ssh/aurabot_macmini_ed25519，Tailscale 名称 gengmac-mini。

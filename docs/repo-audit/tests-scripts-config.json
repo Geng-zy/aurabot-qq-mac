@@ -1257,7 +1257,7 @@
     "area": "ci",
     "owner": "ci",
     "verdict": "keep",
-    "evidence": "55 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 npm install --ignore-scripts → npm run check → npm run lint → npm pack → tar 三条路径校验（package/src/host.js、package/client/client.js、package/package.json）→ npm test；触发分支仍带历史分支 beta/v1.5.10（L6-7）；与 docs/HANDOFF.md:30 写的「PR Check 使用 Node 22」不一致"
+    "evidence": "59 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 清单闸门(node scripts/repo-inventory.mjs --write) → npm install --ignore-scripts → npm run check → npm run lint → client 构建漂移检查 → npm pack → tar 三条路径校验 → npm test；触发分支为 main 与 v* tag（历史分支 beta/v1.5.10 已移除）；2026-11-26 的 run 45678450101 双平台 success"
   },
   {
     "path": ".gitignore",
@@ -1327,7 +1327,7 @@
     "area": "doc",
     "owner": "doc",
     "verdict": "keepDoc",
-    "evidence": "96 行；测试体系表（L23-28）把 6 个区域映射到入口文件与针对性测试，L30 说明 e2e/fake DSH 跑法与 `node scripts/check-syntax.mjs`；两处与实测不符：L9「Node.js ≥ 22.13」vs package.json engines >=24.0.0、L30「PR Check 使用 Node 22」vs pr-check.yml 的 node-version '24'；建议统一到 24"
+    "evidence": "96 行；测试体系表（L23-28）把 6 个区域映射到入口文件与针对性测试，L30 说明 e2e/fake DSH 跑法与 `node scripts/check-syntax.mjs`；Node 版本已统一到 24（package.json engines >=24.0.0 与 pr-check.yml node 24 一致）"
   },
   {
     "path": "docs/MODULE-TUTORIAL.md",

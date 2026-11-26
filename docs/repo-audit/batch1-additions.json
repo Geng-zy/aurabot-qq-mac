@@ -1,0 +1,51 @@
+[
+  {
+    "path": "src/host/routes.js",
+    "area": "host",
+    "owner": "host",
+    "verdict": "keep",
+    "evidence": "172 行；21 处面板路由注册的唯一入口，被 src/host.js import 1 次；输出 133 条路由，由 test/host-routes.test.js 与 test/fixtures/host-routes.json 逐条锁定；接口只有一个 registerAllRoutes(d)。"
+  },
+  {
+    "path": "src/host/backup-schedule.js",
+    "area": "host",
+    "owner": "host",
+    "verdict": "keep",
+    "evidence": "87 行；云备份定时器（pushJob/pushTimer/pushDueAt 三个状态与失败重排）从 host.js 搬出；被 src/host.js 在 setConfig、卸载、路由依赖三处调用；返回 { doPush, schedule, nextAt, getPushJob, dispose } 五个方法；行为由 test/backup-push.test.js、test/backup-webdav.test.js 间接覆盖。"
+  },
+  {
+    "path": "src/host/mind.js",
+    "area": "host",
+    "owner": "host",
+    "verdict": "keep",
+    "evidence": "89 行；心智核心装配（createMindAdapter 的 18 个回调）从 host.js 搬出，接口是 createMind(d) 返回实例或 null；被 src/host.js import 1 次；test/mind-core.test.js、test/mind-adapter.test.js（44 个用例）覆盖对应行为。"
+  },
+  {
+    "path": "src/host/avatar.js",
+    "area": "host",
+    "owner": "host",
+    "verdict": "keep",
+    "evidence": "12 行；头像文件位置与状态（file/info）的唯一来源，被 src/host.js（概览）与 src/host/routes.js（头像路由）共用；删掉会让两处各写一份 statSync 判断。"
+  },
+  {
+    "path": "test/host-routes.test.js",
+    "area": "test",
+    "owner": "test-host",
+    "verdict": "keep",
+    "evidence": "54 行 2 个用例；对比 test/fixtures/host-routes.json 的 133 条路由，锁住 /aurabot/api/* 契约；第二个用例断言所有路由都在前缀下且数量 >100。"
+  },
+  {
+    "path": "test/fixtures/host-routes.json",
+    "area": "test",
+    "owner": "test-host",
+    "verdict": "keepGenerated",
+    "evidence": "134 行路由快照，由 test/host-routes.test.js 读取；当前 133 条（含 /aurabot/api 前缀路由）；改动面板路由时必须同步更新。"
+  },
+  {
+    "path": "docs/repo-audit/batch1-additions.json",
+    "area": "audit",
+    "owner": "audit",
+    "verdict": "keepGenerated",
+    "evidence": "B1 新增文件（host 四个子模块 + 路由快照测试 + fixture）的审计补充，6 条；被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取。"
+  }
+]

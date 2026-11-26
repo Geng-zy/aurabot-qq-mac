@@ -41,17 +41,18 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.31 highlights
+## 1.6.32 highlights
 
-### Voice notes actually send now
+### Slimmer host composition root (B1)
 
-- QQ requires a `duration` on every `record` segment. The old code only probed it with ffmpeg, so on a machine without ffmpeg the segment carried no duration and the gateway rejected it with `Input does not contain a known duration`. AuraBot now parses WAV / MP3 / OGG / M4A itself and falls back to ffmpeg only for unknown containers.
-- When `say` fails it still leaves a header-only WAV (exactly 4096 bytes with zero samples), which the old size check accepted: the bot sent a silent voice note. We now check the `say` / `afconvert` exit codes and require real audio, otherwise the reply goes out as text.
+- `src/host.js` drops from 855 to 658 lines: the panel route table moves to `src/host/routes.js` (the single place that registers all 133 routes), the cloud-backup timer to `src/host/backup-schedule.js`, mind wiring to `src/host/mind.js`, and the avatar location to `src/host/avatar.js`.
+- A new route snapshot test (`test/host-routes.test.js`) pins every `/aurabot/api/*` path, so a refactor cannot silently drop an endpoint.
+- No behaviour change: 1577 tests pass and the route table is identical.
 
-### Refactor baseline
+### Voice notes, fixed in the previous release
 
-- Full repository inventory and audit rules: [REPO-INVENTORY](docs/REPO-INVENTORY.md), [refactor plan](docs/REFACTOR-PLAN.md). Every first-party source file carries an owner, a verdict and checkable evidence.
-- Host compatibility is pinned to **DSH Desktop `0.2.2-rc.3` + dsh-purge `1.7.20`**; see [HOST-COMPAT](docs/HOST-COMPAT.md).
+- QQ requires a `duration` on every `record` segment. The old code only probed it with ffmpeg, so machines without ffmpeg could never send a voice note. AuraBot now parses WAV / MP3 / OGG / M4A itself.
+- A header-only WAV from a failed `say` is rejected and the reply falls back to text instead of sending silence.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -137,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.31.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.32.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.31.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.32.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

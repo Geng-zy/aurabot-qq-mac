@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.32
+
+- B1 宿主组合根瘦身：`src/host.js` 855 → 658 行，拆出四个文件——
+  `src/host/routes.js`（21 处面板路由注册收敛成 `registerAllRoutes(d)`，133 条路由的唯一入口）、
+  `src/host/backup-schedule.js`（云备份 pushJob/pushTimer/pushDueAt 与失败重排）、
+  `src/host/mind.js`（心智装配的 18 个回调）、`src/host/avatar.js`（头像位置与状态）。
+- 新增 `test/host-routes.test.js` + `test/fixtures/host-routes.json`：面板路由表快照，增删改必须显式更新。
+- 顺手修掉一个隐患：云备份定时器原来定义在路由注册之后，`setConfig` 早调用会踩 TDZ；现在调度器在组合根里先建后传。
+- 回归：全量 1577 个测试通过（新增 2 个），语法 564 文件，oxlint 0 error / 164 warning（比上一版少 1 条）。
+- 行为与对外契约不变：133 条路由逐条一致，`/aurabot/api/*` 返回字段不动。
+
 ## 1.6.31
 
 - 修语音条发不出去：QQ 的 record 段必须带 duration。以前只靠 ffmpeg 探时长，机器上没装 ffmpeg 时就一直不带，网关一律以 `Input does not contain a known duration` 拒收（Mac mini 实测 25 次全失败，语音从没成功过）。现在自带 WAV / MP3 / OGG / M4A 容器解析，不依赖 ffmpeg，认不出才回落 ffmpeg。

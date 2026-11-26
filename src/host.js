@@ -9,10 +9,9 @@
 //
 // ⚠ 安全默认：总开关关、试运行开。不手动打开，一句都不会真的发到 QQ。
 
-import { readFileSync, statSync, mkdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { loadConfig, saveConfig, publicConfig, mergeFromPanel, ownerAuthorizationRevision } from './core/config.js'
 import { createLogger } from './core/logger.js'
@@ -44,39 +43,20 @@ import { createHerVoice } from './features/her-voice.js'
 import { applyPendingRestore, cancelPendingSessions, cancelRestore, createBackup, inspectBackup, listBackups, pendingModules, pendingRestore, pendingSessions, retryPendingSessions, setPendingModules, stageReceivedBackup, stageRestore, pruneLocalBackups, prunePreRestore } from './core/backup.js'
 import { pushBackup, listWebdavBackups, downloadWebdavBackup } from './core/backup-push.js'
 import { createBridge } from './core/bridge.js'
-import { registerBackupRestoreRoutes } from './features/backup-routes.js'
-import { registerBackupCloudRoutes } from './features/backup-cloud-routes.js'
-import { registerKnowledgeRoutes } from './features/knowledge-routes.js'
-import { registerPlatformRoutes } from './features/platform-routes.js'
-import { registerPanelMiscRoutes } from './features/panel-misc-routes.js'
-import { registerSessionRoutes } from './features/session-routes.js'
-import { registerModelRoutes } from './features/model-routes.js'
-import { registerMindSettingsRoutes } from './features/mind-settings-routes.js'
-import { registerMindMemoryRoutes } from './features/mind-memory-routes.js'
-import { registerMindSelfRoutes } from './features/mind-self-routes.js'
-import { registerPersonaRoutes } from './features/persona-routes.js'
-import { registerDebugRoutes } from './features/debug-routes.js'
-import { registerLocalRoutes } from './features/local-routes.js'
-import { registerModuleRoutes } from './features/module-routes.js'
-import { registerAvatarRoutes } from './features/avatar-routes.js'
-import { registerNoticeRoutes } from './features/notice-routes.js'
-import { registerPanelCoreRoutes } from './features/panel-core-routes.js'
-import { registerFacesRoutes } from './features/faces-routes.js'
-import { registerBridgeRoutes } from './features/bridge-routes.js'
-import { registerMindLiveRoutes } from './features/mind-live-routes.js'
-import { registerMindPeopleRoutes } from './features/mind-people-routes.js'
 import { createDangerGuard, safeOwnedSession } from './security/danger.js'
 import { setSsrpMode } from './core/net.js'
 import { BUILTINS } from './modules/index.js'
 import { createKnowledge } from './features/knowledge.js'
-import { createMindAdapter } from './mind-adapter/index.js'
+import { createMind } from './host/mind.js'
 import { createPurgeScope } from './integration/purge-scope.js'
 import { installPromptVariables } from './host/prompt-vars.js'
 import { applyPanelSave } from './host/panel-save.js'
 import { createOverview } from './host/overview.js'
 import { createHttpKit } from './host/http.js'
+import { registerAllRoutes } from './host/routes.js'
+import { createAvatarStore } from './host/avatar.js'
+import { createBackupScheduler } from './host/backup-schedule.js'
 import { installPersonaHoist } from './integration/persona-hoist.js'
-import { createLocalInstaller } from './mind-adapter/install.js'
 
 export const name = 'aurabot'
 export const inject = ['agents', 'sessions', 'webServer', 'timer', 'workspaceRegistry', 'attachments', 'systemPrompt', 'llm']
@@ -106,9 +86,6 @@ export function apply(ctx) {
   let bridge = null
   // 备份与云备份推送的任务状态声明在顶部：setConfig 里改云备份设置时要提前排定时器
   let backupJob = null // { running, done, total, error, result }
-  let pushJob = null // { running, ok, error, result, at }
-  let pushTimer = null // 云备份每日定时
-  let pushDueAt = null
   const getConfig = () => cfg
   setSsrpMode(() => (getConfig().security && getConfig().security.ssrfMode === 'loose' ? 'loose' : 'strict'))
   const secrets = () => { for (const k of ['httpToken', 'wsToken']) registerSecret(cfg.snowluma[k]); registerSecret(cfg.platforms?.qq?.httpToken); registerSecret(cfg.platforms?.qq?.wsToken); registerSecret(cfg.platforms?.telegram?.token); registerSecret(cfg.imageGen.apiKey); for (const item of cfg.imageGen.fallbacks || []) registerSecret(item.apiKey); registerSecret(cfg.bridge.token); registerSecret(cfg.mind?.embedKey); registerSecret(cfg.backup?.remote?.token); registerSecret(cfg.backup?.remote?.webdav?.password); registerSecret(cfg.voice?.asrApi?.apiKey); registerSecret(cfg.voice?.breeze?.key); registerSecret(cfg.voice?.breeze?.password) } // 云备份令牌 / WebDAV 密码、语音的 Key 也按密钥脱敏
@@ -150,7 +127,7 @@ export function apply(ctx) {
     }
     if (mods && (JSON.stringify(before.modules) !== JSON.stringify(cfg.modules) || before.safeMode !== cfg.safeMode)) mods.sync().catch(() => {})
     mods?.emit('config', cfg, before)
-    if (JSON.stringify(before.backup?.remote) !== JSON.stringify(cfg.backup?.remote)) scheduleRemoteBackup()
+    if (JSON.stringify(before.backup?.remote) !== JSON.stringify(cfg.backup?.remote)) backupScheduler.schedule()
     return cfg
   }
   secrets()
@@ -280,65 +257,11 @@ export function apply(ctx) {
   // 心智核心：起不来（比如这个 Node 没有 node:sqlite）也不影响聊天，只是她不记事
   // 要扔掉的东西都进废纸篓（可找回），不直接删。测试时可以用 AURABOT_TRASH_DIR 指到临时目录。
   const trashDir = process.env.AURABOT_TRASH_DIR || join(homedir(), '.Trash')
-  try {
-    mind = createMindAdapter({
-      dir: dataDir('mind'),
-      getConfig,
-      log: logger.child('mind'),
-      persona: () => readPersona(getConfig().persona.current),
-      legacyDir: dataDir(),
-      trashDir,
-      // 心智核心的后台用途（记经历、睡觉整理、做梦）都用 DeepSeek，思考深度按用途定
-      // 带回真实用量（输入 + 输出 token），每天的后台预算按它记，拿不到时心智核心按字数估
-      ask: async ({ scene, system, text, maxTokens, reasoningEffort }) => {
-        let tokens = 0
-        const out = await askModel(ctx, { system, text, maxTokens, reasoningEffort, temperature: 0.4, cfg: getConfig(), module: 'mind:' + (scene || 'think'), onUsage: (u) => { tokens += (Number(u?.inputTokens) || 0) + (Number(u?.outputTokens) || 0) } })
-        return tokens ? { text: out, tokens } : out
-      },
-      embedKey: () => getConfig().mind?.embedKey || '',
-      // 她想主动找人：把心里的由头交给那个私聊，话由她自己说
-      reachOut: async ({ chatId, userId, note }) => {
-        if (!hub) return false
-        return hub.pushToSession({ chatId, kind: 'private', userId: String(userId), nickname: ownerCall() }, [{ type: 'text', text: note }], '', { internal: true, confirmDelivery: true })
-      },
-      deliverReminder: async ({ chatId, text, isCurrent }) => {
-        const result = await backgroundText(chatId, text, '提醒', { isCurrent, allowQueue: false, throwOnError: true })
-        return Boolean(result && !result.queued)
-      },
-      // 她改了自己之后通知你（系统通知，不是她说的话）
-      notifyOwner: async (text) => {
-        const chatId = mind?.ownerChat()
-        if (!hub || !chatId) return
-        await backgroundText(chatId, text, '心智通知', { force: true, quiet: true, system: true }).catch(() => {})
-      },
-      // 她改了人格卡、名字：面板里正在用的那份人格卡文件跟着改，两边一致
-      onSelfChange: ({ what, after }) => {
-        const id = getConfig().persona.current
-        const cur = readPersona(id)
-        if (!cur) return
-        if (what === 'persona') savePersona(id, { name: cur.name, tags: cur.tags, body: after, nickname: cur.nickname })
-        if (what === 'name') savePersona(id, { name: after, tags: cur.tags, body: cur.body, nickname: cur.nickname })
-        if (what === 'nickname') savePersona(id, { name: cur.name, tags: cur.tags, body: cur.body, nickname: after })
-      },
-      // 群名（聊天中枢查到过的；没查到就显示群号）
-      groupName: (gid, platform) => platform === LEGACY_PLATFORM ? hub?.groupNames?.get?.(String(gid)) || '' : '',
-      // 正在翻唱（很吃内存）：本地小模型先让路
-      heavyBusy: () => { try { return Boolean(use('song')?.status?.()?.current) } catch { return false } },
-      foregroundBusy: () => hub?.foregroundBusy(),
-      // 醒来后把睡着时找她的消息重新交给聊天中枢（一条一条来，管理员的先）
-      onWakeReplay: async (list) => {
-        for (const item of list) {
-          if (!hub) return
-          try { await hub.onMessage(item.event) } catch (error) { log.debug('补回消息失败：', error.message) }
-          await new Promise((r) => setTimeout(r, 1500))
-        }
-      },
-    })
-    mind.start().catch((error) => log.warn('心智核心启动步骤出错：', error.message))
-  } catch (error) {
-    log.warn('心智核心没起来（聊天照常）：', error.message)
-    mind = null
-  }
+  mind = createMind({
+    dataDir, getConfig, log: logger.child('mind'), trashDir, askModel, ctx,
+    getHub: () => hub, ownerCall, backgroundText, readPersona, savePersona,
+    legacyPlatform: LEGACY_PLATFORM, use,
+  })
 
   const purge = createPurgeScope({ log: logger.child('purge') })
   hub = createHub({
@@ -675,7 +598,7 @@ export function apply(ctx) {
   ctx.effect(() => () => {
     unloaded = true
     clearTimeout(firstWatch)
-    if (pushTimer) { clearTimeout(pushTimer); pushTimer = null } // 云备份的每日定时也要收尾，别留悬空回调
+    backupScheduler?.dispose() // 云备份的每日定时也要收尾，别留悬空回调
     dangerGuard?.dispose()
     approvalRelay?.dispose()
     // 先停平台：关闭期间不再产生新的入站/出站；再收中枢、心智和模块。
@@ -690,160 +613,40 @@ export function apply(ctx) {
   }, 'aurabot: 收尾')
 
   // ---------- 面板接口 ----------
+  const avatar = createAvatarStore({ dataDir })
   const overview = createOverview({
     getConfig: () => cfg, version: VERSION, apiVersion: API_VERSION, homedir, publicConfig,
     qq, channels, outbox, hub, nextChange, isPeak, getMind: () => mind, stickers, use,
-    avatarInfo: () => avatarInfo(), workspaceDirOf, realWorkspace, listPersonas, mods, bridge, ctx,
+    avatarInfo: avatar.info, workspaceDirOf, realWorkspace, listPersonas, mods, bridge, ctx,
   })
 
-  // ---------- 面板：对外接口聚合 ----------
+  // 云备份的每日定时器：拥有自己的状态，setConfig / 面板 / 卸载三处只跟它对话
+  const backupScheduler = createBackupScheduler({
+    getConfig, log, alive: () => !unloaded, getBackupJob: () => backupJob,
+    createBackup, pushBackup, captureMind: () => (mind ? () => mind.backupFiles() : null),
+    workspaceDirOf, version: VERSION,
+  })
 
-  registerPanelCoreRoutes({
-    route, readBody, query, getConfig: () => cfg, setConfig, overview, usageReport,
-    applyPanelSave, mergeFromPanel, clearReasoningCache, clearVisionCache,
+  // ---------- 面板：对外接口（路由表在 host/routes.js，这里只递依赖） ----------
+  registerAllRoutes({
+    route, http: { send, readBody, readRaw, query },
+    getConfig, setConfig, getMind: () => mind, getBackupJob: () => backupJob, setBackupJob: (next) => { backupJob = next },
+    getPushJob: backupScheduler.getPushJob, nextPushAt: backupScheduler.nextAt, doPush: backupScheduler.doPush,
+    hub, ctx, onebot, qq, channels, mods, bridge, local, knowledge, log, logger,
+    overview, usageReport, applyPanelSave, mergeFromPanel, clearReasoningCache, clearVisionCache,
     startWatchdog: () => setTimeout(safe(watchdog, '看门狗'), 100),
-    qq, log, mods, hub,
+    commandList, root: ROOT, version: VERSION, changelogSection, moveWorkspace, workspaceDirOf,
+    backgroundText, listProviderModels, listModels, askModel, shortRef, parsePerson, legacyPlatform: LEGACY_PLATFORM,
+    readPersona, savePersona, listPersonas, deletePersona, dataDir, trashDir, mimeOf, ensureDir, send,
+    avatarFile: avatar.file, avatarInfo: avatar.info,
+    workspaceList, normalizeWorkspace, community, parseCommand, apiVersion: API_VERSION,
+    localAudioFile, localImageBuffer,
+    listBackups, pendingRestore, pendingSessions, pendingModules, inspectBackup, createBackup,
+    stageReceivedBackup, stageRestore, cancelRestore, retryPendingSessions, cancelPendingSessions,
+    listWebdavBackups, downloadWebdavBackup,
   })
 
-  registerKnowledgeRoutes({ route, readBody, query, knowledge })
-  registerPanelMiscRoutes({
-    route, readBody, query, logger, mods, commandList, root: ROOT, version: VERSION, changelogSection,
-    getConfig, qq, onebot, moveWorkspace, workspaceDirOf, log,
-  })
-  registerPlatformRoutes({ route, channels, qq, onebot, getConfig })
-  registerSessionRoutes({ route, getConfig, backgroundText, hub })
-  // 人格
-  // ---------- 心智核心（面板「心情与记忆」「人物」「心智设置」） ----------
-  registerMindMemoryRoutes({ route, readBody, query, getMind: () => mind })
-  registerModelRoutes({ route, readBody, getConfig: () => cfg, getMind: () => mind, listProviderModels, listModels, clearReasoningCache, clearVisionCache, askModel, ctx })
-  registerMindSettingsRoutes({
-    route, readBody, getMind: () => mind, getConfig: () => cfg,
-    clearEmbedKey: () => { cfg = saveConfig({ ...cfg, mind: { ...cfg.mind, embedKey: '' } }, cfg) },
-  })
-  const localInstaller = createLocalInstaller({ trashDir, log: logger.child('mind'), mirror: () => getConfig().song?.pypiMirror || 'auto' })
-  registerMindLiveRoutes({ route, readBody, getMind: () => mind, getConfig: () => cfg, shortRef, localInstaller })
-  registerMindPeopleRoutes({
-    route, readBody, getMind: () => mind, getConfig: () => cfg, parsePerson, legacyPlatform: LEGACY_PLATFORM, hub, log, localInstaller,
-  })
-  // ---------- 人格与自我 ----------
-  registerMindSelfRoutes({ route, readBody, query, getMind: () => mind, getConfig: () => cfg, readPersona, savePersona })
-  registerPersonaRoutes({
-    route, readBody, query, getConfig: () => cfg, setConfig,
-    listPersonas, readPersona, savePersona, deletePersona, getMind: () => mind, askModel, ctx, log,
-  })
-
-  registerDebugRoutes({ route, readBody, getConfig: () => cfg, hub })
-
-  // 本地接口
-  const openFolder = (dir) => {
-    mkdirSync(dir, { recursive: true })
-    const opener = 'open'
-    // 子进程起不来是以 error 事件抛的，没人听就是未捕获异常，会把 DSH 整个带走（#135）
-    return new Promise((resolve) => {
-      const child = spawn(opener, [dir], { detached: true, stdio: 'ignore' })
-      child.once('error', (error) => resolve({ ok: false, message: `打不开文件夹：${dir}（${error.message}）` }))
-      child.once('spawn', () => { child.unref(); resolve({ ok: true, message: '打开了' }) })
-    })
-  }
-  // 备份：文件里有账号凭证，只存在本机文件夹，不提供网页下载（backupJob 声明在文件顶部，云备份的定时器要提前用到）
-  // 心智核心的库：本地备份、云备份（包括「仅配置」）都要带一份完整的
-  const captureMind = () => (mind ? () => mind.backupFiles() : null)
-  const backupAction = (run) => async (req) => {
-    if (req.method !== 'POST' || req.headers?.['x-aurabot-backup'] !== '1') return { ok: false, message: '请从面板发起操作' }
-    return run(req)
-  }
-  registerBackupRestoreRoutes({
-    route, backupAction, readBody, readRaw, query, dataDir, openFolder, log,
-    getConfig, version: VERSION, workspaceDirOf, captureMind,
-    getJob: () => backupJob, setJob: (next) => { backupJob = next },
-    listBackups, pendingRestore, pendingSessions, pendingModules,
-    inspectBackup, createBackup, stageReceivedBackup, stageRestore,
-    cancelRestore, retryPendingSessions, cancelPendingSessions,
-  })
-  // ---------- 云备份：每天到点自动打包，并把最新备份推到 Gitee 私有仓库（走本机 git）----------
-  const alive = () => { try { return !unloaded } catch { return true } }
-  const nextRemoteAt = () => pushDueAt === null ? null : new Date(pushDueAt).toISOString()
-  const doPush = async (pack) => {
-    if (pushJob?.running) return { ok: false, message: '上一次推送还没跑完' }
-    if (backupJob?.running) return { ok: false, message: '正在打包，等这轮打包完再推' }
-    pushJob = { running: true, pack: !!pack, at: Date.now() }
-    try {
-      const remote = getConfig().backup?.remote || {}
-      const configOnly = remote.provider === 'webdav' && remote.webdav?.configOnly === true
-      let sourceName = ''
-      if (pack || configOnly) {
-        const result = await createBackup({ version: VERSION, workspaceDir: workspaceDirOf(getConfig()), captureMind: captureMind(), configOnly })
-        sourceName = result.name
-        log.info(`${configOnly ? '仅配置' : ''}云备份打包完成：${result.name}，${result.files} 个文件`)
-      }
-      const r = await pushBackup(remote, { version: VERSION, sourceName })
-      pushJob = { running: false, ok: true, result: r, at: Date.now() }
-      log.info(`云备份推送完成：${r.message}`)
-    } catch (error) {
-      pushJob = { running: false, ok: false, error: error.message, at: Date.now() }
-      log.error('云备份推送失败：', error.message)
-    } finally {
-      scheduleRemoteBackup() // 打包+推送耗时不定，跑完重排到下一天
-    }
-    return pushJob.ok ? { ok: true, message: pushJob.result.message || '备份已推送' }
-      : { ok: false, message: '推送失败：' + pushJob.error }
-  }
-  registerBackupCloudRoutes({
-    route, backupAction, readBody, getConfig, setConfig, mergeFromPanel, log,
-    getPushJob: () => pushJob, nextAt: nextRemoteAt, doPush,
-    listWebdavBackups, downloadWebdavBackup, stageReceivedBackup,
-  })
-  const scheduleRemoteBackup = (retryMs = 0) => {
-    if (pushTimer) { clearTimeout(pushTimer); pushTimer = null }
-    pushDueAt = null
-    const r = cfg.backup?.remote
-    if (!r?.enabled || !alive()) return
-    const now = Date.now()
-    const next = new Date(now)
-    if (retryMs) next.setTime(now + retryMs)
-    else {
-      const [hh, mm] = String(r.time || '03:30').split(':').map(Number)
-      next.setHours(hh, mm, 0, 0)
-      if (next.getTime() <= now) next.setDate(next.getDate() + 1)
-    }
-    pushDueAt = next.getTime()
-    pushTimer = setTimeout(() => {
-      pushTimer = null
-      pushDueAt = null
-      if (!alive()) return
-      if (backupJob?.running || pushJob?.running) scheduleRemoteBackup(60_000)
-      else void doPush(true)
-    }, pushDueAt - now)
-    pushTimer.unref?.()
-  }
-  registerNoticeRoutes({
-    route, readBody, query, getConfig: () => cfg, setConfig, workspaceList, normalizeWorkspace, hub,
-  })
-
-  registerLocalRoutes({
-    route, readBody, getConfig: () => cfg, setConfig, local, openFolder, localAudioFile, localImageBuffer,
-  })
-
-  // 模块（面板「扩展」页）
-  registerModuleRoutes({
-    route, readBody, query, getConfig: () => cfg, mods, community, hub, parseCommand, send, openFolder, root: ROOT, apiVersion: API_VERSION,
-  })
-
-  registerFacesRoutes({ route, channels })
-
-  registerBridgeRoutes({ route, readBody, query, getConfig: () => cfg, bridge })
-
-  // 形象图
-  // 头像：自定义的放在数据目录（重装插件不丢），没有就用插件自带的大肥鱼
-  const AVATAR = () => dataDir('avatar.img')
-  const avatarInfo = () => {
-    try { return { custom: true, at: statSync(AVATAR()).mtimeMs } } catch (error) { return { custom: false, at: 0 } }
-  }
-  registerAvatarRoutes({
-    route, readBody, send, avatarFile: AVATAR, avatarInfo, dataDir, root: ROOT, mimeOf, log, onebot, ensureDir,
-  })
-
-  scheduleRemoteBackup() // 云备份：到点自动打包推送（配置里关着就是空操作）
+  backupScheduler.schedule() // 云备份：到点自动打包推送（配置里关着就是空操作）
   log.info(`Aurabot v${VERSION} 已加载｜总开关 ${cfg.enabled ? '开' : '关'}｜试运行 ${cfg.dryRun ? '开' : '关'}｜工作区 ${workspaceDirOf(cfg)}`)
 
   return {
