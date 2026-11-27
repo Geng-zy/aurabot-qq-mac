@@ -2700,3 +2700,16 @@ Purge  GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_st
 
 `channels/qq/features/profile/index.js` 那行仍写着「第 49 行 `files: ['qq-profile.js']` 会 ENOENT」——
 代码早已是完整相对路径，结论过时；本批把该行文字改成现状，避免清单继续误导。
+
+### 5. 发布（v1.6.67）
+
+```text
+提交      669313e
+tag       v1.6.67
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.67
+附件      dsh-aurabot-qq-1.6.67.tgz  19,653,412 字节（464 个条目）
+          远端 digest sha256:d4585afc129a47e1d35437d743e8bd4723cce6aaab8dcccd3892fef356d70b15
+          = mini 上安装的那份（同哈希）
+CI        run 45975828420 → macos-latest success、ubuntu-latest success（17:48 双绿）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
