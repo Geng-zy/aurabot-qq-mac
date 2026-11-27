@@ -71,7 +71,7 @@ export function saveConfig(cfg, previous = loadConfig()) {
     const revision = c.ownerQQ === previous.ownerQQ ? ownerAuthorizationRevision(previous) : ''
     c.ownerAuthorization = { owner: c.ownerQQ, revision: revision || randomUUID() }
   } else delete c.ownerAuthorization
-  writeJson(FILE(), c)
+  writeJson(FILE(), c, { durable: true })
   return c
 }
 

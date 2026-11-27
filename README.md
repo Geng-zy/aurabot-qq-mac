@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.68 更新
+## 1.6.69 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -112,6 +112,8 @@ local
 - Telegram：长轮询、文字、回复、图片上传（base64 图走 multipart）。
   能力位只声明规范项；超时/网络/5xx 标 `uncertain`（可能已发出，不重复发），4xx 视为确定失败。
 - 其他平台通过 `PlatformAdapter` / `ChannelManager` 继续接入。
+- 所有 JSON 数据（配置、会话映射、任务、用量）都走同一处原子写：先写唯一临时文件再 rename，
+  失败会清掉临时文件；`配置` 这类丢了很疼的文件额外 fsync 落盘，热点路径默认不 fsync 保速度。
 - 统一使用 `caps`：能力位只写 `CAPS` 里的规范项，声明 `true` 就必须真有对应方法（注册时校验）。没有原生能力时降级或跳过，不破坏平台边界。
 
 ## 平台
@@ -140,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.68.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.69.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.68.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.69.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。

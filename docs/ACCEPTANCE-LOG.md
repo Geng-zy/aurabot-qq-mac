@@ -2780,3 +2780,55 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.68
 CI        run 45986613806 → macos-latest success、ubuntu-latest success（19:03 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B31 · 持久化原子写入与失败清理（1.6.69）
+
+批次范围：`src/core/store.js`（配置、会话映射、任务、用量等所有 JSON 的读写都走它）+ `src/core/config.js`（改用 durable）。
+必须保留的旧数据与行为：6 个导出（`dshHome/dataDir/ensureDir/readJson/readJsonStrict/writeJson`）、
+同步写、2 空格缩进、UTF-8 无 BOM、BOM 容忍、`readJsonStrict` 的 `.broken-<ts>` 留底并抛错、
+`dataDir` 的目录布局（`~/.dsh/plugins-data/aurabot`）。
+
+### 1. 改了什么（三条保证）
+
+| 保证 | 之前 | 现在 |
+|---|---|---|
+| 临时文件唯一 | `<file>.tmp-<pid>`：崩溃留下的半截文件会被下一次同 pid 的写复用/覆盖，半截内容可能被 rename 成正式文件 | `<file>.tmp-<pid>-<序号>-<时间36进制>`，旧残渣既不复用也不误删 |
+| 失败清理 | 写或 rename 抛错后临时文件留在数据目录 | 抛错前 `unlink` 临时文件（备份与清单都按扩展名扫目录，残渣会被当成数据） |
+| 落盘 | rename 前不 fsync，掉电可能留空文件 | 新增 `writeJson(file, value, { durable: true })`：fsync 后再 rename；配置用它，热点路径（每次消息写映射）默认不 fsync 保速度 |
+
+同步写在事件循环里天然串行，同进程不会交错；跨进程靠 pid + 序号 + 时间区分。
+
+### 2. 自动测试（Air）
+
+```text
+新增 test/store-atomic.test.js 7 个用例 + 脱敏样本 test/fixtures/store/legacy-config.json
+  ✔ 200 次写入：每次之后直接读原文都是完整 JSON，最终是最后一次内容，目录里只剩正式文件
+  ✔ rename 目标被目录占住 → 抛错且不留任何 .tmp-
+  ✔ 同 pid 的旧临时文件（模拟上次崩溃留下的 '{"half":'）不被复用、不被误删
+  ✔ 字段保真：脱敏历史配置（含旧字段 legacyFieldFromOldVersion 与未知字段 anotherUnknownField）
+    读 → 写 → 读，深相等
+  ✔ 损坏 JSON：readJsonStrict 留底 .broken-* 并抛错、坏文件被挪走；readJson 退回 fallback
+  ✔ BOM 容忍；durable 写入后仍可解析
+  ✔ dataDir 路径契约不变
+
+相关套件 config / backup / backup-api / backup-push / backup-restart / backup-webdav /
+backup-stage / platform-config / long-tasks / creative-tasks / chat-log → 全绿
+全量 1702 passed / 0 failed / 0 skipped
+```
+
+云备份：本批未碰云端端点，`backup-webdav`/`backup-push` 仍用模拟端点跑，全部通过。
+
+### 3. Mini 实机验收
+
+```text
+安装   1.6.69（回滚点 ~/aurabot-release-backups/20261127-191633）
+启动   19:16:37 Aurabot v1.6.69 已加载
+配置保真 升级前 config.json 指纹 2dd13d54e8cfa645；升级后逐字段比对：
+         字段一致 = True，键数 52（配置读写走的就是本批改的 durable 路径）
+备份    GET /backup/state → ok=true（键：deferredSessions/dir/job/list/modules/ok）
+残渣    数据目录里 .tmp- 文件数 = 0
+Purge   GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+日志    19:20 之后新增 error：0 条
+```

@@ -2,6 +2,21 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.69
+
+- B31 **持久化原子写入与失败清理**（`src/core/store.js`，52 → 72 行；`src/core/config.js` 改用 durable）。
+  - **临时文件名唯一**：`<file>.tmp-<pid>-<序号>-<时间36进制>`。旧版只用 pid，进程崩在写到一半之后
+    留下的 `<file>.tmp-<pid>` 会被下一次同 pid 的写复用/覆盖，半截内容可能被 rename 成正式文件。
+  - **失败清理**：写或 rename 抛错时删掉临时文件，数据目录里不留残渣（备份与清单都按扩展名扫目录）。
+  - **可选落盘**：新增 `writeJson(file, value, { durable })`，配置这类「丢了很疼」的文件 fsync 后再 rename；
+    热点路径（每次消息写映射）默认不 fsync，保持原来的写入速度。
+  - 旧行为与契约不变：6 个导出、同步写、2 空格缩进、BOM 容忍、`.broken-*` 留底逻辑都原样保留。
+- 测试：新增 `test/store-atomic.test.js` 7 个用例（200 次写完每次读都是完整 JSON、rename 失败不留临时文件、
+  同 pid 旧临时文件不复用不误删、脱敏历史配置读→写→读字段保真、损坏 JSON 留底、BOM、dataDir 契约），
+  并附脱敏样本 `test/fixtures/store/legacy-config.json`。
+- 回归：全量 1702 个测试通过；config/backup/backup-api/backup-push/backup-restart/backup-webdav/backup-stage/
+  platform-config/long-tasks/creative-tasks 相关套件全绿。
+
 ## 1.6.68
 
 - B30 **拆分 `src/channels/qq/index.js`**（179 → 154 行）：把两块真职责抽成独立模块，本文件从此只做装配。

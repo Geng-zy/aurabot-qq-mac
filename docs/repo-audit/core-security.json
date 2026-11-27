@@ -158,7 +158,7 @@
     "area": "core",
     "owner": "core-base",
     "verdict": "keep",
-    "evidence": "52 行；0 内部依赖；被 34 个 src 文件引用（src/host.js:32、src/core/config.js:4、src/chat/hub.js:12、src/persona/personas.js:8 等）；被 test/chat-log.test.js:8 直接引用，另有 test/diary-media.test.js、test/qzone.test.js 依赖其数据目录隔离；导出 6 个（dshHome/dataDir/ensureDir/readJson/readJsonStrict/writeJson）"
+    "evidence": "72 行（B31 后）、0 内部依赖；被 34 个 src 文件引用；被 test/store-atomic.test.js、test/chat-log.test.js 等直接引用；导出 6 个（dshHome/dataDir/ensureDir/readJson/readJsonStrict/writeJson）。B31 把 writeJson 的三条保证写实：① 临时文件名唯一（pid+序号+时间36进制）——旧版只用 pid，崩溃留下的半截 `<file>.tmp-<pid>` 会被下次同 pid 的写复用；② 失败（写或 rename 抛错）删临时文件，不在数据目录留残渣（备份/清单按扩展名扫目录）；③ 新增 `{ durable: true }` 可选 fsync，配置这种丢了很疼的文件才落盘，热点路径（每次消息）默认不 fsync 保速度。同步写在事件循环里天然串行，跨进程靠 pid+序号+时间区分。"
   },
   {
     "path": "src/core/tasks.js",

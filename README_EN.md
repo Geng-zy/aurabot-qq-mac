@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.68 highlights
+## 1.6.69 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -107,6 +107,9 @@ local
   Capabilities declare only canonical `CAPS` keys; timeouts / network errors / 5xx are marked `uncertain`
   (the message may have been delivered, so it is not resent), while 4xx is a definite failure.
 - Other platforms can add a `PlatformAdapter` / `ChannelManager` entry.
+- Every JSON file (config, chat map, tasks, usage) goes through one atomic writer: write a uniquely named
+  temp file, then rename; a failed write cleans its temp file up. Config-like files opt into `fsync`
+  (`durable`), hot paths stay fast without it.
 - Capabilities use `caps`; unsupported features degrade or skip instead of forcing platform-specific formats.
 
 ## Platforms
@@ -135,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.68.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.69.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.68.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.69.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

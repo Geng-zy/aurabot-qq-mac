@@ -1,0 +1,12 @@
+{
+  "botQQ": "10000",
+  "ownerQQ": "10001",
+  "enabled": true,
+  "snowluma": { "wsUrl": "ws://127.0.0.1:3001", "httpUrl": "http://127.0.0.1:3000" },
+  "platforms": {
+    "qq": { "enabled": true },
+    "telegram": { "enabled": false, "token": "", "apiBase": "https://api.telegram.org" }
+  },
+  "legacyFieldFromOldVersion": { "keepMe": ["a", "b"], "nested": { "n": 1 } },
+  "anotherUnknownField": 42
+}
