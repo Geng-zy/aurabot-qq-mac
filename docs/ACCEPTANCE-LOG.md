@@ -2899,3 +2899,16 @@ Purge  /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status
 ```
 
 真实云端点：本批未用（全部模拟端点）；真实外发与真实云推送都仍需单独授权。
+
+### 5. 发布（v1.6.70）
+
+```text
+提交      fc24623
+tag       v1.6.70
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.70
+附件      dsh-aurabot-qq-1.6.70.tgz  19,658,772 字节（466 个条目）
+          远端 digest sha256:4b15c3b6a845c81b5297b11e422f3741a02f2ca6d677bcbbe822d52e61b8bccc
+          = mini 上安装的那份（同哈希）
+CI        run 45992808035 → macos-latest success、ubuntu-latest success（19:50 双绿）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
