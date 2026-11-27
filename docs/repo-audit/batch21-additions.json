@@ -11,6 +11,6 @@
     "area": "core",
     "owner": "core-backup",
     "verdict": "keep",
-    "evidence": "160 行；WebDAV 后端全链：地址/凭据校验（含坚果云 /dav 自动补全）、MKCOL 建文件夹、PROPFIND 列目录、下载、上传后按份数清理。被 backup-push.js 的 pushBackup 按 provider 分流调用，并经 re-export 供 host/routes 使用；test/backup-webdav.test.js 覆盖列表/下载/上传/错误码文案。"
+    "evidence": "160 行；WebDAV 后端全链：地址/凭据校验（含坚果云 /dav 自动补全）、MKCOL 建文件夹、PROPFIND 列目录、下载、上传后按份数清理。被 backup-push.js 的 pushBackup 按 provider 分流调用，并经 re-export 供 host/routes 使用；test/backup-webdav.test.js 覆盖列表/下载/上传/错误码文案。 B32 加了取消语义：pushBackupWebdav(r, { signal }) 把调用方 signal 与 30 分钟超时用 AbortSignal.any 合并；取消时抛带 cancelled 标记的「已取消」（不包装成「连不上」，面板才分得清）；清理旧备份阶段遇取消则停止继续删、保留已成功的上传并给出警告。"
   }
 ]

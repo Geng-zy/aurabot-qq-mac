@@ -2,12 +2,12 @@
 
 > 新会话/换人接手先看 [`SESSION-HANDOFF.md`](SESSION-HANDOFF.md)。
 
-适用版本为 AuraBot for macOS `v1.6.69`。维护仓库为 `Geng-zy/aurabot-qq-mac`，发布分支为 `main`。上游为 `aureth-labs/dsh-aurabot-qq`。DSH 安装时使用的包名仍是 `dsh-aurabot-qq`，这样现有用户可以继续读取同一份插件数据。
+适用版本为 AuraBot for macOS `v1.6.70`。维护仓库为 `Geng-zy/aurabot-qq-mac`，发布分支为 `main`。上游为 `aureth-labs/dsh-aurabot-qq`。DSH 安装时使用的包名仍是 `dsh-aurabot-qq`，这样现有用户可以继续读取同一份插件数据。
 
 ## 接手所需环境
 
 - 代码与离线测试使用 Node.js ≥ 24（DSH 0.2.2-rc.3 自带 24.21.0）。依赖由 DSH 宿主提供，源仓库无需先下载 QQ 网关、模型或媒体环境来跑 `npm test`。
-- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.6.69` 的工作区恢复按 DSH `0.2.2-rc.3` 适配。内置本地生图另需 macOS 26 或更新版本。
+- 实机用 Apple 芯片 Mac、DeepSeek Harness 桌面版、单独的测试机器人 QQ 号和 OneBot v11 网关。`v1.6.70` 的工作区恢复按 DSH `0.2.2-rc.3` 适配。内置本地生图另需 macOS 26 或更新版本。
 - 向原仓库 `main` 推送和发 GitHub Release 需要仓库写权限。在终端用 `gh auth status` 确认 GitHub CLI 登录了有权限的账号。开发和离线测试不需要 GitHub 写权限。
 
 ```bash
@@ -60,7 +60,7 @@ npm test
 2. 在待发布提交中确认 `package.json` 版本、`CHANGELOG.md` 的对应章节、README 安装例子和安装包白名单。运行全量测试与 `git diff --check`。用 `npm pack --dry-run --ignore-scripts` 检查包内容，再在仓库外生成 `.tgz`。
 3. 提交并推送 `main`，在对应提交上创建同名 Git tag。先创建 GitHub 草稿，上传安装包和公告，核对下载摘要后再公开。`package.json` 的 `private` 用于防止误发 npm，用户通过 GitHub Release 安装。
 
-下面以 `v1.6.69` 为例。维护分支、tag 与发布包要对应同一份源码。
+下面以 `v1.6.70` 为例。维护分支、tag 与发布包要对应同一份源码。
 
 ```bash
 npm test
@@ -68,22 +68,22 @@ git diff --check
 release_dir=$(mktemp -d)
 npm pack --dry-run --ignore-scripts
 npm pack --ignore-scripts --pack-destination "$release_dir"
-shasum -a 256 "$release_dir/dsh-aurabot-qq-1.6.69.tgz"
+shasum -a 256 "$release_dir/dsh-aurabot-qq-1.6.70.tgz"
 
 # 在已提交、已审核的 main 上操作，release-notes.md 由维护者准备。
-git tag -a v1.6.69 -m 'AuraBot v1.6.69'
-git push --atomic origin main refs/tags/v1.6.69
-gh release create v1.6.69 "$release_dir/dsh-aurabot-qq-1.6.69.tgz" \
-  --verify-tag --draft --title 'AuraBot v1.6.69' --notes-file release-notes.md
-gh release view v1.6.69
-gh release edit v1.6.69 --draft=false --latest
+git tag -a v1.6.70 -m 'AuraBot v1.6.70'
+git push --atomic origin main refs/tags/v1.6.70
+gh release create v1.6.70 "$release_dir/dsh-aurabot-qq-1.6.70.tgz" \
+  --verify-tag --draft --title 'AuraBot v1.6.70' --notes-file release-notes.md
+gh release view v1.6.70
+gh release edit v1.6.70 --draft=false --latest
 ```
 
 本机安装与版本回退沿用离线安装方式。先退出 DSH，安装指定版本的 TGZ 后重启，并在面板确认实际加载版本。跨版本回退先备份，核对旧版能否读取当前数据；如果需要回退数据，使用配对备份。已发布的 tag 和安装包应保留，发现问题后发布修订版本。
 
 ```bash
 dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-"$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.69.tgz" --offline
+"$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.70.tgz" --offline
 ```
 
 ## 当前边界与接手后核验

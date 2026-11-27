@@ -9,6 +9,7 @@
   "/aurabot/api/backup/create",
   "/aurabot/api/backup/open",
   "/aurabot/api/backup/push",
+  "/aurabot/api/backup/remote/cancel",
   "/aurabot/api/backup/remote/config",
   "/aurabot/api/backup/remote/list",
   "/aurabot/api/backup/remote/restore",

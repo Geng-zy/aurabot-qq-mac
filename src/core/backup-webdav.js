@@ -40,11 +40,23 @@ async function ensureWebdavFolder(r) {
   throw new Error('WebDAV 自动创建 aurabot-backups 文件夹失败（HTTP ' + res.status + '）：检查账号有没有写权限')
 }
 
-async function webdavFetch(url, { method = 'GET', headers = {}, body, timeout = 15000, password = '' } = {}) {
+/** 取消用的错误：调用方据此区分「用户取消」和「网络失败」。 */
+export function cancelledError() {
+  const error = new Error('已取消')
+  error.cancelled = true
+  return error
+}
+
+async function webdavFetch(url, { method = 'GET', headers = {}, body, timeout = 15000, password = '', signal } = {}) {
+  if (signal?.aborted) throw cancelledError()
   const doFetch = pushHooks.fetch || fetch
+  const timeoutSignal = AbortSignal.timeout(timeout)
+  const combined = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal
   try {
-    return await doFetch(url, { method, headers, body, redirect: 'error', signal: AbortSignal.timeout(timeout) })
+    return await doFetch(url, { method, headers, body, redirect: 'error', signal: combined })
   } catch (error) {
+    // 用户取消：原样抛「已取消」，不要包装成「连不上」，否则面板会显示成网络故障
+    if (signal?.aborted) throw cancelledError()
     throw new Error(redact('WebDAV 连不上：' + (error?.message || error), password))
   }
 }
@@ -98,7 +110,7 @@ export async function downloadWebdavBackup(r, name) {
   return { name: file, buffer: buf }
 }
 
-export async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } = {}) {
+export async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '', signal } = {}) {
   const { folder, password, auth } = await ensureWebdavFolder(r)
   const dir = join(dataDir('backups'))
   const all = existsSync(dir) ? readdirSync(dir).filter((n) => BACKUP_ZIP_RE.test(n)).sort().reverse() : []
@@ -122,6 +134,7 @@ export async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } 
     body: buf,
     timeout: 30 * 60 * 1000,
     password,
+    signal,
   })
   if (!put.ok) throw new Error('WebDAV 上传失败（HTTP ' + put.status + '）：检查地址是不是文件夹、账号有没有写权限')
   let dropped = 0
@@ -138,14 +151,17 @@ export async function pushBackupWebdav(r, { onLog = () => {}, sourceName = '' } 
     kept = keepSet.size
     const old = sorted.filter((n) => !keepSet.has(n))
     for (const oldName of old) {
+      if (signal?.aborted) { warning = '已取消后续清理，远端可能还留着旧备份'; break }
       const del = await webdavFetch(folder + encodeURIComponent(oldName), {
-        method: 'DELETE', headers: { authorization: auth }, timeout: 15000, password,
+        method: 'DELETE', headers: { authorization: auth }, timeout: 15000, password, signal,
       })
       if (del.ok) dropped++
       else warning = '上传成功，但旧备份 ' + oldName + ' 没删掉（HTTP ' + del.status + '）'
     }
   } catch (error) {
-    warning = '上传成功，但清理旧备份失败：' + redact(error.message, password)
+    warning = error?.cancelled
+      ? '已取消后续清理，远端可能还留着旧备份'
+      : '上传成功，但清理旧备份失败：' + redact(error.message, password)
   }
   const keep = Math.max(1, Math.round(Number(r.keep) || 10))
   return {

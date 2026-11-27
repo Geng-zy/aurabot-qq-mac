@@ -141,7 +141,7 @@ export function registerAllRoutes(d) {
   // ---------- 云备份（定时器本体在 host.js，路由只读状态、触发一次） ----------
   registerBackupCloudRoutes({
     route, backupAction, readBody, getConfig, setConfig, mergeFromPanel: d.mergeFromPanel, log,
-    getPushJob: d.getPushJob, nextAt: d.nextPushAt, doPush: d.doPush,
+    getPushJob: d.getPushJob, nextAt: d.nextPushAt, doPush: d.doPush, cancelPush: d.cancelPush,
     listWebdavBackups: d.listWebdavBackups, downloadWebdavBackup: d.downloadWebdavBackup,
     stageReceivedBackup: d.stageReceivedBackup,
   })

@@ -18,7 +18,7 @@
     "area": "panel",
     "owner": "panel-backup",
     "verdict": "merge",
-    "evidence": "66 行、0 个内部依赖。唯一 importer src/host.js:48（import）+ host.js:791（调用块 791-818，共 28 行依赖清单、15 个注入参数）。测试：/backup/remote/state、/backup/remote/config、/backup/push 由 test/e2e.test.js 与 test/system-processes.test.js 用 fake.call 覆盖；/backup/remote/list（第 46 行）、/backup/remote/restore（第 52 行）在 test/、docs/ 下 0 处引用。文档：docs/ 下 0 处提及本文件或这 5 条路径。导出 2 个：remoteView 纯视图映射（第 6-25 行，把 token 折成 hasToken）、registerBackupCloudRoutes。2 处 catch（第 49、63 行）与 src/host/http.js:60-67 的 answer() 逐字节相同。并入新建 src/panel/backup.js：签名 4 行 + 文件头 3 行（2 行注释 + 空行）+ 2 行冗余 catch = 省 9 行；host.js:791-818 的 28 行收敛成 1 个 backup 组依赖对象。"
+    "evidence": "66 行、0 个内部依赖。唯一 importer src/host.js:48（import）+ host.js:791（调用块 791-818，共 28 行依赖清单、15 个注入参数）。测试：/backup/remote/state、/backup/remote/config、/backup/push 由 test/e2e.test.js 与 test/system-processes.test.js 用 fake.call 覆盖；/backup/remote/list（第 46 行）、/backup/remote/restore（第 52 行）在 test/、docs/ 下 0 处引用。文档：docs/ 下 0 处提及本文件或这 5 条路径。导出 2 个：remoteView 纯视图映射（第 6-25 行，把 token 折成 hasToken）、registerBackupCloudRoutes。2 处 catch（第 49、63 行）与 src/host/http.js:60-67 的 answer() 逐字节相同。并入新建 src/panel/backup.js：签名 4 行 + 文件头 3 行（2 行注释 + 空行）+ 2 行冗余 catch = 省 9 行；host.js:791-818 的 28 行收敛成 1 个 backup 组依赖对象。 B32 新增 POST /backup/remote/cancel（route 快照 136→137），空闲时如实说没有在跑的推送。"
   },
   {
     "path": "src/features/backup-routes.js",

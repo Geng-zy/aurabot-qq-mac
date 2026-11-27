@@ -2,6 +2,23 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.70
+
+- B32 **云备份推送可取消 + 失败清理**（`src/core/backup-webdav.js`、`src/host/backup-schedule.js`、
+  `src/features/backup-cloud-routes.js`）。此前只有「取消恢复」(`/backup/cancel`)，推送挂在那条 30 分钟超时的
+  PUT 上只能等或重启插件。
+  - `pushBackup(remote, { signal })` 把调用方 signal 与超时用 `AbortSignal.any` 合并，在途 PUT/DELETE 可中止；
+  - 取消抛带 `cancelled` 标记的「已取消」，**不再被包装成「WebDAV 连不上」**（面板能分清取消与故障）；
+  - 已上传成功、正在清理旧备份时才取消的：**上传结果保留**，后续 DELETE 停手，消息里给出
+    「已取消后续清理，远端可能还留着旧备份」；
+  - 调度器每轮推送持有 `AbortController` 并暴露 `cancelPush()`；job 新增 `cancelled` 字段
+    （`running/ok/error/result/at` 原契约不变），取消记日志 info 而不是 error；
+  - 新增 `POST /aurabot/api/backup/remote/cancel`（路由快照 136 → 137），空闲时如实返回「当前没有在跑的推送」。
+- 测试：`test/backup-webdav.test.js` +3（PUT 期间取消 → 不列目录不删旧；清理阶段取消 → 上传保留、只删了 1 个、
+  带警告；取消路由真的调 cancelPush）；新增 `test/backup-push-cancel.test.js` 2 个用例（空闲取消、运行中取消 → job 落 cancelled）。
+- 回归：全量 1707 个测试通过；backup-webdav / backup-push / backup-push-cancel / backup-api / backup-stage /
+  backup / host-routes 相关套件全绿（云备份全程用模拟端点）。
+
 ## 1.6.69
 
 - B31 **持久化原子写入与失败清理**（`src/core/store.js`，52 → 72 行；`src/core/config.js` 改用 durable）。

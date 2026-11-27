@@ -26,7 +26,7 @@ export function remoteView(r = {}) {
 
 export function registerBackupCloudRoutes({
   route, backupAction, readBody, getConfig, setConfig, mergeFromPanel, log,
-  getPushJob, nextAt, doPush, listWebdavBackups, downloadWebdavBackup, stageReceivedBackup,
+  getPushJob, nextAt, doPush, cancelPush = () => ({ ok: false, message: '没有在跑的推送' }), listWebdavBackups, downloadWebdavBackup, stageReceivedBackup,
 }) {
   route('/backup/remote/state', async () => ({ ok: true, remote: remoteView(getConfig().backup?.remote || {}), job: getPushJob(), nextAt: nextAt() }))
 
@@ -42,6 +42,9 @@ export function registerBackupCloudRoutes({
   }))
 
   route('/backup/push', backupAction(async () => doPush(false)))
+
+  // 推送可能挂在一个 30 分钟超时的 PUT 上；给它一个取消入口，别逼人重启插件。
+  route('/backup/remote/cancel', backupAction(async () => cancelPush()))
 
   route('/backup/remote/list', backupAction(async () => {
     const r = getConfig().backup?.remote || {}

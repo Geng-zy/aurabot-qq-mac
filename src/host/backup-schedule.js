@@ -18,17 +18,30 @@
  * @param {string} d.version
  */
 export function createBackupScheduler({ getConfig, log, alive, getBackupJob, createBackup, pushBackup, captureMind, workspaceDirOf, version }) {
-  let pushJob = null // { running, ok, error, result, at }
+  let pushJob = null // { running, ok, error, result, at, cancelled? }
+  let pushCtl = null // 当前这轮推送的 AbortController，取消时中止在途的 PUT/DELETE
   let pushTimer = null
   let pushDueAt = null
 
   const nextAt = () => (pushDueAt === null ? null : new Date(pushDueAt).toISOString())
   const getPushJob = () => pushJob
 
+  /**
+   * 取消正在跑的推送。只中止**这一轮**：在途的 WebDAV 请求会被 abort，
+   * 已上传成功、正在清理旧备份的那种，上传结果保留、后续删除停手（见 backup-webdav.js）。
+   */
+  const cancelPush = () => {
+    if (!pushJob?.running) return { ok: false, message: '当前没有在跑的推送' }
+    try { pushCtl?.abort() } catch {}
+    return { ok: true, message: '已请求取消，正在停下' }
+  }
+
   const doPush = async (pack) => {
     if (pushJob?.running) return { ok: false, message: '上一次推送还没跑完' }
     if (getBackupJob()?.running) return { ok: false, message: '正在打包，等这轮打包完再推' }
     pushJob = { running: true, pack: !!pack, at: Date.now() }
+    pushCtl = new AbortController()
+    const signal = pushCtl.signal
     try {
       const remote = getConfig().backup?.remote || {}
       const configOnly = remote.provider === 'webdav' && remote.webdav?.configOnly === true
@@ -38,13 +51,16 @@ export function createBackupScheduler({ getConfig, log, alive, getBackupJob, cre
         sourceName = result.name
         log.info(`${configOnly ? '仅配置' : ''}云备份打包完成：${result.name}，${result.files} 个文件`)
       }
-      const r = await pushBackup(remote, { version, sourceName })
+      const r = await pushBackup(remote, { version, sourceName, signal })
       pushJob = { running: false, ok: true, result: r, at: Date.now() }
       log.info(`云备份推送完成：${r.message}`)
     } catch (error) {
-      pushJob = { running: false, ok: false, error: error.message, at: Date.now() }
-      log.error('云备份推送失败：', error.message)
+      const cancelled = Boolean(error?.cancelled || signal.aborted)
+      pushJob = { running: false, ok: false, cancelled, error: cancelled ? '已取消' : error.message, at: Date.now() }
+      if (cancelled) log.info('云备份推送已取消')
+      else log.error('云备份推送失败：', error.message)
     } finally {
+      pushCtl = null
       schedule() // 打包+推送耗时不定，跑完重排到下一天
     }
     return pushJob.ok
@@ -83,5 +99,5 @@ export function createBackupScheduler({ getConfig, log, alive, getBackupJob, cre
     pushDueAt = null
   }
 
-  return { doPush, schedule, nextAt, getPushJob, dispose }
+  return { doPush, cancelPush, schedule, nextAt, getPushJob, dispose }
 }

@@ -119,3 +119,81 @@ test('WebDAV：列出远端备份并可下载；只填 aurabot-backups 也不会
   assert.ok(calls.some((c) => c.method === 'MKCOL' && c.url === folder))
   await assert.rejects(push.downloadWebdavBackup(cfg, '../evil.zip'), /文件名/)
 })
+
+// ---------- B32：推送可取消 + 失败清理 ----------
+
+test('取消发生在 PUT 期间：抛「已取消」，且不再去列目录/删旧备份', async () => {
+  rmSync(join(root, 'backups'), { recursive: true, force: true })
+  putBackup('aurabot-backup-20261105-0330.zip')
+  const ctl = new AbortController()
+  let propfind = 0
+  let del = 0
+  push.pushHooks.fetch = async (url, init = {}) => {
+    const method = init.method || 'GET'
+    if (method === 'MKCOL') return { ok: true, status: 201 }
+    if (method === 'PUT') { ctl.abort(); throw Object.assign(new Error('aborted'), { name: 'AbortError' }) }
+    if (method === 'PROPFIND') { propfind++; return { ok: true, status: 207, text: async () => '<d:multistatus></d:multistatus>' } }
+    if (method === 'DELETE') { del++; return { ok: true, status: 204 } }
+    return { ok: false, status: 500 }
+  }
+  await assert.rejects(
+    () => push.pushBackup({ provider: 'webdav', webdav: { url: base, username: 'u', password: 'p' }, keep: 3 }, { signal: ctl.signal }),
+    (error) => {
+      assert.equal(error.cancelled, true, '取消要带 cancelled 标记，面板才能区分「取消」与「网络失败」')
+      assert.equal(error.message, '已取消')
+      return true
+    })
+  assert.equal(propfind, 0, '取消后不该再列目录')
+  assert.equal(del, 0, '取消后不该再删任何旧备份')
+  push.pushHooks.fetch = okFetch
+})
+
+test('取消发生在清理旧备份阶段：上传结果保留，停止继续删，并给出警告', async () => {
+  rmSync(join(root, 'backups'), { recursive: true, force: true })
+  putBackup('aurabot-backup-20261106-0330.zip')
+  const ctl = new AbortController()
+  let del = 0
+  push.pushHooks.fetch = async (url, init = {}) => {
+    const method = init.method || 'GET'
+    if (method === 'MKCOL') return { ok: true, status: 201 }
+    if (method === 'PUT') return { ok: true, status: 201 }
+    if (method === 'PROPFIND') {
+      const files = ['aurabot-backup-20260101-0000.zip', 'aurabot-backup-20260102-0000.zip', 'aurabot-backup-20260103-0000.zip']
+      return { ok: true, status: 207, text: async () => '<d:multistatus>' + files.map((f) => `<d:response><d:href>/aurabot-backups/${f}</d:href></d:response>`).join('') + '</d:multistatus>' }
+    }
+    if (method === 'DELETE') {
+      del += 1
+      ctl.abort() // 第一次删除之后用户点了取消
+      return { ok: true, status: 204 }
+    }
+    return { ok: false, status: 500 }
+  }
+  const r = await push.pushBackup({ provider: 'webdav', webdav: { url: base, username: 'u', password: 'p' }, keep: 1 }, { signal: ctl.signal })
+  assert.equal(r.ok, true, '上传已经成功，取消清理不该把整次推送判失败')
+  assert.equal(del, 1, '取消后不再继续删')
+  assert.match(r.message, /已取消后续清理/)
+  push.pushHooks.fetch = okFetch
+})
+
+test('取消路由：空闲时如实说没有在跑的推送', async () => {
+  const routes = new Map()
+  const { registerBackupCloudRoutes } = await import('../src/features/backup-cloud-routes.js')
+  const calls = []
+  registerBackupCloudRoutes({
+    route: (p, fn) => routes.set(p, fn),
+    backupAction: (fn) => fn,
+    readBody: async () => ({}),
+    getConfig: () => ({ backup: { remote: {} } }),
+    setConfig: () => {},
+    mergeFromPanel: (c) => c,
+    log: { info() {}, warn() {} },
+    getPushJob: () => null,
+    nextAt: () => null,
+    doPush: async () => ({ ok: true }),
+    cancelPush: () => { calls.push('cancel'); return { ok: false, message: '当前没有在跑的推送' } },
+  })
+  const r = await routes.get('/backup/remote/cancel')({})
+  assert.equal(r.ok, false)
+  assert.match(r.message, /没有在跑/)
+  assert.deepEqual(calls, ['cancel'], '路由要真的去调 cancelPush')
+})

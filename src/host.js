@@ -639,7 +639,7 @@ export function apply(ctx) {
   registerAllRoutes({
     route, http: { send, readBody, readRaw, query },
     getConfig, setConfig, getMind: () => mind, getBackupJob: () => backupJob, setBackupJob: (next) => { backupJob = next },
-    getPushJob: backupScheduler.getPushJob, nextPushAt: backupScheduler.nextAt, doPush: backupScheduler.doPush,
+    getPushJob: backupScheduler.getPushJob, nextPushAt: backupScheduler.nextAt, doPush: backupScheduler.doPush, cancelPush: backupScheduler.cancelPush,
     hub, ctx, onebot, qq, channels, mods, bridge, local, knowledge, log, logger, purge,
     overview, usageReport, applyPanelSave, mergeFromPanel, clearReasoningCache, clearVisionCache,
     startWatchdog: () => setTimeout(safe(watchdog, '看门狗'), 100),

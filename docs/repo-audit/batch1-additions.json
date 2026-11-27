@@ -11,7 +11,7 @@
     "area": "host",
     "owner": "host",
     "verdict": "keep",
-    "evidence": "87 行；云备份定时器（pushJob/pushTimer/pushDueAt 三个状态与失败重排）从 host.js 搬出；被 src/host.js 在 setConfig、卸载、路由依赖三处调用；返回 { doPush, schedule, nextAt, getPushJob, dispose } 五个方法；行为由 test/backup-push.test.js、test/backup-webdav.test.js 间接覆盖。"
+    "evidence": "87 行；云备份定时器（pushJob/pushTimer/pushDueAt 三个状态与失败重排）从 host.js 搬出；被 src/host.js 在 setConfig、卸载、路由依赖三处调用；返回 { doPush, schedule, nextAt, getPushJob, dispose } 五个方法；行为由 test/backup-push.test.js、test/backup-webdav.test.js 间接覆盖。 B32 每次推送持有一个 AbortController 并暴露 cancelPush()：在途 PUT/DELETE 被 abort，job 落成 { running:false, ok:false, cancelled:true, error:'已取消' }（cancelled 是新增字段，原契约字段不变）；空闲时如实返回「当前没有在跑的推送」。"
   },
   {
     "path": "src/host/mind.js",

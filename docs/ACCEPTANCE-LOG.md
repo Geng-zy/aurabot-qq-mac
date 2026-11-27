@@ -2845,3 +2845,57 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.69
 CI        run 45989304261 → macos-latest success、ubuntu-latest success（19:24 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B32 · 云备份推送可取消 + 失败清理（1.6.70）
+
+批次范围：`src/core/backup-webdav.js`、`src/host/backup-schedule.js`、`src/features/backup-cloud-routes.js`、
+`src/host/routes.js`（依赖转发）。必须保留：`pushJob` 的 `{ running, ok, error, result, at }` 形状与
+`/backup/remote/state` 的返回字段、`keep` 保留策略、报错文案的令牌打码、无 signal 时行为完全不变。
+
+### 1. 为什么做这一批
+
+已有 `/backup/cancel` 只取消**恢复**；云备份推送挂在一个 30 分钟超时的 PUT 上没有取消入口，
+只能等或重启插件。取消语义也没有和「失败」区分开——面板会把用户取消显示成推送失败。
+
+### 2. 改法
+
+| 层 | 内容 |
+|---|---|
+| WebDAV | `webdavFetch` 接受 `signal`，与超时用 `AbortSignal.any` 合并；取消抛带 `cancelled` 标记的「已取消」，**不包装成「WebDAV 连不上」** |
+| 清理阶段 | 已上传成功、正在删旧备份时取消：**上传结果保留**，后续 DELETE 停手，消息给出「已取消后续清理，远端可能还留着旧备份」 |
+| 调度器 | 每轮推送持有 `AbortController`；新增 `cancelPush()`；job 增加 `cancelled` 字段（原字段不变）；取消记 info 不记 error |
+| 路由 | 新增 `POST /aurabot/api/backup/remote/cancel`（快照 136 → 137）；`routes.js` 把 `cancelPush` 转给注册函数 |
+
+### 3. 自动测试（Air · 云备份全程模拟端点）
+
+```text
+test/backup-webdav.test.js +3
+  ✔ 取消发生在 PUT 期间：抛「已取消」，且不再去列目录/删旧备份（PROPFIND 0 次、DELETE 0 次）
+  ✔ 取消发生在清理阶段：上传结果保留（ok=true）、只删了 1 个、message 含「已取消后续清理」
+  ✔ 取消路由真的去调 cancelPush（不是回路由兜底文案）
+test/backup-push-cancel.test.js（新增 3 个用例）
+  ✔ 空闲取消：如实说没有在跑的推送
+  ✔ 运行中取消：在途请求被 abort，job 落成 { running:false, ok:false, cancelled:true, error:'已取消' }
+  ✔ 静态断言：routes.js 必须把 cancelPush 透传下去
+
+相关套件 backup-webdav / backup-push / backup-push-cancel / backup-api / backup-stage / backup / host-routes
+  → 60 tests / 60 pass
+全量 1708 passed / 0 failed / 0 skipped；语法 616 文件；oxlint 0 error / 160 warning
+```
+
+### 4. Mini 实机验收
+
+```text
+安装   1.6.70（回滚点 ~/aurabot-release-backups/20261127-193352）
+启动   19:42:22 Aurabot v1.6.70 已加载
+接口   POST /backup/remote/cancel（带面板标记）→ {"ok":false,"message":"当前没有在跑的推送"}
+       ← 文案来自调度器而不是路由兜底，证明 cancelPush 真的接上了
+状态   GET /backup/remote/state → ok=true，返回键仍是 job/nextAt/ok/remote（契约未变）
+配置   升级前后 config.json 逐字段一致
+Purge  /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+日志   19:40 之后新增 error：0 条
+```
+
+真实云端点：本批未用（全部模拟端点）；真实外发与真实云推送都仍需单独授权。
