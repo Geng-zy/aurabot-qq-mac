@@ -3188,3 +3188,44 @@ CI 第一次（run 46013322803）：ubuntu success、macos-latest **cancelled**
   不是测试失败（ubuntu 三分钟跑完全绿）。补跑一次 run 46016055347：ubuntu-latest success、
   macos-latest success（22:37），双平台干净。
 ```
+
+---
+
+## B38 · 生图拆分：纯逻辑独立成模块（1.6.76）
+
+批次来源：`src/features/imagegen.js`（489 行）的 split 结论。文件顶部有一组与网络无关的规则：
+模板填值、尺寸解析、按路径取图、找图片、多参考图判断 —— 以前只能靠跑一次真接口来验证。
+
+### 1. 切法
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `features/imagegen.js` | 489 → **447** | 网络与供应商编排：openai / custom / codex 三条链、错误分类与回退判定 |
+| `features/imagegen-template.js`（新） | **48** | `fill`（模板填值，空值保留占位符）、`dimsOf`（x / × / *）、`dotted`（a.b.0.c）、`findImage`（data:image 与 http 图片地址，深度上限 6）、`multiReference`（gpt-image 多参考图） |
+
+导出面不变：`imagegen.js` 仍再导出这五个函数，`modules/imagegen`、`core/media` 等调用方零改动。
+
+### 2. 自动测试（Air）
+
+```text
+新增 test/imagegen-template.test.js 5 个用例
+  ✔ fill：认识的占位符替换、空串/0 替换、null/undefined 保留、空模板给空串
+  ✔ dimsOf：x / × / * 都认，不合规返回空宽高
+  ✔ dotted：按 a.b.0.c 取、缺环节 null、空路径返回原对象
+  ✔ findImage：data:image 与 http 图片地址都能找到；非图片扩展名/普通文本不误认；显式断言深度上限 6
+  ✔ multiReference：只有 gpt-image 系列为真
+
+imagegen 相关套件（imagegen-shape / imagegen-img2img / codex-auth-lifecycle / fixes-1.2.0 / features）→ 71 pass
+全量 1724 passed / 0 failed / 0 skipped；语法 619 文件；oxlint 0 error；清单 0 待审
+```
+
+### 3. Mini 实机验收
+
+```text
+安装   1.6.76（回滚点 ~/aurabot-release-backups/20261127-225050）
+启动   22:50:57 Aurabot v1.6.76 已加载
+模块   真机 import imagegen-template：导出 dimsOf,dotted,fill,findImage,multiReference；
+       fill 填入「猫」、dimsOf('1024x768') 正确、findImage 取到 http 图片地址
+清单   /modules → 12 个内置模块，imagegen 已启用
+配置   升级前后逐字段一致；Purge 三个工具仍在；22:45 之后新增 error：0 条
+```

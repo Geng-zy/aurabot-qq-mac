@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.76
+
+- B38 **生图拆分：纯逻辑独立成模块**（`src/features/imagegen-template.js` 48 行，`features/imagegen.js` 489 → 447 行）。
+  - 拆出：`fill`（模板 {prompt}/{n}… 填值，空值保留占位符）、`dimsOf`（1024x768 / × / *）、
+    `dotted`（a.b.0.c 路径取值）、`findImage`（data:image 与 http 图片地址，深度上限 6）、
+    `multiReference`（gpt-image 系列多参考图判断）。
+  - 留下：`features/imagegen.js` 只管网络与供应商编排（openai / custom / codex 三条链、错误分类与回退判定）。
+  - 导出面不变：imagegen.js 仍再导出这五个纯函数，`modules/imagegen`、`core/media` 等调用方零改动。
+- 测试：新增 `test/imagegen-template.test.js` 5 个用例（含深度上限与「非图片不误认」）；imagegen 相关套件 71 pass。
+- 回归：全量 1724 个测试通过；语法 619 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.75
 
 - B37 **记忆模块拆分：向量/精排的远程客户端独立成模块**（`src/mind/memory/embed-client.js` 82 行，

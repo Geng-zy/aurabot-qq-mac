@@ -13,54 +13,12 @@ import { mimeOf } from '../core/image-info.js'
 import { imageToolBlock } from '../core/img.js'
 import { fitSizeForProvider, imageSizeFor, normalizeRequestedSize } from './image-shape.js'
 import { dataDir, readJson, writeJson } from '../core/store.js'
+import { dimsOf, dotted, fill, findImage, multiReference } from './imagegen-template.js'
+
+export { fill, dimsOf, dotted, findImage, multiReference }
 export { imageToolBlock }
 
-/** 把模板里的 {占位符} 替换掉；不认识的占位符原样留着。 */
-function fill (tpl, vars) {
-  return String(tpl ?? '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] === undefined || vars[k] === null ? m : String(vars[k])))
-}
-
-/** "1024x768" → { width, height }。 */
-function dimsOf (size) {
-  const m = /^(\d+)\s*[x×*]\s*(\d+)$/i.exec(String(size || ''))
-  return m ? { width: m[1], height: m[2] } : { width: '', height: '' }
-}
-
-/** 按 "data.0.url" 这种路径取值。 */
-function dotted (obj, path) {
-  let cur = obj
-  for (const k of String(path || '').split('.').map((s) => s.trim()).filter(Boolean)) {
-    if (cur === null || cur === undefined) return null
-    cur = cur[k]
-  }
-  return cur ?? null
-}
-
-/** 没配取值路径时，在返回的 JSON 里随便找个像图片的东西（http 地址 / data:image）。 */
-function findImage (obj, depth = 0) {
-  if (depth > 6 || obj === null || obj === undefined) return null
-  if (typeof obj === 'string') {
-    if (/^data:image\//i.test(obj)) return obj
-    if (/^https?:\/\//i.test(obj) && /\.(png|jpe?g|webp|gif|bmp)(\?|$)/i.test(obj)) return obj
-    return null
-  }
-  if (Array.isArray(obj)) {
-    for (const it of obj) { const r = findImage(it, depth + 1); if (r) return r }
-    return null
-  }
-  if (typeof obj === 'object') {
-    for (const k of ['url', 'image', 'imageUrl', 'image_url', 'output', 'data', 'images', 'result']) {
-      if (k in obj) { const r = findImage(obj[k], depth + 1); if (r) return r }
-    }
-    for (const v of Object.values(obj)) { const r = findImage(v, depth + 1); if (r) return r }
-  }
-  return null
-}
-
 /** 工具只接受聊天里的短期引用或图库文件名；绝不把模型给的路径 / URL 当图片读。 */
-/** 这个模型能不能一次收好几张参考图（OpenAI 的 gpt-image 系列可以）。 */
-export const multiReference = (model) => /gpt-image/i.test(String(model || ''))
-
 export async function resolveDrawImage(image, { hub, chat, allowGlobalPaintings = false, quoteId }) {
   if (image === undefined || image === null || image === '') return null
   if (typeof image !== 'string') throw new Error('参考图只接受 last、quote 或画作文件名')

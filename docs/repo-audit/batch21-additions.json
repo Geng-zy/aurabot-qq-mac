@@ -19,5 +19,12 @@
     "owner": "mind-memory",
     "verdict": "keep",
     "evidence": "82 行；0 个内部依赖（只用注入的 fetch/url/model/key）；2 处 import（mind/index.js 再导出、mind-adapter/embedding.js 经注入拿到）；2 个测试（test/mind-memory.test.js 的 embed 用例、test/mind-rerank.test.js）。职责：向量/精排的远程 HTTP 客户端——地址/密钥校验、请求体、超时、响应解析。B37 从 memory/vectors.js 拆出来：那边是本地库里的向量与索引进度（SQLite + 内存索引），这边是纯 HTTP（可注入 fetch 单测），两件事混在一份 163 行文件里时测试要一起扛。"
+  },
+  {
+    "path": "src/features/imagegen-template.js",
+    "area": "features",
+    "owner": "features-imagegen",
+    "verdict": "keep",
+    "evidence": "48 行；0 个内部依赖；1 处 import（features/imagegen.js 再导出）；1 个测试（test/imagegen-template.test.js 5 个用例）。职责：生图的纯逻辑——模板填值（{prompt}/{n}…，空值保留占位符）、尺寸解析（x / × / *）、按 a.b.0.c 路径取值、返回 JSON 里找图片（data:image 与 http 图片地址，深度上限 6）、gpt-image 系列的多参考图判断。B38 从 features/imagegen.js（489 行）抽出：那边是网络与供应商编排，这些规则以前只能靠跑一次真接口来验。"
   }
 ]
