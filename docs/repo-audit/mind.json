@@ -52,8 +52,8 @@
     "path": "src/mind/inner/index.js",
     "area": "mind/inner",
     "owner": "mind-inner",
-    "verdict": "split",
-    "evidence": "371 行；import：mind/index.js；测试：test/mind-inner.test.js 直接 import overlap/parseThought/createInner；test/mind-design.test.js、test/mind-generic.test.js 经 mind.inner 覆盖；内部依赖 4（mind/clock.js、mind/emotion/catalog.js、mind/memory/index.js、mind/place.js）；意识流一步：材料装配 recentHappenings 98-136 / currentContext 137-152、提示词 SYSTEM 153-166 与 material 167-193、深想判定 needsDeep 194-344、副作用 idleTick/relieve/deferred 345-363；371 行、内部依赖 memory/index.js、emotion/catalog.js、clock.js、place.js；建议先把 needsDeep 的硬规则拆成 inner/rules.js（这是测试最容易锁住的一段），状态仍写 kv 键 inner"
+    "verdict": "keep",
+    "evidence": "371 行；import：mind/index.js；测试：test/mind-inner.test.js 直接 import overlap/parseThought/createInner；test/mind-design.test.js、test/mind-generic.test.js 经 mind.inner 覆盖；内部依赖 4（mind/clock.js、mind/emotion/catalog.js、mind/memory/index.js、mind/place.js）；意识流一步：材料装配 recentHappenings 98-136 / currentContext 137-152、提示词 SYSTEM 153-166 与 material 167-193、深想判定 needsDeep 194-344、副作用 idleTick/relieve/deferred 345-363；371 行、内部依赖 memory/index.js、emotion/catalog.js、clock.js、place.js；建议先把 needsDeep 的硬规则拆成 inner/rules.js（这是测试最容易锁住的一段），状态仍写 kv 键 inner B71/B42 已把纯文本逻辑（overlap/parseThought/fitLines/系统提示词）拆成 inner/text.js（60 行）、把「认真想一次」的流程拆成 inner/deep.js（81 行），本文件 371 → 276 行，只剩意识流循环与状态；<300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/mind/local/runner.js",
@@ -278,5 +278,19 @@
     "owner": "mind-core",
     "verdict": "keepDoc",
     "evidence": "269 行；import：mind/index.js；测试：test/mind-fixes.test.js 直接 import openStore/MIGRATIONS；迁移链路由 test/mind-migrate.test.js 覆盖；内部依赖 0（无）；数据契约唯一定义处：SCHEMA_VERSION=3（第 12 行）、SCHEMA 14-62（kv/perception/episodes/links/people/versions/vectors/deletions 8 张表 + 4 索引）、MIGRATIONS 65-96（第 2 版加 episodes_fts 虚拟表与 3 个同步触发器、jobs、usage；第 3 版加 kind/about 生成列与 2 索引）、GENERATED_COLUMNS 99、openStore 105、verify 153、openRecoverableStore 161-191、tx 217-227、snapshot(VACUUM INTO) 204-209、bytes 258-263；迁移顺序、向后兼容（version > SCHEMA_VERSION 拒绝打开）和恢复顺序只写在注释里，缺一份写明的迁移/回滚契约文档；本文件保持零改动，任何结构调整必须先有 test/mind-migrate.test.js 的迁移断言"
+  },
+  {
+    "path": "src/mind/inner/text.js",
+    "area": "mind/inner",
+    "owner": "mind-inner",
+    "verdict": "keep",
+    "evidence": "60 行；1 个内部依赖（emotion/catalog.js）；1 处 import（inner/index.js 再导出）；被 test/mind-inner.test.js 经 index.js 覆盖。职责：念头解析（parseThought）、相似度（overlap）、节选排版（fitLines）、系统提示词（factualRules / buildSystem）。B42 从 inner/index.js 抽出，纯文本、不碰数据库。"
+  },
+  {
+    "path": "src/mind/inner/deep.js",
+    "area": "mind/inner",
+    "owner": "mind-inner",
+    "verdict": "keep",
+    "evidence": "81 行；1 个内部依赖（emotion/catalog.js）；1 处 import（inner/index.js）；被 test/mind-inner.test.js 覆盖（深想触发条件、写回记忆与情绪）。职责：「认真想一次」的判定与流程——needsDeep（越想越难受 / 涉及管理员 / 小模型要求）、DEEP_SYSTEM 提示词、deepThink（调模型、reappraise、写看法/打算）。依赖全部注入（getAsk 惰性取模型、budgetAllow、memory/emotion/motivation/body、currentContext）。"
   }
 ]

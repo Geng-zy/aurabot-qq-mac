@@ -3388,3 +3388,38 @@ tag    v1.6.79
 Release dsh-aurabot-qq-1.6.79.tgz  19,670,033 字节
         sha256 9eca8ed087cc250b14302d478a7d7702e41b6182856e69fd6250b4bb2df74046
 ```
+
+---
+
+## B42 · 内心活动拆分：纯文本 + 深想流程（1.6.80）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `inner/index.js` | 371 → **276** | 意识流循环与状态：`step/thinkStep/idleTick/relieve/diary/connect/load/save`、`material`、`currentContext` |
+| `inner/text.js`（新） | **60** | `parseThought`、`overlap`、`fitLines`、`factualRules`、`buildSystem({name,owner})` |
+| `inner/deep.js`（新） | **81** | `needsDeep`、`DEEP_SYSTEM`、`deepThink`（调模型 → reappraise → 写看法/打算） |
+
+关键点：`deep.js` 里的模型用 `getAsk()` 惰性获取（`ask` 是之后由 `connect({ ask })` 注入的，
+创建时还是 null）；依赖全部注入，便于单测。
+
+```text
+Air   mind-inner / mind-features / mind-share / mind-memory → 46 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 626 文件；oxlint 0 error；清单 0 待审
+审计  inner/index.js split → keep（276 行）；新增 inner/text.js、inner/deep.js（keep）
+过程  自查修正：ask 惰性化（否则深想恒返回 null）、审计重复行 70 条（脚本把新行写进了多个 JSON）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.80（回滚点 ~/aurabot-release-backups/20261128-005130）、00:51:35 启动
+模块   inner/text.js 真机导出 buildSystem,factualRules,fitLines,overlap,parseThought；
+       parseThought('念头：我在想他/感受：高兴 0.6/打算：找他聊聊') →
+         {"thought":"我在想他","feel":{"name":"快乐","intensity":0.6},"plan":"找他聊聊","deep":false}
+       inner/deep.js 导出 createDeepThink
+接口   /mind/inner → ok=true；配置逐字段一致；Purge 三个工具仍在；新增 error：0 条
+
+提交   B42；tag v1.6.80
+Release dsh-aurabot-qq-1.6.80.tgz  19,673,101 字节
+        sha256 0f4a1091f64e94aed3f54e5d2ca787f28a3d9aedac327c915fee502dfe6c565a
+```

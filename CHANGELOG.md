@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.80
+
+- B42 **内心活动拆分：纯文本与「认真想一次」独立成模块**（`inner/index.js` 371 → 276 行）。
+  - `inner/text.js`（60 行）：`parseThought`（小模型那几行固定开头的解析）、`overlap`（两句话相似度）、
+    `fitLines`（按字数预算挑行）、`factualRules` 与 `buildSystem({ name, owner })`（意识流提示词）。
+  - `inner/deep.js`（81 行）：`needsDeep`（越想越难受 / 涉及管理员 / 小模型要求）、`DEEP_SYSTEM`、
+    `deepThink`（调模型 → reappraise → 写看法与打算）。`ask` 用 `getAsk()` 惰性取，避免创建时模型还没接上。
+  - 留下：意识流循环与状态（`step/thinkStep/idleTick/relieve/diary/connect/load/save`）。
+  - 导出面不变（`inner/index.js` 再导出 `overlap`/`parseThought`/`fitLines`/`factualRules`）。
+- 测试：全量 1730 个测试通过；语法 626 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.79
 
 - B41 **动机拆分：纯规则独立成模块**（`src/mind/motivation/rules.js` 97 行，`motivation/index.js` 344 → 259 行）。
