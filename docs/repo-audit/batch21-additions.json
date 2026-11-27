@@ -26,5 +26,12 @@
     "owner": "features-imagegen",
     "verdict": "keep",
     "evidence": "48 行；0 个内部依赖；1 处 import（features/imagegen.js 再导出）；1 个测试（test/imagegen-template.test.js 5 个用例）。职责：生图的纯逻辑——模板填值（{prompt}/{n}…，空值保留占位符）、尺寸解析（x / × / *）、按 a.b.0.c 路径取值、返回 JSON 里找图片（data:image 与 http 图片地址，深度上限 6）、gpt-image 系列的多参考图判断。B38 从 features/imagegen.js（489 行）抽出：那边是网络与供应商编排，这些规则以前只能靠跑一次真接口来验。"
+  },
+  {
+    "path": "src/mind/emotion/present.js",
+    "area": "mind/emotion",
+    "owner": "mind-emotion",
+    "verdict": "keep",
+    "evidence": "109 行；0 个内部依赖（状态与人物关系全部注入）；1 处 import（mind/emotion/index.js）；1 个测试（test/emotion-present.test.js 6 个用例）。职责：情绪的自然语言呈现——moodCue/emotionCue 的用词表、prompt（给模型看，不列情绪名与强度）、describe（心情 + 对象 + 程度 + 原因）。五条规矩原样保留：只说行为倾向、区分眼前的人与别人、publicOnly 不点名、忍着没表现的标注、迁怒按「倾向 ×（1−亲近度）」偶尔压不住。B39 从 emotion/index.js 抽出：那边管状态（加载/存盘/衰减/规矩），这边管怎么说，可喂假状态单测。"
   }
 ]

@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.77
+
+- B39 **情绪拆分：自然语言呈现独立成模块**（`src/mind/emotion/present.js` 109 行，
+  `emotion/index.js` 329 → 254 行）。
+  - 拆出：`moodCue` / `emotionCue` 的用词表、`prompt`（给模型看，不列情绪名与强度）、
+    `describe`（心情 + 对象 + 程度 + 原因）。五条规矩原样保留：只说行为倾向、区分眼前的人与别人、
+    `publicOnly` 不点名、忍着没表现的标注、迁怒按「倾向 ×（1−亲近度）」偶尔压不住。
+  - 留下：状态与规矩（`load/save/feel/strength/updateMood/effects/afterSleep/…`）。
+  - 接口：`createEmotionPresent({ getState, isOwner, closeness, displacement, random })` —— 状态与人物关系全部注入，
+    因此可以喂假状态单测；`emotion.prompt/describe` 对外签名不变。
+- 测试：新增 `test/emotion-present.test.js` 6 个用例（用词分级、`target` 三种情形、`publicOnly`、
+  忍着没表现、跨会话不泄露第三方、迁怒概率可复现）。
+- 回归：全量 1730 个测试通过；语法 622 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.76
 
 - B38 **生图拆分：纯逻辑独立成模块**（`src/features/imagegen-template.js` 48 行，`features/imagegen.js` 489 → 447 行）。

@@ -3249,3 +3249,49 @@ CI（macOS 托管 runner 排队限制，非测试失败）
   macOS 侧的实际信号来自：Air（真 macOS + Node 24）全量 1724 通过，以及 Mini 真机验收。
   以后夜间高峰若 macOS 继续排队超限，以 ubuntu 门禁 + Air 全量 + Mini 验收为准，不再空转补跑。
 ```
+
+---
+
+## B39 · 情绪拆分：自然语言呈现独立成模块（1.6.77）
+
+批次来源：`src/mind/emotion/index.js`（329 行）的 split 结论。文件里两块职责很清楚：
+状态与规矩（加载/存盘/衰减/专一/年龄判断）与「怎么说」（给模型看的提示、给她看的心情描述）。
+
+### 1. 切法
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `emotion/index.js` | 329 → **254** | 状态与规矩：`load/save/feel/strength/updateMood/effects/afterSleep/reappraiseThoughts/…` |
+| `emotion/present.js`（新） | **109** | `moodCue`/`emotionCue` 用词表、`prompt`（不列情绪名与强度）、`describe`（心情+对象+程度+原因） |
+
+接口：`createEmotionPresent({ getState, isOwner, closeness, displacement, random })` —— 状态与人物关系全部注入，
+可喂假状态单测；`emotion.prompt/describe` 对外签名不变。
+
+五条规矩原样保留：只说行为倾向 / 区分眼前的人与别人 / `publicOnly` 不点名 / 忍着没表现的标注 /
+迁怒按「倾向 ×（1−亲近度）」偶尔压不住。
+
+### 2. 自动测试（Air）
+
+```text
+新增 test/emotion-present.test.js 6 个用例
+  ✔ moodCue 五档用词（很好/放松/有点躁/低落/很烦躁）
+  ✔ prompt 不出现情绪名与强度，只给行为倾向
+  ✔ target 三种情形：眼前的人 / 冲着别人 / publicOnly 不点名
+  ✔ 忍着没表现：prompt 与 describe 都会标注
+  ✔ describe：心情 + 对象 + 程度 + 原因；deep 来源换会话不点名但情绪还在
+  ✔ 迁怒：倾向 0 不触发；随机固定为 0 时触发一次
+
+emotion 相关套件 43 pass；全量 1730 passed / 0 failed / 0 skipped；语法 622 文件；oxlint 0 error；清单 0 待审
+```
+
+### 3. Mini 实机验收
+
+```text
+安装   1.6.77（回滚点 ~/aurabot-release-backups/20261127-233916）
+启动   23:39:20 Aurabot v1.6.77 已加载
+实测   真机喂假状态（心情 -0.6/唤醒 0.4 + 冲着别人的愤怒 0.8）：
+       prompt   → 【此刻的你】很烦躁；话会比平时短、直一点…，这股感觉是冲着别人的，不是眼前的人。
+       describe → 【心情】烦躁 / 【此刻的感受】对other很愤怒 / （这些气是冲着other的…别把气撒到眼前的人身上。）
+接口   /mind/inner → ok=true（日记有真实内容）
+配置   升级前后逐字段一致；Purge 三个工具仍在；23:39 之后新增 error：0 条
+```
