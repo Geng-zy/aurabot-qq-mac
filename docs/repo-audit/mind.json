@@ -38,8 +38,8 @@
     "path": "src/mind/emotion/index.js",
     "area": "mind/emotion",
     "owner": "mind-emotion",
-    "verdict": "split",
-    "evidence": "329 行；import：mind/index.js；测试：无直接 import；test/mind-body-emotion.test.js、test/mind-conversation.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-system-context.test.js 经 createMind().emotion 覆盖 feel/state/forgetEvent；内部依赖 1（mind/emotion/catalog.js）；写入侧 feel 66-119 / rekindle 120-130 / updateMood 131-150 / afterSleep 162、维护侧 forgetEvent 300-317 / forgetAppraisals 318、展示侧 prompt 231-265 / describe 266-291 / moodCue 208-230；329 行、内部依赖 catalog.js；建议把 prompt/describe/moodCue 下沉为 emotion/prompt.js，feel/rekindle/updateMood/forget* 与随机数用法留在原文件，情绪状态仍写 kv 键 emotion"
+    "verdict": "keep",
+    "evidence": "329 行；import：mind/index.js；测试：无直接 import；test/mind-body-emotion.test.js、test/mind-conversation.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-system-context.test.js 经 createMind().emotion 覆盖 feel/state/forgetEvent；内部依赖 1（mind/emotion/catalog.js）；写入侧 feel 66-119 / rekindle 120-130 / updateMood 131-150 / afterSleep 162、维护侧 forgetEvent 300-317 / forgetAppraisals 318、展示侧 prompt 231-265 / describe 266-291 / moodCue 208-230；329 行、内部依赖 catalog.js；建议把 prompt/describe/moodCue 下沉为 emotion/prompt.js，feel/rekindle/updateMood/forget* 与随机数用法留在原文件，情绪状态仍写 kv 键 emotion 254 行（B39 后）；B39 把「怎么说」（prompt/describe 与用词表）拆成 emotion/present.js 后，本文件只剩状态与规矩：load/save/feel/strength/updateMood/effects/afterSleep/reappraiseThoughts/history/forget*。行数已 <300 且职责单一，结论由 split 改判 keep。"
   },
   {
     "path": "src/mind/index.js",
@@ -185,8 +185,8 @@
     "path": "src/mind/memory/vectors.js",
     "area": "mind/memory",
     "owner": "mind-memory",
-    "verdict": "split",
-    "evidence": "143 行；import：mind-adapter/index.js、mind/memory/index.js；测试：test/mind-memory.test.js:272-283 直接测 createEmbedClient，test/mind-rerank.test.js:47-49 直接测 createRerankClient；内部依赖 0（无）；三件事挤在一个文件：本地向量索引 createVectorIndex 5-63（内存缓存 + unit + search/similarity）、embeddings HTTP 客户端 createEmbedClient 69-106、rerank HTTP 客户端 createRerankClient 113-143；143 行、0 内部依赖；后两个客户端的唯一调用方是 src/mind-adapter/index.js:14（取出后注入 embedding.js），属对接层。建议把两个 HTTP 客户端拆到 mind-adapter/，createVectorIndex 留在 memory/；两处测试的 import 路径同步改 B35 把 memory/vector-state.js（18 行）合并进来（该文件删除）：createVectorState（staleVectorIds / vectorProgress / canEmbed）与向量索引、embed 客户端同属一块，memory/index.js 改为从 vectors.js 取；这一块因此不再是个只有 18 行、只有一个入口的薄模块。"
+    "verdict": "keep",
+    "evidence": "143 行；import：mind-adapter/index.js、mind/memory/index.js；测试：test/mind-memory.test.js:272-283 直接测 createEmbedClient，test/mind-rerank.test.js:47-49 直接测 createRerankClient；内部依赖 0（无）；三件事挤在一个文件：本地向量索引 createVectorIndex 5-63（内存缓存 + unit + search/similarity）、embeddings HTTP 客户端 createEmbedClient 69-106、rerank HTTP 客户端 createRerankClient 113-143；143 行、0 内部依赖；后两个客户端的唯一调用方是 src/mind-adapter/index.js:14（取出后注入 embedding.js），属对接层。建议把两个 HTTP 客户端拆到 mind-adapter/，createVectorIndex 留在 memory/；两处测试的 import 路径同步改 B35 把 memory/vector-state.js（18 行）合并进来（该文件删除）：createVectorState（staleVectorIds / vectorProgress / canEmbed）与向量索引、embed 客户端同属一块，memory/index.js 改为从 vectors.js 取；这一块因此不再是个只有 18 行、只有一个入口的薄模块。 87 行（B37 后）；B35 把 vector-state.js 并进来、B37 把 embed/rerank 两个 HTTP 客户端拆出去，现在只剩 createVectorIndex（内存索引与单位化点积）与 createVectorState（staleVectorIds/vectorProgress/canEmbed）。行数已 <300 且职责单一，结论由 split 改判 keep。"
   },
   {
     "path": "src/mind/memory/visibility.js",

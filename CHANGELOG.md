@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.78
+
+- B40 **生图模块拆分：面板路由独立成模块 + 两项已完成的改判**。
+  - `modules/imagegen/index.js` 326 → **285 行**：把「她的形象」7 条路由与「她的画作」4 条图库路由
+    拆成 `features/appearance-routes.js`（70 行，`registerAppearanceRoutes` / `registerGalleryRoutes`）；
+    模块里只剩装配：工具定义、生图服务接线、内心「画一张自己的画」的 offer。
+  - **账务修正**：`mind/emotion/index.js`（254 行，B39 后）与 `mind/memory/vectors.js`（87 行，B37 后）
+    早已降到 300 以下且职责单一，但审计结论还停在 split —— 本批改判 keep，
+    清单里「待做」因此少了这两项。
+- 测试：全量 1730 个测试通过（e2e 覆盖 `/image/appearance*` 与 `/image/gallery*` 共 109 个用例）；
+  语法 623 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.77
 
 - B39 **情绪拆分：自然语言呈现独立成模块**（`src/mind/emotion/present.js` 109 行，

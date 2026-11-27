@@ -33,5 +33,12 @@
     "owner": "mind-emotion",
     "verdict": "keep",
     "evidence": "109 行；0 个内部依赖（状态与人物关系全部注入）；1 处 import（mind/emotion/index.js）；1 个测试（test/emotion-present.test.js 6 个用例）。职责：情绪的自然语言呈现——moodCue/emotionCue 的用词表、prompt（给模型看，不列情绪名与强度）、describe（心情 + 对象 + 程度 + 原因）。五条规矩原样保留：只说行为倾向、区分眼前的人与别人、publicOnly 不点名、忍着没表现的标注、迁怒按「倾向 ×（1−亲近度）」偶尔压不住。B39 从 emotion/index.js 抽出：那边管状态（加载/存盘/衰减/规矩），这边管怎么说，可喂假状态单测。"
+  },
+  {
+    "path": "src/features/appearance-routes.js",
+    "area": "features",
+    "owner": "features-imagegen",
+    "verdict": "keep",
+    "evidence": "70 行；2 个内部依赖（features/appearance.js、features/paintings.js 由调用方注入）；1 处 import（modules/imagegen/index.js）；经 test/e2e.test.js（面板 `/image/appearance*`、`/image/gallery*`）覆盖。两个注册函数：registerAppearanceRoutes（7 条：导入参考图、选主图、看图写描述等）与 registerGalleryRoutes（4 条：图库列表、取图、删除、开文件夹）。B40 从 modules/imagegen/index.js 拆出来：那边是生图模块装配（工具 / 内心邀约 / 生图服务），这组路由只跟参考图目录、图库与看图模型打交道。"
   }
 ]

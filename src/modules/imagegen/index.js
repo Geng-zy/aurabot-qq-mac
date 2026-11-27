@@ -3,10 +3,11 @@
 import { readFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { createAppearance, DESCRIBE_SYSTEM, MAX_APPEARANCE } from '../../features/appearance.js'
+import { createAppearance } from '../../features/appearance.js'
 import { findSharp, shrinkWithSharp } from '../../core/img.js'
 import { canSeeImages } from '../../core/llm.js'
 import { createImageGen, drawResultBlocks, drawToolMessage, imageToolBlock, resolveDrawImage } from '../../features/imagegen.js'
+import { registerAppearanceRoutes, registerGalleryRoutes } from '../../features/appearance-routes.js'
 import { listPaintings, openPaintFolder, paintingPath, rememberPainting, removePainting, savePainting } from '../../features/paintings.js'
 import { defineTool, str } from '../../tools/tools.js'
 import { SIZE_OPTIONS } from '../../features/image-shape.js'
@@ -81,59 +82,17 @@ export default {
       : '')
 
     // ---------- 她的形象：管理员导入的几张参考图，她画自己时照着画 ----------
+    // 创建与那 7 条路由都在 features/appearance-routes.js，这里只把依赖接上。
     const looks = createAppearance({
       dir: dataDir('appearance'),
       trashDir: join(homedir(), '.Trash'),
       // 存之前缩到 1536 以内（有 sharp 用 sharp），省地方也省生图请求的大小
       shrink: async (buf) => { const sharp = await findSharp().catch(() => null); return sharp ? shrinkWithSharp(sharp, buf, 1536) : buf },
     })
-    api.route('/image/appearance', async () => ({ ok: true, list: looks.list(), description: looks.description(), max: MAX_APPEARANCE }))
-    api.route('/image/appearance/image', async (req, res) => {
-      const buf = looks.read(String(api.core.http.query(req).file || ''))
-      if (!buf) return api.core.http.send(res, 404, '')
-      api.core.http.send(res, 200, buf, String(mimeOf(buf) || 'image/png'))
-    })
-    api.route('/image/appearance/upload', async (req) => {
-      if (req?.method !== 'POST') return { ok: false, message: '要用 POST 上传' }
-      try { return await looks.add(await api.core.http.raw(req, 20 * 1024 * 1024)) } catch (error) { return { ok: false, message: error.message } }
-    }, { access: 'panel' })
-    api.route('/image/appearance/delete', async (req) => looks.remove(String((await api.core.http.body(req)).file || '')), { access: 'panel' })
-    api.route('/image/appearance/primary', async (req) => looks.setPrimary(String((await api.core.http.body(req)).file || '')), { access: 'panel' })
-    api.route('/image/appearance/description', async (req) => looks.setDescription(String((await api.core.http.body(req)).text || ''), 'owner'), { access: 'panel' })
-    // 看图写一段外貌描述（要看得懂图的模型：表情起名单独挑了模型就用它，不然用聊天模型）
-    api.route('/image/appearance/describe', async () => {
-      const imgs = looks.buffers(4)
-      if (!imgs.length) return { ok: false, message: '先导入几张她的图' }
-      const pick = api.config().stickers?.captionModel
-      const target = pick && pick.provider && pick.model ? { provider: pick.provider, model: pick.model } : null
-      if ((await canSeeImages(api.dsh, api.config(), target).catch(() => null)) === false) return { ok: false, message: '现在用的模型看不了图：在「模型」页换一个能看图的，或者自己写描述' }
-      try {
-        const text = String(await api.ask({ system: DESCRIBE_SYSTEM, text: '这几张都是她。', images: imgs.map((b) => ({ data: b.toString('base64'), mediaType: String(mimeOf(b)) })), maxTokens: 600, ...(target ? { model: target } : {}) }) || '').trim()
-        if (!text) return { ok: false, message: '模型没写出描述' }
-        looks.setDescription(text, 'vision')
-        return { ok: true, description: looks.description() }
-      } catch (error) {
-        return { ok: false, message: '没写成：' + error.message }
-      }
-    }, { access: 'panel' })
+    registerAppearanceRoutes(api, { looks, mimeOf, canSeeImages })
 
-    // 她的画作：面板底下的图库（直接读存图目录，可以单张删、开文件夹）
-    api.route('/image/gallery', async (req) => {
-      const q = api.core.http.query(req)
-      const limit = q && q.limit ? Number(q.limit) : api.config().imageGen.galleryShown
-      return { ok: true, ...listPaintings({ limit }), dir: dataDir('imagegen') }
-    })
-    api.route('/image/gallery/image', async (req, res) => {
-      const p = paintingPath(api.core.http.query(req).file)
-      if (!p) return api.core.http.send(res, 404, '')
-      const buf = readFileSync(p)
-      api.core.http.send(res, 200, buf, String(mimeOf(buf) || 'image/png'))
-    })
-    api.route('/image/gallery/delete', async (req) => {
-      const b = await api.core.http.body(req).catch(() => ({}))
-      return removePainting(String((b && b.file) || ''))
-    }, { access: 'panel' })
-    api.route('/image/open-folder', async () => openPaintFolder(), { access: 'panel' })
+    // 她的画作：图库路由在 features/appearance-routes.js 的 registerGalleryRoutes
+    registerGalleryRoutes(api, { listPaintings, paintingPath, removePainting, openPaintFolder, dataDir, readFileSync, mimeOf })
 
     api.mind?.offer?.({
       id: 'own-painting', label: '画一张自己的画', needs: { beauty: 0.75, fun: 0.3 },

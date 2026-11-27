@@ -3309,3 +3309,51 @@ CI        run 46026998626：ubuntu-latest success；macos-latest cancelled（依
           排队 15 分钟后被回收的托管 runner 问题，与本批代码无关）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B40 · 生图模块拆分 + 两项改判（1.6.78）
+
+### 0. 先说账（为什么上一轮看着还剩 15 项）
+
+上一轮结束时的 15 项里，**有 2 项其实已经做完**，只是审计结论没跟着改：
+
+| 文件 | 实际行数 | 何时做的 | 结论 |
+|---|---|---|---|
+| `mind/emotion/index.js` | 254（<300） | B39 拆出 present.js | 改判 keep |
+| `mind/memory/vectors.js` | 87（<300） | B35 合并 + B37 拆出 embed-client | 改判 keep |
+
+其余 13 项是真没做：`mind/index.js` 866、`song/studio.js` 1137、`personality` 487、`relations` 425、
+`sleep` 423、`imagegen`（features）447、`stickers` 388、`inner` 371、`motivation` 344、`tts` 343、
+`mind-adapter/index.js` 327、`modules/imagegen` 326、`memory/index.js` 306 —— 每个都 ≥300 行，
+且多数一次切不完（例如 487/425 这类要两刀才降到 300 以下），所以按每轮一个文件推进时数量下得慢。
+
+### 1. 本批实际改动
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `modules/imagegen/index.js` | 326 → **285** | 装配：工具定义、生图服务接线、内心「画一张自己的画」的 offer |
+| `features/appearance-routes.js`（新） | **70** | `registerAppearanceRoutes`（7 条：导入参考图、选主图、看图写描述…）+ `registerGalleryRoutes`（4 条：图库列表、取图、删除、开文件夹） |
+
+### 2. 验收
+
+```text
+Air   imagegen 相关 / modules / features → 62 pass；e2e（面板 appearance 与 gallery 路由）→ 109 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 623 文件；oxlint 0 error；清单 0 待审
+```
+
+### 3. Mini 实机 + 发布
+
+```text
+安装   1.6.78（回滚点 ~/aurabot-release-backups/20261128-000938）
+启动   00:09:42 Aurabot v1.6.78 已加载
+路由   GET /image/appearance → ok=true（张数 0、max=8，走的是新模块的 registerAppearanceRoutes）
+       GET /image/gallery?limit=3 → ok=true（条数 0，走的是 registerGalleryRoutes）
+配置   升级前后逐字段一致；Purge 三个工具仍在；00:09 之后新增 error：0 条
+
+提交   B40
+tag    v1.6.78
+Release 附件 dsh-aurabot-qq-1.6.78.tgz  19,668,066 字节
+       sha256 a6e3221e820448c85cd0702ff2742cbd276b95dfd8076f714f9796d9d0670497
+       （= mini 安装的那份）
+```
