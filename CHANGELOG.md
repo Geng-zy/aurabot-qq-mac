@@ -2,6 +2,15 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.89
+
+- B51 **mind/index.js 第一刀：批量导入独立成模块**（`mind/import.js` 87 行，`mind/index.js` 866 → 796 行）。
+  - 拆出 `importBatch`（整批一个事务、同 tag 只导一次、重复 id 跳过）与 `imported` / `importDone` / `vectorOf` / `episode`。
+  - **如实记录**：「忘掉一个人」这块也试着拆了（143 行），但它依赖 emotion / conversation / inner / writeDeletion 等多个子系统，
+    注入面太大、一轮内无法安全收口 —— 已回滚，留到下一刀连同这些依赖一起处理。
+  - `mind/index.js` 仍需第二刀（796 行）才能降到 300 以下。
+- 回归：全量 1730 个测试通过；语法 641 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.88
 
 - B50 **人格拆分：每晚走一步 / 习惯 / 相似度独立成模块**（`mind/personality/index.js` 487 → 257 行）。

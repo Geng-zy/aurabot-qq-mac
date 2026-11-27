@@ -3660,3 +3660,33 @@ Air   mind 相关 90 pass；全量 1730 passed / 0 failed / 0 skipped；语法 6
 Release dsh-aurabot-qq-1.6.88.tgz  19,685,330 字节
         sha256 ea45a71b2df3544aec8162835c817d808bfa6209d8cc4ca731b365c0e94e9e92
 ```
+
+---
+
+## B51 · mind/index.js 第一刀：批量导入（1.6.89）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind/index.js` | 866 → **796** | 心智各层装配与对外接口（仍需第二刀） |
+| `mind/import.js`（新） | **87** | `importBatch`（整批事务 / 同 tag 只导一次 / 重复 id 跳过）、`imported`、`importDone`、`vectorOf`、`episode` |
+
+**没能完成的**：「忘掉一个人」（143 行）尝试拆出 `forget-person.js`，但它依赖 `emotion.forgetAppraisals`、
+`conversation.invalidatePerson`、`inner`、`writeDeletion` 等子系统 —— 逐个补注入后仍有新依赖冒出来，
+判定一轮内无法安全收口，**已整体回滚**（连同审计条目），只保留 import 这一块的成果。
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 641 文件；oxlint 0 error；清单 0 待审
+过程  回滚一次（forget 拆分）、删掉 1 条失效审计条目、修掉 import 的 4 处缺注入（person/savePerson/now/log）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.89（回滚点 ~/aurabot-release-backups/20261128-032209）、03:22:15 启动
+接口   GET /mind/self → ok=true，19 项特质 + 49 个习惯（import 抽取后心智面板照常）
+配置   升级前后逐字段一致；Purge 三个工具仍在；03:10 之后新增 error：0 条
+
+提交   B51；tag v1.6.89
+Release dsh-aurabot-qq-1.6.89.tgz  19,685,982 字节
+        sha256 040d6db85e4ca8c3a0c5bc36e6131cbe343c18ac2682ea85d686d26209f8995f
+```
