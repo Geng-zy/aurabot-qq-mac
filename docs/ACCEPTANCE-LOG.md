@@ -3065,3 +3065,16 @@ Mini  1.6.73 安装（回滚点 ~/aurabot-release-backups/20261127-211246）、2
       GET /mind/inner → ok=true（日记有真实内容）；GET /mind/followups → ok=true
       配置升级前后逐字段一致；Purge 三个工具仍在；21:10 之后新增 error：0 条
 ```
+
+### 发布（v1.6.73）
+
+```text
+提交      1e91796
+tag       v1.6.73
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.73
+附件      dsh-aurabot-qq-1.6.73.tgz  19,661,172 字节（464 个条目）
+          远端 digest sha256:46030a3232669a21583d4ecc00ec6d2ab1397902a229ef7643ec7c8a338ac6af
+          = mini 上安装的那份（同哈希）
+CI        run 46005334897 → macos-latest success、ubuntu-latest success（21:20）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
