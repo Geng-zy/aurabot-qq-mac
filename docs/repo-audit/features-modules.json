@@ -80,8 +80,8 @@
     "path": "src/features/knowledge-routes.js",
     "area": "panel",
     "owner": "panel-content",
-    "verdict": "merge",
-    "evidence": "44 行、0 个内部依赖。唯一 importer src/host.js:49（import）+ host.js:708（单行调用）。7 条端点：/knowledge/list、read、rename、delete、note、scope 由 test/system-processes.test.js 用 fake.call 覆盖；/knowledge/search（第 12 行）在 test/、docs/ 下 0 处 call()。重复样板（可逐行核对）：4 处逐字节相同的 let b = {} + try { b = await readBody(req) || {} } catch (error) { return { ok: false, message: error.message || '请求内容不对' } }（第 21-22、27-28、33-34、39-40 行，共 8 行），外加 4 处手写 POST 守卫（第 20、26、32、38 行）。并入新建 src/panel/content.js：签名 1 行 + 文件头 2 行 + 4 个守卫块 8 行 = 省 11 行（改由 kit 的 body()/post() 提供）。"
+    "verdict": "keep",
+    "evidence": "44 行、0 内部依赖、1 处 import（src/host/routes.js）。4 条端点：/knowledge/list、read、search、write，读写规则在 features/knowledge.js（157 行，list/read/search/write 都在那边），本文件只做参数校验与 JSON 形状。B35 复核后判 keep：原审计判 merge（并入 host.js）会与 B1「host 组合根只做装配」冲突——本仓 21 个 features/*-routes.js 是同一模式（faces/avatar/persona/notice 等同样薄且同样只有一个 importer），单把 knowledge 并进 host 只会让模式不一致、host 变厚；要合并应该整类一起搬，那是另一批的范围。"
   },
   {
     "path": "src/features/knowledge.js",

@@ -4,7 +4,7 @@
 
 import { createHash, randomUUID } from 'node:crypto'
 import { retention, initialStability, levelOf } from './curve.js'
-import { createVectorIndex } from './vectors.js'
+import { createVectorState, createVectorIndex } from './vectors.js'
 import { estimateTokens } from '../budget.js'
 import { zonedToEpoch, shortTime, dayKey, localParts, parseBirthday } from '../clock.js'
 import { placeOf, shortId } from '../place.js'
@@ -23,7 +23,6 @@ import { createDeletion } from './deletion.js'
 import { createSpecial } from './special.js'
 import { createWorking } from './working.js'
 import { createPanel } from './panel.js'
-import { createVectorState } from './vector-state.js'
 import { createPrivacyText } from './privacy-text.js'
 
 import { anchorDates, relativeDayWords, pendingLabel, parseJson, KINDS } from './text.js'

@@ -2,6 +2,21 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.73
+
+- B35 **心智侧两个薄模块合并**（都过删除测试）：
+  - `src/mind-adapter/ids.js`（17 行）删除：它只是 `channels/ids.js` 的别名再导出一遍，外加
+    `personIn`（按来源会话解释裸账号）与 `deliveryChat`（QQ 旧会话 ID 兼容）两个小函数。
+    别名改成 import 时 `as`（`normChat as windowOf` / `normPerson as personOf`），两个函数随迁到
+    `mind-adapter/index.js` —— 它们本来就只由 index.js 注入给 `tools.js` / `turn-flow.js`，调用方零改动。
+  - `src/mind/memory/vector-state.js`（18 行）删除：`createVectorState`（staleVectorIds / vectorProgress / canEmbed）
+    并入 `mind/memory/vectors.js`，与向量索引、embed 客户端同属一块；`memory/index.js` 改从 `vectors.js` 取。
+  - `src/features/knowledge-routes.js` 复核后**判 keep**：原结论 merge（并入 host）会与「host 组合根只做装配」冲突，
+    本仓 21 个 `features/*-routes.js` 是同一模式，单把 knowledge 并进 host 只会让模式不一致。
+- 行为零变化：`mind-adapter/index.js` 仍导出 `personIn` / `deliveryChat`，注入签名不变；记忆的向量进度查询逻辑逐字保留。
+- 回归：mind-adapter / mind-memory / mind-features / mind-inner / pure → 130 tests / 130 pass；
+  全量 1714 个测试通过；语法 615 文件（少 2 个已删文件）；oxlint 0 error / 160 warning；清单 0 待审。
+
 ## 1.6.72
 
 - B34 **语音合成拆分：通用 HTTP 后端独立成模块**（`src/voice/http-synth.js` 94 行，`tts.js` 417 → 343 行）。

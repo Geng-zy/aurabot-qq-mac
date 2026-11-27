@@ -17,8 +17,26 @@ import { keywords } from '../core/keywords.js'
 import { dayKey, parsePeriod, shortTime } from '../core/clock.js'
 import { createLocalModel } from './local-runner.js'
 import { defineTool, str, int } from '../tools/tools.js'
-import { deliveryChat, personIn, windowOf, personOf } from './ids.js'
-import { LEGACY_PLATFORM, parseChat, parsePerson, privateChatOf, refOfChat } from '../channels/ids.js'
+import {
+  LEGACY_PLATFORM, normChat as windowOf, normPerson as personOf,
+  parseChat, parsePerson, personIdOf, privateChatOf, refOfChat,
+} from '../channels/ids.js'
+
+/** 用来源会话解释裸账号，带渠道的引用须与来源一致。 */
+export function personIn(chatId, userId) {
+  const platform = parseChat(chatId)?.platform
+  const person = parsePerson(userId, platform)
+  if (!person || (platform && person.platform !== platform)) return ''
+  return personIdOf(person.platform, person.id)
+}
+
+/** QQ 的壳仍有以旧会话 ID 为键的会话、静默和投递状态。 */
+export function deliveryChat(chatId) {
+  const target = parseChat(chatId)
+  return target?.platform === LEGACY_PLATFORM ? `${target.kind}:${target.id}` : normChatOf(chatId)
+}
+
+function normChatOf(chatId) { return windowOf(chatId) }
 import { shortId } from '../mind/index.js'
 import { isSilence } from '../chat/reply.js'
 import { checkAllowed } from '../chat/access.js'

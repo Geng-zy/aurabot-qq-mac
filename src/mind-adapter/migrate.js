@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { windowOf, personOf } from './ids.js'
+import { normChat as windowOf, normPerson as personOf } from '../channels/ids.js'
 
 export const LEGACY_TAG = 'aurabot-legacy-v1'
 

@@ -182,18 +182,11 @@
     "evidence": "30 行；import：mind/memory/index.js；测试：无直接 import；parseJson 被 memory/index.js:29 转出后由 4 个 mind 文件使用，KINDS 由 render 使用（分支未逐一证实）；内部依赖 0（无）；纯文本工具：相对日期定锚 anchorDates（引号内不动）、parseJson、KINDS 种类表、pendingLabel、relativeDayWords；30 行、0 内部依赖；应作为 memory 的共享叶子模块，被 privacy-text/visibility/render/encode-batch 共同需要"
   },
   {
-    "path": "src/mind/memory/vector-state.js",
-    "area": "mind/memory",
-    "owner": "mind-memory",
-    "verdict": "merge",
-    "evidence": "18 行；import：mind/memory/index.js；测试：test/mind-reembed.test.js:33 断言 staleVectorIds 顺序，staleVectorIds/vectorProgress 另见 test/mind-reembed.test.js、test/mind-system-context.test.js；内部依赖 0（无）；向量进度三函数：staleVectorIds（LEFT JOIN vectors 找未用当前模型算过的）、vectorProgress（done/total/model）、canEmbed；18 行、0 内部依赖、全部只读；与 vectors.js 同属 vectors 表读模型，建议并入 vectors.js（合并后 161 行），只搬两条 SQL，不改表结构与历史数据删除测试：唯一 importer 是 memory/index.js，把两条 SQL 搬进 vectors.js 后本文件无独立调用点。"
-  },
-  {
     "path": "src/mind/memory/vectors.js",
     "area": "mind/memory",
     "owner": "mind-memory",
     "verdict": "split",
-    "evidence": "143 行；import：mind-adapter/index.js、mind/memory/index.js；测试：test/mind-memory.test.js:272-283 直接测 createEmbedClient，test/mind-rerank.test.js:47-49 直接测 createRerankClient；内部依赖 0（无）；三件事挤在一个文件：本地向量索引 createVectorIndex 5-63（内存缓存 + unit + search/similarity）、embeddings HTTP 客户端 createEmbedClient 69-106、rerank HTTP 客户端 createRerankClient 113-143；143 行、0 内部依赖；后两个客户端的唯一调用方是 src/mind-adapter/index.js:14（取出后注入 embedding.js），属对接层。建议把两个 HTTP 客户端拆到 mind-adapter/，createVectorIndex 留在 memory/；两处测试的 import 路径同步改"
+    "evidence": "143 行；import：mind-adapter/index.js、mind/memory/index.js；测试：test/mind-memory.test.js:272-283 直接测 createEmbedClient，test/mind-rerank.test.js:47-49 直接测 createRerankClient；内部依赖 0（无）；三件事挤在一个文件：本地向量索引 createVectorIndex 5-63（内存缓存 + unit + search/similarity）、embeddings HTTP 客户端 createEmbedClient 69-106、rerank HTTP 客户端 createRerankClient 113-143；143 行、0 内部依赖；后两个客户端的唯一调用方是 src/mind-adapter/index.js:14（取出后注入 embedding.js），属对接层。建议把两个 HTTP 客户端拆到 mind-adapter/，createVectorIndex 留在 memory/；两处测试的 import 路径同步改 B35 把 memory/vector-state.js（18 行）合并进来（该文件删除）：createVectorState（staleVectorIds / vectorProgress / canEmbed）与向量索引、embed 客户端同属一块，memory/index.js 改为从 vectors.js 取；这一块因此不再是个只有 18 行、只有一个入口的薄模块。"
   },
   {
     "path": "src/mind/memory/visibility.js",

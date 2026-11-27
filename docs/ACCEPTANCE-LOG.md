@@ -3034,3 +3034,34 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.72
 CI        run 46001843117 → ubuntu-latest success、macos-latest success（21:00，macOS 排队约 10 分钟）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B35 · 心智侧两个薄模块合并（1.6.73）
+
+批次来源：本范围里 3 条 verdict=merge。逐条复核后：两条真合并，一条改判 keep。
+
+| 条目 | 结论 | 依据 |
+|---|---|---|
+| `src/mind-adapter/ids.js`（17 行） | **删除并合并** | 只是 `channels/ids.js` 的别名再导出 + `personIn`/`deliveryChat` 两个小函数；两个消费者里 `migrate.js` 只用别名，`index.js` 是用 `personIn`/`deliveryChat` 的唯一来源 |
+| `src/mind/memory/vector-state.js`（18 行） | **删除并合并** | `createVectorState` 与向量索引、embed 客户端同属「向量」一块；只有一个消费者 `memory/index.js` |
+| `src/features/knowledge-routes.js`（44 行） | **改判 keep** | 原结论「并入 host.js」与 B1「host 组合根只做装配」冲突；本仓 21 个 `features/*-routes.js` 是同一模式（faces/avatar/persona/notice 同样薄、同样只有一个 importer），单把 knowledge 并进 host 只会让模式不一致 |
+
+合并做法：
+- 别名改成 import 时 `as`（`normChat as windowOf` / `normPerson as personOf`），`migrate.js` 直接从 `channels/ids.js` 取；
+- `personIn`（按来源会话解释裸账号）与 `deliveryChat`（QQ 旧会话 ID 兼容）迁入 `mind-adapter/index.js`，
+  仍然由 index.js 注入给 `tools.js` / `turn-flow.js` —— **调用方零改动**；
+- `createVectorState` 并入 `mind/memory/vectors.js`（143 → 163 行），`memory/index.js` 改从 `vectors.js` 取。
+
+### 自动测试与 Mini 验收
+
+```text
+Air   mind-adapter / mind-memory / mind-features / mind-inner / pure → 130 tests / 130 pass
+      全量 1714 passed / 0 failed / 0 skipped；语法 615 文件（少 2 个已删文件）；清单 0 待审
+
+Mini  1.6.73 安装（回滚点 ~/aurabot-release-backups/20261127-211246）、21:12:51 启动
+      包里已无 ids.js / vector-state.js；vectors.js 导出含 createVectorState；
+      mind-adapter 仍导出 personIn / deliveryChat（均为 function）
+      GET /mind/inner → ok=true（日记有真实内容）；GET /mind/followups → ok=true
+      配置升级前后逐字段一致；Purge 三个工具仍在；21:10 之后新增 error：0 条
+```

@@ -98,18 +98,11 @@
     "evidence": "100 行；仅被 src/mind-adapter/index.js:38 import；feed/feel/confirmReplyFeed 经 index 被 test/e2e.test.js、test/mind-body-emotion.test.js、test/mind-conversation.test.js、test/mind-inner.test.js 等 10 个文件覆盖；内部依赖 0 个、注入依赖 15 个；notRemembered 在该文件出现 5 次（7 个文件共 27 处，是待收敛的重复判定之一）。"
   },
   {
-    "path": "src/mind-adapter/ids.js",
-    "area": "mind-adapter",
-    "owner": "mind-adapter-core",
-    "verdict": "merge",
-    "evidence": "17 行；被 src/mind-adapter/index.js:20 与 src/mind-adapter/migrate.js:9 import（2 个调用方，均在 mind-adapter 内）；windowOf/personOf 在 3 行是 channels/ids.js 的纯别名 export，personIn（6-11 行）、deliveryChat（14-17 行）各 6 行薄封装；test/mind-adapter.test.js 只命中 windowOf 一个符号；按删除测试：删掉它后调用方直接 import ../channels/ids.js 并各自复制 6 行，复杂度不增，故判 merge 进 src/channels/ids.js（id 规范化与渠道引用解析同源）。"
-  },
-  {
     "path": "src/mind-adapter/index.js",
     "area": "mind-adapter",
     "owner": "mind-adapter-core",
     "verdict": "split",
-    "evidence": "309 行（>300），31 条 './' 内部 import（覆盖 30 个兄弟文件，唯独不 import install.js），返回对象 71 个键，被 src/host.js 与 20 个测试文件 import（freedom、mind-adapter、mind-assoc、mind-body-emotion、mind-encode-busy、mind-features、mind-followup、mind-forget、mind-graph、mind-inner、mind-migrate、mind-owner-call、mind-period、mind-personality、mind-reembed、mind-rerank、mind-rotate-encode、mind-share、mind-system-context、turn-timeout）。两职责证据：装配（30 个 create* 调用 + 依赖注入）+ 内联实现（93-103 行 askWithTimeout 120 秒超时包装、173-182 行 effortFor/chatEffort/endTurn/invalidateMemory 转发、299-307 行 selfPrompt/protectedText/sharedText/shareIdsForChat/canReadShares/isPrivateHistoryWindow/audienceRevision/restrictedShareText 共 8 个 mem 视图直通）。拆分方向：把 8 个 mem 视图与 askWithTimeout 抽成 view 模块，留下装配。"
+    "evidence": "309 行（>300），31 条 './' 内部 import（覆盖 30 个兄弟文件，唯独不 import install.js），返回对象 71 个键，被 src/host.js 与 20 个测试文件 import（freedom、mind-adapter、mind-assoc、mind-body-emotion、mind-encode-busy、mind-features、mind-followup、mind-forget、mind-graph、mind-inner、mind-migrate、mind-owner-call、mind-period、mind-personality、mind-reembed、mind-rerank、mind-rotate-encode、mind-share、mind-system-context、turn-timeout）。两职责证据：装配（30 个 create* 调用 + 依赖注入）+ 内联实现（93-103 行 askWithTimeout 120 秒超时包装、173-182 行 effortFor/chatEffort/endTurn/invalidateMemory 转发、299-307 行 selfPrompt/protectedText/sharedText/shareIdsForChat/canReadShares/isPrivateHistoryWindow/audienceRevision/restrictedShareText 共 8 个 mem 视图直通）。拆分方向：把 8 个 mem 视图与 askWithTimeout 抽成 view 模块，留下装配。 B35 把 mind-adapter/ids.js 合并进来（该文件删除）：别名改为 import 时直接 as（normChat as windowOf / normPerson as personOf），personIn（按来源会话解释裸账号）与 deliveryChat（QQ 旧会话 ID 兼容）随迁，仍然从 index.js 注入给 tools.js / turn-flow.js，调用方零改动。"
   },
   {
     "path": "src/mind-adapter/inner.js",
