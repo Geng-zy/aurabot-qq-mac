@@ -147,6 +147,7 @@ export function createPurgeScope({ log } = {}) {
   const presets = new Map()
   // 最近一次登记：面板/验收要能回答「这条记录是什么时候、因为什么写进去的」。
   let lastPreset = null
+  const recentPresets = [] // 最近若干次登记（最多 8 条），验收时不会被后来的记录冲掉
   return {
     isTool: isHostMaintenanceTool,
     toolNames: (agent, context = {}) => maintenanceToolNames(agent, { log, ...context }),
@@ -156,9 +157,13 @@ export function createPurgeScope({ log } = {}) {
       if (!k || !preset) return
       presets.set(k, String(preset))
       lastPreset = { sessionId: k, preset: String(preset), source: String(info.source || 'create'), at: Date.now() }
+      recentPresets.push(lastPreset)
+      if (recentPresets.length > 8) recentPresets.shift()
     },
     /** 最近一次登记（只读，给面板与实机验收）。 */
     lastPreset: () => lastPreset,
+    /** 最近若干次登记，按时间正序（最多 8 条）。 */
+    recentPresets: () => recentPresets.slice(),
     /** 会话销毁时调用，别让这张表无限长。 */
     forgetPreset: (sessionId) => presets.delete(presetKey(sessionId)),
     presetFor: (sessionId) => presets.get(presetKey(sessionId)) || '',

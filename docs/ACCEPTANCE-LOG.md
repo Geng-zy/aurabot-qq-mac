@@ -2429,3 +2429,74 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.62
           = 本地候选包 = mini 上安装的那份
 CI        run 45958628503 → ubuntu-latest success、macos-latest success（15:34 双绿）
 ```
+
+---
+
+## B25 / B26 · 会话中途切换预设：**真机跑通**（1.6.63 → 1.6.64）
+
+### 0. 换掉远程桌面
+
+远程桌面路线作废（输入法吞字符、抢前台、还会打断操作者）。改用**插件探针**：
+往 desktop profile 的用户 patch 层插一个临时插件（这是 DSH 官方支持的口子）：
+
+```yaml
+# ~/.dsh/profiles/desktop/cordis.patch.yml
+- insert:
+    - id: preset-probe
+      name: dsh-preset-probe
+```
+
+探针 `inject: ["agentPresets", "agents", "tools"]`，直接调 `ctx.agentPresets.select(agent, preset)`。
+服务名不是猜的：先用 `ctx.reflect.props` 列出**全部 131 个已注册服务**，里面有 `agentPresets`、`permissionPresets`。
+
+### 1. 切换前后（真机数据，agent = 活跃私聊会话 session-ec876ab6）
+
+```text
+切换前 工具（25 个）: bash,edit,glob,grep,job_kill,job_list,job_output,load_workspace_dependencies,
+                     purge_apply,purge_revert,purge_status,read,read_image,schedule_*,team_task_*,
+                     web_fetch,web_search,working_directory,write
+
+select("aurabot-social") → "aurabot-social"
+social 后 工具（9 个）: load_workspace_dependencies, purge_apply, purge_revert, purge_status,
+                      team_task_create/get/list/update, working_directory
+                      ← 本机工具（bash/edit/read/write/glob/grep/schedule/web_*）**全部消失**
+
+select("aurabot-private-long") → "aurabot-private-long"
+还原后 工具（25 个）：与切换前一致
+```
+
+**结论：切换后权限确实刷新，旧权限没有残留。** 收紧到 `aurabot-social` 时本机工具立刻不可见，
+切回 `aurabot-private-long` 又立刻回来 —— 收紧/放开两个方向都实测过。
+
+### 2. 沿 notePreset 查证「新预设在正确时机生效」
+
+```text
+GET /aurabot/api/host/preset
+  recent:
+    aurabot-social        | source=event
+    aurabot-private-long  | source=event
+```
+
+两条都记在**切换那一刻**，`source=event`，会话键归一化正确（`session-` 前缀已剥离）。
+
+这一路上修掉两个真缺陷：
+
+| # | 缺陷 | 修法 |
+|---|---|---|
+| B25 | **建会话时登记「请求的预设」**。DSH 的 `create({agentPreset})` 会复用工作区里已有会话（实测请求 `aurabot-social`、拿回 header 为 `standard` 的旧会话），于是登记值 ≠ 实际值 | 建会话**不再登记**；当前预设只认 `agent-preset/selected` 事件，或回落 `agent.preset` / `session.header` |
+| B25 | 单槽 `lastPreset` 会被后续记录冲掉，切换证据丢失 | 改**环形缓冲** `recentPresets()`（最多 8 条），`/host/preset` 增加 `recent` |
+| B26 | hub 的包装 `(id, preset) => purge.notePreset(id, preset)` 把 `{source:'event'}` **丢掉**，切换被记成 `create` | 改成 `(id, preset, info) => purge.notePreset(id, preset, info)` |
+
+### 3. 验收与善后
+
+```text
+Mini   1.6.64 安装并启动 16:08:57 Aurabot v1.6.64 已加载
+       切换实测两方向都通过；recent 两条 source=event
+清理   探针插件删除、package.json 与 cordis.patch.yml 从备份恢复
+       deps 回到 ['dsh-aurabot-qq','dsh-purge-community','dshmarket']，patch 无 preset-probe
+       重启后 /host/preset → { last:null, recent:[] }（进程内状态清空，接口正常）
+测试   全量 1683 passed / 0 failed / 0 skipped；语法 613 文件；oxlint 0 error / 159 warning
+```
+
+审批归属：本批未改审批链路；该会话的 `permission/preset` 仍是 `danger-full-access`（与 B22 记录一致），
+切换 agent preset 不改变审批归属 —— 工具可见性由 preset 决定，审批由 permission preset 决定，两者互不影响。

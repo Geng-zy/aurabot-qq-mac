@@ -2,6 +2,33 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.64
+
+- B26 会话中途切换预设：修掉「切换被记成创建」的最后一环。
+  - 真机实测（1.6.63）：用插件直接 `ctx.agentPresets.select(agent, preset)` 切了两次，
+    记录出现了，但 `source` 仍是 `create` —— 因为 hub 的包装 `(id, preset) => purge.notePreset(id, preset)`
+    把第三个参数 `{ source: 'event' }` **丢掉了**。
+  - 修法：`(id, preset, info) => purge.notePreset(id, preset, info)`，`source` 原样透传。
+  - 回归：`test/purge-preset.test.js` +1（源码断言：hub 必须透传 info）。
+- 本批完整证据链见 `docs/ACCEPTANCE-LOG.md` B25/B26：
+  切换前 44 个工具 → `aurabot-social` 后 9 个（本机工具全消失）→ 切回 `aurabot-private-long` 恢复 25 个。
+- 回归：全量 1683 个测试通过，语法 613 文件，oxlint 0 error / 159 warning。
+
+## 1.6.63
+
+- B25 会话中途切换预设：**真机跑通了切换**，并据此修掉两处。
+  - 实测（mini，探针插件经 cordis.patch.yml 注入，直接调 `ctx.agentPresets.select(agent, preset)`）：
+    活跃私聊会话切到 `aurabot-social` 时，**可见工具从 44 个掉到 9 个**（bash/edit/read/write 等本机工具全部消失，
+    只剩全局工具 + purge_* + team_task_*）；切回 `aurabot-private-long` 又恢复到 25 个。
+    → **切换后权限确实刷新，旧权限没有残留。**
+  - 修一：**建会话不再登记预设**。DSH 的 `create({agentPreset})` 会复用工作区里已有的会话
+    （实测：请求 `aurabot-social`，拿回的却是 header 为 `standard` 的旧会话），请求值不可信；
+    现在「当前预设」只认两处权威来源 —— `agent-preset/selected` 事件，或回落 `agent.preset` / `session.header`。
+  - 修二：预登记改成**环形缓冲**（`recentPresets()`，最多 8 条），避免后续记录把切换证据冲掉；
+    `GET /aurabot/api/host/preset` 增加 `recent` 字段。
+- 测试：`test/purge-preset.test.js` 8 个用例（新增「建会话不登记」源码断言 + 环形缓冲）。
+- 回归：全量 1682 个测试通过，语法 613 文件，oxlint 0 error / 159 warning。
+
 ## 1.6.62
 
 - B24 修真实缺陷：**「当前预设」记的是请求值，不是会话真实值**。mini 实证 —— 会话

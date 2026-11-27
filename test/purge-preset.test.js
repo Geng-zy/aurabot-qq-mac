@@ -75,12 +75,28 @@ test('会话中途换预设：agent-preset/selected 事件会更新「当前预�
   assert.equal(noted.length, 1)
 })
 
-test('presetToNote：宿主报的优先；新建用请求值；重挂且宿主没报就不猜', async () => {
-  const { presetToNote } = await import('../src/chat/session-create.js')
-  assert.equal(presetToNote({ reported: 'aurabot-social', requested: 'aurabot-private-long' }), 'aurabot-social',
-    '宿主报了就用宿主报的（最权威）')
-  assert.equal(presetToNote({ requested: 'aurabot-private-long' }), 'aurabot-private-long', '新建：用请求值')
-  assert.equal(presetToNote({ requested: 'aurabot-social', recovered: true }), '',
-    '重挂到已有会话且宿主没报：不记，交给 agent.preset / header 回落')
-  assert.equal(presetToNote({}), '', '什么都没有就是空')
+test('建会话不再登记预设：源码里 createSessionNow 不调用 notePreset', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../src/chat/session-create.js', import.meta.url), 'utf8')
+  const body = src.slice(src.indexOf('async function createSessionNow'))
+  assert.ok(!/notePreset\s*\(/.test(body),
+    '建会话时不允许登记预设：DSH 的 create 可能复用已有会话，请求值不可信（会在真机上造成登记值≠header）')
+})
+
+test('环形缓冲：最近几次登记都能查到，不会被后来的记录冲掉', () => {
+  const scope = createPurgeScope({})
+  scope.notePreset('s1', 'standard', { source: 'event' })
+  scope.notePreset('s1', 'aurabot-social', { source: 'event' })
+  scope.notePreset('s2', 'aurabot-private-long', { source: 'event' })
+  const recent = scope.recentPresets()
+  assert.equal(recent.length, 3)
+  assert.deepEqual(recent.map((r) => r.preset), ['standard', 'aurabot-social', 'aurabot-private-long'])
+  assert.deepEqual(recent.map((r) => r.source), ['event', 'event', 'event'])
+})
+
+test('hub 的事件处理器要把 source 透传给 notePreset（否则「切换」会被记成「创建」）', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(new URL('../src/chat/hub.js', import.meta.url), 'utf8')
+  assert.ok(/notePreset: \(id, preset, info\) => purge\.notePreset\(id, preset, info\)/.test(src),
+    'hub 包装必须把第三个参数原样传下去：丢了 source 就分不清「建会话」和「中途切换」')
 })

@@ -146,7 +146,7 @@ export function registerAllRoutes(d) {
     stageReceivedBackup: d.stageReceivedBackup,
   })
 
-  registerHostRoutes({ route, ctx, getConfig, presetFor: (id) => purge.presetFor?.(id) || '', lastPreset: () => purge.lastPreset?.() || null })
+  registerHostRoutes({ route, ctx, getConfig, presetFor: (id) => purge.presetFor?.(id) || '', lastPreset: () => purge.lastPreset?.() || null, recentPresets: () => purge.recentPresets?.() || [] })
   registerNoticeRoutes({
     route, readBody, query, getConfig, setConfig, workspaceList: d.workspaceList,
     normalizeWorkspace: d.normalizeWorkspace, hub,

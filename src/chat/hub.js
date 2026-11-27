@@ -1226,7 +1226,7 @@ export function createHub({ dsh, getConfig, log, channels, onebot, outbox, stick
     slowNoticeSent, clearSlowNotices, clearRunning, stopTyping, rescueFromThinking, isSilence,
     requestReplyRewrite, completedTurn, redact, recoverReply, debugWaiters, turnSessionCurrent,
     outputSources, turnEpochs, sendChain,
-    notePreset: (id, preset) => purge.notePreset(id, preset),
+    notePreset: (id, preset, info) => purge.notePreset(id, preset, info),
   })
 
   const onMessage = createOnMessageHandler({

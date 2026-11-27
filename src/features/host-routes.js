@@ -15,7 +15,7 @@ function probeTools(ctx) {
   try { return ctx?.tools ?? null } catch { return null }
 }
 
-export function registerHostRoutes({ route, ctx, getConfig, presetFor = () => '', lastPreset = () => null }) {
+export function registerHostRoutes({ route, ctx, getConfig, presetFor = () => '', lastPreset = () => null, recentPresets = () => [] }) {
   // 只读：给一个假设的聊天与级别，算出「这套挂载会不会收窄维护工具、指纹是什么」。
   // 用途是实机验收——不用真的发一条 QQ 消息，也能看到群聊/私聊两条路径的收窄结果。
   route('/host/mount-plan', async (req) => {
@@ -52,6 +52,7 @@ export function registerHostRoutes({ route, ctx, getConfig, presetFor = () => ''
       session: session || null,
       presetFor: session ? presetFor(session) : null,
       last: lastPreset(),
+      recent: recentPresets(),
     }
   })
 
