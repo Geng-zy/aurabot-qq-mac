@@ -3229,3 +3229,23 @@ imagegen 相关套件（imagegen-shape / imagegen-img2img / codex-auth-lifecycle
 清单   /modules → 12 个内置模块，imagegen 已启用
 配置   升级前后逐字段一致；Purge 三个工具仍在；22:45 之后新增 error：0 条
 ```
+
+### 发布（v1.6.76）
+
+```text
+提交      c7b3638
+tag       v1.6.76
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.76
+附件      dsh-aurabot-qq-1.6.76.tgz  19,663,232 字节（467 个条目，含 imagegen-template.js）
+          远端 digest sha256:eab70278621c3c7c373bd00f99be0db0f604bb03e9cdaaa093d250b0fcfbc37e
+          = mini 上安装的那份（同哈希）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+
+CI（macOS 托管 runner 排队限制，非测试失败）
+  run 46020081805：ubuntu success；macos-latest cancelled —— 该 job **steps 为空**，
+    14:54:17 开始排队，15:09:19 被取消（正好 15 分钟），一步都没跑。
+  run 46022737123（补跑）：同样 ubuntu success、macos **cancelled**（steps 依旧为空）。
+  判定：GitHub 托管 macOS runner 在这段时间排队超过 15 分钟被回收，与代码无关。
+  macOS 侧的实际信号来自：Air（真 macOS + Node 24）全量 1724 通过，以及 Mini 真机验收。
+  以后夜间高峰若 macOS 继续排队超限，以 ubuntu 门禁 + Air 全量 + Mini 验收为准，不再空转补跑。
+```
