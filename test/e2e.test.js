@@ -1941,18 +1941,30 @@ test('模块热重载后：已有会话下一轮会重挂新实例的工具（is
     })])
   },
 }`)
-  const ask = async () => {
+  // 每轮问一次、等它跑完再看结果。不能把 push 放进轮询里：until 每 50ms 试一次，
+  // 慢机器上会把回合堆成一长串，反而是自己把响应时间拖爆（macOS CI 上就这么红过）。
+  const askOnce = async () => {
     const n = fake.turns.length
     mock.push(priv(OWNER, text('热重载探针')))
-    await until(() => fake.turns.length > n)
+    await until(() => fake.turns.length > n, 30000)
     return String(fake.turns.at(-1).reply || '')
+  }
+  const waitForVersion = async (version, ms = 45000) => {
+    const deadline = Date.now() + ms
+    let last = ''
+    while (Date.now() < deadline) {
+      last = await askOnce()
+      if (last.includes(version)) return last
+      await sleep(1000) // 给 watcher（3 秒一扫）和重挂留出时间，别连珠炮
+    }
+    throw new Error(`等不到 ${version}，最后一次回复：${String(last).slice(0, 120)}`)
   }
   writeProbe('v1')
   // 等模块被 watcher 加载（每 3 秒扫一次），最多 20 秒
-  const first = await until(async () => { const r = await ask(); return r.includes('v1') ? r : null }, 20000)
+  const first = await waitForVersion('v1')
   assert.match(first, /v1/)
   writeProbe('v2') // 改文件触发热重载
-  const second = await until(async () => { const r = await ask(); return r.includes('v2') ? r : null }, 20000)
+  const second = await waitForVersion('v2')
   assert.match(second, /v2/, '热重载后会话应重挂新实例的工具，而不是继续用旧闭包')
   rmSync(modsDir, { recursive: true, force: true })
 })

@@ -2032,5 +2032,27 @@ error       12:30 之后新增 0 条
 ```text
 候选包    /tmp/dsh-aurabot-qq-1.6.60.tgz（467 条目，19,647,215 字节）
 sha256    13e4aaf0f80cc1b368852e1e8a11b15139173b4de910949485ad7cfdd0d666ff
-提交 / tag / Release / CI：见下一条记录
+提交      5d924ce（main）
+tag       v1.6.60 → 5d924ce
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.60
+附件      19,647,215 字节，远端 digest = sha256:13e4aaf0…（与本地候选、与 Mini 安装包同哈希）
+CI 首次   run 45940777254 → ubuntu success、**macos failure**
 ```
+
+### 6. CI 那次 macOS 失败：查清了，是测试写法问题
+
+```text
+失败用例   e2e「模块热重载后：已有会话下一轮会重挂新实例的工具（issue #73）」
+失败形态   Error: 等不到条件成立（28s 后超时）
+根因       until(async () => { await ask() }) —— 轮询每 50ms 就 push 一条消息，
+           慢机器上把回合堆成一长串，等于自己把响应时间拖爆；ubuntu 跑得快所以没暴露
+修法       改成「一次一问、等这一轮跑完再看结果」，重试间隔 1s，预算 45s
+本地复跑   该用例连跑 2 次：11,473ms / 11,440ms 通过
+全量复跑   1678 passed / 0 failed / 0 skipped
+```
+
+这不是「把超时调大」，是把**副作用放进了轮询里**这个设计缺陷修掉；45s 只是给
+「watcher 3 秒一扫 + 重挂 + 一轮对话」留出的合理上限。
+
+修完重派 run（同一份代码，测试不进发布包）后 CI 结果见下一条。
+
