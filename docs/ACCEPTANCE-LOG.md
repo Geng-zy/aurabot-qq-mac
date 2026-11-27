@@ -2577,5 +2577,8 @@ Purge    GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_
 提交      B27（含审计行更新、README 中英、CHANGELOG）
 tag       v1.6.65
 Release   附 dsh-aurabot-qq-1.6.65.tgz 19,652,549 字节
-          digest sha256:c3136e4fb2b06c276760c3592d612b21906fd3c01b774f75604091ce255967c7
+          远端 digest 同为 sha256:c3136e4fb2b06c276760c3592d612b21906fd3c01b774f75604091ce255967c7
+          = mini 上安装的那份（同哈希）
+CI        run 45968394646 → macos-latest success、ubuntu-latest success（16:53 双绿）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
