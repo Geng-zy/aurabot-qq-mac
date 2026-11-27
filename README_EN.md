@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.64 highlights
+## 1.6.65 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -103,7 +103,9 @@ local
 ### Platforms and reliability
 
 - QQ: private/group chat, quotes, forward expansion, voice, files, reactions, group admin, friend/group requests, profile, Qzone.
-- Telegram: long polling, text, replies, image upload.
+- Telegram: long polling, text, replies, image upload (base64 images go through multipart).
+  Capabilities declare only canonical `CAPS` keys; timeouts / network errors / 5xx are marked `uncertain`
+  (the message may have been delivered, so it is not resent), while 4xx is a definite failure.
 - Other platforms can add a `PlatformAdapter` / `ChannelManager` entry.
 - Capabilities use `caps`; unsupported features degrade or skip instead of forcing platform-specific formats.
 
@@ -112,7 +114,7 @@ local
 | Platform | Current capabilities | Where to configure |
 | --- | --- | --- |
 | **QQ** | private/group chat, replies, forward expansion, voice, files, reactions, group admin, friend/group requests, profile, Qzone | `QQ conversations` |
-| **Telegram** | long polling, text, replies, images (base64 images use multipart upload) | `Platforms → Telegram` |
+| **Telegram** | long polling, text, replies, images (base64 images use multipart upload); canonical caps only; `uncertain` errors never resent | `Platforms → Telegram` |
 | **Future** | add another `PlatformAdapter` / `ChannelManager` entry | platform-specific page |
 
 ## Features
@@ -133,12 +135,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.64.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.65.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.64.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.65.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

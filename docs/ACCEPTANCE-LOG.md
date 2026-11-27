@@ -2513,3 +2513,69 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.64
 CI        run 45963648076 → ubuntu-latest success、macos-latest success（16:17 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B27 · Telegram 通道契约对齐（1.6.65）
+
+批次来源：`docs/REPO-INVENTORY.md` 第 264 行（`src/channels/telegram/index.js` 的审计结论里已写明三处实证差异）。
+范围：只动 `src/channels/telegram/index.js` 与 `test/telegram-channel.test.js`。
+
+### 1. 接口（codebase-design 口径）
+
+通道接口没变，改的是**契约的事实**：`caps` 是对调用方的承诺，`uncertain` 是错误的一部分。
+两个适配器（QQ / Telegram）本来就共享这套 seam，Telegram 之前只填了半个：
+
+| 契约 | 之前 | 现在 |
+|---|---|---|
+| `caps` 键 | `text / reply / images`（`CAPS` 里不存在） | 只有 `CAPS` 的规范键，且全 `false`（文本/引用/图片是核心消息段，不占能力位） |
+| 错误语义 | 普通 `Error`，没有 `uncertain` | `TelegramTransportError`：超时/网络/**5xx** → `uncertain: true`；**4xx** → 不标（确定没发出） |
+| 生命周期 | 只有 `stop()` | 补 `dispose()`（清监听、忘 Bot 身份与 offset）/ `resetInbox()`（把「只处理本次启动之后」基准推到当下，不联网丢弃积压） |
+
+删除测试的判断：`caps` 与 `uncertain` 都是**给调用方的承诺**，删掉它们，`mind-adapter/reminders`、
+`chat` 的发送路径要在每个调用点各自判断「这条错误能不能重发」——所以它们必须留在通道接口上。
+
+### 2. 自动测试（Air）
+
+```text
+test/telegram-channel.test.js   2 → 7 个用例
+  ✔ caps 只含规范能力位：不再声明 text / reply / images
+  ✔ 超时 / 网络异常：错误带 uncertain（可能已发出，不能重发）
+  ✔ Bot API 明确 4xx 拒绝：不带 uncertain（可以重发）
+  ✔ Bot API 5xx：带 uncertain（服务端可能已处理）
+  ✔ resetInbox 之后只处理新消息；dispose 后回到 stopped
+
+相关套件（一起跑）
+  telegram-channel / channels-caps / channels-contract / outbox / gateway-resilience /
+  purge-preset / host-tools-route   → 49 tests, 49 pass
+
+全量 1688 passed / 0 failed / 0 skipped；语法 613 文件；oxlint 0 error / 160 warning
+```
+
+模拟网关（Air）：上面 5 个新用例全部用注入的 `fetchImpl` 跑 Bot API 形状（getMe / getUpdates 长轮询 / sendMessage / 4xx / 5xx / 网络中断），
+不联网；`resetInbox` 用例模拟真实长轮询（第二次 getUpdates 会等 2s），避免热循环把定时器饿死。
+
+### 3. Mini 实机 + Purge 联动
+
+```text
+安装     1.6.65（回滚点 ~/aurabot-release-backups/20261127-164530）
+启动     16:45:46 Aurabot v1.6.65 已加载
+平台     GET /platforms →
+           qq       | state=connected | caps 全 true（12 项规范能力位）
+           telegram | state=stopped   | caps 全 false，且**不再出现 text/reply/images**
+Purge    GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+挂载决策 GET /host/mount-plan?chat=qq:group:158706927&level=chat
+           → ownerMaintenance=false、denyMaintenance=[三个 purge_*]（与已发布基线一致，未回归）
+日志     16:46 之后新增 error：0 条
+```
+
+真实外发：本批未做（未获单独授权），只做只读接口与本地形状核对。
+
+### 4. 发布
+
+```text
+提交      B27（含审计行更新、README 中英、CHANGELOG）
+tag       v1.6.65
+Release   附 dsh-aurabot-qq-1.6.65.tgz 19,652,549 字节
+          digest sha256:c3136e4fb2b06c276760c3592d612b21906fd3c01b774f75604091ce255967c7
+```

@@ -3,7 +3,28 @@
 import { chatIdOf, parseChat } from '../ids.js'
 
 export const PLATFORM = 'telegram'
-export const TELEGRAM_CAPS = Object.freeze({ text: true, reply: true, images: true, files: false, voice: false, stickers: false, faces: false, poke: false, react: false, typing: false, history: false, forward: false, card: false, friendRequests: false, groupRequests: false, profile: false, groupAdmin: false })
+// 能力位只能用 channels/index.js 的 CAPS 规范键：text / reply / images 不是能力位
+// （文本、引用、图片是所有平台的核心消息段，本来就该支持），写在这里等于对调用方撒谎。
+// 现在 Telegram 侧只实现了文本 + 引用 + 图片，其余能力位一律 false —— 声明为 true 就必须真有对应方法。
+export const TELEGRAM_CAPS = Object.freeze({
+  faces: false, stickers: false, voice: false, files: false, recall: false, poke: false,
+  react: false, typing: false, history: false, forward: false, card: false,
+  friendRequests: false, groupRequests: false, profile: false, groupAdmin: false,
+})
+
+/**
+ * 传输层错误。`uncertain` 表示「这次请求可能已经到达 Telegram，消息可能已经发出去了」——
+ * 调用方据此决定能不能重发（reminders 的「不确定不重发」、群聊去重都依赖这个语义）。
+ * QQ 那边由 OneBotError 带同名字段；Telegram 这里补齐，否则超时会被当成「肯定没发出去」而重发，造成重复消息。
+ */
+export class TelegramTransportError extends Error {
+  constructor(message, { uncertain = false, cause } = {}) {
+    super(message)
+    this.name = 'TelegramTransportError'
+    this.uncertain = uncertain
+    if (cause !== undefined) this.cause = cause
+  }
+}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -27,6 +48,22 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
   const emit = (e) => { for (const fn of [...listeners]) { try { fn(e) } catch (error) { log.warn?.('Telegram 事件处理失败：', error.message) } } }
   const setState = (next) => { if (state === next) return; state = next; emit({ type: 'state', state: next }) }
 
+  // Bot API 明确回了 ok:false：服务端处理过这次请求。4xx 说明没接受（肯定没发出去）；
+  // 5xx 说明它自己出错了，请求可能已经生效 —— 标 uncertain，别让上层重发。
+  function httpFailure(method, res, data) {
+    const status = Number(res?.status || 0)
+    const detail = data?.description || `HTTP ${status}（返回不是 Bot API JSON）`
+    return new TelegramTransportError(`Telegram ${method} 失败：${detail}`, { uncertain: status >= 500 })
+  }
+
+  // fetch 抛错 / 我们自己超时 / 被中止：请求可能已经到达 Telegram，一律标 uncertain。
+  // 已经是 TelegramTransportError 的原样抛出（不要覆盖 httpFailure 的判定）。
+  function asTransportError(method, error, ctl) {
+    if (error instanceof TelegramTransportError) return error
+    const aborted = Boolean(ctl?.signal?.aborted)
+    return new TelegramTransportError(`Telegram ${method} 请求未确认：${String(error?.message || error)}`, { uncertain: true, cause: aborted ? 'aborted' : undefined })
+  }
+
   async function call(method, params = {}, { signal, timeoutMs = 30000 } = {}) {
     if (!token()) throw new Error('Telegram Bot Token 未配置')
     const ctl = new AbortController()
@@ -39,9 +76,11 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
         body: JSON.stringify(params), signal: ctl.signal,
       })
       const data = await res.json().catch(() => null)
-      if (!res.ok || !data || data.ok !== true) throw new Error(data?.description || `Telegram ${method} 失败：HTTP ${res.status}（返回不是 Bot API JSON）`)
-      if (data.result === undefined || data.result === null) throw new Error(`Telegram ${method} 失败：返回缺少 result`)
+      if (!res.ok || !data || data.ok !== true) throw httpFailure(method, res, data)
+      if (data.result === undefined || data.result === null) throw new TelegramTransportError(`Telegram ${method} 失败：返回缺少 result`, { uncertain: true })
       return data.result
+    } catch (error) {
+      throw asTransportError(method, error, ctl)
     } finally {
       clearTimeout(timer)
       signal?.removeEventListener?.('abort', abort)
@@ -57,9 +96,11 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     try {
       const res = await fetchImpl(`${base()}/${method}`, { method: 'POST', body: form, signal: ctl.signal })
       const data = await res.json().catch(() => null)
-      if (!res.ok || !data || data.ok !== true) throw new Error(data?.description || `Telegram ${method} 失败：HTTP ${res.status}（返回不是 Bot API JSON）`)
-      if (data.result === undefined || data.result === null) throw new Error(`Telegram ${method} 失败：返回缺少 result`)
+      if (!res.ok || !data || data.ok !== true) throw httpFailure(method, res, data)
+      if (data.result === undefined || data.result === null) throw new TelegramTransportError(`Telegram ${method} 失败：返回缺少 result`, { uncertain: true })
       return data.result
+    } catch (error) {
+      throw asTransportError(method, error, ctl)
     } finally {
       clearTimeout(timer)
       signal?.removeEventListener?.('abort', abort)
@@ -185,6 +226,18 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
       controller = null; me = null; setState('stopped')
     },
     async restart() { this.stop(); await this.start() },
+    // 丢掉未处理的入站：把「只处理本次启动之后的消息」的时间基准推到当下，
+    // 已经在队列里的旧 update 会在 dispatchUpdate 里被判为过期而丢弃（不需要联网）。
+    resetInbox() { startedAt = Math.floor(Date.now() / 1000); offset = 0 },
+    // 关通道时清理干净：停轮询、摘监听、忘掉 Bot 身份，免得重新创建时继承旧的 offset 与订阅者。
+    dispose() {
+      this.stop()
+      listeners.clear()
+      me = null
+      offset = 0
+      offsetIdentity = ''
+      lastError = ''
+    },
     watch() {
       if (manualStop) return
       if (state === 'connecting') return

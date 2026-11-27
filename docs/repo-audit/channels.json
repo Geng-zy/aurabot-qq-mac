@@ -389,6 +389,6 @@
     "area": "channels/telegram",
     "owner": "channels-telegram",
     "verdict": "keep",
-    "evidence": "235 行、1 个内部依赖（channels/ids.js）、2 处 import（telegram/adapter.js、test/telegram-channel.test.js）、1 个测试。与 qq 的两层拆分不对称：本文件同时承担 Bot API 传输（call/callForm 30-67 行）、长轮询与 offset 游标（130-148 行）、消息归一化（69-111 行）、发送（195-223 行含 multipart 头像图）、生命周期（155-193 行）；235 行 <300 未达 split 判据，保留。契约差异有实证：CAPS 声明 text/reply/images 三个不在 channels/index.js CAPS 里的能力，且没有 dispose/resetInbox，manager.dispose 走 ch.stop() 回退；错误是普通 Error，不带 uncertain，所以 mind-adapter/reminders.js:75 的「不确定不重发」在 telegram 上恒不成立。"
+    "evidence": "288 行、1 个内部依赖（channels/ids.js）、2 处 import（telegram/adapter.js、test/telegram-channel.test.js）、2 个测试文件（telegram-channel.test.js 7 个用例、channels-caps.test.js 契约校验）。职责四块：Bot API 传输（call/callForm，含超时与 uncertain 语义）、长轮询与 offset 游标、消息归一化、发送（含 multipart 头像图）。B27 已把三处契约差异补齐：① caps 只留 channels/index.js 的规范能力位（原先声明 text/reply/images 三个假能力）；② 传输失败带 uncertain（超时/网络/5xx → 可能已发出；4xx → 确定没发出），mind-adapter/reminders 的「不确定不重发」从此在 Telegram 生效；③ 补 dispose/resetInbox，manager 关闭时不再走 stop() 回退。235→288 行仍 <300，保留。"
   }
 ]

@@ -2,6 +2,23 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.65
+
+- B27 **Telegram 通道契约对齐**（`src/channels/telegram/index.js`，235 → 288 行）。三处实证差异全部补齐：
+  - **能力位（caps）只留规范键**：原先声明 `text / reply / images` 三个不在 `channels/index.js` 的 `CAPS` 里的假能力。
+    现在 Telegram 只声明规范能力位且全为 `false`（文本、引用、图片是所有平台的核心消息段，不占能力位；
+    声明为 `true` 就必须真有对应方法，否则 `validateChannel` 会在注册时拦下）。
+  - **传输失败带 `uncertain` 语义**：新增 `TelegramTransportError`。
+    超时 / 网络异常 / 5xx → `uncertain: true`（请求可能已到达，消息可能已经发出）；
+    Bot API 明确 4xx 拒绝 → 不带 `uncertain`（确定没发出）。此前 Telegram 抛的是普通 `Error`，
+    于是 `mind-adapter/reminders.js` 的「不确定不重发」在 Telegram 上恒不成立 —— 超时会重复发提醒。
+  - **补 `dispose()` / `resetInbox()`**：`manager.dispose()` 与 host 换号不再走 `ch.stop()` 回退；
+    `dispose` 清监听、忘 Bot 身份与 offset；`resetInbox` 把「只处理本次启动之后的消息」基准推到当下，
+    不用联网就丢掉积压的旧 update。
+- 测试：`test/telegram-channel.test.js` 2 → 7 个用例（caps 规范、超时/网络 uncertain、4xx 不标 uncertain、
+  5xx 标 uncertain、resetInbox+dispose）。
+- 回归：全量 1688 个测试通过；语法 613 文件；oxlint 0 error / 160 warning。
+
 ## 1.6.64
 
 - B26 会话中途切换预设：修掉「切换被记成创建」的最后一环。

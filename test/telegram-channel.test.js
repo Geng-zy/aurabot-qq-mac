@@ -3,6 +3,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createTelegramChannel } from '../src/channels/telegram/index.js'
 
+const log = { info() {}, warn() {}, debug() {}, error() {}, child() { return this } }
+
 test('Telegram 适配器能启动、发送文本和图片', async () => {
   const calls = []
   let first = true
@@ -51,4 +53,80 @@ test('Telegram base64 图片用 multipart 上传', async () => {
   assert.equal(form.get('chat_id'), '42')
   assert.equal(form.get('photo')?.size, png.length)
   channel.stop()
+})
+
+// ---------- B27：通道契约对齐 ----------
+
+test('caps 只含规范能力位：不再声明 text / reply / images 这类假能力', async () => {
+  const { TELEGRAM_CAPS } = await import('../src/channels/telegram/index.js')
+  const { CAPS } = await import('../src/channels/index.js')
+  assert.equal(TELEGRAM_CAPS.text, undefined, 'text 不是能力位')
+  assert.equal(TELEGRAM_CAPS.images, undefined, 'images 不是能力位')
+  const canonical = new Set(Object.keys(CAPS))
+  const outside = Object.keys(TELEGRAM_CAPS).filter((k) => !canonical.has(k))
+  assert.deepEqual(outside, [], 'caps 里出现了不存在的规范能力位：' + outside.join(','))
+  for (const [k, v] of Object.entries(TELEGRAM_CAPS)) assert.equal(typeof v, 'boolean', `caps.${k} 必须是布尔`)
+})
+
+test('超时 / 网络异常：错误带 uncertain（可能已发出，上层不能重发）', async () => {
+  const fetchImpl = async () => { const e = new Error('The operation was aborted'); e.name = 'AbortError'; throw e }
+  const { createTelegramChannel } = await import('../src/channels/telegram/index.js')
+  const ch = createTelegramChannel({ getConfig: () => ({ platforms: { telegram: { token: 'x' } } }), log, fetchImpl })
+  await assert.rejects(() => ch.send('telegram:private:1', [{ type: 'text', data: { text: 'hi' } }]), (error) => {
+    assert.equal(error.uncertain, true, '网络/超时错误必须标 uncertain')
+    return true
+  })
+})
+
+test('Bot API 明确 4xx 拒绝：不带 uncertain（肯定没发出去，可以重发）', async () => {
+  const fetchImpl = async () => ({ ok: false, status: 400, json: async () => ({ ok: false, description: 'chat not found' }) })
+  const { createTelegramChannel } = await import('../src/channels/telegram/index.js')
+  const ch = createTelegramChannel({ getConfig: () => ({ platforms: { telegram: { token: 'x' } } }), log, fetchImpl })
+  await assert.rejects(() => ch.send('telegram:private:1', [{ type: 'text', data: { text: 'hi' } }]), (error) => {
+    assert.match(error.message, /chat not found/)
+    assert.ok(!error.uncertain, '4xx 是明确拒绝，不该标 uncertain')
+    return true
+  })
+})
+
+test('Bot API 5xx：带 uncertain（服务端可能已经处理）', async () => {
+  const fetchImpl = async () => ({ ok: false, status: 502, json: async () => null })
+  const { createTelegramChannel } = await import('../src/channels/telegram/index.js')
+  const ch = createTelegramChannel({ getConfig: () => ({ platforms: { telegram: { token: 'x' } } }), log, fetchImpl })
+  await assert.rejects(() => ch.send('telegram:private:1', [{ type: 'text', data: { text: 'hi' } }]), (error) => {
+    assert.equal(error.uncertain, true, '5xx 标 uncertain')
+    return true
+  })
+})
+
+test('resetInbox 之后只处理新消息；dispose 后通道回到 stopped 并摘掉监听', async () => {
+  const { createTelegramChannel } = await import('../src/channels/telegram/index.js')
+  const nowSec = Math.floor(Date.now() / 1000)
+  const updates = [
+    { update_id: 1, message: { message_id: 11, date: nowSec - 600, chat: { id: 9, type: 'private' }, from: { id: 9 }, text: '很久以前' } },
+    { update_id: 2, message: { message_id: 12, date: nowSec + 1, chat: { id: 9, type: 'private' }, from: { id: 9 }, text: '刚发的' } },
+  ]
+  let firstPoll = true
+  // 第二次起模拟长轮询（真的等一下再返回），否则立即返回会让轮询变成热循环，把定时器饿死。
+  const fetchImpl = async (url) => {
+    if (String(url).includes('/getMe')) return { ok: true, status: 200, json: async () => ({ ok: true, result: { id: 7, username: 'bot' } }) }
+    if (String(url).includes('/getUpdates')) {
+      if (firstPoll) { firstPoll = false; return { ok: true, status: 200, json: async () => ({ ok: true, result: updates }) } }
+      await new Promise((r) => setTimeout(r, 2000))
+      return { ok: true, status: 200, json: async () => ({ ok: true, result: [] }) }
+    }
+    return { ok: true, status: 200, json: async () => ({ ok: true, result: { message_id: 1 } }) }
+  }
+  const ch = createTelegramChannel({ getConfig: () => ({ enabled: true, platforms: { telegram: { enabled: true, token: 'x' } } }), log, fetchImpl })
+  assert.equal(typeof ch.resetInbox, 'function', '通道要提供 resetInbox（host 换号时会调）')
+  assert.equal(typeof ch.dispose, 'function', '通道要提供 dispose（manager 关闭时会优先用它）')
+  const seen = []
+  ch.on((e) => { if (e.type === 'message') seen.push(e.msg.text) })
+  ch.resetInbox()
+  await ch.start()
+  const deadline = Date.now() + 1500
+  while (!seen.length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+  ch.dispose()
+  assert.deepEqual(seen, ['刚发的'], 'resetInbox 之后旧消息要丢掉、新消息照常处理')
+  assert.equal(ch.state(), 'stopped')
 })
