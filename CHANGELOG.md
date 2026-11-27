@@ -2,6 +2,23 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.59
+
+- B18 会话/权限：把「这套挂载该不该收窄宿主维护工具」从 `chat/mount.js` 里抠成**纯函数深模块**
+  `src/chat/mount-plan.js`（52 行）。原来这段埋在 40 多行 `mount()` 中间，要验证必须造真 agent、
+  真宿主工具服务、真配置；现在它只收事实、只返回结果。
+  - 接口只有一个函数：`planMount({ chatKind, level, groupLevel, botQQ, ownerRevision, detected, denied, toolNames, generation })`
+    → `{ ownerMaintenance, denyMaintenance, maintenanceKey, key }`。
+  - **豁免收窄的三个条件写在一处**：私聊 + 本轮 `full` + 配置里 `levelFor` 也是 `full`，三者缺一不豁免。
+    这条规则被改错就是陌生人拿到 `purge_apply`，所以值得单独一层并直测。
+  - 挂了两个只读入口：`GET /aurabot/api/host/tools`（上一批）与新增
+    `GET /aurabot/api/host/mount-plan?chat=…&level=…` —— 不用发真消息也能看到群聊/私聊两条路径的收窄结果。
+- 顺带修掉一处「读不出还当没有」的隐患：`levelFor` 从 `core/group-policy.js` 取是错的
+  （那里没有这个导出，只有 `policyFor`），与 hub 一致应从 `chat/access.js` 取。
+- 测试：`test/mount-plan.test.js`（6）——收窄条件四种非豁免组合、名单副本隔离、指纹四要素、
+  换管理员必须换键、空输入降级；`test/host-tools-route.test.js` 增 1 例走 `/host/mount-plan`。
+- 回归：全量 1675 个测试通过（+7），语法 613 文件，oxlint 0 error / 159 warning；路由快照 134 → 135。
+
 ## 1.6.58
 
 - B17 rc.3 宿主接触面的**运行时取证**，含真机上暴露、单测发现不到的两处适配缺陷。

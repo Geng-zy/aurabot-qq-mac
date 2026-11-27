@@ -1871,3 +1871,88 @@ tag       v1.6.58 → 2d30f2e
 Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.58
 CI        run 45928290985 → ubuntu-latest success、macos-latest success（10:32 双绿）
 ```
+
+---
+
+## B18 · 会话挂载决策抽成纯函数（1.6.59）
+
+### 候选包与源码一致性
+
+```text
+候选包      /tmp/dsh-aurabot-qq-1.6.59.tgz（467 条目，19,646,753 字节）
+sha256      8cffc1ff59f0025080fb1facdab231114312ca498d80052ea80edd1e403ffc47（与预期一致）
+归档比对    解包后 src/chat/mount-plan.js、src/chat/mount.js、src/features/host-routes.js、
+           src/host/routes.js 与工作区逐字节一致（test 不在 files 列表里，属发布包设计）
+package.json 只差 pnpm pack 的重写（name/version/main/type/files 一致）
+日志覆盖    /tmp/b18d-test.log（11:12:22）之后没有任何源码/文档/测试改动 → 1676 全绿对应这份源码
+```
+
+### Air 自动测试
+
+```text
+全量        1676 passed / 0 failed / 0 skipped
+语法检查    613 个文件通过
+oxlint      0 error / 159 warning
+清单闸门    710 行 / 438 自有代码文件 / 0 待审
+```
+
+### Mini 实机（DSH 0.2.2-rc.3 + purge 1.7.20）
+
+```text
+回滚点      ~/aurabot-release-backups/20261127-112133（旧构建 + package.json + lockfile）
+旧构建特征  host-routes.js 里 probedNames 命中 0（就是那份缺修复的同号包）
+装后核对    version 1.6.59
+           host-routes.js sha256 = 81ad591268463f58ec88d1556105569ce70c0943bc78ae54b7e850a6007037a8
+           mount-plan.js  sha256 = f30cbda5db71cd835768b03d5b2b0ae1b26048ee85807516b853899bc1c9616c
+           两个哈希与包内、与 Air 工作区**三方一致**；probedNames 命中 2
+启动        2026-11-27 11:21:45 Aurabot v1.6.59 已加载｜总开关 开｜试运行 关
+网关        2026-11-27 11:21:48 已连上 QQ 网关（WS）
+面板        /aurabot/api/state → version=1.6.59，onebot=connected
+```
+
+### 探测兜底与两条权限路径（诊断路由 → 计划结果）
+
+```text
+GET /aurabot/api/host/tools
+  probe.view = ok，error 为空
+  probeMaintenance = [purge_apply, purge_revert, purge_status]
+
+GET /aurabot/api/host/mount-plan?chat=qq:group:999888&level=chat
+  detected        = [purge_apply, purge_revert, purge_status]
+  ownerMaintenance= false
+  denyMaintenance = [purge_apply, purge_revert, purge_status]     ← 群聊按计划收窄
+  key             = "||purge_apply,purge_revert,purge_status|gen:0"
+
+GET /aurabot/api/host/mount-plan?chat=qq:private:257859927&level=full
+  groupLevel      = full
+  ownerMaintenance= true                                          ← 完整权限管理员私聊豁免
+  denyMaintenance = []
+  maintenanceKey  = owner:3307726247:
+```
+
+### 真实挂载（单独记录的实际结果）
+
+```text
+触发    POST /aurabot/api/debug/say（管理员私聊正常链路，不发 QQ）
+回复    {"ok":true,"text":"一小时问了三遍在吗，你是复读机吗哈哈哈"}
+last    {"source":"definitions","names":["purge_apply","purge_revert","purge_status"],
+         "all":9,"chatId":"private:257859927","sessionId":"ba1d461d-b704-42ac-9fdc-daa35215b5ab",
+         "at":1795749794768}
+```
+
+诊断路由给的是「假设的聊天会怎么决定」，真实挂载给的是「这次挂载实际走了哪条路」——两者在这台机器上一致：
+命中 `definitions`，认出三个 purge 工具。
+
+### 清理与回归
+
+```text
+临时开启的 debug：已从 /tmp/aurabot-config-before-b18.json 恢复（debug = False）
+恢复后          11:23:27 Aurabot v1.6.59 已加载｜总开关 开｜试运行 关；panel 1.6.59、onebot=connected
+新增 error      11:20 之后 0 条
+```
+
+### 发布
+
+```text
+提交 / tag / Release / CI：见下一条记录
+```

@@ -1,3 +1,5 @@
+import { planMount } from './mount-plan.js'
+
 export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_REPLY_INSTRUCTION, MARKER_INSTRUCTION, agentFor, assertActive, buildTools, busy, cleanText, contextProviders, currentPromptSources, getConfig, hooks, isBusy, isDisposed, isGuestSafeTool, isPrivilegedQqTool, levelFor, log, map, mounted, mounts, outputSources, ownerAuthorizationRevision, ownerLabel, purgeScope, pushToSession, release, running, saveMap, sendText, sessionKey, slowNoticeSent, slowTimers, sourcesFor, toolDisposers, toolScope, toolsGeneration, turnSendersAllOwner, turnState }) {
   async function ensureDebugSession() {
     const cfg = getConfig()
@@ -50,21 +52,24 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
     const sid = sessionKey(agent.session?.id ?? agent.id)
     const tools = level !== 'chat' && typeof buildTools === 'function' ? buildTools({ chat, level, sessionId: sid }) : []
     const denied = (() => { try { return hooks?.deniedTools?.() || [] } catch { return [] } })()
-    // Purge 把宿主维护工具注册成全局工具，社交预设也会继承。只有完整权限的管理员私聊可以用它们。
     const configAtMount = getConfig()
-    const ownerMaintenance = chat.kind === 'private' && level === 'full' && levelFor(configAtMount, chat) === 'full'
-    const maintenanceRevision = ownerMaintenance ? ownerAuthorizationRevision(configAtMount) : ''
-    const maintenanceBot = configAtMount.botQQ
     // 管理员完整权限的会话不设收窄，但**仍然探测一次**：B17 要的证据正是「这台机器上到底认出了哪些
     // 维护工具」，豁免路径恰恰是最该被看见的那一条。探测本身只读（view/definitions），不改变收窄结果。
     const detected = purgeScope.toolNames(agent, { chatId: chat.chatId, sessionId: sid })
-    const maintenance = ownerMaintenance ? [] : detected
     // 模块（重）启动代际也进 key：热重载后工具名通常不变，但工具对象是旧实例的闭包（issue #73），
     // 只比名字会一直 return，会话里永远用旧实现/旧状态；带上代际就整套重挂。
     let gen = 0
     try { gen = typeof toolsGeneration === 'function' ? Number(toolsGeneration()) || 0 : 0 } catch { gen = 0 }
-    const maintenanceKey = ownerMaintenance ? `owner:${maintenanceBot}:${maintenanceRevision}` : maintenance.join(',')
-    const toolsKey = tools.map((t) => t.name).sort().join(',') + '|' + denied.join(',') + '|' + maintenanceKey + '|gen:' + gen
+    // 决策本身是纯函数（chat/mount-plan.js）：豁免条件、收窄结果、指纹都在那里，这里只负责把事实递进去。
+    const plan = planMount({
+      chatKind: chat.kind, level, groupLevel: levelFor(configAtMount, chat),
+      botQQ: configAtMount.botQQ, ownerRevision: ownerAuthorizationRevision(configAtMount),
+      detected, denied, toolNames: tools.map((t) => t.name), generation: gen,
+    })
+    const { ownerMaintenance, denyMaintenance: maintenance, key: toolsKey } = plan
+    // 执行期守卫要拿“挂载时”的机器人号与授权版本跟当前配置比对：换了管理员就必须拒绝维护工具
+    const maintenanceBot = configAtMount.botQQ
+    const maintenanceRevision = ownerMaintenance ? ownerAuthorizationRevision(configAtMount) : ''
     const prev = mounted.get(sid)
     // 工具清单变了（比如面板里开了生图）就整套重挂；同一个 agent 且没变就别动（改工具会让前缀缓存失效）
     if (prev && prev.agent === agent && prev.chatId === chat.chatId && prev.toolsKey === toolsKey) return

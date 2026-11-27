@@ -1,0 +1,16 @@
+[
+  {
+    "path": "src/chat/mount-plan.js",
+    "area": "chat",
+    "owner": "chat-mount",
+    "verdict": "keep",
+    "evidence": "52 行；会话挂载决策的纯函数：豁免收窄的三个条件（私聊 + full + 配置也是 full）、收窄名单、挂载指纹（工具名/被禁工具/收窄结果/模块代际）。被 chat/mount.js 与面板路由共用；test/mount-plan.test.js 6 个用例（含「管理员换了必须换键」「三者缺一不豁免」）。"
+  },
+  {
+    "path": "test/mount-plan.test.js",
+    "area": "test",
+    "owner": "test-chat",
+    "verdict": "keep",
+    "evidence": "70 行 6 个用例；直接钉住收窄条件、名单副本隔离、指纹四要素、授权版本变化、空输入降级。"
+  }
+]

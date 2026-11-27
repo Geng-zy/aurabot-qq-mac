@@ -29,6 +29,7 @@
   "/aurabot/api/debug/say",
   "/aurabot/api/debug/session",
   "/aurabot/api/groups/titles",
+  "/aurabot/api/host/mount-plan",
   "/aurabot/api/host/tools",
   "/aurabot/api/knowledge/delete",
   "/aurabot/api/knowledge/list",

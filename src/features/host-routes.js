@@ -7,8 +7,41 @@
 // 两个都是只读：不注册工具、不改配置、不触发任何宿主状态变更。
 
 import { HOST_MAINTENANCE_PREFIX, lastDetection, probeGlobalTools } from '../integration/host-tools.js'
+import { planMount } from '../chat/mount-plan.js'
+import { levelFor } from '../chat/access.js'
 
-export function registerHostRoutes({ route, ctx }) {
+/** 读 ctx.tools：宿主没注入时会抛（cordis: cannot get property … without inject），这里统一吞掉。 */
+function probeTools(ctx) {
+  try { return ctx?.tools ?? null } catch { return null }
+}
+
+export function registerHostRoutes({ route, ctx, getConfig }) {
+  // 只读：给一个假设的聊天与级别，算出「这套挂载会不会收窄维护工具、指纹是什么」。
+  // 用途是实机验收——不用真的发一条 QQ 消息，也能看到群聊/私聊两条路径的收窄结果。
+  route('/host/mount-plan', async (req) => {
+    const q = new URL(String(req?.url || '/'), 'http://127.0.0.1').searchParams
+    const chatId = String(q.get('chat') || '')
+    const level = String(q.get('level') || 'chat')
+    if (!chatId) return { ok: false, message: '给一个 chat，例如 ?chat=qq:group:123&level=chat' }
+    const kind = chatId.includes(':group:') ? 'group' : chatId.includes(':private:') ? 'private' : 'system'
+    const tail = chatId.split(':').pop() || ''
+    // levelFor 会按 userId / groupId 查白名单，字段必须从 chatId 里还原出来，否则一律判成「无权限」
+    const chat = { kind, chatId, userId: kind === 'private' ? tail : '', groupId: kind === 'group' ? tail : '', nickname: '' }
+    const config = getConfig ? getConfig() : {}
+    // 刚启动还没挂载过时 lastDetection() 是 null：这时用全局探测兜底，否则读出来的永远是「不收窄」，
+    // 反而会让人以为收窄没生效。
+    const probed = probeGlobalTools(probeTools(ctx))
+    const probedNames = probed.restrictableNames || probed.knownNames || []
+    const detected = (lastDetection()?.names || probedNames)
+      .filter((n) => String(n).startsWith(HOST_MAINTENANCE_PREFIX)).sort()
+    const plan = planMount({
+      chatKind: kind, level, groupLevel: levelFor(config, chat),
+      botQQ: config.botQQ, ownerRevision: '',
+      detected, toolNames: [], generation: 0,
+    })
+    return { ok: true, chat: { chatId, kind, level }, groupLevel: levelFor(config, chat), detected, plan }
+  })
+
   route('/host/tools', async () => {
     // 宿主没注入 tools 时，读属性本身就会抛（cordis: cannot get property … without inject）。
     // 这是**能力缺失**，不是错误：如实报 view: 'none' 并带上原因，别让面板拿到一个 500。

@@ -41,16 +41,14 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.58 highlights
+## 1.6.59 highlights
 
-### Runtime evidence for the rc.3 host surface (B17), plus an inject bug only a real boot could reveal
+### The mount decision becomes a pure module (B18 · sessions/permissions)
 
-- Until now, "how the maintenance tools (`purge_*`) were discovered" existed only in unit tests: on a real machine nobody could say which of the four discovery paths was taken or what was found — and a silently failing probe is a silent permission widening.
-- Every session mount now records `{ source, names, chatId, sessionId, at }`, and a read-only endpoint `GET /aurabot/api/host/tools` reports both the last mount's result and a live probe of the host's global view.
-- "Unknown" (`null`) and "genuinely none" (`[]`) are kept distinct — the former is the direction that widens permissions, so it has to be visible.
-- **A second real-device defect**: a full-permission owner private chat short-circuits detection, so the very path that matters most recorded nothing (`last` stayed null). Detection now always runs and is only *used* for narrowing when the session is not exempt — the probe is read-only, narrowing behaviour is unchanged.
-- Nine new tests; the route snapshot goes 133 → 134.
-- **An adaptation bug only a real boot could reveal**: the plugin's `inject` did not declare `tools`, and cordis throws `cannot get property "tools" without inject` on undeclared service reads, so the new endpoint answered `ok: false` on the mini. No unit test can catch this (a fake ctx never throws). `inject` now includes `tools`, and the route still degrades instead of surfacing the exception.
+- "Should this mount narrow the host's maintenance tools?" used to live inside `mount()`; verifying it meant building a real agent, host tool service and config. It is now one pure function in `src/chat/mount-plan.js`: take facts, return a result.
+- **All three exemption conditions (private + `full` this turn + `full` in config) live in exactly one place** — getting that rule wrong hands `purge_apply` to a stranger.
+- A new read-only endpoint `GET /aurabot/api/host/mount-plan?chat=…&level=…` shows the narrowing result for group and private paths without sending a real message.
+- Also fixed `levelFor` being imported from the wrong module (`core/group-policy.js` does not export it; `chat/access.js` does, matching `hub`).
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -136,12 +134,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.58.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.59.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.58.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.59.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

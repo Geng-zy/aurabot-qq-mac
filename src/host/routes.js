@@ -146,7 +146,7 @@ export function registerAllRoutes(d) {
     stageReceivedBackup: d.stageReceivedBackup,
   })
 
-  registerHostRoutes({ route, ctx })
+  registerHostRoutes({ route, ctx, getConfig })
   registerNoticeRoutes({
     route, readBody, query, getConfig, setConfig, workspaceList: d.workspaceList,
     normalizeWorkspace: d.normalizeWorkspace, hub,

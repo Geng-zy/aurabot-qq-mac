@@ -165,7 +165,7 @@
     "area": "chat",
     "owner": "chat-session",
     "verdict": "split",
-    "evidence": "189 行；唯一 importer src/chat/hub.js（L1363）；注入依赖 40 个；0 个直接测试，但 test/integration-architecture.test.js:12-18 断言本文件含 purgeScope.toolNames(agent) 与 toolScope.restrictGuest(agent)。两块互不相关：调试会话创建与开场白（L3-37，写 sessions.json 的 debugSeeded）与工具/上下文挂载（L40-185，含 4 种 restrict/guard 与慢工具包装 L90-118）。"
+    "evidence": "189 行；会话挂载：工具闸、上下文注入、Purge 收窄、执行期 guard。B18 起把「豁免收窄/收窄名单/挂载指纹」抽成纯函数 chat/mount-plan.js（可直测），mount 只负责把事实递进去并按结果做副作用；e2e 109 + chat-wiring + mount-plan 6 个用例覆盖。"
   },
   {
     "path": "src/chat/notify-events.js",
