@@ -60,7 +60,9 @@ import { createBackupScheduler } from './host/backup-schedule.js'
 import { installPersonaHoist } from './integration/persona-hoist.js'
 
 export const name = 'aurabot'
-export const inject = ['agents', 'sessions', 'webServer', 'timer', 'workspaceRegistry', 'attachments', 'systemPrompt', 'llm']
+// tools：B17 起面板要能只读探测「根作用域里有哪些可限制的全局工具」。cordis 的 ctx 对未声明的
+// 服务属性会直接抛 cannot get property … without inject（rc.3 实测），所以必须显式声明。
+export const inject = ['agents', 'sessions', 'webServer', 'timer', 'workspaceRegistry', 'attachments', 'systemPrompt', 'llm', 'tools']
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PKG = (() => {

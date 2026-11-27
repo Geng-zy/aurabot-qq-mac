@@ -4,7 +4,7 @@
     "area": "core",
     "owner": "core-data",
     "verdict": "keep",
-    "evidence": "689 行（1.6.55 第三刀：发布事务进 backup-publish.js 97 行；1.6.54 第二刀路径安全层进 backup-fs.js 135 行；1.6.41 第一刀 ZIP 编解码进 backup-zip.js 198 行，1059 → 689）。本文件保留：打包（createBackup）、stageBackup/stageRestore、会话恢复、pending API、保留策略、检查与列表、stageReceivedBackup。"
+    "evidence": "688 行（1059 → 688，三刀已执行：1.6.41 ZIP 编解码 → backup-zip.js 198 行、1.6.54 路径安全层 → backup-fs.js 135 行、1.6.55 发布事务 → backup-publish.js 97 行）。**剩余部分不再拆**，理由可核对：createBackup（打包）与 applyPendingRestore（应用暂存）各自是一个原子事务，applyPendingRestore 里「配置改写 → 留底旧文件 → 换入 → 会话迁移 → 清理」必须同进同退；把它切成多个文件只会让读者在两个文件之间追一个事务的中间状态。状态查询/清理/inspect 这一簇要调 resumePendingSessions（在应用事务里），拆出去会形成循环依赖。公开 API 由 test/backup-api.test.js 钉住 17 个导出；行为由 backup / backup-stage / backup-restart / backup-webdav / backup-push 覆盖，Mini 上还实跑过「打包 → 暂存 → 应用」全链路。"
   },
   {
     "path": "src/core/bridge.js",
@@ -207,7 +207,7 @@
     "area": "integration",
     "owner": "integration",
     "verdict": "keep",
-    "evidence": "78 行（1.6.47 已执行：发现路径 2.5 → 4 条，报错解析抽成 parseKnownToolNames 并单独测）；新增 test/host-tools.test.js 9 个用例；探测失败只打 debug。"
+    "evidence": "117 行（B17）：四条发现路径收敛到 describeDiscovery 并标注来源；hostMaintenanceToolNames 在挂载时记录 {source,names,chatId,sessionId,at}；新增 probeGlobalTools 对全局视图只读探测。被 mount.js / purge-scope.js 与面板路由使用；test/host-tools + host-tools-runtime + host-tools-route 共 17 个用例。"
   },
   {
     "path": "src/integration/persona-hoist.js",

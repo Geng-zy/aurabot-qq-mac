@@ -1,0 +1,23 @@
+[
+  {
+    "path": "src/features/host-routes.js",
+    "area": "features",
+    "owner": "features-host",
+    "verdict": "keep",
+    "evidence": "28 行；只读取证接口 GET /aurabot/api/host/tools：返回最近一次会话挂载命中的发现路径（last）与当场对宿主全局视图的探测（probe + probeMaintenance）。不注册工具、不改配置；被 src/host/routes.js 注册（路由快照 134 条）；test/host-tools-route.test.js 3 个用例覆盖含「宿主没有 tools 服务」的降级。"
+  },
+  {
+    "path": "test/host-tools-runtime.test.js",
+    "area": "test",
+    "owner": "test-integration",
+    "verdict": "keep",
+    "evidence": "62 行 5 个用例；B17 的核心：describeDiscovery 给四条路径标来源、挂载时记录来源+工具+chatId/sessionId、探测失败记 unknown 且 names=null（与「空数组」区分）、probeGlobalTools 不依赖会话、recordDetection/lastDetection 读写。"
+  },
+  {
+    "path": "test/host-tools-route.test.js",
+    "area": "test",
+    "owner": "test-integration",
+    "verdict": "keep",
+    "evidence": "36 行 3 个用例；直接调用 registerHostRoutes 的路由函数：正常返回全局探测与维护工具清单、宿主缺 tools 服务时降级不抛错、带出最近一次挂载记录。"
+  }
+]

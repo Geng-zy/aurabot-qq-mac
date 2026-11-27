@@ -55,7 +55,10 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
     const ownerMaintenance = chat.kind === 'private' && level === 'full' && levelFor(configAtMount, chat) === 'full'
     const maintenanceRevision = ownerMaintenance ? ownerAuthorizationRevision(configAtMount) : ''
     const maintenanceBot = configAtMount.botQQ
-    const maintenance = ownerMaintenance ? [] : purgeScope.toolNames(agent)
+    // 管理员完整权限的会话不设收窄，但**仍然探测一次**：B17 要的证据正是「这台机器上到底认出了哪些
+    // 维护工具」，豁免路径恰恰是最该被看见的那一条。探测本身只读（view/definitions），不改变收窄结果。
+    const detected = purgeScope.toolNames(agent, { chatId: chat.chatId, sessionId: sid })
+    const maintenance = ownerMaintenance ? [] : detected
     // 模块（重）启动代际也进 key：热重载后工具名通常不变，但工具对象是旧实例的闭包（issue #73），
     // 只比名字会一直 return，会话里永远用旧实现/旧状态；带上代际就整套重挂。
     let gen = 0

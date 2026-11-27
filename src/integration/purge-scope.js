@@ -130,9 +130,9 @@ export function installPurgePromptGuard(ctx, { log, isAurabotAgent, enabled = ()
   }
 }
 
-/** 维护工具名（purge_*），按宿主公开定义优先。 */
-export function maintenanceToolNames(agent, { log } = {}) {
-  return hostMaintenanceToolNames(agent, { log })
+/** 维护工具名（purge_*），按宿主公开定义优先；顺带记录本次命中的发现路径。 */
+export function maintenanceToolNames(agent, { log, chatId = '', sessionId = '' } = {}) {
+  return hostMaintenanceToolNames(agent, { log, chatId, sessionId })
 }
 
 export function createPurgeScope({ log } = {}) {
@@ -141,7 +141,7 @@ export function createPurgeScope({ log } = {}) {
   const presets = new Map()
   return {
     isTool: isHostMaintenanceTool,
-    toolNames: (agent) => maintenanceToolNames(agent, { log }),
+    toolNames: (agent, context = {}) => maintenanceToolNames(agent, { log, ...context }),
     /** 建会话成功后调用：记住这个会话跑的是哪个预设。 */
     notePreset: (sessionId, preset) => { if (sessionId && preset) presets.set(String(sessionId), String(preset)) },
     /** 会话销毁时调用，别让这张表无限长。 */

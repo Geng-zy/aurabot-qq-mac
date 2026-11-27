@@ -2,6 +2,29 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.58
+
+- B17 rc.3 宿主接触面的**运行时取证**，含真机上暴露、单测发现不到的两处适配缺陷。
+- 取证：`src/integration/host-tools.js` 的四条发现路径收敛为 `describeDiscovery(agent)` 并**标注来源**
+  （`restrictableNames` / `knownNames` / `probe` / `unknown`）；挂载时记录
+  `{ source, names, chatId, sessionId, at }`；新增 `probeGlobalTools(tools)` 对宿主全局视图只读探测；
+  新增只读接口 `GET /aurabot/api/host/tools`（`last` + `probe`），路由快照 133 → 134。
+  `names: null`（不知道，是放宽权限的方向）与 `[]`（确实没有）严格区分。
+- **缺陷一（inject）**：插件 `inject` 没声明 `tools`。cordis（rc.3 `@deepseek-ai/cordis/lib/index.js:1257`）
+  对未声明的服务属性读取直接抛 `cannot get property "tools" without inject`，面板一调新接口就 `ok:false`。
+  修：`inject` 补 `'tools'`；路由侧仍保留降级（宿主没这个服务时如实报 `probe.view: none` 并带原因）。
+- **缺陷二（豁免路径不探测）**：管理员完整权限的私聊会短路掉探测
+  （`ownerMaintenance ? [] : toolNames()`），于是最该被看见的那条路径恰好没有记录，`last` 一直是 null。
+  修：照常探测、只在非豁免时才用结果做收窄；探测是只读的，不改变收窄行为。
+- 测试：`test/host-tools-runtime.test.js`（5）、`test/host-tools-route.test.js`（4，含「未注入 tools」
+  与「无 tools 服务」两种降级）；`test/integration-architecture.test.js` 的接缝断言改成匹配
+  `purgeScope.toolNames(agent[,)]`（接缝不变，只是多了上下文参数）。
+- 回归：全量 1668 个测试通过（+9），语法 611 文件，oxlint 0 error / 159 warning。
+
+## 1.6.57 / 1.6.56（内部候选，未发布）
+
+- 与 1.6.58 相同的取证改动，但分别缺 `inject: 'tools'` 与「豁免路径也探测」，真机验收不通过，未打 tag、未发布。
+
 ## 1.6.55
 
 - B15 拆 `backup.js` 第三刀：**恢复的发布事务**独立成 `src/core/backup-publish.js`（97 行），`backup.js` 767 → 689 行

@@ -1784,3 +1784,86 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.55
 CI        第一次 run 45866755167：ubuntu success、macos 排队 15 分钟 steps=0 被取消
           重新派发 run 45869219757：ubuntu success + macos success（01:44 双绿，steps 14/14）
 ```
+
+---
+
+## B17 · rc.3 宿主接触面的运行时取证（1.6.58）
+
+补上一轮列出的第 1、3 号欠证据：「`hostMaintenanceToolNames` 在真实会话里到底走了哪条发现路径、
+认出了谁」从来没有运行时观测。
+
+### 改动
+
+```text
+src/integration/host-tools.js    四条路径收敛为 describeDiscovery（带 source 标注）
+                                 挂载时记录 { source, names, chatId, sessionId, at }
+                                 新增 probeGlobalTools(tools)：对宿主全局视图只读探测
+src/integration/purge-scope.js   透传 chatId / sessionId（接缝形态不变）
+src/chat/mount.js                豁免路径也探测（只在不豁免时才用于收窄）
+src/host.js                      inject 补 'tools'
+src/features/host-routes.js(新)  GET /aurabot/api/host/tools —— 只读，返回 last + probe
+src/host/routes.js               注册（路由快照 133 → 134）
+```
+
+### 1. 真机暴露的两处缺陷（单测发现不了）
+
+**缺陷一 · inject**：插件 `inject` 没声明 `tools`。cordis（rc.3 `cordis/lib/index.js:1257`）对未声明的
+服务属性读取直接抛 `cannot get property "tools" without inject`，1.6.56 装到 mini 上后
+`GET /host/tools` 返回 `{"ok":false,"message":"cannot get property \"tools\" without inject"}`。
+假 ctx 不会抛，所以单测全绿也照样漏。修：`inject` 补 `'tools'`，路由侧保留降级。
+
+**缺陷二 · 豁免路径不探测**：`ownerMaintenance ? [] : toolNames()` 让管理员完整权限私聊短路掉探测，
+于是最该被看见的路径恰好没有记录（1.6.57 装上、真跑一轮对话后 `last` 仍是 `null`）。
+修：照常探测，只在不豁免时才用于收窄（探测只读，收窄行为不变）。
+
+### 2. Mini 实机证据（rc.3 + purge 1.7.20，最终版 1.6.58）
+
+```text
+装前核对  au 1.6.57 / dsh 0.2.2-rc.3 / purge 1.7.20
+回滚点    ~/aurabot-release-backups/20261127-102110
+加载      2026-11-27 10:21:16 [core] Aurabot v1.6.58 已加载｜总开关 开｜试运行 开
+面板      /aurabot/api/state → version=1.6.58，onebot=connected，modules=12
+
+全局探测（GET /aurabot/api/host/tools）：
+  probe.view            = "ok"
+  restrictableNames     = [load_workspace_dependencies, purge_apply, purge_revert, purge_status,
+                           team_task_create, team_task_get, team_task_list, team_task_update, working_directory]
+  knownNames            = 同上
+  probeMaintenance      = [purge_apply, purge_revert, purge_status]
+
+真实会话挂载（POST /debug/say，走管理员私聊正常链路、不发 QQ）：
+  {"ok":true,"text":"在啊，问第二遍了，怎么了？"}
+  last = {"source":"definitions",
+          "names":["purge_apply","purge_revert","purge_status"],
+          "all":9, "chatId":"private:257859927",
+          "sessionId":"ba1d461d-b704-42ac-9fdc-daa35215b5ab", "at":1795746109861}
+```
+
+**结论（这就是之前欠的那条）**：rc.3 上会话挂载时命中的是 `definitions` 路径
+（`tools.definitions()` 返回 9 条定义），三个 `purge_*` 全部被认出；`restrictableNames`/`knownNames`
+作为全局视图探测同样可用且内容一致。
+
+### 3. 清理与回归
+
+```text
+临时开启的 debug 模式：已从 /tmp/aurabot-config-before-b17.json 恢复（debug = False）
+重启后          Aurabot v1.6.58 已加载｜总开关 开｜试运行 关｜onebot=connected
+error           10:21–10:25 区间新增 [error] 0 条
+/host/tools      关掉 debug 后仍可用（probe.view=ok；last 为本次启动后尚未挂载，属预期）
+```
+
+### 4. Air 自动测试
+
+```text
+全量        1668 passed / 0 failed / 0 skipped（比 1.6.55 多 9 个）
+语法检查    611 个文件通过
+oxlint      0 error / 159 warning
+清单闸门    707 行，0 待审
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.58.tgz（466 条目，19,644,692 字节）
+sha256    09d4eef3ebb863c4a414025ef48782988f2ade3b81cb3ed05134e074b3495c7a
+```

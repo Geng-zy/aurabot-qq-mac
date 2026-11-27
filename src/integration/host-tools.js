@@ -35,13 +35,53 @@ export function parseKnownToolNames(message) {
   return names
 }
 
-/** 会话可见的全局工具名；拿不到返回 null（未知，不是空）。 */
-export function knownGlobalToolNames(agent, { log } = {}) {
+/**
+ * 最近一次探测的结果（面板排错用）。
+ * 记录「真机上一次会话挂载到底走了哪条发现路径、认出了谁」——这是 B17 补的证据缺口：
+ * 四条路径都只有单测、没有运行时观测，探测悄悄失效就没人知道。
+ */
+let last = null
+
+/** 记录一次探测（由 hostMaintenanceToolNames 在挂载时调用）。 */
+export function recordDetection(entry) {
+  last = { ...entry, at: Date.now() }
+  return last
+}
+
+/** 最近一次探测；从没挂载过则为 null。 */
+export function lastDetection() {
+  return last
+}
+
+/**
+ * 全局视图探测：不依赖任何会话，直接问宿主「根作用域里有哪些可限制的全局工具」。
+ * rc.3 里 `view(undefined)` 就是全局视图；这里只读、不注册任何东西，用来在面板上取证。
+ */
+export function probeGlobalTools(tools) {
+  const out = { view: 'none', restrictableNames: null, knownNames: null, error: '' }
+  try {
+    const view = tools?.view?.(undefined)
+    if (view && typeof view === 'object') {
+      out.view = 'ok'
+      if (view.restrictableNames instanceof Set) out.restrictableNames = [...view.restrictableNames].sort()
+      if (view.knownNames instanceof Set) out.knownNames = [...view.knownNames].sort()
+    }
+  } catch (error) {
+    out.error = String((error && error.message) || error).slice(0, 160)
+  }
+  return out
+}
+
+/**
+ * 四条发现路径的统一实现，附带「命中哪一条」。
+ * @returns {{source: 'restrictableNames'|'knownNames'|'probe'|'unknown', names: string[]|null}}
+ */
+export function describeDiscovery(agent, { log } = {}) {
   const tools = agent?.ctx?.tools
   for (const field of ['restrictableNames', 'knownNames']) {
     try {
       const names = tools?.view?.(agent)?.[field]
-      if (names instanceof Set) return [...names]
+      if (names instanceof Set) return { source: field, names: [...names] }
     } catch { /* 继续尝试下一种 */ }
   }
   try {
@@ -49,24 +89,35 @@ export function knownGlobalToolNames(agent, { log } = {}) {
     // 探针被接受了：说明这个名字在已知名单里，宿主没把名单告诉我们
     if (typeof off === 'function') off()
     log?.debug?.('宿主接受了探针工具名，拿不到全局工具名单')
-    return null
+    return { source: 'unknown', names: null }
   } catch (error) {
     const parsed = parseKnownToolNames(error && error.message)
     if (!parsed) log?.debug?.('认不出宿主报错里的工具名单，本次按「未知」处理：' + String((error && error.message) || '').slice(0, 160))
-    return parsed
+    return { source: parsed ? 'probe' : 'unknown', names: parsed }
   }
 }
 
+/** 会话可见的全局工具名；拿不到返回 null（未知，不是空）。 */
+export function knownGlobalToolNames(agent, { log } = {}) {
+  return describeDiscovery(agent, { log }).names
+}
+
 /** 宿主维护工具名（排序后），拿不到定义时退回已知全局名单。 */
-export function hostMaintenanceToolNames(agent, { log } = {}) {
+export function hostMaintenanceToolNames(agent, { log, chatId = '', sessionId = '' } = {}) {
   const filter = (names) => names.filter(isHostMaintenanceTool).sort()
   try {
     const definitions = agent?.ctx?.tools?.definitions?.()
-    if (Array.isArray(definitions)) return filter(definitions.map(({ name }) => name))
+    if (Array.isArray(definitions)) {
+      const names = filter(definitions.map(({ name }) => name))
+      recordDetection({ source: 'definitions', names, all: definitions.length, chatId, sessionId })
+      return names
+    }
   } catch (error) {
     log?.debug?.('读取宿主工具定义失败：', error.message)
   }
-  const known = knownGlobalToolNames(agent, { log })
+  const found = describeDiscovery(agent, { log })
+  recordDetection({ source: found.source, names: found.names ? filter(found.names) : null, all: found.names?.length ?? 0, chatId, sessionId })
+  const known = found.names
   if (!known) {
     // 探测失败时返回空表，等于「不限制这些维护工具」——这是放宽权限的方向。
     // 用 debug 而不是 warn：这个函数每挂载一个会话就会走一次，warn 会刷屏；

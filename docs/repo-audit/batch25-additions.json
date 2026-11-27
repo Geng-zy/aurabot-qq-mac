@@ -1,0 +1,9 @@
+[
+  {
+    "path": "test/backup-api.test.js",
+    "area": "test",
+    "owner": "test-backup",
+    "verdict": "keep",
+    "evidence": "45 行 3 个用例；钉住 backup.js 的 17 个导出（少一个就红）、断言每个导出都不是 undefined、并校验拆出去的三层各自只暴露本层符号（backup-publish 恰好 4 个）。用途：以后再拆 backup 时不会悄悄丢 API。"
+  }
+]

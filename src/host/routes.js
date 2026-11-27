@@ -22,6 +22,7 @@ import { registerDebugRoutes } from '../features/debug-routes.js'
 import { registerBackupRestoreRoutes } from '../features/backup-routes.js'
 import { registerBackupCloudRoutes } from '../features/backup-cloud-routes.js'
 import { registerNoticeRoutes } from '../features/notice-routes.js'
+import { registerHostRoutes } from '../features/host-routes.js'
 import { registerLocalRoutes } from '../features/local-routes.js'
 import { registerModuleRoutes } from '../features/module-routes.js'
 import { registerFacesRoutes } from '../features/faces-routes.js'
@@ -145,6 +146,7 @@ export function registerAllRoutes(d) {
     stageReceivedBackup: d.stageReceivedBackup,
   })
 
+  registerHostRoutes({ route, ctx })
   registerNoticeRoutes({
     route, readBody, query, getConfig, setConfig, workspaceList: d.workspaceList,
     normalizeWorkspace: d.normalizeWorkspace, hub,

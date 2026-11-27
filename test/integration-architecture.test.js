@@ -14,7 +14,8 @@ test('hub 不再持有 purge 专用识别与工具名探测', () => {
     assert.ok(!text.includes('purgeToolNames'), '工具名探测应复用 integration/host-tools')
     assert.ok(!text.includes('GROUP_GUEST_SAFE'), '访客白名单应留在 chat/tool-scope')
   }
-  assert.ok(mount.includes('purgeScope.toolNames(agent)'), 'mount 应通过接缝取维护工具名')
+  // B17 起 mount 会多传一个上下文参数（chatId/sessionId）给取证用；接缝本身不变，所以只钉调用形态
+  assert.match(mount, /purgeScope\.toolNames\(agent[,)]/, 'mount 应通过接缝取维护工具名')
   assert.ok(mount.includes('toolScope.restrictGuest(agent)'), 'mount 应通过会话工具闸收工具')
 })
 
