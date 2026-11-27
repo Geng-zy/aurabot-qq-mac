@@ -241,8 +241,8 @@
     "path": "src/modules/imagegen/index.js",
     "area": "modules",
     "owner": "modules-imagegen",
-    "verdict": "split",
-    "evidence": "326 行（>300）、16 个内部依赖（features/appearance.js:6、features/imagegen.js:9、features/paintings.js:10、features/image-shape.js:12、features/local-image.js:18、core/img.js:7、core/llm.js:8、core/store.js:13、core/image-info.js:15、core/config.js:17、chat/access.js:16、mind/motivation/index.js:14、tools/tools.js:11、node:fs:3、node:os:4、node:path:5）。3 个测试直接 import 它：test/imagegen-shape.test.js:9、test/codex-auth-lifecycle.test.js:9、test/imagegen-img2img.test.js:12；文档：docs/FEATURES-AND-IMPLEMENTATION.md:43、:45，docs/HANDOFF.md:26。23 个 api.route 集中在第 40-136 行（Codex 登录 6 条 40-48、状态与本地生图 9 条 56-79、外貌与画廊 8 条 90-136），第 160-326 行是 api.tool 注册与创作任务回执。拆成 imagegen/panel-routes.js（23 条路由，约 100 行）+ imagegen/index.js（工具与创作任务，约 190 行）。"
+    "verdict": "keep",
+    "evidence": "326 行（>300）、16 个内部依赖（features/appearance.js:6、features/imagegen.js:9、features/paintings.js:10、features/image-shape.js:12、features/local-image.js:18、core/img.js:7、core/llm.js:8、core/store.js:13、core/image-info.js:15、core/config.js:17、chat/access.js:16、mind/motivation/index.js:14、tools/tools.js:11、node:fs:3、node:os:4、node:path:5）。3 个测试直接 import 它：test/imagegen-shape.test.js:9、test/codex-auth-lifecycle.test.js:9、test/imagegen-img2img.test.js:12；文档：docs/FEATURES-AND-IMPLEMENTATION.md:43、:45，docs/HANDOFF.md:26。23 个 api.route 集中在第 40-136 行（Codex 登录 6 条 40-48、状态与本地生图 9 条 56-79、外貌与画廊 8 条 90-136），第 160-326 行是 api.tool 注册与创作任务回执。拆成 imagegen/panel-routes.js（23 条路由，约 100 行）+ imagegen/index.js（工具与创作任务，约 190 行）。 B40 已把「她的形象」7 条路由与「她的画作」4 条图库路由拆成 features/appearance-routes.js（70 行），本文件 326 → 285 行，只剩模块装配（工具定义、生图服务接线、内心画画 offer）；行数 <300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/modules/song/index.js",
