@@ -73,8 +73,8 @@
     "path": "src/features/imagegen.js",
     "area": "feature",
     "owner": "feature-imagegen",
-    "verdict": "split",
-    "evidence": "489 行（>300）、10 个内部依赖（node:fs:6、node:crypto:7、core/net.js:8、core/image-info.js:12、core/img.js:13、core/store.js:15、features/paintings.js:9、features/codex-auth.js:10、features/codex-image.js:11、features/image-shape.js:14）。1 处 import：src/modules/imagegen/index.js:9，并被其第 26 行 files 声明。测试 9 个文件引用本文件（test/imagegen.test.js、test/codex-image.test.js、test/imagegen-img2img.test.js、test/imagegen-blocks.test.js、test/imagegen-shape.test.js、test/appearance.test.js、test/local.test.js、test/fixes-1.2.0.test.js、test/codex-auth-lifecycle.test.js）。职责 ≥3：模板/JSON 工具与 findImage（第 19-95 行）、6 个提供方适配器（xAI 编辑 276-292、OpenAI 兼容 293-333、ComfyUI 334-402、Gemini 403-425、自定义 426-472、Codex 委托）、工具消息形状（drawToolMessage 第 473 行、drawResultBlocks 第 483 行）。拆成 imagegen/index.js（createImageGen 调度 + 公共工具）+ imagegen/providers.js（5 个适配器）+ imagegen/tool-blocks.js（2 个形状函数）。"
+    "verdict": "keep",
+    "evidence": "273 行（B44 后）；B38 抽出纯逻辑（imagegen-template.js）、B44 抽出五条供应商链（imagegen-providers.js），本文件只剩编排：读配置 → withPreset → 选链（本地/远程/回退顺序）→ 结果归一化与错误分类 → lastError。行数已 <300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/features/knowledge-routes.js",

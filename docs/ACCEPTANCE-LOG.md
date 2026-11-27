@@ -3454,3 +3454,35 @@ Air   voice 相关（audio-duration / voice-http-tts / macos / her-voice / voice
 Release dsh-aurabot-qq-1.6.81.tgz  19,673,864 字节
         sha256 932e4f1b5e1d0b70f6f7285badb056b776e7f5c04e132991c0106ac756e6fd37
 ```
+
+---
+
+## B44 · 生图拆分第二轮：五条供应商链（1.6.82）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `features/imagegen.js` | 447 → **273** | 编排：读配置 → `withPreset` → 本地/远程/回退顺序 → 结果归一化与错误分类 → `lastError` |
+| `features/imagegen-providers.js`（新） | **202** | `viaXaiEdit` / `viaOpenAI` / `viaComfy` / `viaGemini` / `viaCustom` 五条链 |
+
+依赖全部注入（`request`/`valueToBuffer`/`serviceError`/`customRequest`/`log`），加一条链不用改编排。
+
+```text
+Air   imagegen 相关（shape / img2img / template / codex-auth / fixes）→ 71 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 628 文件；oxlint 0 error；清单 0 待审
+过程  自查修掉 5 条 lint error（providers 里 fetchImage/randomUUID/GEMINI 常量未导入、PROVIDER_PRESETS 跨文件引用）
+      并把 imagegen 的审计结论落到原条目（features-modules.json）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.82（回滚点 ~/aurabot-release-backups/20261128-012759）、01:28:04 启动
+模块   imagegen-providers.js 真机导出 createProviders；用假 request 造出五条链
+       （viaComfy/viaCustom/viaGemini/viaOpenAI/viaXaiEdit）—— 说明依赖注入可用、不需要真网络
+接口   /image/appearance → ok=true（max=8，面板路由仍工作）
+配置   升级前后逐字段一致；Purge 三个工具仍在；01:20 之后新增 error：0 条
+
+提交   B44；tag v1.6.82
+Release dsh-aurabot-qq-1.6.82.tgz  19,675,148 字节
+        sha256 cf32d705677d624c8962a653fd45e9471b677d7a85ba9a86dcf14b4d743f4b26
+```

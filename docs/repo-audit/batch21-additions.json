@@ -47,5 +47,12 @@
     "owner": "mind-motivation",
     "verdict": "keep",
     "evidence": "97 行；0 个内部依赖；2 处 import（mind/motivation/index.js、test/mind-motivation.test.js + test/mind-fixes.test.js 经 index.js 间接）；职责：16 项基本需要表与 rise 速率、NEED 索引、需要与性格的权重表（NEED_FROM_TRAITS / needStrengths）、「这句话是不是想做某件事」的判定（hasActionPhrase / wantsMeal / wantsOwnerChat / explicitAction / matchesWant）、动作可用性与重试间隔取值的保护（availability / retryDelay）。全部纯函数，不碰 store 与 now。B41 从 motivation/index.js 抽出（344 → 257 行），那边只剩状态与结果学习。"
+  },
+  {
+    "path": "src/features/imagegen-providers.js",
+    "area": "features",
+    "owner": "features-imagegen",
+    "verdict": "keep",
+    "evidence": "198 行；2 个内部依赖（core/net.js 的 withTimeoutSignal、core/image-info.js 的 mimeOf）；2 处 import（features/imagegen.js、test/imagegen-img2img.test.js 经它覆盖）；职责：五条供应商链——viaXaiEdit（xAI 参考图 edit）、viaOpenAI（/images/edits 与 /generations 回退）、viaComfy（workflow 改写 + 上传 + 轮询）、viaGemini（generateContent + inlineData）、viaCustom（自定义模板与响应路径）。request / valueToBuffer / serviceError / customRequest / log 全部注入，因此每条链都能用假 request 单测。"
   }
 ]

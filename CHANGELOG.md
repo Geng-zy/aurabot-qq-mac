@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.82
+
+- B44 **生图拆分第二轮：五条供应商链独立成模块**（`features/imagegen-providers.js` 202 行，
+  `features/imagegen.js` 447 → 273 行）。
+  - 拆出：`viaXaiEdit`（xAI 参考图 edit）、`viaOpenAI`（`/images/edits` ↔ `/generations` 回退）、
+    `viaComfy`（workflow 改写 + 上传参考图 + 轮询进度）、`viaGemini`（`generateContent` + inlineData）、
+    `viaCustom`（自定义模板 + 响应路径）。加一条链不用动编排。
+  - 留下：编排（读配置 → `withPreset` → 本地/远程/回退顺序 → 结果归一化与错误分类 → `lastError`）。
+  - 依赖全部注入（`request` / `valueToBuffer` / `serviceError` / `customRequest` / `log`），每条链都能用假 request 单测。
+- 回归：imagegen 相关 71 pass；全量 1730 个测试通过；语法 628 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.81
 
 - B43 **语音拆分：edge-tts 后端独立成模块**（`src/voice/edge.js` 85 行，`voice/tts.js` 343 → 277 行）。
