@@ -2767,3 +2767,16 @@ Purge  /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status
 ```
 
 真实外发：本批未做（未获单独授权）。
+
+### 4. 发布（v1.6.68）
+
+```text
+提交      4d85026
+tag       v1.6.68
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.68
+附件      dsh-aurabot-qq-1.6.68.tgz  19,654,851 字节（466 个条目）
+          远端 digest sha256:a527f205b848b521b4bf9d073ce90f199abfc7207b670cc7e08fa3ed16b663a5
+          = mini 上安装的那份（同哈希）
+CI        run 45986613806 → macos-latest success、ubuntu-latest success（19:03 双绿）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
