@@ -2054,5 +2054,6 @@ CI 首次   run 45940777254 → ubuntu success、**macos failure**
 这不是「把超时调大」，是把**副作用放进了轮询里**这个设计缺陷修掉；45s 只是给
 「watcher 3 秒一扫 + 重挂 + 一轮对话」留出的合理上限。
 
-修完重派 run（同一份代码，测试不进发布包）后 CI 结果见下一条。
+修完重派 run 45942164913 → **ubuntu-latest success、macos-latest success**（12:55 双绿）。
+测试不进发布包，所以 v1.6.60 的附件字节不变（digest 仍为 `sha256:13e4aaf0…`）。
 
