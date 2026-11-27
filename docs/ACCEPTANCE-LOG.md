@@ -3122,3 +3122,16 @@ CI        run 46005334897 → macos-latest success、ubuntu-latest success（21:
 表情   /stickers → ok=true，28 条（真实库，走的是新纯库层的 loadLibrary）
 配置   升级前后逐字段一致；Purge /host/tools 三个工具仍在；21:45 之后新增 error：0 条
 ```
+
+### 发布（v1.6.74）
+
+```text
+提交      e18711b
+tag       v1.6.74
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.74
+附件      dsh-aurabot-qq-1.6.74.tgz  19,661,798 字节（465 个条目，含新模块 sticker-library.js）
+          远端 digest sha256:123b7da78ccf8d68116b33c7ddad7d888cbce83df21466ac0d70cabd7b19128a
+          = mini 上安装的那份（同哈希）
+CI        run 46010638548 → macos-latest success、ubuntu-latest success（21:57）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
