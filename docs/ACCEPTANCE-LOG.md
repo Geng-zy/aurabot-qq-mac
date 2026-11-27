@@ -2128,15 +2128,20 @@ purge 状态   68/73 applied（与动手前一致）
 
 环境：Mac mini，DSH Desktop `0.2.2-rc.3` + `dsh-purge-community@1.7.20` + Aurabot `1.6.60`（已验收版本）。
 
-### 1. 普通 DSH 会话：**卡在入口，本条保持待验证**
+### 1. 普通 DSH 会话：五条路都试死了，仍**待验证**
 
 ```text
 试过的入口
   · DSH 的 CLI        应用包里没有 bin（package.json 无 bin 字段、node_modules/.bin 为空、无全局 dsh 命令）
   · Web GUI 直连      http://127.0.0.1:<port>/ → 401（要鉴权）
   · 找令牌            ~/.dsh 下没有 token 文件；web-app / host-webserver 里没扫到可用的鉴权入口
-  · 桌面自动化        本会话没有 computer-use 工具，无法驱动 GUI 键盘输入
+  · 桌面自动化        本会话没有 computer-use 工具；试 osascript + System Events → AppleEvent 超时（-1712，TCC 未授权）
+  · 自建 bundle 插件   写了独立探针插件（用 DSH 自己的 subagents 服务开普通会话），
+                      装进 profile 的 dsh.profile.bundles + dsh.bundle.patch + cordis.patch.yml insert，
+                      重启后 apply 一次都没被调用（无日志、无报错）→ launcher 没有组装这个 bundle
 卡点      无法在无头方式下创建一个「非 Aurabot 的普通 DSH 会话」并发一轮模型请求
+善后      探针插件已删除、profile package.json 已从备份恢复、pnpm install 复原；
+          重启后 Aurabot v1.6.60 正常加载、onebot=connected、modules=12、0 条新增 error
 替代证据  宿主侧全局视图（不依赖会话）：GET /aurabot/api/host/tools → probe.view=ok，
           probeMaintenance=[purge_apply, purge_revert, purge_status]
           —— 能证明 purge 已把三个工具注册进 DSH 宿主的全局工具面，但**不能**代替「普通会话里模型真的调用一次」
@@ -2179,7 +2184,11 @@ purge 状态   68/73 applied（与动手前一致）
 ```
 
 **这是计划层证据**：说明挂载时会把这三个工具从群会话里摘掉。要证明「受限会话里真的调不动」，
-需要一个真实的非管理员会话——那要先有真实群消息（需要你指定测试目标），本条保持待验证。
+需要一个真实的非管理员会话——那要先有真实群消息，本条保持待验证。
+
+**白名单事实（纠正先前口头假设）**：`allow.groups = ['158706927', '576968880']`，是**两个**群，不是一个；
+而且 `sessions.json` 里 `:group:` 聊天数为 **0**，说明这两个群从来没给机器人发过消息 ——
+所以受限会话在执行层无从触发，除非群里真的有人说一句话。
 
 ### 4. 场景结果与状态
 
