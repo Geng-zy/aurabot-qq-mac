@@ -2128,7 +2128,7 @@ purge 状态   68/73 applied（与动手前一致）
 
 环境：Mac mini，DSH Desktop `0.2.2-rc.3` + `dsh-purge-community@1.7.20` + Aurabot `1.6.60`（已验收版本）。
 
-### 1. 普通 DSH 会话：五条路都试死了，仍**待验证**
+### 1. 普通 DSH 会话：**已验**（走 DSH 自带 headless profile）
 
 ```text
 试过的入口
@@ -2142,9 +2142,31 @@ purge 状态   68/73 applied（与动手前一致）
 卡点      无法在无头方式下创建一个「非 Aurabot 的普通 DSH 会话」并发一轮模型请求
 善后      探针插件已删除、profile package.json 已从备份恢复、pnpm install 复原；
           重启后 Aurabot v1.6.60 正常加载、onebot=connected、modules=12、0 条新增 error
-替代证据  宿主侧全局视图（不依赖会话）：GET /aurabot/api/host/tools → probe.view=ok，
-          probeMaintenance=[purge_apply, purge_revert, purge_status]
-          —— 能证明 purge 已把三个工具注册进 DSH 宿主的全局工具面，但**不能**代替「普通会话里模型真的调用一次」
+突破      DSH 装着 CLI：`/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh`，
+          支持 `dsh --profile <name> headless "<任务>"` —— 这才是「普通 DSH 会话」的正门。
+          `desktop` profile 被 Electron 独占（报 managed exclusively by the Electron application），
+          所以另建一个临时 profile（`--from-default-profile headless`，只含 dsh-base + dsh-headless），
+          再把已装好的 purge 以 `file:` 链进去，就得到一个**不含 Aurabot** 的 DSH 环境。
+
+实跑（Mini，DSH 0.2.2-rc.3 + purge 1.7.20）
+```text
+$ export DEEPSEEK_API_KEY=<从 ~/.dsh/.credentials.yaml 读，不回显>
+$ dsh --profile probe headless "Call the purge_status tool now (do not answer from memory).
+                               Paste the first three lines of its output verbatim."
+
+dsh-purge-redteam-ui: pending (waiting for service: webServer)   ← 无网页服务时的正常提示
+[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s)
+purge_status 输出的前 3 行（原样）：
+
+dsh-purge 状态 / Status
+· 宿主 / surface: desktop
+· DSH_HOME: /Users/gengzhiyu/.dsh
+
+补充关键结论：补丁 68/73 applied, 0 pending（skipped：#18、#19、#35、#76、#80）
+```
+
+结论：**普通 DSH 会话（不含 Aurabot）里 purge_status 可被发现并真实执行**，返回的就是宿主状态。
+验证后临时 profile 已删除（`~/.dsh/profiles/` 只剩 desktop），desktop profile 未改动，Aurabot 仍在跑。
 ```
 
 ### 2. Aurabot 完整权限管理员会话：四段证据齐全
