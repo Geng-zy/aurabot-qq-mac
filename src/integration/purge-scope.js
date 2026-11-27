@@ -38,9 +38,15 @@ export function isAurabotPersonaPreset(preset) {
  * @param {object} agent
  * @param {(sessionId: string) => string} [lookup] 见 createPurgeScope().presetFor
  */
+/** 会话 id 的规范形：hub 的 sessionKey 会去掉 `session-` 前缀，记录与查询必须用同一种写法。 */
+export const presetKey = (id) => {
+  const s = String(id ?? '')
+  return s.startsWith('session-') ? s.slice(8) : s
+}
+
 export function presetOfAgent(agent, lookup) {
   try {
-    const id = String(agent?.session?.id || '')
+    const id = presetKey(agent?.session?.id ?? agent?.id ?? '')
     const noted = id && typeof lookup === 'function' ? lookup(id) : ''
     if (noted) return String(noted)
     return String(agent?.preset || agent?.session?.header?.agentPreset || '')
@@ -143,11 +149,11 @@ export function createPurgeScope({ log } = {}) {
     isTool: isHostMaintenanceTool,
     toolNames: (agent, context = {}) => maintenanceToolNames(agent, { log, ...context }),
     /** 建会话成功后调用：记住这个会话跑的是哪个预设。 */
-    notePreset: (sessionId, preset) => { if (sessionId && preset) presets.set(String(sessionId), String(preset)) },
+    notePreset: (sessionId, preset) => { const k = presetKey(sessionId); if (k && preset) presets.set(k, String(preset)) },
     /** 会话销毁时调用，别让这张表无限长。 */
-    forgetPreset: (sessionId) => presets.delete(String(sessionId)),
-    presetFor: (sessionId) => presets.get(String(sessionId)) || '',
+    forgetPreset: (sessionId) => presets.delete(presetKey(sessionId)),
+    presetFor: (sessionId) => presets.get(presetKey(sessionId)) || '',
     decorate: (assembly, options) => decorateAssembly(assembly, options),
-    installPromptGuard: (ctx, options = {}) => installPurgePromptGuard(ctx, { log, presetFor: (id) => presets.get(String(id)) || '', ...options }),
+    installPromptGuard: (ctx, options = {}) => installPurgePromptGuard(ctx, { log, presetFor: (id) => presets.get(presetKey(id)) || '', ...options }),
   }
 }

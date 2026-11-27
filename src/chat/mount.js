@@ -41,6 +41,8 @@ export function createMount({ CHAT_STYLE_INSTRUCTION, CODE_INSTRUCTION, DIRECT_R
   /** 这个聊天要用的模型：管理员按聊天指定的 > 面板里选的全局模型（或 DSH 默认），扩展模块还可以再按聊天改。 */
   function unmount(rec) {
     mounts.delete(rec)
+    // 会话卸载后「当前预设」这条记录就没意义了，别让表无限长
+    try { purgeScope.forgetPreset?.(rec.agent?.session?.id ?? '') } catch { /* 只是清理 */ }
     toolScope.releaseAgent(rec.agent)
     for (const off of rec.offs.splice(0).reverse()) {
       try { if (typeof off === 'function') off() } catch (error) { log.warn('注销会话挂载失败：', error.message) }

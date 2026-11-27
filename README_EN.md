@@ -41,14 +41,13 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.6.59 highlights
+## 1.6.60 highlights
 
-### The mount decision becomes a pure module (B18 · sessions/permissions)
+### Mid-session preset changes are actually recorded (B19)
 
-- "Should this mount narrow the host's maintenance tools?" used to live inside `mount()`; verifying it meant building a real agent, host tool service and config. It is now one pure function in `src/chat/mount-plan.js`: take facts, return a result.
-- **All three exemption conditions (private + `full` this turn + `full` in config) live in exactly one place** — getting that rule wrong hands `purge_apply` to a stranger.
-- A new read-only endpoint `GET /aurabot/api/host/mount-plan?chat=…&level=…` shows the narrowing result for group and private paths without sending a real message.
-- Also fixed `levelFor` being imported from the wrong module (`core/group-policy.js` does not export it; `chat/access.js` does, matching `hub`).
+- The host's `agent-preset/selected` event is now captured into "current preset" — and handled *before* the chat-mapping fallback, so a preset switch that arrives before any chat event is no longer dropped.
+- Fixed a key mismatch: `sessionKey` strips a `session-` prefix, but writes used the stripped form while lookups used the raw id, so a switched session fell back to the stale creation-time header. All three paths now share one normalisation.
+- The record is dropped on unmount, so the table no longer only grows.
 
 Per-version changes: [CHANGELOG](CHANGELOG.md).
 
@@ -134,12 +133,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.6.59.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.6.60.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.59.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.60.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.

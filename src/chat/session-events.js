@@ -5,11 +5,17 @@ export function createSessionEventHandler({
   guardReply, chainSend, deliver, map, audienceRevision, release, rememberFinished,
   slowNoticeSent, clearSlowNotices, clearRunning, stopTyping, rescueFromThinking, isSilence,
   requestReplyRewrite, completedTurn, redact, recoverReply, debugWaiters, turnSessionCurrent,
-  outputSources, turnEpochs, sendChain,
+  outputSources, turnEpochs, sendChain, notePreset = () => {},
 }) {
   return function onSessionEvent(session, event) {
     const mind = getMind()
     const key = sessionKey(session && session.id)
+    // 会话中途换了预设：这是「当前预设」最权威的来源（宿主文档：重建读 agentPreset 投影，不读创建时的 header）。
+    // 放在 chatId 兜底之前——换预设的事件可能早于任何聊天映射，否则会被丢掉。
+    if (event?.type === 'agent-preset/selected' && event.data?.agentPreset) {
+      try { notePreset(key, event.data.agentPreset) } catch (error) { log?.debug?.('记录预设变更失败：', error?.message) }
+      return
+    }
     // 回合结束时内存映射可能已空（刚重启），退回持久化的映射，别把这一轮丢了（#159）。
     // 中间段也一样要兜底：重启后第一段正文可能早于 turn/end 到达，拿不到 chatId 就整段丢了。
     const chatId = sessionToChat.get(key) || chatOfSession(key)

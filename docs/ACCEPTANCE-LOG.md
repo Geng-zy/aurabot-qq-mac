@@ -1962,3 +1962,75 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.59
           = 本地候选包 = Mini 上装的那份（三方同哈希）
 CI        run 45933994156 → ubuntu-latest success、macos-latest success（11:31 双绿）
 ```
+
+---
+
+## B19 · 补上「中途换预设」与「purge 工具端到端调用」两条证据（1.6.60）
+
+上一轮列的三条待办，本批做了前两条；第三条（真实 QQ/Telegram 外发）必须由操作者指定测试目标，未动。
+
+### 1. 中途换预设：从「没有记录」到「事件驱动记录」
+
+```text
+缺口    notePreset 只在建会话时调用；会话中途换预设没有任何人记录
+改动    src/chat/session-events.js 在 chatId 兜底**之前**接住 host 事件 agent-preset/selected
+        （放在后面会被丢掉：换预设可能早于任何聊天映射）
+        src/integration/purge-scope.js 新增 presetKey() 归一化
+        src/chat/mount.js 卸载时 forgetPreset
+```
+
+**顺手挖出一个真 bug**：hub 的 `sessionKey` 会剥掉 `session-` 前缀，而此前「记录用剥过的、查询用原始的」，
+两边对不上 —— 换过预设的会话仍会退回读创建时的 header（正是 B8c 要修的那个过期值）。现在记录/查询/遗忘三处
+共用 `presetKey()`。
+
+测试：`test/purge-preset.test.js` 4 → 6 个用例，新增「带前缀/不带前缀都能查到」与
+「`agent-preset/selected` 事件会更新当前预设」。
+
+### 2. purge 工具端到端（只读）
+
+在 mini 上用管理员私聊链路（`/debug/say`，不外发）让模型**真的调用** `purge_status`：
+
+```text
+请求  {"text":"请立刻调用 purge_status 工具（不要凭记忆回答），把它返回的原文逐字告诉我"}
+返回  dsh-purge 状态 / Status
+      · 宿主 / surface: desktop
+      · DSH_HOME: /Users/gengzhiyu/.dsh
+      · 桌面安装: /Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness
+      · 插件根: …/node_modules/@deepseek-ai
+        ✓ agent-instructions  ✓ web-app  ✓ web-app-lib  …
+日志  12:33:27 [调试] 面板 → private:257859927：请立刻调用 purge_status 工具…
+```
+
+这是 Aurabot 会话里第一次真正执行 purge 工具：宿主认出工具（B17/B18 已证）→ 收窄规则放行（管理员私聊）→
+模型调用 → purge 侧返回真实宿主状态。
+
+**没有执行** `purge_apply` / `purge_revert`：这两个会改 DSH 安装，属写操作，按你的规则等你单独授权。
+
+### 3. Air 自动测试
+
+```text
+全量        1678 passed / 0 failed / 0 skipped（比 1.6.59 多 2 个）
+语法检查    613 个文件通过
+oxlint      0 error / 159 warning
+```
+
+### 4. Mini 实机
+
+```text
+回滚点      ~/aurabot-release-backups/20261127-123156（1.6.59 包 + package.json + lockfile）
+候选包      /tmp/dsh-aurabot-qq-1.6.60.tgz（467 条目，19,647,215 字节）
+sha256      13e4aaf0f80cc1b368852e1e8a11b15139173b4de910949485ad7cfdd0d666ff
+装后核对    version 1.6.60；session-events.js 含 agent-preset/selected 处理（命中 1）
+启动        12:32:07 Aurabot v1.6.60 已加载｜总开关 开｜试运行 关
+面板        /aurabot/api/state → 1.6.60，onebot=connected
+清理        临时 debug 已从 /tmp/aurabot-config-before-b19.json 恢复；重启 12:33:52 正常
+error       12:30 之后新增 0 条
+```
+
+### 5. 发布
+
+```text
+候选包    /tmp/dsh-aurabot-qq-1.6.60.tgz（467 条目，19,647,215 字节）
+sha256    13e4aaf0f80cc1b368852e1e8a11b15139173b4de910949485ad7cfdd0d666ff
+提交 / tag / Release / CI：见下一条记录
+```

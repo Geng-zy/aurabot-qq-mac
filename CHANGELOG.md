@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.60
+
+- B19 补上一轮欠的第 1 号实机证据：**会话中途换预设**现在真的会被记录。
+  - `src/chat/session-events.js`：在 `chatId` 兜底**之前**接住宿主事件 `agent-preset/selected`，写入
+    「当前预设」。放在前面是因为换预设的事件可能早于任何聊天映射，放在后面会被直接丢掉。
+  - `src/integration/purge-scope.js`：新增 `presetKey()` 归一化。hub 的 `sessionKey` 会剥掉 `session-`
+    前缀，而此前「记录用剥过的、查询用原始的」，两边对不上 —— 换过预设的会话会退回读 header（就是过期值）。
+    现在记录/查询/遗忘三处都走同一个归一化。
+  - `src/chat/mount.js`：会话卸载时 `forgetPreset`，这张表不再只增不减。
+- 测试：`test/purge-preset.test.js` 从 4 个用例增到 6 个 —— 新增「带前缀 / 不带前缀都能查到」与
+  「`agent-preset/selected` 事件会更新当前预设」。
+- 回归：全量 1678 个测试通过（+2），语法 613 文件，oxlint 0 error / 159 warning。
+
 ## 1.6.59
 
 - B18 会话/权限：把「这套挂载该不该收窄宿主维护工具」从 `chat/mount.js` 里抠成**纯函数深模块**

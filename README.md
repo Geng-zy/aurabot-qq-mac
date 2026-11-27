@@ -43,18 +43,17 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.59 更新
+## 1.6.60 更新
 
-### 挂载决策抽成纯函数（B18 · 会话/权限）
+### 中途换预设真的会被记录（B19）
 
-- 「这套挂载该不该收窄宿主维护工具」原来埋在 `mount()` 中间，要验证必须造真 agent、真工具服务、真配置。现在它是 `src/chat/mount-plan.js` 里的一个纯函数：收事实、返回结果。
-- **豁免收窄的三个条件（私聊 + 本轮 full + 配置也是 full）只写在一处**——这条规则改错就是陌生人拿到 `purge_apply`。
-- 新增只读入口 `GET /aurabot/api/host/mount-plan?chat=…&level=…`：不发真消息也能看到群聊/私聊两条路径的收窄结果。
-- 顺带修掉 `levelFor` 取错模块（`core/group-policy.js` 里没有这个导出，应与 hub 一致从 `chat/access.js` 取）。
+- 宿主的 `agent-preset/selected` 事件现在会被接住并写入「当前预设」——而且放在聊天映射兜底之前，否则换预设早于任何聊天事件时会被丢掉。
+- 修掉一处键不一致：hub 的 `sessionKey` 会剥掉 `session-` 前缀，此前「记录用剥过的、查询用原始的」，换过预设的会话会退回读创建时的 header（过期值）。现在三处共用同一归一化。
+- 会话卸载时清掉记录，表不再只增不减。
 
 ### 前几批
 
-1.6.58 rc.3 宿主取证；1.6.55 发布事务独立；1.6.54 路径安全层独立；1.6.53 恢复路径补直测；1.6.52 云备份后端分家；1.6.51 hub 纯函数下沉；1.6.50 终验；1.6.49 清单闸门；1.6.48 当前预设；1.6.47 宿主工具发现加固；1.6.46 本地脚本信任链；1.6.45 表单小工具；1.6.44 面板样式；1.6.43 适配层门面化；1.6.42 心智越界归位；1.6.41 backup 拆 ZIP；1.6.40 core 反向依赖 10→0；1.6.39 config 拆分；1.6.38 修线上潜伏 bug；1.6.37 zip 去重；1.6.36 会话事件；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 写操作闸；1.6.32 组合根；1.6.31 语音条 + 清单。
+1.6.59 挂载决策纯函数；1.6.58 rc.3 宿主取证；1.6.55 发布事务独立；1.6.54 路径安全层独立；1.6.53 恢复路径补直测；1.6.52 云备份后端分家；1.6.51 hub 纯函数下沉；1.6.50 终验；1.6.49 清单闸门；1.6.48 当前预设；1.6.47 宿主工具发现加固；1.6.46 本地脚本信任链；1.6.45 表单小工具；1.6.44 面板样式；1.6.43 适配层门面化；1.6.42 心智越界归位；1.6.41 backup 拆 ZIP；1.6.40 core 反向依赖 10→0；1.6.39 config 拆分；1.6.38 修线上潜伏 bug；1.6.37 zip 去重；1.6.36 会话事件；1.6.35 单一注意力；1.6.34 渠道契约；1.6.33 写操作闸；1.6.32 组合根；1.6.31 语音条 + 清单。
 
 逐版变更见 [CHANGELOG](CHANGELOG.md)。
 
@@ -140,12 +139,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.59.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.60.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.59.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.60.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
