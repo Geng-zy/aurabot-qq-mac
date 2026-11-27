@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.67
+
+- B29 **合并两个纯透传模块**（都属于「一个适配器＝假想接缝」的情况，删除测试都不过）：
+  - `src/channels/telegram/adapter.js`（8 行）：只是 `createPlatformAdapter` 的两行装配，没有任何自己的行为。
+    合并进 `src/channels/telegram/index.js`，由它导出 `createTelegramAdapter`；`registry.js` 直接从这里取。
+  - `src/channels/qq/features/forward.js`（8 行）：只做 `forward: (id) => readForward({ call }, id, {...})` 的柯里化。
+    内联到 `src/channels/qq/index.js` 的装配处（`channel.forward` 形状不变），`qq/forward.js` 的 `readForward` 不动。
+  - QQ 仍保留 `qq/adapter.js`：它不只是装配，还把 `convert` 换成带表情名的 `convertMessageEvent`。
+- 没有用户可见变化：`caps.forward` 仍为 true、`forward(id)` 语义不变、面板与工具不受影响。
+- 回归：全量 1691 个测试通过；语法 611 文件（减少 2 个已删文件）；oxlint 0 error / 160 warning；清单 0 待审。
+
 ## 1.6.66
 
 - B28 **QQ 系统表情目录收敛到唯一来源**（`src/channels/qq/faces.js`；删除 `features/face-catalog.js`）。

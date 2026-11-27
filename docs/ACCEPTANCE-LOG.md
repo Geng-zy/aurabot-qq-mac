@@ -2649,3 +2649,54 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.66
 CI        run 45971494609 → macos-latest success、ubuntu-latest success（17:17 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B29 · 合并两个纯透传模块（1.6.67）
+
+批次来源：`docs/REPO-INVENTORY.md` 里两条 verdict=merge 的结论（`channels/qq/features/forward.js`、
+`channels/telegram/adapter.js`）。两者的共同点是**删除测试不过**：文件体没有任何自己的行为，
+只是把已有实现按调用点的口味柯里化一遍。
+
+### 1. 接口（codebase-design）
+
+装配这件事应该待**组合根**里，不该再单独占一个模块：
+
+| 文件 | 之前 | 现在 |
+|---|---|---|
+| `channels/telegram/adapter.js` | 8 行：`createTelegramChannel` → `createPlatformAdapter` | 删除；`createTelegramAdapter` 移到 `telegram/index.js` 导出，`registry.js` 从那里取 |
+| `channels/qq/features/forward.js` | 8 行：`forward: (id) => readForward({call}, id, {...})` | 删除；内联成 `qq/index.js` 里的 `channel.forward`，`qq/forward.js` 的 `readForward` 不动 |
+
+QQ 仍然保留 `qq/adapter.js`：它不是纯装配，还把 `convert` 换成带表情名的 `convertMessageEvent`
+——「一个适配器＝假想接缝，两个适配器＝真接缝」，这里第二件事真实存在，所以留下。
+
+对外契约零变化：`caps.forward` 仍为 true、`forward(id)` 语义不变、`/platforms` 与面板都不受影响。
+
+### 2. 自动测试（Air）
+
+```text
+相关套件 channels-caps / channels-contract / telegram-channel / faces-catalog / forward
+  → 24 tests / 24 pass（validateChannel 对两个适配器仍通过；forward 5 个用例未改动即通过）
+全量 1691 passed / 0 failed / 0 skipped
+语法 611 文件（比上批少 2 个，正是被删的两个）；oxlint 0 error / 160 warning
+清单 708 行、待审 0
+```
+
+### 3. Mini 实机 + Purge 联动
+
+```text
+安装   1.6.67（回滚点 ~/aurabot-release-backups/20261127-174017）
+启动   17:40:22 Aurabot v1.6.67 已加载
+平台   GET /platforms → qq | state=connected | caps.forward=true
+                        telegram | state=stopped | caps.forward=false（符合它的真实能力）
+面板   GET /panel/faces → 341 条（B28 的唯一来源没被这批碰坏）
+Purge  GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+日志   17:40 之后新增 error：0 条
+```
+
+真实外发：本批未做（未获单独授权）。
+
+### 4. 顺手校正的审计文字
+
+`channels/qq/features/profile/index.js` 那行仍写着「第 49 行 `files: ['qq-profile.js']` 会 ENOENT」——
+代码早已是完整相对路径，结论过时；本批把该行文字改成现状，避免清单继续误导。

@@ -1,7 +1,7 @@
 // 平台适配器注册表：借鉴 AstrBot 的 PlatformAdapter / PlatformManager 分层。
 // 平台只负责：创建连接、把原始事件转成统一消息、把统一消息发回平台。
 import { createQqAdapter } from './qq/adapter.js'
-import { createTelegramAdapter } from './telegram/adapter.js'
+import { createTelegramAdapter } from './telegram/index.js'
 
 const adapters = [
   {

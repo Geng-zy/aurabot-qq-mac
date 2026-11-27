@@ -4,7 +4,7 @@
     "area": "channels",
     "owner": "channels",
     "verdict": "keep",
-    "evidence": "42 行、0 个内部依赖、2 处 import（src/channels/qq/adapter.js:4、src/channels/telegram/adapter.js:3）、0 个测试直接引用。成员清点：run()=start()、commitEvent()=on() 是纯改名且 src/ 下 0 调用（grep sendBySession|commitEvent 只命中本文件与 test/platform-hub.test.js:49-63），8 个 start/stop/ready/state/status/on/send/convert 是直转，实做只有 sendBySession 的 session→chatId 映射（9-15 行）和 38-40 行把 transport 其余键整表拷到 adapter。删除测试：删掉后两个 adapter 各要复制 16 行，判 keep；键拷贝同时把 qq/index.js 的 24 个非契约键暴露到 PlatformAdapter 上，是下一批收窄的入口。"
+    "evidence": "42 行、0 个内部依赖、2 处 import（src/channels/qq/adapter.js:4、src/channels/telegram/index.js）、0 个测试直接引用。成员清点：run()=start()、commitEvent()=on() 是纯改名且 src/ 下 0 调用（grep sendBySession|commitEvent 只命中本文件与 test/platform-hub.test.js:49-63），8 个 start/stop/ready/state/status/on/send/convert 是直转，实做只有 sendBySession 的 session→chatId 映射（9-15 行）和 38-40 行把 transport 其余键整表拷到 adapter。删除测试：删掉后两个 adapter 各要复制 16 行，判 keep；键拷贝同时把 qq/index.js 的 24 个非契约键暴露到 PlatformAdapter 上，是下一批收窄的入口。"
   },
   {
     "path": "src/channels/ids.js",
@@ -182,13 +182,6 @@
     "evidence": "10 行、1 个内部依赖（qq/faces.js）、1 处 import（qq/index.js:12）、0 个测试直接引用；textSegments 经 src/chat/send-text.js:16 在带 caps.faces 的真实路径上被调用。实做是把 createFaces 与 textToSegments/stripFaceTags 收成一个 {faces, textSegments} 对，withFaces=false 时剥标签（第 8 行）；行数 10 <300，删掉后 qq/index.js 要多引 3 个符号，保留。"
   },
   {
-    "path": "src/channels/qq/features/forward.js",
-    "area": "channels/qq-features",
-    "owner": "channels-qq-features",
-    "verdict": "merge",
-    "evidence": "8 行、1 个内部依赖（qq/forward.js）、1 处 import（qq/index.js:19 的 createForwardApi）、0 个测试。grep 证据：全仓只有 qq/index.js:114 调用 createForwardApi，文件体只做 forward: (id) => readForward({call}, id, {...})，一层柯里化把 call/selfId/faceName 绑好；实现与测试都在 qq/forward.js（49 行，test/forward.test.js 5 个用例）。应并入 qq/index.js 的装配（1 行内联到 channel.forward），删掉本文件后无需改动 readForward。"
-  },
-  {
     "path": "src/channels/qq/features/group-admin/index.js",
     "area": "channels/qq-features",
     "owner": "channels-qq-features",
@@ -249,7 +242,7 @@
     "area": "channels/qq-features",
     "owner": "channels-qq-features",
     "verdict": "keep",
-    "evidence": "216 行、7 个内部依赖（profile/qq-profile.js、chat/access.js、core/img.js、core/net.js、core/store.js、src/features/paintings.js、tools/tools.js）、3 处 import 含 2 个测试（test/profile.test.js、test/pure.test.js）。缺陷可核对：第 49 行 files: ['qq-profile.js']，而 src/core/module-registry.js:116 用 join(SRC, ...key.split('/')) 解析成 src/qq-profile.js，该文件不存在（实测 existsSync=false），管理员对 profile 点「复制成模块」会 ENOENT；正确写法是 channels/qq/features/profile/qq-profile.js。"
+    "evidence": "216 行、7 个内部依赖（profile/qq-profile.js、chat/access.js、core/img.js、core/net.js、core/store.js、src/features/paintings.js、tools/tools.js）、3 处 import 含 2 个测试（test/profile.test.js、test/pure.test.js）。（原记录的路径缺陷已修：第 49 行现在是完整 src 相对路径 `channels/qq/features/profile/qq-profile.js`，`module-registry.fork()` 用 join(SRC, …key.split('/')) 能解析到真实文件；本条审计文字此前停留在旧结论，B29 一并校正。）"
   },
   {
     "path": "src/channels/qq/features/profile/qq-profile.js",
@@ -326,7 +319,7 @@
     "area": "channels/qq",
     "owner": "channels-qq",
     "verdict": "keep",
-    "evidence": "49 行、1 个内部依赖（qq/convert.js）、3 处 import 含 1 个测试（test/forward.test.js，5 个用例覆盖嵌套/上限/无内容）；importer 是 features/forward.js（8 行包装）与 src/chat/hub.js:23（只 import forwardBody 供 on-message 拼文案）。常量 MAX_FORWARD_DEPTH=5/LINES=200/CHARS=12000/IMAGES=6 都在这，是转发展开的唯一实现。"
+    "evidence": "49 行、1 个内部依赖（qq/convert.js）、3 处 import 含 1 个测试（test/forward.test.js，5 个用例覆盖嵌套/上限/无内容）；importer 是 qq/index.js 的装配与 src/chat/hub.js:23（只 import forwardBody 供 on-message 拼文案）。常量 MAX_FORWARD_DEPTH=5/LINES=200/CHARS=12000/IMAGES=6 都在这，是转发展开的唯一实现。"
   },
   {
     "path": "src/channels/qq/inbox.js",
@@ -368,20 +361,13 @@
     "area": "channels",
     "owner": "channels",
     "verdict": "keep",
-    "evidence": "49 行、2 个内部依赖（qq/adapter.js、telegram/adapter.js）、2 处 import（src/host.js:22、test/platform-hub.test.js）、1 个测试（动态注册 + 重名报错）。adapters 数组写死 qq/telegram 两项；registerPlatformAdapter() 22-30 行有 0 个 src/ 调用者（grep 只命中 test/platform-hub.test.js:44），是给社区扩展留的接缝；createPlatformChannels() 40-48 行逐项 try/catch，单平台创建失败不阻断。"
-  },
-  {
-    "path": "src/channels/telegram/adapter.js",
-    "area": "channels/telegram",
-    "owner": "channels-telegram",
-    "verdict": "merge",
-    "evidence": "8 行、2 个内部依赖（telegram/index.js、adapter-facade.js）、1 处 import（src/channels/registry.js:17）、0 个测试。grep 证据：全仓对 createTelegramAdapter 的调用只有 registry.js:17 一处，文件体仅 createPlatformAdapter({platform,label,transport}) 一层直转，ctx.createTransport 逃生口在 telegram 侧 0 个调用者（只有 qq 版被 test/platform-hub.test.js:52 用）。应并入 src/channels/registry.js（第 17 行换成一行 createPlatformAdapter），或让 adapter-facade 直接提供 createTelegramAdapter；qq/adapter.js 有 convert 覆盖需要留在原处。"
+    "evidence": "51 行（B29 后）、2 个内部依赖（qq/adapter.js、telegram/index.js 的 createTelegramAdapter）、2 处 import（src/host.js 与 test/channels-contract.test.js）。职责：平台注册表——`registerPlatformAdapter` 让后续平台/模块注册自己的适配器，`create` 按 id 造通道。B29 起 telegram 不再有独立 adapter 文件（8 行纯透传并入 telegram/index.js），QQ 仍保留 qq/adapter.js，因为它多做一件事：把 convert 换成带表情名的 convertMessageEvent。"
   },
   {
     "path": "src/channels/telegram/index.js",
     "area": "channels/telegram",
     "owner": "channels-telegram",
     "verdict": "keep",
-    "evidence": "288 行、1 个内部依赖（channels/ids.js）、2 处 import（telegram/adapter.js、test/telegram-channel.test.js）、2 个测试文件（telegram-channel.test.js 7 个用例、channels-caps.test.js 契约校验）。职责四块：Bot API 传输（call/callForm，含超时与 uncertain 语义）、长轮询与 offset 游标、消息归一化、发送（含 multipart 头像图）。B27 已把三处契约差异补齐：① caps 只留 channels/index.js 的规范能力位（原先声明 text/reply/images 三个假能力）；② 传输失败带 uncertain（超时/网络/5xx → 可能已发出；4xx → 确定没发出），mind-adapter/reminders 的「不确定不重发」从此在 Telegram 生效；③ 补 dispose/resetInbox，manager 关闭时不再走 stop() 回退。235→288 行仍 <300，保留。"
+    "evidence": "299 行、1 个内部依赖（channels/ids.js）、2 处 import（channels/registry.js、test/telegram-channel.test.js）、2 个测试文件（telegram-channel.test.js 7 个用例、channels-caps.test.js 契约校验）。职责四块：Bot API 传输（call/callForm，含超时与 uncertain 语义）、长轮询与 offset 游标、消息归一化、发送（含 multipart 头像图）。B27 已把三处契约差异补齐：① caps 只留 channels/index.js 的规范能力位（原先声明 text/reply/images 三个假能力）；② 传输失败带 uncertain（超时/网络/5xx → 可能已发出；4xx → 确定没发出），mind-adapter/reminders 的「不确定不重发」从此在 Telegram 生效；③ 补 dispose/resetInbox，manager 关闭时不再走 stop() 回退。235→299 行仍 <300，保留。 B29 把 telegram/adapter.js（8 行纯透传）合并进来：本文件导出 createTelegramAdapter，registry 直接从这里取；适配器不再单独成文件（删除测试不过——它没有任何自己的行为）。"
   }
 ]

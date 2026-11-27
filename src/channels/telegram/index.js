@@ -1,6 +1,7 @@
 // Telegram 平台适配器：长轮询 Bot API，不要求公网端口。
 // 只实现最小能力：文本、回复、图片；平台特有的按钮/文件等以后按 caps 增加。
 import { chatIdOf, parseChat } from '../ids.js'
+import { createPlatformAdapter } from '../adapter-facade.js'
 
 export const PLATFORM = 'telegram'
 // 能力位只能用 channels/index.js 的 CAPS 规范键：text / reply / images 不是能力位
@@ -285,4 +286,14 @@ export function createTelegramChannel({ getConfig, log = {}, fetchImpl = globalT
     convert: (raw) => normalize(raw),
   }
   return channel
+}
+
+/**
+ * AstrBot 风格的 Telegram 适配器入口：外面套统一 PlatformAdapter，Bot API 细节留在 transport。
+ * （原来是 telegram/adapter.js 的一层纯透传文件，删除测试不过——它没有任何自己的行为，
+ *  只是 createPlatformAdapter 的两行装配；合并进平台模块后，注册表照旧只认这一个名字。）
+ */
+export function createTelegramAdapter(ctx = {}) {
+  const transport = ctx.createTransport ? ctx.createTransport(ctx) : createTelegramChannel(ctx)
+  return createPlatformAdapter({ platform: PLATFORM, label: 'Telegram', transport })
 }

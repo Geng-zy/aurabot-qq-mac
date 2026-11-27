@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { validateChannel, CAP_METHODS } from '../src/channels/index.js'
 import { createQqAdapter } from '../src/channels/qq/adapter.js'
-import { createTelegramAdapter } from '../src/channels/telegram/adapter.js'
+import { createTelegramAdapter } from '../src/channels/telegram/index.js'
 
 const log = { info() {}, warn() {}, debug() {}, error() {}, child() { return this } }
 const qqCfg = () => ({ snowluma: {}, platforms: { qq: {} } })
