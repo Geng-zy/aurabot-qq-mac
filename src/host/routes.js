@@ -51,7 +51,7 @@ import { createLocalInstaller } from '../mind-adapter/install.js'
 export function registerAllRoutes(d) {
   const {
     route, http, getConfig, setConfig, getMind, hub, ctx, onebot, qq, channels, mods, bridge, local, knowledge,
-    log, logger,
+    log, logger, purge,
   } = d
   const { send, readBody, readRaw, query } = http
 
@@ -146,7 +146,7 @@ export function registerAllRoutes(d) {
     stageReceivedBackup: d.stageReceivedBackup,
   })
 
-  registerHostRoutes({ route, ctx, getConfig })
+  registerHostRoutes({ route, ctx, getConfig, presetFor: (id) => purge.presetFor?.(id) || '', lastPreset: () => purge.lastPreset?.() || null })
   registerNoticeRoutes({
     route, readBody, query, getConfig, setConfig, workspaceList: d.workspaceList,
     normalizeWorkspace: d.normalizeWorkspace, hub,

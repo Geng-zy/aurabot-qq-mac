@@ -2312,3 +2312,46 @@ rc.3 源码 @deepseek-ai/dsh-agent-preset-registry/lib/types/host.js：
 ```
 
 本项**未发现回归**，没有需要修的切换链路，因此不改代码、不发版。
+
+---
+
+## B23 · 补上「预设切换」的只读取证出口（1.6.61 候选，未发布）
+
+上一轮结论「无法复现」写得不够到底：缺的其实是**观测手段**。这一批补上出口。
+
+### 改动
+
+```text
+src/integration/purge-scope.js   notePreset(id, preset, { source }) 同时记 lastPreset{ sessionId, preset, source, at }
+                                 新增只读 lastPreset()
+src/chat/session-events.js       agent-preset/selected → notePreset(..., { source: 'event' })
+src/features/host-routes.js      新增 GET /aurabot/api/host/preset?session=<id> → { presetFor, last }
+src/host.js / src/host/routes.js 把 purge 实例递给路由表（原先路由拿不到）
+test/fixtures/host-routes.json   135 → 136
+```
+
+测试：`test/host-tools-route.test.js` +2 ——「切换后立刻是新预设且 `source=event`」、「没给 session 也不炸」。
+全量 **1680 passed / 0 failed / 0 skipped**；语法 613 文件；oxlint 0 error / 159 warning。
+
+### Mini 安装核对（候选，未发布）
+
+```text
+回滚点  ~/aurabot-release-backups/20261127-144553（1.6.60 包 + package.json + lockfile）
+安装    1.6.61；启动 14:45:58 Aurabot v1.6.61 已加载
+接口    GET /aurabot/api/host/preset → {"ok":true,"session":null,"presetFor":null,"last":null}
+        （新接口在真机上可用；此刻还没有任何预设登记，符合预期）
+```
+
+### 仍缺的实测：一次真实的预设切换
+
+```text
+卡点 1  rc.3 只允许**空白会话**切预设（host.js: "Rebind a blank Agent; the caller owns the
+        blank-session check"）；48 份会话日志里 agent-preset/selected 事件总数为 0。
+卡点 2  界面切换需要驱动 mini 的 DSH GUI：本轮试过 Tailscale + 屏幕共享，能连、能解锁、能点、
+        能发键，但键盘输入被远端输入法吞字符，且 Air 当时正在被操作者使用，抢不到稳定前台。
+卡点 3  想绕开 GUI 用插件调 AgentPresetRegistry.select(agent, preset)：服务名在 rc.3 的压缩产物里
+        没查出来（grep service/provide/ctx.* 均无命中），临时探针插件的 bundle 组装也一直没被 launcher 采信。
+```
+
+判定：**未发现回归，也没有需要修的切换链路**（单测覆盖事件→登记→优先级）。因此这一批
+**不提交、不打 tag、不发 Release**，`1.6.61` 作为候选留在工作区与 mini 上，等一次真实切换取证后再定。

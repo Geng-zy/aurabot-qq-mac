@@ -84,3 +84,33 @@ test('/host/mount-plan：群聊会被收窄、管理员私聊豁免（只读，�
   const bad = await plan({ url: '/host/mount-plan' })
   assert.equal(bad.ok, false)
 })
+
+test('/host/preset：能查到某条会话的当前预设与最近一次登记（含来源）', async () => {
+  const { createPurgeScope } = await import('../src/integration/purge-scope.js')
+  const scope = createPurgeScope({})
+  scope.notePreset('session-abc', 'aurabot-private-long')                       // 建会话时
+  scope.notePreset('session-abc', 'aurabot-social', { source: 'event' })        // 会话中切换
+  const routes = new Map()
+  registerHostRoutes({
+    route: (path, fn) => routes.set(path, fn),
+    ctx: {},
+    getConfig: () => ({}),
+    presetFor: (id) => scope.presetFor(id),
+    lastPreset: () => scope.lastPreset(),
+  })
+  const r = await routes.get('/host/preset')({ url: '/host/preset?session=session-abc' })
+  assert.equal(r.ok, true)
+  assert.equal(r.presetFor, 'aurabot-social', '切换之后应当立刻是新预设')
+  assert.deepEqual({ ...r.last, at: 0 }, { sessionId: 'abc', preset: 'aurabot-social', source: 'event', at: 0 },
+    '最近一次登记要标明是会话中切换（source=event），不是创建')
+})
+
+test('/host/preset：没给 session 时不炸，只回最近登记', async () => {
+  const routes = new Map()
+  registerHostRoutes({ route: (path, fn) => routes.set(path, fn), ctx: {}, getConfig: () => ({}) })
+  const r = await routes.get('/host/preset')({ url: '/host/preset' })
+  assert.equal(r.ok, true)
+  assert.equal(r.session, null)
+  assert.equal(r.presetFor, null)
+  assert.equal(r.last, null)
+})

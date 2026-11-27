@@ -13,7 +13,7 @@ export function createSessionEventHandler({
     // 会话中途换了预设：这是「当前预设」最权威的来源（宿主文档：重建读 agentPreset 投影，不读创建时的 header）。
     // 放在 chatId 兜底之前——换预设的事件可能早于任何聊天映射，否则会被丢掉。
     if (event?.type === 'agent-preset/selected' && event.data?.agentPreset) {
-      try { notePreset(key, event.data.agentPreset) } catch (error) { log?.debug?.('记录预设变更失败：', error?.message) }
+      try { notePreset(key, event.data.agentPreset, { source: 'event' }) } catch (error) { log?.debug?.('记录预设变更失败：', error?.message) }
       return
     }
     // 回合结束时内存映射可能已空（刚重启），退回持久化的映射，别把这一轮丢了（#159）。

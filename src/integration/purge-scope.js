@@ -145,11 +145,20 @@ export function createPurgeScope({ log } = {}) {
   // 会话 id → 我们建它时用的预设。宿主 header 只是创建事实，中途换预设不会改它，
   // 所以自己记一份当前值（见 presetOfAgent 的注释）。
   const presets = new Map()
+  // 最近一次登记：面板/验收要能回答「这条记录是什么时候、因为什么写进去的」。
+  let lastPreset = null
   return {
     isTool: isHostMaintenanceTool,
     toolNames: (agent, context = {}) => maintenanceToolNames(agent, { log, ...context }),
     /** 建会话成功后调用：记住这个会话跑的是哪个预设。 */
-    notePreset: (sessionId, preset) => { const k = presetKey(sessionId); if (k && preset) presets.set(k, String(preset)) },
+    notePreset: (sessionId, preset, info = {}) => {
+      const k = presetKey(sessionId)
+      if (!k || !preset) return
+      presets.set(k, String(preset))
+      lastPreset = { sessionId: k, preset: String(preset), source: String(info.source || 'create'), at: Date.now() }
+    },
+    /** 最近一次登记（只读，给面板与实机验收）。 */
+    lastPreset: () => lastPreset,
     /** 会话销毁时调用，别让这张表无限长。 */
     forgetPreset: (sessionId) => presets.delete(presetKey(sessionId)),
     presetFor: (sessionId) => presets.get(presetKey(sessionId)) || '',

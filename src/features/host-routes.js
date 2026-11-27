@@ -15,7 +15,7 @@ function probeTools(ctx) {
   try { return ctx?.tools ?? null } catch { return null }
 }
 
-export function registerHostRoutes({ route, ctx, getConfig }) {
+export function registerHostRoutes({ route, ctx, getConfig, presetFor = () => '', lastPreset = () => null }) {
   // 只读：给一个假设的聊天与级别，算出「这套挂载会不会收窄维护工具、指纹是什么」。
   // 用途是实机验收——不用真的发一条 QQ 消息，也能看到群聊/私聊两条路径的收窄结果。
   route('/host/mount-plan', async (req) => {
@@ -40,6 +40,19 @@ export function registerHostRoutes({ route, ctx, getConfig }) {
       detected, toolNames: [], generation: 0,
     })
     return { ok: true, chat: { chatId, kind, level }, groupLevel: levelFor(config, chat), detected, plan }
+  })
+
+  // 只读：某条会话的「当前预设」是怎么记下来的（建会话时 / 会话中切换），最近一次登记是什么。
+  // 用途：验证 notePreset 在正确时机生效 —— 切换后这里应当立刻反映新预设、source=event。
+  route('/host/preset', async (req) => {
+    const q = new URL(String(req?.url || '/'), 'http://127.0.0.1').searchParams
+    const session = String(q.get('session') || '')
+    return {
+      ok: true,
+      session: session || null,
+      presetFor: session ? presetFor(session) : null,
+      last: lastPreset(),
+    }
   })
 
   route('/host/tools', async () => {

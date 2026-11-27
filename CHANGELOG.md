@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.61
+
+- B23 会话中途切换预设：补上**只读取证出口**，让「notePreset 是否在正确时机生效」可以被实测。
+  - `purge-scope` 的 `notePreset(sessionId, preset, { source })` 现在同时记下 `lastPreset`
+    （`{ sessionId, preset, source, at }`），并新增 `lastPreset()` 只读访问器；
+  - `session-events` 在接住 `agent-preset/selected` 时标注 `source: 'event'`（建会话时是 `create`）；
+  - 新增只读接口 `GET /aurabot/api/host/preset?session=<id>` → `{ presetFor, last }`，路由快照 135 → 136；
+  - `host.js`/`host/routes.js` 把 purge 实例递给路由表（原先路由拿不到）。
+- 为什么加这个：没有出口就没法回答「切换之后她记的是新预设还是旧 preset」。加了之后，
+  真机切一次预设，接口立刻能看出「值变了、来源是 event、会话键归一化正确」。
+- 测试：`test/host-tools-route.test.js` +2（切换后立刻是新预设且 source=event；没给 session 也不炸）。
+- 回归：全量 1680 个测试通过（+2），语法 613 文件，oxlint 0 error / 159 warning。
+
 ## 1.6.60
 
 - B19 补上一轮欠的第 1 号实机证据：**会话中途换预设**现在真的会被记录。
