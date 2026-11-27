@@ -2713,3 +2713,57 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.67
 CI        run 45975828420 → macos-latest success、ubuntu-latest success（17:48 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B30 · 拆分 `src/channels/qq/index.js`（1.6.68）
+
+批次来源：`docs/REPO-INVENTORY.md` 里 `channels/qq/index.js` 的 verdict=split（179 行、19 个内部依赖，
+装配与状态机/定时器/能力实现混在一处）。范围只含 QQ 通道，接口对外不变。
+
+### 1. 接口（codebase-design）
+
+装配是组合根的职责；**状态机**和**定时器生命周期**不是。本批把两块真职责抽成模块：
+
+| 新模块 | 行数 | 藏起来的东西 | 对外只有 |
+|---|---|---|---|
+| `features/gate-status.js` | 63 | 网关状态机、登录号核对时机、核对期间事件暂存、resetAccount 清理 | `onState / onEvent / ready / state / revision / resetAccount` + 两个回调 |
+| `features/outbox-wiring.js` | 46 | 定时重试的生命周期、重试阈值、`delivered` 事件形状 | `flush / timer` |
+
+关键设计点：`gate-status` **不直接**动补发队列、也**不直接**停机——它只喊
+`onLoginOk(revision)` / `onLoginFatal(reason)`，由装配决定「补发」还是「停机」。
+这样状态机不需要知道 outbox 与 gw 的存在，测试也不用假装网关。
+
+`qq/index.js` 179 → **154 行**，只剩：读配置 → 造网关 → 造各能力 API → 拼 channel 表面。
+
+### 2. 自动测试（Air）
+
+```text
+新增 test/qq-gate-status.test.js 4 个用例
+  ✔ 连上并核对通过 → ready() 真、onLoginOk 带最新代次、状态广播
+  ✔ 登录号不对 → ready 保持 false、onLoginFatal 收到原因
+  ✔ 断线回到 false；resetAccount 清掉核对结果与攒着的事件
+  ✔ 补发接线：有队列才起定时器（unref），flush 暴露为函数
+
+相关套件 e2e（含热重载与面板）/ qq-outbox-flush / outbox / gateway-resilience /
+channels-caps / forward / platform-hub → 30 + e2e 全绿
+全量 1695 passed / 0 failed / 0 skipped；语法 614 文件；oxlint 0 error / 160 warning；清单 0 待审
+```
+
+模拟网关：`gateway-resilience`、`qq-outbox-flush` 这两套本来就靠注入的 fake 网关跑重连/补发，
+本批未改它们的注入点，原样通过 —— 说明抽模块没有改变「重连 → 补发」的时序。
+
+### 3. Mini 实机 + Purge 联动
+
+```text
+安装   1.6.68（回滚点 ~/aurabot-release-backups/20261127-185734）
+启动   18:57:39 Aurabot v1.6.68 已加载
+平台   GET /platforms → qq | state=connected | 能力位 true 数=15（登录号核对走的是新 gate-status）
+                        telegram | state=stopped | 能力位 true 数=0（B27 定的规范集没被影响）
+面板   /panel/faces → 341 条（B28 的唯一来源仍单份）
+Purge  /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+挂载   /host/mount-plan?chat=qq:group:158706927&level=chat → owner=false、deny=3（基线未变）
+日志   18:57 之后新增 error：0 条
+```
+
+真实外发：本批未做（未获单独授权）。

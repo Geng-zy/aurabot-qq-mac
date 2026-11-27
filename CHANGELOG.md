@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.68
+
+- B30 **拆分 `src/channels/qq/index.js`**（179 → 154 行）：把两块真职责抽成独立模块，本文件从此只做装配。
+  - `features/gate-status.js`（63 行）：网关状态机 + 登录号核对。以前这段和装配混在一起，
+    改状态机要通读整份装配；抽出来之后它不直接动补发队列、也不直接停机，只通过
+    `onLoginOk(revision)` / `onLoginFatal(reason)` 告诉装配，由装配决定动作。
+  - `features/outbox-wiring.js`（46 行）：补发队列接线——定时重试的生命周期、重试阈值、
+    `delivered` 事件形状。没有队列时不起定时器（原来这几点散在装配的 30 行里）。
+  - `createQqChannel` 对外形状与行为零变化。
+- 测试：新增 `test/qq-gate-status.test.js` 4 个用例（核对通过 → ready 且回调带最新代次、
+  号不对 → onLoginFatal、断线 + resetAccount 清理、补发接线有/无队列两种定时器行为）。
+- 回归：全量 1695 个测试通过；语法 614 文件；oxlint 0 error / 160 warning；清单 0 待审。
+  相关套件 e2e / qq-outbox-flush / outbox / gateway-resilience / channels-caps / forward / platform-hub 全绿。
+
 ## 1.6.67
 
 - B29 **合并两个纯透传模块**（都属于「一个适配器＝假想接缝」的情况，删除测试都不过）：

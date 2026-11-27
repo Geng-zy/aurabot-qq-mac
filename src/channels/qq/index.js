@@ -14,11 +14,12 @@ import { readForward } from './forward.js'
 import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
 import { createDispatcher } from './features/dispatch.js'
-import { createOutboxFlush } from './features/outbox-flush.js'
 import { createQuoteApi } from './features/quote.js'
 import { createConfigApi } from './features/config.js'
 import { createLifecycle } from './features/lifecycle.js'
 import { createLoginGate } from './features/login.js'
+import { createGateStatus } from './features/gate-status.js'
+import { createOutboxWiring } from './features/outbox-wiring.js'
 import { createQqInbox } from './inbox.js'
 import { PLATFORM, QQ_CAPS, qqTarget } from './contract.js'
 
@@ -38,78 +39,68 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
 
   const { endpoint, enabled, botAccount, connectionProblem: baseConnectionProblem } = createConfigApi({ getConfig })
 
-  let gwState = 'stopped'
-  // 连上后先核对登录的是不是机器人号；核对期间事件暂存，通过后补处理。
-  const auth = { loginOk: false, verifiedLogin: null, wrongAccount: '', verifying: false, pendingEvents: [] }
-  let connectionRevision = 0
   let disposed = false
   const inbox = createQqInbox({ getConfig, log })
 
   // outbox: false = 不要补发队列（测试、只读场合）
   const box = outbox === false ? null : (outbox || createOutbox({ log: log.child ? log.child('outbox') : log }))
 
+  // 网关状态机与登录核对在 features/gate-status.js 里；这边只接线。
+  let gate = null
   const gw = client || createOneBotClient({
     endpoint,
     log,
-    onState: (s, d) => onState(s, d),
-    onEvent: (ev) => onEvent(ev),
+    onState: (s, d) => gate?.onState(s, d),
+    onEvent: (ev) => gate?.onEvent(ev),
   })
   const people = createPeopleApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
   const fetchHistory = createHistoryApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, isLegacyDirectRecord })
 
-  const loginGate = createLoginGate({
+  const dispatch = createDispatcher({ emit, inbox, getChannel: () => channel, isDisposed: () => disposed, log })
+
+  gate = createGateStatus({
+    createLoginGate,
     call: (a, p, o) => gw.call(a, p, o),
     getBotAccount: botAccount,
     inbox,
-    dispatch: (ev) => dispatch(ev),
+    dispatch,
     emit,
     getChannel: () => channel,
     isDisposed: () => disposed,
-    getRevision: () => connectionRevision,
-    isReady: () => ready(),
-    state: auth,
     log,
+    // 核对通过就补发队列；号不对就停机（具体动作由装配决定，状态机不管）
+    onLoginOk: (revision) => { if (revision === gate.revision()) flushOutbox() },
+    onLoginFatal: () => gw.stop(),
   })
 
-  function onState(s, d) {
-    const revision = ++connectionRevision
-    gwState = s
-    if (s !== 'connected') loginGate.onDisconnected()
-    else loginGate.checkLogin(revision, Date.now()).then((result) => {
-      if (revision === connectionRevision && result?.ok) flushOutbox()
-      else if (result?.reason === 'no-login' || result?.reason === 'wrong-account') gw.stop()
-    }).catch((error) => log.warn('核对登录号出错：', error.message))
-    log.info(`QQ 网关：${s}${d ? '（' + d + '）' : ''}`)
-    emit({ type: 'state', state: s })
-  }
-
-  function onEvent(ev) {
-    loginGate.onEvent(ev)
-  }
-
-  const dispatch = createDispatcher({ emit, inbox, getChannel: () => channel, isDisposed: () => disposed, log })
-
   // 网关未就绪时先攒着：只有「确定没发出去」的消息才入队，连接后按 TTL 补发。
-  let outboxFlusher = null
-  async function flushOutbox() { return outboxFlusher?.flush() }
+  const wiring = createOutboxWiring({
+    box,
+    call: (a, p, o) => gw.call(a, p, o),
+    getConfig,
+    isConnected: () => ready(),
+    isDisposed: () => disposed,
+    getRevision: () => gate.revision(),
+    canReplayDelivery,
+    getBarrier: () => outboxBeforeSend,
+    emit,
+    log,
+    flushEveryMs,
+  })
+  const flushOutbox = wiring.flush
 
-  // 连接后漏掉的、或补发中途又断网的，定时再试；没连接时直接返回。
-  const flushTimer = flushEveryMs > 0 && box ? setInterval(() => { flushOutbox().catch(() => {}) }, flushEveryMs) : null
-  flushTimer?.unref?.()
-
-  const connectionProblem = () => baseConnectionProblem(() => auth.wrongAccount)
-
-  const ready = () => gwState === 'connected' && auth.loginOk
+  const connectionProblem = () => baseConnectionProblem(() => gate.auth.wrongAccount)
+  const ready = () => gate.ready()
 
   const { faces, textSegments } = createFaceCodec({ call: (a, p, o) => gw.call(a, p, o), log })
 
   const quoteApi = createQuoteApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, parse: (e) => channel.parse(e), fetchHistory, log, isLegacyDirectRecord })
-  const outboundReady = () => !auth.wrongAccount && (gwState !== 'connected' || auth.loginOk)
+  const outboundReady = () => !gate.auth.wrongAccount && (gate.state() !== 'connected' || gate.auth.loginOk)
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure, isReady: outboundReady })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
-  const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => auth.verifiedLogin, getWrongAccount: () => auth.wrongAccount, setWrongAccount: (v) => { auth.wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
+  const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gate.state(), ready, getLogin: () => gate.auth.verifiedLogin, getWrongAccount: () => gate.auth.wrongAccount, setWrongAccount: (v) => { gate.auth.wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
-  const lifecycle = createLifecycle({ gw, inbox, listeners, getFlushTimer: () => flushTimer, setDisposed: (v) => { disposed = v }, isDisposed: () => disposed, enabled, getWrongAccount: () => auth.wrongAccount })
+  const lifecycle = createLifecycle({ gw, inbox, listeners, getFlushTimer: () => wiring.timer, setDisposed: (v) => { disposed = v }, isDisposed: () => disposed, enabled, getWrongAccount: () => gate.auth.wrongAccount })
 
   const channel = {
     platform: PLATFORM,
@@ -117,10 +108,10 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     caps: QQ_CAPS,
     selfId: () => botAccount(),
     ready,
-    state: () => gwState,
-    wrongAccount: () => auth.wrongAccount,
+    state: () => gate.state(),
+    wrongAccount: () => gate.auth.wrongAccount,
     /** 机器人号改了、连接设置改了：旧的核对结果作废。 */
-    resetAccount() { auth.wrongAccount = ''; auth.loginOk = false; auth.verifiedLogin = null; auth.verifying = false; auth.pendingEvents = [] },
+    resetAccount: () => gate.resetAccount(),
     ...lifecycle,
     on(fn) { listeners.add(fn); return () => listeners.delete(fn) },
     /** 平台自己的接口（OneBot 动作）。 */
@@ -159,21 +150,5 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     setOutboxBarrier: (fn) => { outboxBeforeSend = fn },
     isDefiniteFailure,
   }
-  outboxFlusher = createOutboxFlush({
-    box,
-    call: (action, params, opts) => gw.call(action, params, { ...opts, retries: 0 }),
-    getConfig,
-    isConnected: () => ready(),
-    isDisposed: () => disposed,
-    getRevision: () => connectionRevision,
-    canReplayDelivery,
-    beforeSend: (chatId) => outboxBeforeSend?.(chatId),
-    onSent: (item, result) => emit({
-      type: 'delivered', chatId: item.chatId, message: item.params.message, note: item.note,
-      messageId: result?.message_id ?? `outbox:${item.id}`, system: item.kind === 'system', replyJournal: item.replyJournal, replyFeed: item.replyFeed,
-    }),
-    log,
-  })
-
   return channel
 }

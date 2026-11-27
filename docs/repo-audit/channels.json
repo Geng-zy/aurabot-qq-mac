@@ -332,8 +332,8 @@
     "path": "src/channels/qq/index.js",
     "area": "channels/qq",
     "owner": "channels-qq",
-    "verdict": "split",
-    "evidence": "181 行、19 个内部依赖（12 个 features + transport/outbox/inbox/contract/convert）、2 处 import（qq/adapter.js:2、chat/hub.js:100）、0 个测试直接引用（全栈经 host 的 test/e2e、test/onebot-login-buffer 覆盖）。判据是接口过宽而非行数：返回的 channel 对象 117-163 行自写 24 个键 + 6 处 spread 再并入 27 个键 = 51 个键，其中 24 个不在 channels/index.js 的契约面（REQUIRED 6 + OPTIONAL 19）里，又被 adapter-facade.js:38-40 整表拷到 PlatformAdapter 上。拆法：装配留在本文件，私有面（noticeOf/pokeOf/groupFileMessage/faces/faceCatalog/outbox/flushOutbox/setOutboxBarrier）收到独立对象，契约面按需扩 channels/index.js。"
+    "verdict": "keep",
+    "evidence": "154 行（B30 后）、17 个内部依赖（12 个 features + transport/outbox/inbox/contract/convert/forward/faces）、2 处 import（qq/adapter.js、chat/hub.js:100）。B30 把两块真职责抽成独立模块：features/gate-status.js（网关状态 + 登录核对，63 行）与 features/outbox-wiring.js（补发接线，46 行），本文件从此只做装配：读配置 → 造网关 → 造各能力 API → 拼 channel 表面。179 → 154 行，装配与状态机/定时器分离；能力实现仍各自成文件，回归由 test/e2e、qq-outbox-flush、gateway-resilience、channels-caps、forward、platform-hub 与新增 qq-gate-status 守住。"
   },
   {
     "path": "src/channels/qq/notices.js",
@@ -369,5 +369,19 @@
     "owner": "channels-telegram",
     "verdict": "keep",
     "evidence": "299 行、1 个内部依赖（channels/ids.js）、2 处 import（channels/registry.js、test/telegram-channel.test.js）、2 个测试文件（telegram-channel.test.js 7 个用例、channels-caps.test.js 契约校验）。职责四块：Bot API 传输（call/callForm，含超时与 uncertain 语义）、长轮询与 offset 游标、消息归一化、发送（含 multipart 头像图）。B27 已把三处契约差异补齐：① caps 只留 channels/index.js 的规范能力位（原先声明 text/reply/images 三个假能力）；② 传输失败带 uncertain（超时/网络/5xx → 可能已发出；4xx → 确定没发出），mind-adapter/reminders 的「不确定不重发」从此在 Telegram 生效；③ 补 dispose/resetInbox，manager 关闭时不再走 stop() 回退。235→299 行仍 <300，保留。 B29 把 telegram/adapter.js（8 行纯透传）合并进来：本文件导出 createTelegramAdapter，registry 直接从这里取；适配器不再单独成文件（删除测试不过——它没有任何自己的行为）。"
+  },
+  {
+    "path": "src/channels/qq/features/gate-status.js",
+    "area": "channels/qq/features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "63 行；0 个内部依赖（只用注入的 createLoginGate/call/emit/log）；1 处 import（qq/index.js）；1 个测试（test/qq-gate-status.test.js 3 个用例）。职责：网关状态机（connected/disconnected → ready()）、登录号核对回调（onLoginOk/onLoginFatal）、resetAccount 清理攒下的事件。B30 从 qq/index.js 抽出：这段以前和装配混在一起，改状态机要通读整份装配列；抽出来后它对补发队列与停机都不直接下手，只说「核对通过」「这个号不对」，由装配决定动作。"
+  },
+  {
+    "path": "src/channels/qq/features/outbox-wiring.js",
+    "area": "channels/qq/features",
+    "owner": "channels-qq-features",
+    "verdict": "keep",
+    "evidence": "46 行；1 个内部依赖（features/outbox-flush.js）；1 处 import（qq/index.js）；1 个测试（test/qq-gate-status.test.js 第 4 个用例）。职责：把补发队列、网关调用与「发出了就广播 delivered」接起来，并按 flushEveryMs 定时重试（无队列时不起定时器）。B30 从 qq/index.js 抽出：定时器生命周期、重试阈值与 delivered 事件形状原本散在装配 30 行里。"
   }
 ]
