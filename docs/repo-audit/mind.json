@@ -299,5 +299,19 @@
     "owner": "mind-memory",
     "verdict": "keep",
     "evidence": "78 行；0 个内部依赖（全部注入：getThink/getEmbed/getEmbedModel/canEmbed、budget、vectors、row、log、estimateTokens、queueJob、hash）；1 处 import（memory/index.js）；经 test/mind-memory.test.js 等覆盖。职责：三种对外调用——ask（预算闸门 + 用量回填，隐私场景不占预算）、embedEpisodes（批量算向量、失败入队重试）、embedText（查询向量，带 4 秒超时与模型一致性判断）。能力用 getter 注入，因为 think/embed 是 connect() 事后接上的。"
+  },
+  {
+    "path": "src/mind-adapter/identity.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter",
+    "verdict": "keep",
+    "evidence": "19 行；1 个内部依赖（channels/ids.js）；1 处 import（mind-adapter/index.js 再导出）；被 test/mind-adapter.test.js 等经 index 覆盖。职责：personIn（把来源会话里的裸账号按平台解释，跨渠道的引用不认）、deliveryChat（QQ 旧会话 ID 形态的投递键）。B47 从 mind-adapter/index.js 抽出。"
+  },
+  {
+    "path": "src/mind-adapter/calls.js",
+    "area": "mind-adapter",
+    "owner": "mind-adapter",
+    "verdict": "keep",
+    "evidence": "33 行；1 个内部依赖（mind/index.js 的 effortForScene/speechScene）；1 处 import（mind-adapter/index.js）；被 test/mind-adapter.test.js 覆盖（超时错误码 MIND_ASK_TIMEOUT 与自适应深度）。职责：withAskTimeout（给心智模型调用套 120s 超时，免得编码/人格推断挂住把窗口队列永久占死）、createEffort（按场景与性格算思考深度）。B47 从 mind-adapter/index.js 抽出。"
   }
 ]

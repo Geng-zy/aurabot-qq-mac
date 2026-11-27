@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.85
+
+- B47 **心智对接层拆分：身份换算与调用策略独立成模块**（`mind-adapter/index.js` 327 → 299 行）。
+  - `mind-adapter/identity.js`（19 行）：`personIn`（来源会话里的裸账号按平台解释，跨渠道引用不认）、
+    `deliveryChat`（QQ 旧会话 ID 形态的投递键）。
+  - `mind-adapter/calls.js`（33 行）：`withAskTimeout`（心智模型调用 120 秒超时，错误码 `MIND_ASK_TIMEOUT`）、
+    `createEffort`（按场景与性格算思考深度）。
+  - 留下：装配（心智、记忆、工具、内心、面板接口）；导出面不变（index 再导出 `personIn`/`deliveryChat`）。
+- 回归：mind 相关 83 pass；全量 1730 个测试通过；语法 632 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.84
 
 - B46 **表情库拆分第二轮：视觉起名独立成模块**（`features/sticker-caption.js` 177 行，

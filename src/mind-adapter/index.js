@@ -10,7 +10,6 @@ import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { createMind } from '../mind/index.js'
 import { paramOf } from '../mind/index.js'
-import { effortForScene, speechScene } from '../mind/index.js'
 import { createEmbedClient, createRerankClient } from '../mind/index.js'
 import { parseJson } from '../mind/index.js'
 import { keywords } from '../core/keywords.js'
@@ -22,26 +21,15 @@ import {
   parseChat, parsePerson, personIdOf, privateChatOf, refOfChat,
 } from '../channels/ids.js'
 
-/** 用来源会话解释裸账号，带渠道的引用须与来源一致。 */
-export function personIn(chatId, userId) {
-  const platform = parseChat(chatId)?.platform
-  const person = parsePerson(userId, platform)
-  if (!person || (platform && person.platform !== platform)) return ''
-  return personIdOf(person.platform, person.id)
-}
+export { personIn, deliveryChat } from './identity.js'
 
-/** QQ 的壳仍有以旧会话 ID 为键的会话、静默和投递状态。 */
-export function deliveryChat(chatId) {
-  const target = parseChat(chatId)
-  return target?.platform === LEGACY_PLATFORM ? `${target.kind}:${target.id}` : normChatOf(chatId)
-}
-
-function normChatOf(chatId) { return windowOf(chatId) }
 import { shortId } from '../mind/index.js'
 import { isSilence } from '../chat/reply.js'
 import { checkAllowed } from '../chat/access.js'
 import { isFoodTopic } from '../chat/reply-style.js'
 import { migrateLegacy, LEGACY_TAG } from './migrate.js'
+import { deliveryChat, personIn } from './identity.js'
+import { createEffort, withAskTimeout } from './calls.js'
 import { acceptsFood, naturalFoodOffer } from './feeding.js'
 import { inspectionTools } from './inspection.js'
 import { createPermission } from './permission.js'
@@ -106,19 +94,9 @@ export function createMindAdapter(opts) {
   const isOwnerChat = (chatId) => parseChat(chatId)?.kind === 'private' && refOfChat(chatId) === ownerOf()
   // 调试模式（面板开关）：她照常想、照常回，但不往心智里写任何东西——试人格不污染她
   const debug = () => opts.getConfig()?.debug === true
-  // 心智模型调用必须有超时：编码/人格推断挂住时不能把该窗口的整条队列永久占死。
-  const rawAsk = opts.ask
-  const askWithTimeout = rawAsk ? (request) => new Promise((resolve, reject) => {
-    let settled = false
-    const finish = (fn, value) => { if (settled) return; settled = true; clearTimeout(timer); fn(value) }
-    const timer = setTimeout(() => {
-      const error = new Error('心智模型调用超时')
-      error.code = 'MIND_ASK_TIMEOUT'
-      finish(reject, error)
-    }, 120_000)
-    timer.unref?.()
-    try { Promise.resolve(rawAsk(request)).then((v) => finish(resolve, v), (e) => finish(reject, e)) } catch (error) { finish(reject, error) }
-  }) : undefined
+  // 心智模型调用必须有超时（实现在 calls.js）
+  const askWithTimeout = withAskTimeout(opts.ask)
+
   const mind = createMind({
     dir: opts.dir, ownerId: ownerOf(), publicName: '大肥鱼', now, log, memoryDb: opts.memoryDb, random: opts.random,
     ownerName: () => String(opts.getConfig()?.ownerName || ''),
@@ -188,13 +166,7 @@ export function createMindAdapter(opts) {
   let turnContext = null
   function beforeTurn(...args) { return turnContext.beforeTurn(...args) }
 
-  function effortFor(scene) {
-    return effortForScene(scene, mind.setting, mind.body.state({ persist: false }), EFFORT[scene])
-  }
-
-  function chatEffort(text, appraisal, owner = false) {
-    return mind.setting('models.adaptiveDepth') ? effortFor(speechScene(text, appraisal, owner)) : ''
-  }
+  const { effortFor, chatEffort } = createEffort({ mind, EFFORT })
 
   function endTurn(chatId) { return turnContext.endTurn(chatId) }
   function invalidateMemory() { return turnContext.invalidateMemory() }

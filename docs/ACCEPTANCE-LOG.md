@@ -3547,3 +3547,35 @@ Air   stickers / sticker-pick / sticker-record / sticker-library / recent-media 
 Release dsh-aurabot-qq-1.6.84.tgz  19,678,641 字节
         sha256 b2395b832d8ec538d6e69250de4079dce860bbc4877beee2bc3c87e5d8260b29
 ```
+
+---
+
+## B47 · 心智对接层拆分（1.6.85）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind-adapter/index.js` | 327 → **299** | 装配：心智、记忆、工具、内心、面板接口 |
+| `mind-adapter/identity.js`（新） | **19** | `personIn`（裸账号按来源会话的平台解释）、`deliveryChat`（QQ 旧会话 ID 投递键） |
+| `mind-adapter/calls.js`（新） | **33** | `withAskTimeout`（120s 超时 + `MIND_ASK_TIMEOUT`）、`createEffort`（按场景与性格算深度） |
+
+导出面不变（index 再导出身份两个函数），`mind` 相关的注入链零改动。
+
+```text
+Air   mind-adapter / mind-features / mind-share / mind-inner / mind-fixes → 83 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 632 文件；oxlint 0 error；清单 0 待审
+过程  审计结论一开始写错了文件（mind.json 里没有该条目），已按 media-adapters.json 原条目改判
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.85（回滚点 ~/aurabot-release-backups/20261128-020155）、02:02:00 启动
+模块   identity.js 导出 deliveryChat/personIn：personIn('qq:private:10001','10001') → qq:10001、
+       deliveryChat('qq:private:10001') → private:10001
+       calls.js 导出 createEffort/withAskTimeout：withAskTimeout(undefined) → undefined（没接模型时如实为空）
+接口   /mind/inner → ok=true；配置逐字段一致；Purge 三个工具仍在；02:02 之后新增 error：0 条
+
+提交   B47；tag v1.6.85
+Release dsh-aurabot-qq-1.6.85.tgz  19,679,044 字节
+        sha256 332a8d98fb166c35d2952e09ceda0ec908cc3505cfb2372ebb192aa97c1adbd3
+```
