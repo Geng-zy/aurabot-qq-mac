@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.84
+
+- B46 **表情库拆分第二轮：视觉起名独立成模块**（`features/sticker-caption.js` 177 行，
+  `features/stickers.js` 388 → 252 行）。
+  - 拆出：`caption`（先问模型能不能看图，再要一行备注 + 1~3 个标签；预算被思考吃光时关思考重试）、
+    `run`（整库补名：350ms 节流、连续失败 5 张收手、模型中途变成看不了图的立即停）、
+    `status`/`cancel`/`targets`/`shutdown`（任务状态与取消都归这里）。
+  - 留下：采集与收藏（严格判定、尺寸兜底、MD5 去重、每小时限额、同步 QQ 收藏）。
+  - 依赖全部注入（`dsh`/`getConfig`/`log`/`canSeeImages`/`askModel`/`loadLibrary`/`saveLibrary`/`stickerDir` 等）。
+- 测试：stickers / sticker-pick / sticker-record / sticker-library / recent-media / e2e → 145 pass；
+  全量 1730 个测试通过；语法 630 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.83
 
 - B45 **记忆拆分：模型与向量调用独立成模块**（`memory/embedding-ops.js` 78 行，`memory/index.js` 306 → 262 行）。

@@ -3518,3 +3518,32 @@ Air   mind-memory / mind-features / mind-reembed / mind-inner → 65 pass
 Release dsh-aurabot-qq-1.6.83.tgz  19,677,091 字节
         sha256 63028ea30bffb5eaf8d783ff95e72eba6d98beddf5bc90d8c894dd71a995eb58
 ```
+
+---
+
+## B46 · 表情库拆分第二轮：视觉起名（1.6.84）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `features/stickers.js` | 388 → **252** | 采集与收藏：严格判定、尺寸兜底、MD5 去重、每小时限额、同步 QQ 收藏 |
+| `features/sticker-caption.js`（新） | **177** | `caption`（看图起名，预算被思考吃光时关思考重试）、`run`（整库补名：350ms 节流 / 连续失败 5 张收手 / 模型变瞎立即停）、`status`/`cancel`/`targets`/`shutdown` |
+
+任务状态（job/进度/取消）随模块一起搬走，依赖全部注入。
+
+```text
+Air   stickers / sticker-pick / sticker-record / sticker-library / recent-media / e2e → 145 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 630 文件；oxlint 0 error；清单 0 待审
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.84（回滚点 ~/aurabot-release-backups/20261128-015154）、01:51:59 启动
+模块   sticker-caption.js 导出 createStickerCaption；工厂返回 cancel/caption/captionModelOf/run/shutdown/status/targets；
+       status() 返回未运行的空状态（running:false、total:0…）—— 任务状态已随模块搬走
+接口   /stickers → ok=true；配置逐字段一致；Purge 三个工具仍在；01:50 之后新增 error：0 条
+
+提交   B46；tag v1.6.84
+Release dsh-aurabot-qq-1.6.84.tgz  19,678,641 字节
+        sha256 b2395b832d8ec538d6e69250de4079dce860bbc4877beee2bc3c87e5d8260b29
+```
