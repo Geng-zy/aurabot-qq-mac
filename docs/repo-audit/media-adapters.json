@@ -403,7 +403,7 @@
     "area": "voice",
     "owner": "media-tts",
     "verdict": "split",
-    "evidence": "417 行（>300）、9 个 export；被 src/channels/qq/features/voice/index.js import，test/macos.test.js、test/voice-breeze.test.js、test/voice-http-tts.test.js 覆盖；内部依赖 5 个（voice/wav.js、voice/duration.js、core/store.js、song/studio.js、core/python.js）。四段职责：edge-tts 环境安装（82-110，与 mind-adapter/install.js 的 uv+镜像逻辑重复）、六后端合成（112-284：edge/say/cosyvoice/gptsovits/breeze/http）、通用 HTTP 模板引擎与 base64 提取（286-363，{text} 模板语义与 local/templates 的 {reqid} 占位重复）、缓存清理与变声注册表（49-60 目录清理、371-375 ensureAudible、378 voiceConverters、409-415 变声链）。刚修的两处必须保留：9 行 import { isZeroSampleWav } from './duration.js'，371-375 行 ensureAudible 对 0 采样 WAV 抛错并 unlink；146 行 say 的退出码检查（失败时 say 仍留只有头的 AIFF）。阻断项：src/voice/duration.js 是未跟踪文件（git status ?? src/voice/duration.js、git ls-files 无此行），发布包缺它会 import 失败。"
+    "evidence": "343 行（>300）、9 个 export；被 src/channels/qq/features/voice/index.js import，test/macos.test.js、test/voice-breeze.test.js、test/voice-http-tts.test.js 覆盖；内部依赖 5 个（voice/wav.js、voice/duration.js、core/store.js、song/studio.js、core/python.js）。四段职责：edge-tts 环境安装（82-110，与 mind-adapter/install.js 的 uv+镜像逻辑重复）、六后端合成（112-284：edge/say/cosyvoice/gptsovits/breeze/http）、通用 HTTP 模板引擎与 base64 提取（286-363，{text} 模板语义与 local/templates 的 {reqid} 占位重复）、缓存清理与变声注册表（49-60 目录清理、371-375 ensureAudible、378 voiceConverters、409-415 变声链）。刚修的两处必须保留：9 行 import { isZeroSampleWav } from './duration.js'，371-375 行 ensureAudible 对 0 采样 WAV 抛错并 unlink；146 行 say 的退出码检查（失败时 say 仍留只有头的 AIFF）。阻断项：src/voice/duration.js 是未跟踪文件（git status ?? src/voice/duration.js、git ls-files 无此行），发布包缺它会 import 失败。 B34 已把「通用 HTTP 后端（模板引擎 + JSON 扒 base64 + 边界校验）」抽成 voice/http-synth.js（94 行），本文件 417 → 343 行；仍 >300 且还剩三块职责（edge-tts 环境安装与 mind-adapter/install.js 重复、六后端合成、ensureAudible/变声注册表），下次拆分从这里继续。"
   },
   {
     "path": "src/voice/wav.js",
@@ -411,5 +411,12 @@
     "owner": "media-wav",
     "verdict": "keep",
     "evidence": "re-export shim → src/core/wav.js（原 60 行纯 WAV 解析/重采样，0 依赖）。core/media 现在直接指 core/wav。"
+  },
+  {
+    "path": "src/voice/http-synth.js",
+    "area": "voice",
+    "owner": "voice",
+    "verdict": "keep",
+    "evidence": "94 行；1 个内部依赖（node:crypto）；1 处 import（voice/tts.js 的 httpSynth 包装）；1 个测试（test/voice-http-synth.test.js 6 个用例）。职责：通用 HTTP 语音后端的三件事——模板替换（{text} 转义 / {text_raw} 不转义 / {reqid} 每次随机）、响应识别（二进制 vs JSON，JSON 从 data/audio/audio_base64… 扒 base64）、边界校验（不是网页、不太短、不太大）。B34 从 voice/tts.js 的 286-363 抽出：这段与「保存音频 / 零采样判失败」无关，是纯 HTTP + 字符串模板，用假 fetch 就能整段测；保存仍由 tts.js 以 saveAudio 注入，行为与错误文案逐字保留。"
   }
 ]

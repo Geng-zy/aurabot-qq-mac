@@ -2964,3 +2964,60 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.71
 CI        run 45996660103 → ubuntu-latest success、macos-latest success（20:28，macOS 排队约 16 分钟）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B34 · 语音合成拆分：通用 HTTP 后端独立成模块（1.6.72）
+
+批次范围：`src/voice/tts.js` 里「通用 HTTP 后端」这一段（原 286–363 行）→ 新模块 `src/voice/http-synth.js`（94 行）。
+既有 API 与契约：`httpSynth(text, config)` 的对外签名不变；`ensureAudible` / 零采样判定 / 时长解析 / 文字回退全部不动。
+
+### 1. 为什么切这一段
+
+`tts.js` 417 行、四块职责（edge-tts 环境安装、六后端合成、通用 HTTP 模板引擎、缓存清理与变声注册表）。
+其中 **通用 HTTP 模板引擎**是唯一「纯 HTTP + 字符串处理、与音频文件无关」的一块：
+它以前只能连着真实合成结果一起测，错误分支（返回网页 / JSON 没音频 / 太短 / 太大）几乎测不到。
+
+### 2. 接口（codebase-design）
+
+```text
+httpSynth(text, config, { saveAudio, fetchImpl?, timeoutMs? })
+parseHeaderText(raw)        // 请求头文本 → 对象
+pickAudioFromJson(obj)      // 从 data/audio/audio_base64/base64/voice/result 里扒 base64
+```
+
+保存音频与「零采样 WAV 判失败」不搬：`tts.js` 保留 `saveAudio`，以参数注入 ——
+这样新模块对文件系统零依赖，测试里换成假实现即可。
+`tts.js` 只剩 6 行包装：`export function httpSynth(text, c) { return httpSynthImpl(text, c, { saveAudio }) }`。
+
+### 3. 自动测试（Air · 全模拟提供方，不联网不写盘）
+
+```text
+新增 test/voice-http-synth.test.js 6 个用例
+  ✔ GET：{text} 做 URL 编码替换
+  ✔ POST：{text} 转义 / {text_raw} 不转义 / {reqid} 每次不同 / 默认补 content-type / 请求头文本解析
+  ✔ JSON 响应：从嵌套字段扒 base64 解开（字节数一致）
+  ✔ 错误分支：没填地址、GET 缺 {text}、POST 缺请求体、返回网页、JSON 没音频（带 code/message）、太短、太大
+  ✔ HTTP 非 2xx：带状态码与响应片段
+  ✔ 纯函数：parseHeaderText / pickAudioFromJson
+
+保留项回归
+  voice-http-tts / voice-breeze / her-voice / voice-rvc / audio-duration（含「0 采样 WAV 必须判失败」）/
+  macos / features → 70 tests / 70 pass
+全量 1714 passed / 0 failed / 0 skipped；语法 616 文件；oxlint 0 error / 160 warning；清单 0 待审
+```
+
+### 4. Mini 实机验收
+
+```text
+安装   1.6.72（回滚点 ~/aurabot-release-backups/20261127-204759）
+启动   20:48:04 Aurabot v1.6.72 已加载
+新模块 真机上直接 import 成功，导出 httpSynth/parseHeaderText/pickAudioFromJson；
+       parseHeaderText('A: 1\n#c\n\nB: 2') → {"A":"1","B":"2"}；pickAudioFromJson 取到 300 字符
+兼容   tts.js 仍导出 httpSynth（包装调用 httpSynthImpl + 注入 saveAudio）与 ensureAudible
+配置   升级前后 config.json 逐字段一致；voice 配置键（asr/asrApi/autoChance/autoMaxChars/breeze…）都在
+Purge  /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+日志   20:45 之后新增 error：0 条
+```
+
+媒体真实提供方：本批未用（按约束只用本地样本与模拟提供方）。

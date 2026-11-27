@@ -2,6 +2,22 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.72
+
+- B34 **语音合成拆分：通用 HTTP 后端独立成模块**（`src/voice/http-synth.js` 94 行，`tts.js` 417 → 343 行）。
+  - 抽出的这块是纯 HTTP + 字符串模板：`{text}`（按 JSON 转义）/`{text_raw}`（不转义）/`{reqid}`（每次随机）替换、
+    请求头文本解析、响应识别（二进制 vs JSON，JSON 从 `data/audio/audio_base64/base64/voice/result` 扒 base64）、
+    边界校验（返回网页、音频太短、超过 30MB）。
+  - 保存音频与「零采样 WAV 判失败」仍留在 `tts.js`，由它把 `saveAudio` 注入进去 —— **行为与错误文案逐字保留**；
+    `httpSynth(text, config)` 的对外签名不变。
+  - 收益：这 80 行以前只能连着真实音频文件一起测，现在用一个假 fetch 就能整段覆盖（含每条错误分支）。
+- 保留项（逐条核对）：语音时长解析（`voice/duration.js`）、空 WAV 拦截（`ensureAudible` + `isZeroSampleWav`）、
+  合成失败改发文字的回退，路径与判定都没动。
+- 测试：新增 `test/voice-http-synth.test.js` 6 个用例（GET 编码、POST 三种占位符 + 默认 content-type、
+  JSON 嵌套 base64、7 条错误分支、非 2xx 带状态与片段、两个纯函数），媒体全用本地样本形状与假提供方，不联网不写盘。
+- 回归：voice-http-tts / voice-breeze / her-voice / voice-rvc / audio-duration（含零采样判失败）/ macos / features
+  → 70 tests / 70 pass；全量 1714 个测试通过；语法 616 文件；oxlint 0 error / 160 warning；清单 0 待审。
+
 ## 1.6.71
 
 - B33 **备份路由合并 + 注入接口收窄**：`src/features/backup-cloud-routes.js`（66 行）并入
