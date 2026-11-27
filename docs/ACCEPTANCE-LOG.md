@@ -2243,3 +2243,72 @@ purge 状态     本轮只读调用，未改安装（purge 目录时间戳仅因
 新增 error     13:35 之后 0 条
 回归           未发现；本批不改代码，无需发版
 ```
+
+---
+
+## B22 · 会话中途切换预设：**在现有测试会话里无法复现**（只读核对）
+
+### 1. 只读实测（Mini，DSH 0.2.2-rc.3 + purge 1.7.20 + Aurabot 1.6.60）
+
+```text
+管理员测试会话 session-ba1d461d（private:257859927）
+  会话日志头部     agentPreset = "aurabot-private-long"      ← 创建时事实（deep-frozen）
+  权限事件         permission/preset = "danger-full-access"   ← 审批归属：完全放行，不再逐次询问
+  该会话事件       34 条 user/message、14 轮 turn、10 次 tool/call
+                  agent-preset/selected 事件：**0 条**
+
+工具可见性     /host/tools → probeMaintenance = [purge_apply, purge_revert, purge_status]
+最近挂载       last = {source:"definitions", names:[三个 purge_*], all:9,
+                      chatId:"group:158706927", sessionId:"09d5898e-…"}
+挂载决策       /host/mount-plan?chat=qq:private:257859927&level=full
+               → ownerMaintenance=true、denyMaintenance=[]、maintenanceKey=owner:3307726247:
+
+全机扫描       48 份会话日志：创建时预设分布 aurabot-social 31 / aurabot-private-long 12 /
+               standard 3 / 无 2；**agent-preset/selected 事件总数 = 0**
+```
+
+也就是说：这台机器上**从来没有发生过会话中途切换预设**，所以「切换前后」拿不到真实对照。
+
+### 2. 为什么切不了（不是我们不肯测）
+
+```text
+rc.3 源码 @deepseek-ai/dsh-agent-preset-registry/lib/types/host.js：
+  recompose(ctx, id): "Rebind a blank Agent; **the caller owns the blank-session check**."
+
+· 预设只能在会话**还空着**的时候切；一旦跑过一轮，header 里的 agentPreset 就是创建事实（deep-frozen）。
+· Aurabot 的会话是「建出来 → 立刻投第一句」（调试会话更是开场白先行），不会停在空白窗口等切换；
+  管理员会话已有 34 条用户消息、14 轮对话。
+· CLI 侧只有 `--permission-mode`（沙箱/审批预设），**没有**切换 agent preset 的参数；
+  `desktop` profile 又被 Electron 独占，无法用 headless 方式驱动。
+· 唯一能切的入口是 DSH 图形界面里「空白会话 + 选预设」，需要人在那个窗口期内操作。
+```
+
+### 3. 链路本身已有的证据（不是切换实测）
+
+```text
+代码路径   session-events：agent-preset/selected 在 chatId 兜底**之前**接住 → notePreset(key, preset)
+           purge-scope.presetKey()：剥掉 session- 前缀，记录/查询/遗忘三处同一归一化
+           presetOfAgent()：自记 > agent.preset > session.header.agentPreset
+           mount：卸载时 forgetPreset
+
+单测       test/purge-preset.test.js 6 个用例：
+           · 「带前缀 / 不带前缀都能查到」——修的就是「记录用剥过的、查询用原始的」那个错位
+           · 「agent-preset/selected 事件会更新当前预设」
+           · 「自己记的优先于 header（header 是创建事实，可能已过期）」
+           · 换管理员（授权版本变）必须换键、空输入降级
+```
+
+结论：**链路代码与单测齐**，但「真机切换 → 权限刷新」这一步**没有实测证据**，因为当前部署里不存在
+可切预设的空白 Aurabot 会话。
+
+### 4. 要补上这项证据，需要的条件（缺什么写清楚）
+
+```text
+① 一个**空白**的 Aurabot 会话（建出来但还没发第一句），且有人能在那时用 DSH 界面切预设；
+   或者
+② DSH 提供一个可编程的 agent-preset 选择入口（CLI/HTTP API）；当前 rc.3 只有 recompose 供 UI 调用；
+   或者
+③ 明确允许「把这个场景只作为单测覆盖」——那现有 6 个用例已经覆盖事件与优先级，不需要再动代码。
+```
+
+本项**未发现回归**，没有需要修的切换链路，因此不改代码、不发版。
