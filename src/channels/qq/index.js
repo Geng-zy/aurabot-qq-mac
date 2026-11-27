@@ -10,7 +10,6 @@ import { createOutboundApi } from './features/outbound.js'
 import { createActionsApi } from './features/actions.js'
 import { isLegacyDirectRecord, parseMessageEvent } from './convert.js'
 import { createFaceCodec } from './features/face-codec.js'
-import { createFaceCatalog } from './features/face-catalog.js'
 import { createEventApi } from './features/events.js'
 import { createConnectionApi } from './features/connection.js'
 import { createDispatcher } from './features/dispatch.js'
@@ -108,7 +107,6 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
   const outboundReady = () => !auth.wrongAccount && (gwState !== 'connected' || auth.loginOk)
   const outbound = createOutboundApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget, box, isDefiniteFailure, isReady: outboundReady })
   const actions = createActionsApi({ call: (a, p, o) => gw.call(a, p, o), targetOf: qqTarget })
-  const faceCatalog = createFaceCatalog({ call: (a, p, o) => gw.call(a, p, o), log })
   const connection = createConnectionApi({ call: (a, p, o) => gw.call(a, p, o), endpoint, getConfig, getState: () => gwState, ready, getLogin: () => auth.verifiedLogin, getWrongAccount: () => auth.wrongAccount, setWrongAccount: (v) => { auth.wrongAccount = v }, isDisposed: () => disposed, connectionProblem, enabled, restart: () => gw.restart() })
   const events = createEventApi({ call: (a, p, o) => gw.call(a, p, o), parse: (e) => channel.parse(e), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id) })
   const forward = createForwardApi({ call: (a, p, o) => gw.call(a, p, o), selfId: () => channel.selfId(), faceName: (id) => faces.nameOf(id), log })
@@ -134,7 +132,7 @@ export function createQqChannel({ getConfig, log, client = null, outbox = null, 
     ...outbound,
     // ---------- 收 ----------
     faces,
-    faceCatalog,
+    faceCatalog: () => faces.list(),
     /** OneBot 消息事件 → 通用形状。 */
     parse: (event) => parseMessageEvent(event, String(event?.self_id || channel.selfId()), { faceName: faces.nameOf }),
     /** AstrBot 风格的适配器方法别名：转换一条原始事件。 */

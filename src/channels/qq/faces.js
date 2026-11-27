@@ -99,5 +99,18 @@ export function createFaces({ onebot, log } = {}) {
     refresh,
     idOf: (name) => { refresh(); return index.byName.get(String(name || '').replace(/^\//, '').trim()) },
     nameOf: (id) => { refresh(); return index.byId.get(String(id)) },
+    /**
+     * 整张目录 `[{ id, name }]`（按编号升序）。面板的「系统表情」列表与文本里的 `<face:名字>` 转换
+     * 用**同一份**索引 —— 以前面板那条走的是另一个函数，自己再发一次 fetch_sys_faces、自己合并一次，
+     * 于是同一台机器上「面板看到的目录」和「能转换的名字」会不一致，且每开一次面板就多一次网关往返。
+     * 这里只是把已经缓存的索引摊开：刷新由 refresh() 负责（一天一次），不会额外请求。
+     */
+    async list() {
+      const pending = refresh()
+      if (pending) await pending
+      return [...index.byId.entries()]
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => Number(a.id) - Number(b.id))
+    },
   }
 }

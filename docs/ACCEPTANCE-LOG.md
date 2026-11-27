@@ -2582,3 +2582,57 @@ Release   附 dsh-aurabot-qq-1.6.65.tgz 19,652,549 字节
 CI        run 45968394646 → macos-latest success、ubuntu-latest success（16:53 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B28 · QQ 系统表情目录收敛到唯一来源（1.6.66）
+
+批次来源：`docs/REPO-INVENTORY.md` 里 `features/face-catalog.js` 的审计结论（verdict=merge）
+——它记的实证是：`face-catalog.js:9` 的 `call('fetch_sys_faces', {timeoutMs:8000})` 与
+`qq/faces.js:89` 的同一 action 各建一份。
+
+### 1. 问题（两套真相）
+
+| | 面板目录（`createFaceCatalog`） | 文本转换（`createFaces`） |
+|---|---|---|
+| 网关请求 | 每次调用都发（无缓存） | 一天一次（`refresh()` 带 loading 去重） |
+| 合并范围 | 只合并 `byId` | 合并 `byName` + `byId` |
+| 超时 | 8s | 15s |
+
+后果：面板显示的表情目录与「文本里 `<face:名字>` 能转换成功」的集合不一致；每开一次面板多一次网关往返。
+
+### 2. 接口（codebase-design）
+
+`createFaces()` 这一层本来就是深模块：对外只有 `refresh / idOf / nameOf`，缓存与合并都在里面。
+本批把面板要的那件事也收进来，变成 `list()` —— 对外仍然是「名字↔编号」的一件事，
+只是多了一个「摊开成列表」的视图；`features/face-catalog.js` 删除（**删除测试通过**：
+删掉它以后复杂度没有回到调用点，而是集中在 `faces.js` 一处）。
+
+`channels.get('qq').faceCatalog` 仍是 `() => faces.list()`，面板路由与返回形状不变。
+
+### 3. 自动测试（Air）
+
+```text
+test/faces-catalog.test.js（新增 3 个用例）
+  ✔ list() 返回按编号升序的 [{id,name}]，并包含网关新增的条目
+  ✔ 面板列表与文本转换共用同一份索引：只拉一次网关（并发 list() 也只发一次 fetch_sys_faces）
+  ✔ 网关取不到时只用内置表，list() 不抛错（面板仍然能用）
+
+相关套件 faces-catalog / pure / faces / channels-caps / channels-contract / modules → 76 tests / 76 pass
+全量 1691 passed / 0 failed / 0 skipped；语法 613 文件；oxlint 0 error / 160 warning
+清单 710 行、自有代码 438、待审 0
+```
+
+### 4. Mini 实机 + Purge 联动
+
+```text
+安装     1.6.66（回滚点 ~/aurabot-release-backups/20261127-170903）
+启动     17:09:09 Aurabot v1.6.66 已加载
+面板     GET /panel/faces → 341 条（含网关目录，不是内置 329 条），首项 {id:"0",name:"惊讶"}、
+         末项 {id:"515",name:"王者再战"}，字段只有 id/name，编号升序 = True
+         ← 说明网关目录确实合进了同一份索引，而不是走原来那条独立请求
+Purge    GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
+日志     17:09 之后新增 error：0 条
+```
+
+真实外发：本批未做（未获单独授权）。

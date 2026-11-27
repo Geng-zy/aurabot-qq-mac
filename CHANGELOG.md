@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.66
+
+- B28 **QQ 系统表情目录收敛到唯一来源**（`src/channels/qq/faces.js`；删除 `features/face-catalog.js`）。
+  之前有两套真相：面板走 `createFaceCatalog()`（自己发一次 `fetch_sys_faces`、只合并 byId、无缓存、超时 8s），
+  文本里的 `<face:名字>` 转换走 `createFaces()`（缓存一天、合并 byName+byId、超时 15s）。
+  后果：同一台机器上「面板看到的目录」和「能转换的名字」会不一致，而且每开一次面板就多一次网关往返。
+  - `createFaces()` 新增 `list()`：把**同一份已缓存索引**摊成按编号升序的 `[{ id, name }]`，
+    刷新仍由 `refresh()` 负责（一天一次、并发只发一次请求），`list()` 不会额外请求网关。
+  - `channels.get('qq').faceCatalog` 改为 `() => faces.list()`，面板路由与调用方不用改。
+  - 删除测试通过：`face-catalog.js` 删掉后复杂度没有回到调用点，而是集中在 `faces.js` 一处。
+- 测试：新增 `test/faces-catalog.test.js` 3 个用例（升序 + 网关条目合并、面板与文本共用索引只拉一次、
+  网关失败只用内置整表且不抛错）。
+- 回归：全量 1691 个测试通过；语法 613 文件；oxlint 0 error / 160 warning。
+
 ## 1.6.65
 
 - B27 **Telegram 通道契约对齐**（`src/channels/telegram/index.js`，235 → 288 行）。三处实证差异全部补齐：

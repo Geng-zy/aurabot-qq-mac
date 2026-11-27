@@ -67,7 +67,7 @@
     "area": "channels/qq",
     "owner": "channels-qq",
     "verdict": "keep",
-    "evidence": "103 行、2 个内部依赖（qq/face-table.js、src/chat/tags.js）、4 处 import 含 1 个测试（test/faces.test.js）；非测试 importer 为 features/face-catalog.js、features/face-codec.js、src/persona/personas.js。createFaces().refresh()（87-97 行）以 24 小时 TTL 调 fetch_sys_faces 并合并 COMMON_INDEX，而 features/face-catalog.js:9 对同一 action 另建一条无缓存路径，两条都在用（本文件供 chat 解析，faceCatalog 供面板），是重复调用而不是死代码；第 5 行 import ../../chat/tags.js 构成 channels→chat 反向依赖。"
+    "evidence": "116 行、2 个内部依赖（qq/face-table.js、src/chat/tags.js）、4 处 import 含 1 个测试（test/faces.test.js）；非测试 importer 为 features/face-catalog.js、features/face-codec.js、src/persona/personas.js。createFaces().refresh()（87-97 行）以 24 小时 TTL 调 fetch_sys_faces 并合并 COMMON_INDEX，而 features/face-catalog.js:9 对同一 action 另建一条无缓存路径，两条都在用（本文件供 chat 解析，faceCatalog 供面板），是重复调用而不是死代码；第 5 行 import ../../chat/tags.js 构成 channels→chat 反向依赖。 B28 已把 features/face-catalog.js 合并进来（该文件删除）：面板的整张目录改由 list() 从同一份索引摊开，与 <face:名字> 转换共用一次刷新（一天一次、并发只发一次 fetch_sys_faces），不再出现「面板目录」与「能转换的名字」两套真相。"
   },
   {
     "path": "src/channels/qq/features/actions.js",
@@ -173,13 +173,6 @@
     "owner": "channels-qq-features",
     "verdict": "keep",
     "evidence": "52 行、1 个内部依赖（qq/notices.js）、1 处 import（qq/index.js:14）、0 个测试直接引用；noticeText 的翻译层被 test/notices.test.js 直接覆盖（8 个用例），本文件只做 pokeOf（23-30 行）与 groupFileMessage（8-20 行）的 OneBot 形状整理。pokeOf 的 target_id===self 判定经 test/e2e.test.js 的 send_poke 流程间接执行。"
-  },
-  {
-    "path": "src/channels/qq/features/face-catalog.js",
-    "area": "channels/qq-features",
-    "owner": "channels-qq-features",
-    "verdict": "merge",
-    "evidence": "15 行、2 个内部依赖（qq/face-table.js、qq/faces.js）、1 处 import（qq/index.js:13）、0 个测试。grep 证据：唯一生产消费者是 src/features/faces-routes.js:23 的 channels.get('qq').faceCatalog()，面板要的是 [{id,name}] 列表；第 9 行 call('fetch_sys_faces', {timeoutMs:8000}) 与 qq/faces.js:89 的同一 action 各建一条路径，本文件还没有缓存。应并入 qq/faces.js（给 createFaces 加 catalog()，复用它已有的 24h 缓存），删掉本文件只需改 faces-routes.js:23 一处。"
   },
   {
     "path": "src/channels/qq/features/face-codec.js",
