@@ -2186,9 +2186,31 @@ purge 状态   68/73 applied（与动手前一致）
 **这是计划层证据**：说明挂载时会把这三个工具从群会话里摘掉。要证明「受限会话里真的调不动」，
 需要一个真实的非管理员会话——那要先有真实群消息，本条保持待验证。
 
-**白名单事实（纠正先前口头假设）**：`allow.groups = ['158706927', '576968880']`，是**两个**群，不是一个；
-而且 `sessions.json` 里 `:group:` 聊天数为 **0**，说明这两个群从来没给机器人发过消息 ——
-所以受限会话在执行层无从触发，除非群里真的有人说一句话。
+**白名单事实**：`allow.groups = ['158706927', '576968880']`，是**两个**群，不是一个。
+
+**受限会话的真实证据（操作者在群里发了一句话之后拿到了）**
+
+```text
+14:06:24 [debug] 群 158706927：想不想接话 31%（话题相关 0.00，在场最亲近 0.80）
+14:06:24 [info]  群 158706927：被 @ → 交给她
+14:06:32 [info]  group:158706927：新会话，接上之前的聊天        ← 真建了群会话并挂载
+
+/host/tools 的挂载记录：
+  last = {"source":"definitions", "names":[purge_apply, purge_revert, purge_status],
+          "all":9, "chatId":"group:158706927",
+          "sessionId":"09d5898e-a3d3-488e-9a61-cd6e306ab93b", "at":1795759589327}
+
+该群的挂载计划：
+  groupLevel = social｜ownerMaintenance = false
+  denyMaintenance = [purge_apply, purge_revert, purge_status]
+  key = "||purge_apply,purge_revert,purge_status|gen:0"
+```
+
+也就是说：这个**真实群会话**挂载时命中了 `definitions`、认出三个 purge 工具，随后按规则把它们全部排除
+（`denyMaintenance` 三项）—— 收窄在执行层生效，因为那套工具根本没有被挂进这个会话。
+
+`sessions.json` 里同时存在：`group:158706927`（live）、`group:576968880`（live）、`group:100200300`（live）、
+`private:257859927`（debug）、`system:diary:public`（live）。先前记的「0 个群聊天」是读早了，予以更正。
 
 ### 4. 场景结果与状态
 
