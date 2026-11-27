@@ -2057,3 +2057,67 @@ CI 首次   run 45940777254 → ubuntu success、**macos failure**
 修完重派 run 45942164913 → **ubuntu-latest success、macos-latest success**（12:55 双绿）。
 测试不进发布包，所以 v1.6.60 的附件字节不变（digest 仍为 `sha256:13e4aaf0…`）。
 
+
+---
+
+## B20 · 补完「Purge 写操作」与「真实 QQ 外发」两条实机证据（不改代码）
+
+上一轮列的待办里，这两条是能自己做的；本批用 mini 实机做完，代码未改，随文档一起提交。
+
+### 1. Purge 写操作端到端（apply → revert → apply）
+
+全部通过管理员私聊链路（`/debug/say`），模型真的调用工具，不是回显记忆：
+
+```text
+起点    purge_status: 68/73 applied, 0 pending（原本就是已应用状态）
+
+① purge_apply   → applied=0, already=77. phase-1=missing 重启 dsh 生效.
+                  （幂等：没有新增，全都在）
+② purge_status  → 68/73 applied, 0 pending
+
+③ purge_revert  → reverted=56, shim_dirs=0. 重启 dsh 恢复.
+④ purge_status  → **4/73 applied, 64 pending**     ← 真的改写了安装
+
+⑤ purge_apply   → applied=68, already=9. phase-1=missing 重启 dsh 生效.
+⑥ purge_status  → **68/73 applied, 0 pending**     ← 恢复到起点
+重启后          Aurabot v1.6.60 已加载、面板 1.6.60、onebot=connected、0 条新增 error
+```
+
+这一步证明的不只是「工具能被调用」，而是**写操作真的落到了宿主上并可见地改变状态，再被恢复**。
+
+### 2. 真实 QQ 外发（面板自带发送自测）
+
+```text
+入口    POST /aurabot/api/test-send（正式模式下的「发送自测」，代码里本来就有）
+返回    {"ok":true,"message":"发给管理员了，去 QQ 看看"}
+```
+
+发送成功时发送链路不写日志（只有失败才 warn），所以改用**网关回读**取证：让模型调
+`qq_chat_history` 拉当前会话历史并逐字贴出含自测文案的那一行：
+
+```text
+13:26 你：【Aurabot 自测】大肥鱼到此一游～
+```
+
+时间对得上（13:26 发起），说明消息确实经 OneBot 网关发到了管理员 QQ 会话里。
+
+### 3. 配置与状态已复原
+
+```text
+debug        False（两次临时开启都已从备份恢复）
+enabled      True｜dryRun False（正式模式）
+重启         13:27:45 Aurabot v1.6.60 已加载｜13:27:48 已连上 QQ 网关（WS）
+面板         /aurabot/api/state → 1.6.60，onebot=connected
+新增 error   13:20 之后 0 条
+purge 状态   68/73 applied（与动手前一致）
+```
+
+### 4. 仍未做的三项（都需要你提供外部条件）
+
+```text
+群管动作         需要「机器人是管理员的群」+ 你要测的具体动作（禁言/踢人/改名片…）
+云备份真实端点   需要 WebDAV 或 Gitee 的地址与凭据
+人工 GUI 流程    需要人在桌面点（深浅色、窗口尺寸、向导、危险命令确认…）
+```
+
+外加清单里 **42 个 `split`** 的持续重构，那是多批次工程量，按批推进。
