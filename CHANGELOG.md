@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.81
+
+- B43 **语音拆分：edge-tts 后端独立成模块**（`src/voice/edge.js` 85 行，`voice/tts.js` 343 → 277 行）。
+  - 拆出：私有 Python 环境（`PYENV_DIR`/`pyExe`/`edgeInstalled`）、用 uv + 固定版本安装（`installEdge`，
+    含镜像回退与缓存清理）、单次调用（`edgeSynth`，临时文本文件 + 输出长度校验）。
+  - 留下：`tts.js` 只做编排 —— 六后端选择、macOS `say` 兜底、保存音频与**零采样判失败**、变声链。
+  - `run`/`outDir` 由 `tts.js` 注入（macOS 后端也用它们）；对外签名不变
+    （`installEdge(log, { root })` 仍在 tts 包装，内部注入 spawn 封装）。
+- 回归：voice 相关 65 pass；全量 1730 个测试通过；语法 627 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.80
 
 - B42 **内心活动拆分：纯文本与「认真想一次」独立成模块**（`inner/index.js` 371 → 276 行）。

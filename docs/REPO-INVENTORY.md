@@ -4,14 +4,14 @@
 事实（行数、依赖、被依赖、测试引用）来自 `git ls-files` + 源码解析；结论来自 `docs/repo-audit/*.json`。
 口径见 [REFACTOR-PLAN.md](REFACTOR-PLAN.md)；宿主兼容判定见 [HOST-COMPAT.md](HOST-COMPAT.md)。
 
-纳入清单的文件：**724**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**443**。
+纳入清单的文件：**725**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**444**。
 
 | 结论 | 文件数 |
 |---|---|
-| 保留 | 580 |
+| 保留 | 582 |
 | 保留·补文档 | 40 |
 | 保留·生成物 | 38 |
-| 拆分 | 36 |
+| 拆分 | 35 |
 | 合并 | 23 |
 | 第三方 | 7 |
 
@@ -26,7 +26,7 @@
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
 | `assets/platform-architecture.svg` | asset | assets | 43 | 0 | 0 | 保留 | asset | 43 行 SVG / 4381 字节；README.md:21 与 README_EN.md:21 用作「平台架构」示意图 |
 | `assets/platform-banner.svg` | asset | assets | 57 | 0 | 0 | 保留 | asset | 57 行 SVG / 3770 字节；README.md:3 与 README_EN.md:3 的页首 banner |
-| `CHANGELOG.md` | config | root | 2373 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
+| `CHANGELOG.md` | config | root | 2383 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
 | `client/client.js` | client-build | client | 5810 | 0 | 0 | 保留·生成物 | client-shell | 随发布更新（行数见清单「行」列）：由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论 |
 | `client/client.template.js` | client-template | client | 280 | 0 | 1 | 拆分 | client-shell | 280 行；DSH 入口：__ModuleLoader__.load 包装 + require('react')/hooks 解构 + primitives()/isMacLike()（宿主能力探测）+ inject/PANEL_ID/API/PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS + 工具 get/post/clipboard/clone/setPath/getPath/pct/cx/fmtTokens/fmtCost/chatLabel/峰谷 4 函数/音调 3 函数/timeAgo/REACT_MOOD_BANDS + 结尾 exports.__panelTest/apply/inject/AurabotPage/WhaleIcon；被全部 104 个片段以 h/useState/useEffect/useRef/get/post/clipboard/cx/setPath/getPath/getPath/pct 与 API 引用（h 出现在 101 个片段、get 53、post 45、cx 32、setPath 22）；锁：primitives-guard.test.js（loader→factory→apply 注册 2 个 slot、缺 primitives 时渲染 MissingPrimitivesPage）、persona-filter-select.test.js 与 panel-mind.test.js（__panelTest 的 22 个键）、about-panel.test.js（PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS 必须是 4 空格顶格单行常量）；结构事实：113 行代码 + 19 行注释 + 149 行空行，其中第 127–269 行是 143 行连续空行（CSS 迁去 parts/styles.js 后留下的洞），第 126 行「样式（只注入一次）」已成空标题；可移出到 parts：timeAgo（6 个片段用）、fmtTokens（mindMemory/overview）、fmtCost 与 chatLabel（overview）、BJ_OFFSET/pad2/bjPartsOf/fmtNextChange（只有 costCard 用）、pitchNum/pitchText/pitchLabel（只有 voice 用）、REACT_MOOD_BANDS（只有 stickers 用）、仓库 3 个常量（about/market/simulate 用）；必须留在模板：loader 包装、require/hooks、primitives 与 isMacLike、API、结尾 exports 与 return module.exports。拆完模板约 110 行，净省约 170 行（含 143 行空行） |
 | `client/parts/about.js` | client-part | client | 20 | 0 | 0 | 保留 | client-shell | 20 行；关于页（版本、API 版本、手册/仓库/发布/提交/鸣谢/模块库链接），只依赖 Card 与模板常量 PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS；被 wizard.js 的 TAB_CONTENT.about 引用；锁：about-panel.test.js 在 vm 里只注入 h 和 Card 就跑 About(...) 并核对 7 个链接 href，因此本文件必须保持只用 h/Card 和 3 个常量；client-build |
@@ -135,7 +135,7 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 3425 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 3456 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -179,10 +179,10 @@
 | `docs/repo-audit/core-data.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/core-security.json` | doc | docs | 268 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
 | `docs/repo-audit/features-modules.json` | doc | docs | 282 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。 |
-| `docs/repo-audit/media-adapters.json` | doc | docs | 415 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
+| `docs/repo-audit/media-adapters.json` | doc | docs | 422 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
 | `docs/repo-audit/mind.json` | doc | docs | 296 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
 | `docs/repo-audit/tests-scripts-config.json` | doc | docs | 254 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
-| `docs/REPO-INVENTORY.md` | doc | docs | 745 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
+| `docs/REPO-INVENTORY.md` | doc | docs | 746 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-relationships.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 与 README_EN.md 的 <img> 直接引用（关系页截图），删了 README 会出现坏图。 |
 | `docs/screenshots/aurabot-search.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md / README_EN.md 的功能搜索截图引用；同样属于 README 资源。 |
 | `docs/SESSION-HANDOFF.md` | doc | docs | 1315 | 0 | 0 | 保留 | docs | 随发布更新（行数见清单「行」列）：交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。 |
@@ -533,9 +533,10 @@
 | `src/voice/asr.js` | source | voice | 99 | 3 | 1 | 保留 | media-asr | 99 行；被 src/chat/hub.js、src/chat/transcribe.js（asrConfigured/transcribeAudio）、src/channels/qq/features/voice/index.js import，test/voice-asr.test.js 覆盖（8 个 test 块）；内部依赖 0 个；导出 4 个（ASR_PRESETS、asrSettings、asrConfigured、transcribeAudio）；33 行处理用户把完整 /audio/transcriptions 贴进 baseUrl 的双路径 404。 |
 | `src/voice/breeze.js` | source | voice | 228 | 2 | 1 | 保留 | media-breeze | 228 行；被 src/channels/qq/features/voice/index.js import（breezeVoices/breezeBalance/breezeClaim/breezeSession/autoClaimOnce），test/voice-breeze.test.js 覆盖（13 个 test 块）；内部依赖 1 个（core/store.js 的 dataDir/readJson/writeJson）；导出 10 个，其中 BREEZE_CLAIM_GAP_MS、BREEZE_DAY_MS 全仓 grep 0 消费者；职责错位事实：合成函数 breezeSynth 不在本文件而在 src/voice/tts.js:209-284，本文件只管账号/额度/会话（node:https 手发以绕过 undici 剥 origin 头）。 |
 | `src/voice/duration.js` | source | voice | 196 | 3 | 1 | 保留 | media-voice | 196 行；被 src/chat/voice-file.js（audioDurationSec 首选）与 src/voice/tts.js（isZeroSampleWav）import，2 处生产调用；test/audio-duration.test.js 10 个用例覆盖 WAV/MP3/OGG/M4A 与 0 采样判定；接口只有 durationFromFile/isZeroSampleWav 两个导出，深模块。 |
+| `src/voice/edge.js` | source | voice | 82 | 1 | 0 | 保留 | voice | 85 行；0 个内部依赖（run/outDir 由 voice/tts.js 注入）；1 处 import（voice/tts.js 再导出）；被 test/macos.test.js / test/audio-duration.test.js 经 tts 覆盖。职责：edge-tts 的私有 Python 环境（PYENV_DIR / pyExe / edgeInstalled）、用 uv + 固定版本安装（installEdge，镜像回退与缓存清理）、单次调用（edgeSynth，临时文本文件 + 输出长度校验）。B43 从 tts.js 抽出：环境一次装好、调用天天用，与六后端编排寿命不同。 |
 | `src/voice/http-synth.js` | source | voice | 94 | 2 | 1 | 保留 | voice | 94 行；1 个内部依赖（node:crypto）；1 处 import（voice/tts.js 的 httpSynth 包装）；1 个测试（test/voice-http-synth.test.js 6 个用例）。职责：通用 HTTP 语音后端的三件事——模板替换（{text} 转义 / {text_raw} 不转义 / {reqid} 每次随机）、响应识别（二进制 vs JSON，JSON 从 data/audio/audio_base64… 扒 base64）、边界校验（不是网页、不太短、不太大）。B34 从 voice/tts.js 的 286-363 抽出：这段与「保存音频 / 零采样判失败」无关，是纯 HTTP + 字符串模板，用假 fetch 就能整段测；保存仍由 tts.js 以 saveAudio 注入，行为与错误文案逐字保留。 |
 | `src/voice/rvc.js` | source | voice | 36 | 2 | 1 | 保留 | media-rvc | 36 行；被 src/channels/qq/features/voice/index.js:53 import 并把返回值 push 进 tts.js:378 的 voiceConverters（54 行）、卸载时 splice（57 行）；test/voice-rvc.test.js 覆盖 5 个 test 块（未选音色、翻唱模块没跑、正常变声、失败抛错）；内部依赖 0 个（getConfig/getSong/dataDir/log 全注入）；职责单一：把音频文件交给 song 模块的 convertSpeech，失败保留原声。 |
-| `src/voice/tts.js` | source | voice | 343 | 5 | 4 | 拆分 | media-tts | 343 行（>300）、9 个 export；被 src/channels/qq/features/voice/index.js import，test/macos.test.js、test/voice-breeze.test.js、test/voice-http-tts.test.js 覆盖；内部依赖 5 个（voice/wav.js、voice/duration.js、core/store.js、song/studio.js、core/python.js）。四段职责：edge-tts 环境安装（82-110，与 mind-adapter/install.js 的 uv+镜像逻辑重复）、六后端合成（112-284：edge/say/cosyvoice/gptsovits/breeze/http）、通用 HTTP 模板引擎与 base64 提取（286-363，{text} 模板语义与 local/templates 的 {reqid} 占位重复）、缓存清理与变声注册表（49-60 目录清理、371-375 ensureAudible、378 voiceConverters、409-415 变声链）。刚修的两处必须保留：9 行 import { isZeroSampleWav } from './duration.js'，371-375 行 ensureAudible 对 0 采样 WAV 抛错并 unlink；146 行 say 的退出码检查（失败时 say 仍留只有头的 AIFF）。阻断项：src/voice/duration.js 是未跟踪文件（git status ?? src/voice/duration.js、git ls-files 无此行），发布包缺它会 import 失败。 B34 已把「通用 HTTP 后端（模板引擎 + JSON 扒 base64 + 边界校验）」抽成 voice/http-synth.js（94 行），本文件 417 → 343 行；仍 >300 且还剩三块职责（edge-tts 环境安装与 mind-adapter/install.js 重复、六后端合成、ensureAudible/变声注册表），下次拆分从这里继续。 |
+| `src/voice/tts.js` | source | voice | 282 | 5 | 4 | 保留 | media-tts | 277 行（B43 后）；B34 抽出 http-synth.js（通用 HTTP 后端）、B43 抽出 edge.js（edge-tts 环境与调用），本文件只剩编排：六后端选择、macOS say 兜底、保存音频与零采样判失败、变声链。行数已 <300 且职责单一（一个合成入口），split 改判 keep。 |
 | `src/voice/wav.js` | source | voice | 4 | 8 | 6 | 保留 | media-wav | re-export shim → src/core/wav.js（原 60 行纯 WAV 解析/重采样，0 依赖）。core/media 现在直接指 core/wav。 |
 | `test/about-panel.test.js` | test | test | 38 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 38 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/adapter-facade.test.js` | test | test | 35 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 35 行；本行由 scripts/repo-inventory.mjs 自动生成。 |

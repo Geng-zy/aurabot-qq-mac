@@ -3423,3 +3423,34 @@ Air   mind-inner / mind-features / mind-share / mind-memory → 46 pass
 Release dsh-aurabot-qq-1.6.80.tgz  19,673,101 字节
         sha256 0f4a1091f64e94aed3f54e5d2ca787f28a3d9aedac327c915fee502dfe6c565a
 ```
+
+---
+
+## B43 · 语音拆分：edge-tts 后端独立成模块（1.6.81）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `voice/tts.js` | 343 → **277** | 编排：六后端选择、macOS `say` 兜底、保存音频与零采样判失败、变声链 |
+| `voice/edge.js`（新） | **85** | edge-tts：私有 Python 环境（`PYENV_DIR`/`pyExe`/`edgeInstalled`）、uv 安装（镜像回退 + 缓存清理）、单次调用（临时文本 + 长度校验） |
+
+`run`/`outDir` 由 tts 注入（macOS 后端也复用）；对外签名不变。
+
+```text
+Air   voice 相关（audio-duration / voice-http-tts / macos / her-voice / voice-breeze / features）→ 65 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 627 文件；oxlint 0 error；清单 0 待审
+过程  自查修掉 4 条 lint error：edge.js 里 run 未注入、未用导入 spawn、SYSTEM_VOICE 位置；
+      修完 oxlint 回到 0 error
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.81（回滚点 ~/aurabot-release-backups/20261128-010952）、01:09:57 启动
+模块   edge.js 导出 PYENV_DIR/edgeInstalled/edgeSynth/installEdge，edgeInstalled()=false（未装语音组件，符合现状）
+       tts.js 关键导出齐全：textToSpeech / ensureAudible / edgeInstalled / installEdge / httpSynth / voiceConverters
+配置   升级前后逐字段一致；Purge 三个工具仍在；01:00 之后新增 error：0 条
+
+提交   B43；tag v1.6.81
+Release dsh-aurabot-qq-1.6.81.tgz  19,673,864 字节
+        sha256 932e4f1b5e1d0b70f6f7285badb056b776e7f5c04e132991c0106ac756e6fd37
+```

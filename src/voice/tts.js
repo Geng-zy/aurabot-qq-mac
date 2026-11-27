@@ -4,24 +4,29 @@
 // 管线：文字 → TTS → 文件路径。任何一步失败由调用方退回发文字。（RVC 音色目前用在翻唱上，见 src/song/）
 
 import { spawn } from 'node:child_process'
-import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, statSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { homedir } from 'node:os'
+import { randomUUID } from 'node:crypto'
 import { buildWav } from './wav.js'
 import { isZeroSampleWav } from './duration.js'
 import { httpSynth as httpSynthImpl, parseHeaderText, pickAudioFromJson } from './http-synth.js'
+import { edgeInstalled, edgeSynth, installEdge as installEdgeImpl } from './edge.js'
+
+// edge 后端的环境与安装入口在 voice/edge.js；对外导出面保持不变。
+/** 兜底用的系统语音叫什么（写日志 / 提示用）。 */
+const SYSTEM_VOICE = ' macOS 自带语音'
+
+export { PYENV_DIR, edgeInstalled } from './edge.js'
+
+/** 「安装语音组件」：注入 spawn 封装后调用 edge.js 的安装流程（对外签名不变）。 */
+export function installEdge(log, o = {}) { return installEdgeImpl(log, { ...o, run }) }
+
 export { parseHeaderText, pickAudioFromJson }
 
 /** 通用 HTTP 后端：模板与响应解析在 http-synth.js，这里只把「保存音频」这一步接上。 */
 export function httpSynth(text, c) { return httpSynthImpl(text, c, { saveAudio }) }
-import { join } from 'node:path'
-import { homedir } from 'node:os'
-import { randomUUID } from 'node:crypto'
 import { dataDir } from '../core/store.js'
-
-// edge-tts 的私有 Python 环境，「安装语音组件」时自动创建
-export const PYENV_DIR = process.env.AURABOT_PYENV || join(homedir(), 'Aurabot', 'pyenv')
-/** 兜底用的系统语音叫什么（写日志 / 提示用）。 */
-const SYSTEM_VOICE = ' macOS 自带语音'
-const pyExe = () => join(PYENV_DIR, 'bin', 'python')
 
 function run(cmd, args, { timeoutMs = 60000, input, env } = {}) {
   return new Promise((resolve) => {
@@ -62,72 +67,6 @@ function outDir() {
     }
   } catch {}
   return d
-}
-
-export function edgeInstalled() {
-  if (!existsSync(pyExe())) return false
-  try {
-    return readdirSync(join(PYENV_DIR, 'lib')).some((v) => v.startsWith('python') && existsSync(join(PYENV_DIR, 'lib', v, 'site-packages', 'edge_tts')))
-  } catch { 
-    return false
-   }
-}
-
-/** 面板「安装语音组件」：建虚拟环境并 pip 安装 edge-tts（开源，LGPL）。 */
-/**
- * 「安装语音组件」：在 ~/Aurabot/pyenv 建一个只给 edge-tts 用的 Python 环境，装固定版本的 edge-tts。
- * 全程用 uv（翻唱安装同一套做法）：
- * - uv 和 Python 都用所有功能共用的那份（心智核心目录 ~/Aurabot/mind 里，见 core/python.js），不碰系统的 python3
- *   （那是 Xcode 命令行工具里的，没装时会弹窗要求安装）
- * - 官方源慢时自动改用国内镜像（和翻唱安装同一个判断）
- * - uv 的下载缓存放在安装目录里、装完删掉，不往 ~/.cache/uv 留东西
- * @param {object} [log]
- * @param {{root?: string}} [o] root = 翻唱安装目录（面板里改过就传进来；留空 = ~/Aurabot/rvc）
- */
-export async function installEdge(log, { root = '' } = {}) {
-  const { defaultRoot, MAC_STACK } = await import('../song/studio.js')
-  const { sharedUv, shouldUseCnMirror, uvBaseEnv, CN_PYPI, PY_VERSION } = await import('../core/python.js')
-  const base = root || defaultRoot()
-  let uv
-  try {
-    uv = await sharedUv({ note: (s) => log?.info(s.trim()), log })
-  } catch (error) {
-    return { ok: false, message: '准备安装工具 uv 失败：' + error.message }
-  }
-  const cn = await shouldUseCnMirror('auto')
-  const cache = join(base, 'uv-cache-voice')
-  const env = uvBaseEnv({ cache, cn })
-  try {
-    if (!existsSync(pyExe())) {
-      log?.info(`用 uv 准备 Python ${PY_VERSION}`)
-      const r = await run(uv, ['venv', '-q', PYENV_DIR, '--python', PY_VERSION], { timeoutMs: 600000, env })
-      if (r.code !== 0) return { ok: false, message: '准备 Python 失败：' + r.err.slice(-300) }
-    }
-    log?.info(`正在安装 ${MAC_STACK.edgeTts} …`)
-    const pip = (mirror) => run(uv, ['pip', 'install', '-q', '--python', pyExe(), MAC_STACK.edgeTts, ...(mirror ? ['--default-index', CN_PYPI] : [])], { timeoutMs: 300000, env })
-    let r = await pip(cn)
-    if (r.code !== 0 && !cn) r = await pip(true) // 官方源不行再试一次国内镜像
-    if (r.code !== 0) return { ok: false, message: '安装 edge-tts 失败：' + r.err.slice(-300) }
-    return { ok: true, message: '语音组件装好了' }
-  } finally {
-    try { rmSync(cache, { recursive: true, force: true }) } catch {}
-  }
-}
-
-async function edgeSynth(text, voice, rate, pitch) {
-  const file = join(outDir(), `${randomUUID()}.mp3`)
-  // 文字走 stdin 的临时文件，避免命令行里的引号 / 编码问题
-  const txt = join(outDir(), `${randomUUID()}.txt`)
-  writeFileSync(txt, text, 'utf8')
-  const args = ['-I', '-m', 'edge_tts', '--voice', voice, '--file', txt, '--write-media', file]
-  if (rate && rate !== '+0%') args.push(`--rate=${rate}`)
-  if (pitch && pitch !== '+0Hz') args.push(`--pitch=${pitch}`)
-  const r = await run(pyExe(), args, { timeoutMs: 60000 })
-  try { unlinkSync(txt) } catch {}
-  if (r.code !== 0 || !existsSync(file) || statSync(file).size < 500) {
-    throw new Error('edge-tts 失败：' + (r.err || r.out).slice(-200))
-  }
-  return file
 }
 
 /** 从 `say -v '?'` 的输出里挑一个中文（中国大陆）声音：优先 Tingting（女声），再按列表顺序。没有返回 ''。 */
@@ -321,7 +260,7 @@ export async function textToSpeech(text, opt = {}, log) {
     }
   } else if (opt.engine !== 'system' && edgeInstalled()) {
     try {
-      file = ensureAudible(await edgeSynth(clean, opt.voice || 'zh-CN-XiaoyiNeural', opt.rate, opt.pitch))
+      file = ensureAudible(await edgeSynth(clean, opt.voice || 'zh-CN-XiaoyiNeural', opt.rate, opt.pitch, { run, outDir }))
       engine = 'edge'
     } catch (error) {
       log?.warn(error.message, '→ 改用' + SYSTEM_VOICE)
