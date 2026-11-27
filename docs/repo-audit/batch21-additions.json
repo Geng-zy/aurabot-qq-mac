@@ -40,5 +40,12 @@
     "owner": "features-imagegen",
     "verdict": "keep",
     "evidence": "70 行；2 个内部依赖（features/appearance.js、features/paintings.js 由调用方注入）；1 处 import（modules/imagegen/index.js）；经 test/e2e.test.js（面板 `/image/appearance*`、`/image/gallery*`）覆盖。两个注册函数：registerAppearanceRoutes（7 条：导入参考图、选主图、看图写描述等）与 registerGalleryRoutes（4 条：图库列表、取图、删除、开文件夹）。B40 从 modules/imagegen/index.js 拆出来：那边是生图模块装配（工具 / 内心邀约 / 生图服务），这组路由只跟参考图目录、图库与看图模型打交道。"
+  },
+  {
+    "path": "src/mind/motivation/rules.js",
+    "area": "mind/motivation",
+    "owner": "mind-motivation",
+    "verdict": "keep",
+    "evidence": "97 行；0 个内部依赖；2 处 import（mind/motivation/index.js、test/mind-motivation.test.js + test/mind-fixes.test.js 经 index.js 间接）；职责：16 项基本需要表与 rise 速率、NEED 索引、需要与性格的权重表（NEED_FROM_TRAITS / needStrengths）、「这句话是不是想做某件事」的判定（hasActionPhrase / wantsMeal / wantsOwnerChat / explicitAction / matchesWant）、动作可用性与重试间隔取值的保护（availability / retryDelay）。全部纯函数，不碰 store 与 now。B41 从 motivation/index.js 抽出（344 → 257 行），那边只剩状态与结果学习。"
   }
 ]

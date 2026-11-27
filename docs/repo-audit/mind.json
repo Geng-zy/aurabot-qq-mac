@@ -213,8 +213,8 @@
     "path": "src/mind/motivation/index.js",
     "area": "mind/motivation",
     "owner": "mind-motivation",
-    "verdict": "split",
-    "evidence": "344 行；import：mind-adapter/offers.js、mind/index.js、modules/imagegen/index.js、modules/song/index.js；测试：test/mind-fixes.test.js、test/diary-media.test.js 直接 import NEEDS/hasActionPhrase/wantsOwnerChat 等；动机状态经 mind.motivation 在 test/mind-inner.test.js、test/mind-personality.test.js 覆盖；内部依赖 0（无）；16 项基本需要的强弱与漂移 advance 118-139、具体想要 want/closeWant/satisfyWants 147-184、选择 choose 238-310（Steel 2007 的 Γ）、反馈学习 feedback 311-320、提示词 prompt 321-330；344 行、0 内部依赖；被 src/modules/imagegen/index.js 与 src/modules/song/index.js 反向 import（modules 越层，见汇总），拆分时把这两个引用一并改到门面；状态仍写 kv 键 motivation"
+    "verdict": "keep",
+    "evidence": "344 行；import：mind-adapter/offers.js、mind/index.js、modules/imagegen/index.js、modules/song/index.js；测试：test/mind-fixes.test.js、test/diary-media.test.js 直接 import NEEDS/hasActionPhrase/wantsOwnerChat 等；动机状态经 mind.motivation 在 test/mind-inner.test.js、test/mind-personality.test.js 覆盖；内部依赖 0（无）；16 项基本需要的强弱与漂移 advance 118-139、具体想要 want/closeWant/satisfyWants 147-184、选择 choose 238-310（Steel 2007 的 Γ）、反馈学习 feedback 311-320、提示词 prompt 321-330；344 行、0 内部依赖；被 src/modules/imagegen/index.js 与 src/modules/song/index.js 反向 import（modules 越层，见汇总），拆分时把这两个引用一并改到门面；状态仍写 kv 键 motivation B41 已把纯规则拆成 motivation/rules.js（97 行），本文件 344 → 259 行，只剩状态与结果学习；<300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/mind/params.js",

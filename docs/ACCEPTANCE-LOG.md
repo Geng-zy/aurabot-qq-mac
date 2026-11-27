@@ -3357,3 +3357,34 @@ Release 附件 dsh-aurabot-qq-1.6.78.tgz  19,668,066 字节
        sha256 a6e3221e820448c85cd0702ff2742cbd276b95dfd8076f714f9796d9d0670497
        （= mini 安装的那份）
 ```
+
+---
+
+## B41 · 动机拆分：纯规则独立成模块（1.6.79）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `motivation/index.js` | 344 → **259** | 状态与结果学习：`load/save/advance/satisfy/want/closeWant/satisfyWants/offer/motives` + 奖励预测误差更新 |
+| `motivation/rules.js`（新） | **97** | 16 项基本需要与 `rise`、`NEED_FROM_TRAITS`/`needStrengths`、`hasActionPhrase`/`wantsMeal`/`wantsOwnerChat`/`explicitAction`/`matchesWant`、`availability`/`retryDelay` |
+
+导出面不变：`motivation/index.js` 再导出同名成员，`modules/song`、`modules/imagegen` 继续从原路径取。
+
+```text
+Air   mind-motivation / mind-fixes / mind-features / mind-inner → 51 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 624 文件；oxlint 0 error；清单 0 待审
+审计  motivation/index.js split → keep（259 行）；新增 motivation/rules.js（keep）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.79（回滚点 ~/aurabot-release-backups/20261128-002116）、00:21:20 启动
+规则   rules.js 真机导出 11 个成员；needStrengths(() => 0.5) 各项 0.5；
+       hasActionPhrase('想画一张', /画/) = true、('不想画') = false
+接口   /mind/inner → ok=true；配置逐字段一致；Purge 三个工具仍在；新增 error：0 条
+
+提交   B41
+tag    v1.6.79
+Release dsh-aurabot-qq-1.6.79.tgz  19,670,033 字节
+        sha256 9eca8ed087cc250b14302d478a7d7702e41b6182856e69fd6250b4bb2df74046
+```

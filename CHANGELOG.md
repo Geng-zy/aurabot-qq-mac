@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.79
+
+- B41 **动机拆分：纯规则独立成模块**（`src/mind/motivation/rules.js` 97 行，`motivation/index.js` 344 → 259 行）。
+  - 拆出：16 项基本需要表与 `rise` 速率、需要与性格的权重（`NEED_FROM_TRAITS` / `needStrengths`）、
+    意图判定（`hasActionPhrase` / `wantsMeal` / `wantsOwnerChat` / `explicitAction` / `matchesWant`）、
+    动作可用性与重试间隔的保护取值（`availability` / `retryDelay`）—— 全是纯函数，不碰 store 与 now。
+  - 留下：状态与结果学习（`load/save/advance/satisfy/want/closeWant/motives` + 奖励预测误差更新）。
+  - 导出面不变：`motivation/index.js` 再导出同名成员，`modules/song`、`modules/imagegen` 等继续从原路径取。
+- 测试：全量 1730 个测试通过；语法 624 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.78
 
 - B40 **生图模块拆分：面板路由独立成模块 + 两项已完成的改判**。
