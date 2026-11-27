@@ -3171,3 +3171,20 @@ CI        run 46010638548 → macos-latest success、ubuntu-latest success（21:
 接口   /mind/inner → ok=true（日记有真实内容）
 配置   升级前后逐字段一致；Purge 三个工具仍在；21:55 之后新增 error：0 条
 ```
+
+### 发布（v1.6.75）
+
+```text
+提交      27aa014
+tag       v1.6.75
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.75
+附件      dsh-aurabot-qq-1.6.75.tgz  19,662,170 字节（466 个条目，含新模块 embed-client.js）
+          远端 digest sha256:b2279a2d6139e102c6c16d7595d676e28f1377e466a60c55cc7c666000dc0147
+          = mini 上安装的那份（同哈希）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+
+CI 第一次（run 46013322803）：ubuntu success、macos-latest **cancelled**
+  证据：该 job 的 steps 数组为空 —— 一步都没开始跑就被取消，是 macOS runner 供给被回收，
+  不是测试失败（ubuntu 三分钟跑完全绿）。补跑一次 run 46016055347：ubuntu-latest success、
+  macos-latest success（22:37），双平台干净。
+```
