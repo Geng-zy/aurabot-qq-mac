@@ -3599,3 +3599,34 @@ Air   mind 相关 69 pass；全量 1730 passed / 0 failed / 0 skipped；语法 6
 Mini  1.6.86 启动（02:14:58）；review/forget/dream/links 四个模块真机导出正常；
       /mind/inner ok；配置一致；Purge 三工具在；0 新增 error
 ```
+
+---
+
+## B49 · 关系拆分：「说给人听」独立成模块（1.6.87）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `relations/index.js` | 425 → **299** | 状态与学习：`relOf/get/put/typeOf/closeness/dislikes/encodeAsk/observe/forgetKnowledge/touch/nightly/groupOf/list/edit` |
+| `relations/describe.js`（新） | **142** | `describe`（排序、分档、称呼、老梗、别碰、心结、群规）、`prompt`、`promptLimit` |
+
+依赖注入（`get`/`REL_TYPES`/`place`/`groupOf`/`now`），纯字符串组装、不碰库。
+
+```text
+Air   mind 相关 54 pass（含「关系的细节」与「对群的了解」）；全量 1730 passed / 0 failed / 0 skipped
+      语法 637 文件；oxlint 0 error；清单 0 待审
+过程  自查修掉 5 处缺注入（place / groupOf / clip / now / clamp）；
+      其中 now 必须用模块的假时钟，否则「他最近：…」按真实时间算会判过期 —— 被「关系的细节」用例抓出
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.87（回滚点 ~/aurabot-release-backups/20261128-023453）、02:34:57 启动
+模块   describe.js 真机导出 createRelationsText；用完整 rel/tom 形状喂假数据：
+       describe 末行 → 「- 小明：朋友，挺熟，挺喜欢他，一般信任」；prompt 长度 54（拼接正常）
+接口   /mind/inner → ok=true；配置逐字段一致；Purge 三个工具仍在；02:20 之后新增 error：0 条
+
+提交   B49；tag v1.6.87
+Release dsh-aurabot-qq-1.6.87.tgz  19,683,396 字节
+        sha256 bf16e2115d643b8d098f50beab98de0475c22913441de84100432ffba7a4df18
+```

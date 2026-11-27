@@ -248,8 +248,8 @@
     "path": "src/mind/relations/index.js",
     "area": "mind/relations",
     "owner": "mind-relations",
-    "verdict": "split",
-    "evidence": "425 行；import：mind/index.js；测试：relations.* 由 test/mind-personality.test.js、test/mind-body-emotion.test.js、test/mind-graph.test.js、test/mind-forget.test.js、test/mind-owner-call.test.js 等 10 个测试覆盖；内部依赖 1（mind/place.js）；社会认知与关系：relOf/get/put/typeOf/closeness 39-84、看法更新 observe 104-225 与 forgetKnowledge 226、夜间变淡 nightly 252-269、展示 describe/prompt 276-400、列表与手工编辑 list/groups/edit 401-424；425 行、内部依赖 place.js；只被 mind/index.js import（门面内聚好），建议把 describe/prompt 展示层与 nightly 分开；写回集中在 put，kv 键 relations.pester 与 rel.group.<窗口> 保持原样"
+    "verdict": "keep",
+    "evidence": "425 行；import：mind/index.js；测试：relations.* 由 test/mind-personality.test.js、test/mind-body-emotion.test.js、test/mind-graph.test.js、test/mind-forget.test.js、test/mind-owner-call.test.js 等 10 个测试覆盖；内部依赖 1（mind/place.js）；社会认知与关系：relOf/get/put/typeOf/closeness 39-84、看法更新 observe 104-225 与 forgetKnowledge 226、夜间变淡 nightly 252-269、展示 describe/prompt 276-400、列表与手工编辑 list/groups/edit 401-424；425 行、内部依赖 place.js；只被 mind/index.js import（门面内聚好），建议把 describe/prompt 展示层与 nightly 分开；写回集中在 put，kv 键 relations.pester 与 rel.group.<窗口> 保持原样 B49 把「说给人听」的部分（describe/prompt/promptLimit）拆成 relations/describe.js（142 行），本文件 425 → 299 行，只剩状态与学习（relOf/get/put/observe/nightly/touch/forgetKnowledge/groupOf/list/edit 等）；<300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/mind/replay.js",
@@ -341,5 +341,12 @@
     "owner": "mind-memory",
     "verdict": "keep",
     "evidence": "34 行；0 个内部依赖（store/mem 注入）；1 处 import（memory/sleep.js）；被 test/mind-memory.test.js 覆盖。职责：sourceUnchanged（来源经历是否还在、没被改过）、linkSimilar（用向量余弦 ≥0.8 给相像的经历建联系）、vecOf（按 id 取向量）。B48 从 sleep.js 抽出。"
+  },
+  {
+    "path": "src/mind/relations/describe.js",
+    "area": "mind/relations",
+    "owner": "mind-relations",
+    "verdict": "keep",
+    "evidence": "142 行；0 个内部依赖（get/REL_TYPES/place/groupOf/now 全部注入）；1 处 import（mind/relations/index.js）；被 test/mind-relations.test.js / mind-features / mind-inner 覆盖。职责：把关系与看法说成中文（describe：眼前最多 4 人，按管理员优先→亲近度→最近联系排序，分档说熟络/喜欢/信任，带称呼与群规）与拼提示词（prompt + promptLimit 截断）。B49 从 relations/index.js 抽出，纯字符串组装，不碰库。"
   }
 ]

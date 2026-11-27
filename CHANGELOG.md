@@ -2,6 +2,15 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.87
+
+- B49 **关系拆分：「说给人听」独立成模块**（`mind/relations/describe.js` 142 行，`relations/index.js` 425 → 299 行）。
+  - 拆出 `describe`（眼前最多 4 人，按管理员优先 → 亲近度 → 最近联系排序；分档说熟络/喜欢/信任，
+    带称呼、老梗、别碰的、心结与和好、对方心情，以及群的风格与规矩）、`prompt`、`promptLimit`。
+  - 留下状态与学习：`relOf/get/put/typeOf/closeness/dislikes/encodeAsk/observe/forgetKnowledge/touch/nightly/groupOf/list/edit`。
+  - 依赖注入（`get`/`REL_TYPES`/`place`/`groupOf`/`now`），纯字符串组装、不碰库。
+- 回归：mind 相关 54 pass（含「关系的细节」与「群了解」用例）；全量 1730 个测试通过；语法 637 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.86
 
 - B48 **睡觉整理拆分：回顾 / 淡化归档 / 做梦 / 建联系独立成模块**（`memory/sleep.js` 423 → 285 行）。
