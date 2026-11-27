@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.75
+
+- B37 **记忆模块拆分：向量/精排的远程客户端独立成模块**（`src/mind/memory/embed-client.js` 82 行，
+  `memory/vectors.js` 163 → 87 行）。
+  - 拆出：`createEmbedClient` / `createRerankClient` —— 纯 HTTP（地址与密钥校验、请求体、超时、响应解析），
+    只用注入的 `fetch/url/model/key`，可注入假 fetch 单测。
+  - 留下：`createVectorIndex`（内存索引 + 单位化点积）与 `createVectorState`（staleVectorIds / vectorProgress / canEmbed），
+    即「本地库里的向量与进度」。
+  - 导出面不变：`src/mind/index.js` 仍再导出这两个客户端，`mind-adapter` 的注入链零改动；顺手清掉一条 `no-new-array` 警告。
+- 测试：`test/mind-memory.test.js` 与 `test/mind-rerank.test.js` 的导入改指向新模块；
+  记忆与心智相关套件 93 tests / 93 pass。
+- 回归：全量 1719 个测试通过；语法 618 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.74
 
 - B36 **表情库拆分：纯逻辑独立成模块**（`src/features/sticker-library.js` 83 行，`features/stickers.js` 459 → 388 行）。

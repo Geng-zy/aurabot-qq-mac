@@ -2,7 +2,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMindAdapter } from '../src/mind-adapter/index.js'
-import { createRerankClient } from '../src/mind/memory/vectors.js'
+import { createRerankClient } from '../src/mind/memory/embed-client.js'
 
 const T0 = Date.UTC(2026, 10, 10, 4)
 // 关键词命中的候选都一样「像」，原顺序按记得多牢；精排让「猫」那条排第一

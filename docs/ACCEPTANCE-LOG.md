@@ -3135,3 +3135,39 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.74
 CI        run 46010638548 → macos-latest success、ubuntu-latest success（21:57）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B37 · 记忆模块拆分：向量/精排客户端独立成模块（1.6.75）
+
+批次来源：`src/mind/memory/vectors.js`（163 行）的 split 结论 —— 一个文件里装了三件事：
+本地向量索引（SQLite + 内存索引）、embed 远程客户端、rerank 远程客户端。
+
+### 1. 切法
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `memory/vectors.js` | 163 → **87** | `createVectorIndex`（内存索引、单位化点积）、`createVectorState`（staleVectorIds / vectorProgress / canEmbed）—— 本地库里的向量与进度 |
+| `memory/embed-client.js`（新） | **82** | `createEmbedClient` / `createRerankClient` —— 纯 HTTP：地址与密钥校验、请求体、超时、响应解析；只用注入的 `fetch/url/model/key` |
+
+导出面不变：`src/mind/index.js` 仍再导出两个客户端，`mind-adapter/embedding.js` 的注入链零改动。
+
+### 2. 自动测试（Air）
+
+```text
+记忆/心智相关：mind-memory / mind-rerank / mind-adapter / mind-features / mind-inner → 93 tests / 93 pass
+全量 1719 passed / 0 failed / 0 skipped；语法 618 文件；oxlint 0 error；清单 0 待审
+顺手清掉拆分后新文件里的一条 no-new-array 警告（Array.from({length}) 写法）
+```
+
+### 3. Mini 实机验收
+
+```text
+安装   1.6.75（回滚点 ~/aurabot-release-backups/20261127-220757）
+启动   22:08:02 Aurabot v1.6.75 已加载
+导出   embed-client → createEmbedClient,createRerankClient
+       vectors       → createVectorIndex,createVectorState
+       mind/index.js 仍再导出两个客户端（typeof = function）
+接口   /mind/inner → ok=true（日记有真实内容）
+配置   升级前后逐字段一致；Purge 三个工具仍在；21:55 之后新增 error：0 条
+```

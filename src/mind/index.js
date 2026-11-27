@@ -25,7 +25,7 @@ import { publicPersonaStyle } from './self/public-style.js'
 export { PARAMS, GROUPS, paramOf } from './params.js'
 export { effortForScene, speechScene } from './conversation.js'
 export { wantsMeal, wantsOwnerChat } from './motivation/index.js'
-export { createEmbedClient, createRerankClient } from './memory/vectors.js'
+export { createEmbedClient, createRerankClient } from './memory/embed-client.js'
 export { parseJson } from './memory/text.js'
 export { placeOf, shortId } from './place.js'
 

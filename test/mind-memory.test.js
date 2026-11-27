@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createMind } from '../src/mind/index.js'
 import { retention, initialStability, afterRecall, levelOf } from '../src/mind/memory/curve.js'
-import { createEmbedClient } from '../src/mind/memory/vectors.js'
+import { createEmbedClient } from '../src/mind/memory/embed-client.js'
 
 const DAY = 86400000
 const T0 = Date.UTC(2026, 10, 10, 2, 0, 0)

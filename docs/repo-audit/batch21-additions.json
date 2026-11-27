@@ -12,5 +12,12 @@
     "owner": "core-backup",
     "verdict": "keep",
     "evidence": "160 行；WebDAV 后端全链：地址/凭据校验（含坚果云 /dav 自动补全）、MKCOL 建文件夹、PROPFIND 列目录、下载、上传后按份数清理。被 backup-push.js 的 pushBackup 按 provider 分流调用，并经 re-export 供 host/routes 使用；test/backup-webdav.test.js 覆盖列表/下载/上传/错误码文案。 B32 加了取消语义：pushBackupWebdav(r, { signal }) 把调用方 signal 与 30 分钟超时用 AbortSignal.any 合并；取消时抛带 cancelled 标记的「已取消」（不包装成「连不上」，面板才分得清）；清理旧备份阶段遇取消则停止继续删、保留已成功的上传并给出警告。"
+  },
+  {
+    "path": "src/mind/memory/embed-client.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "82 行；0 个内部依赖（只用注入的 fetch/url/model/key）；2 处 import（mind/index.js 再导出、mind-adapter/embedding.js 经注入拿到）；2 个测试（test/mind-memory.test.js 的 embed 用例、test/mind-rerank.test.js）。职责：向量/精排的远程 HTTP 客户端——地址/密钥校验、请求体、超时、响应解析。B37 从 memory/vectors.js 拆出来：那边是本地库里的向量与索引进度（SQLite + 内存索引），这边是纯 HTTP（可注入 fetch 单测），两件事混在一份 163 行文件里时测试要一起扛。"
   }
 ]
