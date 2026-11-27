@@ -2409,4 +2409,23 @@ Mini        回滚点 ~/aurabot-release-backups/20261127-151323（1.6.61 包 + p
 最小代价：**管理员给机器人发一条私聊**（当前私聊只存在 debug 会话，live 会话还没有），
 Aurabot 会新建 live 会话 → 记录应为 `aurabot-private-long / source=create`，与 header 对照即可。
 
-本批代码与包**尚未提交 tag / 未发 Release**，等这一步补齐。
+### 正向路径确认（15:26 私聊那条消息）
+
+```text
+私聊复用的是已有会话 session-9e2c49af-…（createdAt 01:58，header agentPreset = aurabot-private-long）
+修复后：presetFor("session-9e2c49af-…") = ''   ← 不再凭空登记
+        该会话 header 仍是 aurabot-private-long → presetOfAgent 回落 header，取到的值正确
+对照修复前：同一路径会把「这次请求的预设」写成当前预设 —— 就是 standard / aurabot-social 那次漂移
+```
+
+### 发布
+
+```text
+提交      a6bf53f（fix）+ 文档提交
+tag       v1.6.62
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.62
+附件      dsh-aurabot-qq-1.6.62.tgz  19,649,307 字节
+          远端 digest = sha256:be7cd13aefe25c8e32f5af3fecb98ee186482b2aa1bbad38ad702d691134acaa
+          = 本地候选包 = mini 上安装的那份
+CI        run 45958628503 → ubuntu-latest success、macos-latest success（15:34 双绿）
+```
