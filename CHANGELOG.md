@@ -2,6 +2,22 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.62
+
+- B24 修真实缺陷：**「当前预设」记的是请求值，不是会话真实值**。mini 实证 —— 会话
+  `session-ec876ab6` 的持久化 header 是 `agentPreset: "standard"`，Aurabot 却把它登记成
+  `aurabot-social`（`source=create`），两边不一致；后续按预设注入人格/规则会用错那一套。
+  - 根因：`createSessionNow` 在 workspace attach 失败、**重挂到已有会话**时，仍然
+    `notePreset(r.sessionId, preset)`，记的是「这次请求的预设」，而那个会话的真实预设是它当初创建时的。
+  - 修法：新增纯函数 `presetToNote({ reported, requested, recovered })` ——
+    **宿主回报的优先**；新建且宿主没报才用请求值；**重挂且宿主没报就不猜**，
+    留给 `presetOfAgent` 回落到 `agent.preset` / `session.header`（那才是事实）。
+  - 同批带上 B23 的取证出口：`notePreset` 记 `lastPreset{sessionId, preset, source, at}`、
+    `agent-preset/selected` 标注 `source: 'event'`、新增只读 `GET /aurabot/api/host/preset`（路由快照 135→136）。
+- 测试：`test/purge-preset.test.js` +1（宿主的优先 / 新建用请求值 / 重挂不猜）；
+  `test/host-tools-route.test.js` +2（切换后立刻是新预设且 `source=event`、无 session 不炸）。
+- 回归：全量 1681 个测试通过，语法 613 文件，oxlint 0 error / 159 warning。
+
 ## 1.6.61
 
 - B23 会话中途切换预设：补上**只读取证出口**，让「notePreset 是否在正确时机生效」可以被实测。

@@ -2355,3 +2355,58 @@ test/fixtures/host-routes.json   135 → 136
 
 判定：**未发现回归，也没有需要修的切换链路**（单测覆盖事件→登记→优先级）。因此这一批
 **不提交、不打 tag、不发 Release**，`1.6.61` 作为候选留在工作区与 mini 上，等一次真实切换取证后再定。
+
+---
+
+## B24 · 抓到并修复：「当前预设」记的是请求值（1.6.62，待正向验收）
+
+### 真机证据（Mini，1.6.61 候选）
+
+```text
+GET /aurabot/api/host/preset
+  presetFor("session-ec876ab6-…") = "aurabot-social"      ← Aurabot 记的
+  last = { sessionId: "ec876ab6-…", preset: "aurabot-social", source: "create", at: 14:58:10 }
+
+该会话持久化 header（14:58 写盘，仅一行）：
+  {"type":"session","version":4,"id":"session-ec876ab6-…","createdAt":1795528458105,
+   "cwd":"…/Aurabot/qq-chats","agentPreset":"standard"}
+  agent-preset/selected 事件：0 条
+```
+
+**两边不一致**：登记 `aurabot-social`，实际 `standard`。根因在 `session-create.js`：
+workspace attach 失败后 `recoverSessionAttach` 重挂到**已有**会话，代码仍然
+`notePreset(r.sessionId, preset)`，记的是「这次请求的预设」，而那个会话的真实预设是它当初创建时的。
+
+影响：`presetOfAgent` 会优先返回这条错记录 → 按预设注入人格/规则时用错一套。
+
+### 修法（本批）
+
+```text
+新增纯函数 presetToNote({ reported, requested, recovered })
+  · 宿主回报的优先（r.agent.preset / r.preset / r.agentPreset）
+  · 新建且宿主没报 → 用请求值
+  · 重挂且宿主没报 → **不记**，留给 presetOfAgent 回落 agent.preset / session.header（事实）
+```
+
+顺带带上 B23 的取证出口（`lastPreset` / `source` / `GET /host/preset`，路由快照 136）。
+
+### 测试与安装
+
+```text
+全量        1681 passed / 0 failed / 0 skipped（+1：presetToNote 三分支）
+语法 613 文件｜oxlint 0 error / 159 warning
+
+Mini        回滚点 ~/aurabot-release-backups/20261127-151323（1.6.61 包 + profile 备份）
+            安装 1.6.62；启动 15:13:27 Aurabot v1.6.62 已加载
+            重启后 /host/preset → last=null（内存里的脏记录随进程清掉）
+            连续 6 分钟轮询：仍为 null —— 说明「重挂到已有会话」不再凭空登记（修复生效）
+```
+
+### 仍缺：正向样本
+
+要证明「新建会话时登记值 = 该会话 header」，需要一次**真正的新建**。当前这台机器上所有聊天
+（两个群 + 管理员私聊 + 系统日记）都已有会话，重挂路径不会产生记录。
+最小代价：**管理员给机器人发一条私聊**（当前私聊只存在 debug 会话，live 会话还没有），
+Aurabot 会新建 live 会话 → 记录应为 `aurabot-private-long / source=create`，与 header 对照即可。
+
+本批代码与包**尚未提交 tag / 未发 Release**，等这一步补齐。

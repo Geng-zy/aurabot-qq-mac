@@ -1,3 +1,21 @@
+/**
+ * 该把哪条预设记成「这个会话的当前预设」。
+ *
+ * 踩过的坑（1.6.61 在 mini 上抓到）：重挂到**已有**会话时（workspace attach 失败后的
+ * recoverSessionAttach），我们仍把「这次请求的预设」记成当前预设，而那个会话的真实 header
+ * 是它当初创建时的预设 —— 于是「登记的预设」和「实际跑的预设」不一致，
+ * 后续按预设注入人格/规则就会用错那一套。
+ *
+ * 规则：宿主报了就用宿主的（最权威）；新建且宿主没报才用请求值；重挂且宿主没报就不猜 ——
+ * 留给 presetOfAgent 回落到 agent.preset / session.header（那才是事实）。
+ */
+export function presetToNote({ reported = '', requested = '', recovered = false } = {}) {
+  const fromHost = String(reported || '')
+  if (fromHost) return fromHost
+  if (recovered) return ''
+  return String(requested || '')
+}
+
 export function createSessionCreate({
   notePreset = () => {}, SESSION_BACKOFF_MS, assertActive, audienceRevision, backoffError, cleanOrphan, controller, ensureWorkspace, getConfig, isDisposed, log, map, parseChat, presetFor, recoverSessionAttach, recoveredAttachStillCurrent, saveMap, sessionCreating, sessionFailure, sessionFailures, titleFor, workspaceDirOf }) {
   async function createSession(chat, level, assertCurrent) {
@@ -47,8 +65,14 @@ export function createSessionCreate({
       }
     }
     assertActive()
-    // 记下「这个会话跑的是哪个预设」：宿主 header 只是创建事实，中途换预设时它会过期
-    try { notePreset(r.sessionId, preset) } catch {}
+    // 记下「这个会话跑的是哪个预设」：宿主 header 只是创建事实，中途换预设时它会过期。
+    // 但只记**可信**的值：宿主回报的优先；重挂到已有会话且宿主没回报时宁可不记。
+    const toNote = presetToNote({
+      reported: r?.agent?.preset || r?.preset || r?.agentPreset || '',
+      requested: preset,
+      recovered: Boolean(recoveredFrom),
+    })
+    if (toNote) { try { notePreset(r.sessionId, toNote, { source: 'create' }) } catch {} }
     // 调试会话和正式会话分开，标题也标出来，免得在侧栏里点错
     const debug = getConfig().debug
     const title = titleFor(chat) + (debug ? '（调试）' : '')

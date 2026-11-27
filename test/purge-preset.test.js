@@ -74,3 +74,13 @@ test('会话中途换预设：agent-preset/selected 事件会更新「当前预�
   handler({ id: 'session-abc' }, { type: 'turn/start', data: { turn: 1 } })
   assert.equal(noted.length, 1)
 })
+
+test('presetToNote：宿主报的优先；新建用请求值；重挂且宿主没报就不猜', async () => {
+  const { presetToNote } = await import('../src/chat/session-create.js')
+  assert.equal(presetToNote({ reported: 'aurabot-social', requested: 'aurabot-private-long' }), 'aurabot-social',
+    '宿主报了就用宿主报的（最权威）')
+  assert.equal(presetToNote({ requested: 'aurabot-private-long' }), 'aurabot-private-long', '新建：用请求值')
+  assert.equal(presetToNote({ requested: 'aurabot-social', recovered: true }), '',
+    '重挂到已有会话且宿主没报：不记，交给 agent.preset / header 回落')
+  assert.equal(presetToNote({}), '', '什么都没有就是空')
+})
