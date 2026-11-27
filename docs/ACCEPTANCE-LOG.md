@@ -2832,3 +2832,16 @@ backup-stage / platform-config / long-tasks / creative-tasks / chat-log → 全�
 Purge   GET /host/tools → probeMaintenance=[purge_apply, purge_revert, purge_status]
 日志    19:20 之后新增 error：0 条
 ```
+
+### 4. 发布（v1.6.69）
+
+```text
+提交      d452db3
+tag       v1.6.69
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.69
+附件      dsh-aurabot-qq-1.6.69.tgz  19,656,763 字节（466 个条目）
+          远端 digest sha256:f0f6b37eaeb7f3f99991b2b6a4bcd31157e53184c6b6b489fa7cfb30c9d41366
+          = mini 上安装的那份（同哈希）
+CI        run 45989304261 → macos-latest success、ubuntu-latest success（19:24 双绿）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
