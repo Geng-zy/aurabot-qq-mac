@@ -2121,3 +2121,72 @@ purge 状态   68/73 applied（与动手前一致）
 ```
 
 外加清单里 **42 个 `split`** 的持续重构，那是多批次工程量，按批推进。
+
+---
+
+## B21 · Aurabot × Purge 工具调用验收（只读 purge_status，不改代码）
+
+环境：Mac mini，DSH Desktop `0.2.2-rc.3` + `dsh-purge-community@1.7.20` + Aurabot `1.6.60`（已验收版本）。
+
+### 1. 普通 DSH 会话：**卡在入口，本条保持待验证**
+
+```text
+试过的入口
+  · DSH 的 CLI        应用包里没有 bin（package.json 无 bin 字段、node_modules/.bin 为空、无全局 dsh 命令）
+  · Web GUI 直连      http://127.0.0.1:<port>/ → 401（要鉴权）
+  · 找令牌            ~/.dsh 下没有 token 文件；web-app / host-webserver 里没扫到可用的鉴权入口
+  · 桌面自动化        本会话没有 computer-use 工具，无法驱动 GUI 键盘输入
+卡点      无法在无头方式下创建一个「非 Aurabot 的普通 DSH 会话」并发一轮模型请求
+替代证据  宿主侧全局视图（不依赖会话）：GET /aurabot/api/host/tools → probe.view=ok，
+          probeMaintenance=[purge_apply, purge_revert, purge_status]
+          —— 能证明 purge 已把三个工具注册进 DSH 宿主的全局工具面，但**不能**代替「普通会话里模型真的调用一次」
+```
+
+### 2. Aurabot 完整权限管理员会话：四段证据齐全
+
+```text
+① 工具发现（宿主全局视图）
+   probe.view = ok
+   probeMaintenance = [purge_apply, purge_revert, purge_status]
+   挂载记录 last = {"source":"definitions","names":[三个 purge_*],"all":9,
+                    "chatId":"private:257859927","sessionId":"ba1d461d-…"}
+   → 挂载时命中的是 definitions 路径，三个工具全部被认出
+
+② 挂载与执行前校验（豁免判定）
+   GET /host/mount-plan?chat=qq:private:257859927&level=full
+   groupLevel = full｜ownerMaintenance = true｜denyMaintenance = []
+   maintenanceKey = owner:3307726247:
+   → 完整权限管理员私聊豁免收窄，purge 工具在这一层是「允许」的
+
+③ 实际调用（真实执行链）
+   POST /aurabot/api/debug/say：请调用 purge_status 工具（不要凭记忆）
+   日志：13:37:02 [调试] 面板 → private:257859927：请调用 purge_status 工具…
+        13:37:04 [调试] bot → 面板：前三行：
+
+④ 返回结果（工具真的执行了，不是背课文）
+   dsh-purge 状态 / Status
+   · 宿主 / surface: desktop
+   · DSH_HOME: /Users/gengzhiyu/.dsh
+```
+
+### 3. 受限/社交场景：工具清单与执行边界（计划层）
+
+```text
+群聊 level=chat        kind=group  groupLevel=social
+                       denyMaintenance=[purge_apply, purge_revert, purge_status]  ownerMaintenance=false
+群聊 level=group-full  denyMaintenance=[purge_apply, purge_revert, purge_status]  ownerMaintenance=false
+→ 群聊里（哪怕群管理级）三个 purge 工具都被列入收窄名单；只有「完整权限管理员私聊」不列
+```
+
+**这是计划层证据**：说明挂载时会把这三个工具从群会话里摘掉。要证明「受限会话里真的调不动」，
+需要一个真实的非管理员会话——那要先有真实群消息（需要你指定测试目标），本条保持待验证。
+
+### 4. 场景结果与状态
+
+```text
+purge 状态     本轮只读调用，未改安装（purge 目录时间戳仅因读取刷新，补丁仍 68/73）
+配置复原       debug=False、enabled=True、dryRun=False（临时开启已恢复）
+重启           13:37:31 Aurabot v1.6.60 已加载；面板 1.6.60、onebot=connected
+新增 error     13:35 之后 0 条
+回归           未发现；本批不改代码，无需发版
+```
