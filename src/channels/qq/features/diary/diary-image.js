@@ -2,7 +2,7 @@
 // 只从本机数据目录里挑，不接受外部输入；找不到就返回空串（日记照常只发文字）。
 
 import { listPaintings, paintingPath } from '../../../../features/paintings.js'
-import { loadLibrary, stickerPath } from '../../../../features/stickers.js'
+import { loadLibrary, stickerPath } from '../../../../features/sticker-library.js'
 
 const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
 

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import qqTools from '../src/channels/qq/features/qq-tools/index.js'
-import { matchSticker, pickForReply } from '../src/features/stickers.js'
+import { matchSticker, pickForReply } from '../src/features/sticker-library.js'
 import { createImageGen } from '../src/features/imagegen.js'
 import { askModel } from '../src/core/llm.js'
 

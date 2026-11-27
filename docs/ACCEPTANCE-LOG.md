@@ -3078,3 +3078,47 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.73
 CI        run 46005334897 → macos-latest success、ubuntu-latest success（21:20）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B36 · 表情库拆分：纯逻辑独立成模块（1.6.74）
+
+批次来源：`src/features/stickers.js`（459 行）的 split 结论。审计已写明两块职责：
+纯库层 71 行（`loadLibrary/stickerPath/matchSticker/pickForReply/pickEvict`，无 IO 副作用、可纯测）
+与采集存储 374 行（`createStickerStore`）。
+
+### 1. 切法（codebase-design）
+
+| | 之前 | 现在 |
+|---|---|---|
+| 纯逻辑 | 埋在 459 行文件里，测试只能连着采集存储一起跑 | `features/sticker-library.js`（83 行）：标签表、库文件读写、匹配、挑一张、淘汰谁 |
+| 采集与收藏 | 同一个文件 | `features/stickers.js`（388 行）：偷表情 → 收藏到 QQ → 视觉模型起备注 → 同步备注 |
+| 消费者 | 4 个 import 都指向 `stickers.js` | 直连 `sticker-library.js`；`stickers.js` 不再做再导出 |
+| 模块 fork | `files` 只列 `features/stickers.js` | 补上 `features/sticker-library.js`，fork 时一起复制 |
+
+保留的契约：`createStickerStore` 的返回结构逐字不变；库文件路径仍是 `<数据目录>/stickers/index.json`；
+`stickerPath` 的拼装规则不变；模块 10 个面板路由不变。
+
+### 2. 自动测试（Air）
+
+```text
+新增 test/sticker-library.test.js 5 个用例（纯逻辑，无网络无 DSH）
+  ✔ 空库/坏库退化成 { items: [] }
+  ✔ matchSticker：命中得分高、找不到返回 null
+  ✔ pickForReply 的「不随机」约定值
+  ✔ pickEvict：用得最少的先淘汰、手工/收藏来源不动、空库 null
+  ✔ stickerPath / stickerDir 的路径拼装
+
+回归 stickers / sticker-pick / sticker-record / features / recent-media / modules 全绿
+全量 1719 passed / 0 failed / 0 skipped；语法 615 文件；oxlint 0 error / 160 warning；清单 0 待审
+```
+
+### 3. Mini 实机验收
+
+```text
+安装   1.6.74（回滚点 ~/aurabot-release-backups/20261127-214939）
+启动   21:49:44 Aurabot v1.6.74 已加载
+模块   /modules → 12 个模块，stickers 已启用
+表情   /stickers → ok=true，28 条（真实库，走的是新纯库层的 loadLibrary）
+配置   升级前后逐字段一致；Purge /host/tools 三个工具仍在；21:45 之后新增 error：0 条
+```

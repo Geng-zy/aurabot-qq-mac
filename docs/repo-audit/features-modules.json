@@ -221,7 +221,7 @@
     "area": "feature",
     "owner": "feature-stickers",
     "verdict": "split",
-    "evidence": "459 行（>300）、7 个内部依赖（node:crypto:4、node:fs:5、node:path:6、core/store.js:7、core/image-info.js:8、core/llm.js:9、features/sticker-hash.js:10）。4 处 import：src/core/media.js:8、src/modules/stickers/index.js:5、src/channels/qq/features/diary/sources.js:6、src/channels/qq/features/diary/diary-image.js:5；另被 src/modules/stickers/index.js:18 的 files 清单声明。测试 4 个：test/stickers.test.js、test/sticker-pick.test.js、test/sticker-record.test.js、test/featurestest（test/features.test.js）。职责 ≥2：纯库层 71 行（loadLibrary、stickerPath、matchSticker、pickForReply、pickEvict，第 16-86 行，无 IO 副作用、可纯测）+ 采集存储 374 行（createStickerStore，第 87-460 行：caption 视觉起名 107、nearDuplicate 148、collectInner 161、addFromBufferInner 227、trim 262、remove 284、removeMany 298、captionLibrary 390）。拆成 stickers/library.js（纯库 + 吸收 sticker-hash.js）+ stickers/store.js（采集、去重、限额、QQ 同步）。"
+    "evidence": "388 行（>300）、7 个内部依赖（node:crypto:4、node:fs:5、node:path:6、core/store.js:7、core/image-info.js:8、core/llm.js:9、features/sticker-hash.js:10）。4 处 import：src/core/media.js:8、src/modules/stickers/index.js:5、src/channels/qq/features/diary/sources.js:6、src/channels/qq/features/diary/diary-image.js:5；另被 src/modules/stickers/index.js:18 的 files 清单声明。测试 4 个：test/stickers.test.js、test/sticker-pick.test.js、test/sticker-record.test.js、test/featurestest（test/features.test.js）。职责 ≥2：纯库层 71 行（loadLibrary、stickerPath、matchSticker、pickForReply、pickEvict，第 16-86 行，无 IO 副作用、可纯测）+ 采集存储 374 行（createStickerStore，第 87-460 行：caption 视觉起名 107、nearDuplicate 148、collectInner 161、addFromBufferInner 227、trim 262、remove 284、removeMany 298、captionLibrary 390）。拆成 stickers/library.js（纯库 + 吸收 sticker-hash.js）+ stickers/store.js（采集、去重、限额、QQ 同步）。 B36 已把纯库层（标签/匹配/挑一张/淘汰谁 + 库文件读写）拆成 features/sticker-library.js（83 行），本文件 459 → 388 行，只剩采集与收藏；仍 >300 但职责单一（偷表情 → 收藏到 QQ → 视觉模型起备注 → 同步备注）。"
   },
   {
     "path": "src/modules/_template/index.mjs",
@@ -271,5 +271,12 @@
     "owner": "modules-types",
     "verdict": "keepDoc",
     "evidence": "338 行、0 个内部依赖、102 条成员声明。静态 import 0 处；运行时被 src/core/modules.js:35（const TYPES = 'aurabot.d.ts'）与 src/core/module-registry.js:92 readFileSync 读走，每次启动 installDocs 复制到数据目录。测试：test/ 下 0 处引用本文件（test/module-copy.test.js:26 读的是 src/modules/API.md，不是本文件），类型声明不参与运行时断言。文档：docs/DESIGN.md:17、:31。契约漂移（可逐行核对）：第 298 行声明 core.modules、第 301 行声明 core.setConfig，而 src/core/module-code.js:83 的 hidden 集合（modules、mindFor、setConfig）已把两者从 api.core 上藏掉；模块实际在用的 api.core.tasks 与 api.core.taskRequesters（src/modules/imagegen/index.js、src/modules/song/index.js）、api.core.herVoice（src/modules/song/index.js）在第 284-303 行的 core 声明里没有。→ 保留并同步类型声明与 src/core/module-api.js 的真实面；api.core 是黑名单代理，src/host.js:486 的 core.bridge 与 :501 的 core.dangerGuard 在 createModules 之后加入、对模块自动可见，这一点必须写进说明。"
+  },
+  {
+    "path": "src/features/sticker-library.js",
+    "area": "features",
+    "owner": "features-stickers",
+    "verdict": "keep",
+    "evidence": "83 行；2 个内部依赖（core/store.js、core/sticker-path.js）；3 处 import（features/stickers.js、modules/stickers/index.js、channels/qq/features/diary/{sources,diary-image}.js）；1 个测试（test/sticker-library.test.js 5 个用例）。职责：表情库的纯逻辑——标签表、库文件读写（loadLibrary/saveLibrary/stickerPath/stickerDir）、模糊匹配（matchSticker）、回复时挑一张（pickForReply）、淘汰谁（pickEvict）。不碰网络、不碰 DSH、可纯测。B36 从 features/stickers.js（459 行）拆出来：那边只剩采集与收藏（386 行，要网络、限额、串行写）。消费者已直连本文件，不再经 stickers.js 再导出。"
   }
 ]

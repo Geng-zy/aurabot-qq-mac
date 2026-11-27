@@ -2,7 +2,8 @@
 // 导出的就是表情库（createStickerStore 的返回值），聊天中枢发表情、偷表情都找它。
 
 import { readFileSync, existsSync } from 'node:fs'
-import { createStickerStore, stickerPath } from '../../features/stickers.js'
+import { createStickerStore } from '../../features/stickers.js'
+import { stickerPath } from '../../features/sticker-library.js'
 import { defineTool, str } from '../../tools/tools.js'
 import { fetchImage, segmentBytes } from '../../core/net.js'
 import { ownerOrFree } from '../../chat/access.js'
@@ -15,7 +16,7 @@ export default {
   version: '1.0.0',
   description: '偷表情、回复时按情绪配表情、她自己改名删图；关掉后不发也不收表情',
   tab: 'stickers',
-  files: ['features/stickers.js', 'channels/qq/features/stickers-qq.js'],
+  files: ['features/stickers.js', 'features/sticker-library.js', 'channels/qq/features/stickers-qq.js'],
   setup(api) {
     const { hub, onebot, http } = api.core
     const qqStickerHooks = createQqStickerHooks({ onebot, log: api.log })

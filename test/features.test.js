@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { wantsQzonePost } from '../src/channels/qq/features/diary/qzone.js'
-import { matchSticker, pickForReply } from '../src/features/stickers.js'
+import { matchSticker, pickForReply } from '../src/features/sticker-library.js'
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -39,7 +39,7 @@ test('WAV 转 16kHz 单声道（给 DSH 语音识别）', async () => {
 })
 
 test('表情库上限：只清偷来的、最少用的、最老的', async () => {
-  const { pickEvict } = await import('../src/features/stickers.js')
+  const { pickEvict } = await import('../src/features/sticker-library.js')
   const items = [
     { md5: 'a', from: 'group:1', uses: 3, at: 1 },
     { md5: 'b', from: 'group:1', uses: 0, at: 5 },

@@ -2,6 +2,20 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.74
+
+- B36 **表情库拆分：纯逻辑独立成模块**（`src/features/sticker-library.js` 83 行，`features/stickers.js` 459 → 388 行）。
+  - 拆出的纯逻辑：标签表、库文件读写（`loadLibrary`/`saveLibrary`/`stickerPath`/`stickerDir`）、
+    模糊匹配（`matchSticker`）、回复时挑一张（`pickForReply`）、淘汰谁（`pickEvict`）——
+    不碰网络、不碰 DSH、可纯测。
+  - `stickers.js` 只剩采集与收藏（偷表情 → 收藏到 QQ → 视觉模型起备注 → 同步备注），要网络、限额与串行写。
+  - 四个消费者改为直连纯库层（`modules/stickers/index.js`、`channels/qq/features/diary/{sources,diary-image}.js`），
+    `stickers.js` 不再做再导出；内置模块的 `files` 清单补上 `features/sticker-library.js`，fork 时一起复制。
+- 测试：新增 `test/sticker-library.test.js` 5 个用例（空库/坏库退化、匹配得分与找不到、淘汰顺序与不动手工来源、路径拼装）；
+  `features` / `fixes-1.2.0` 两处测试的导入改指向新模块。
+- 回归：stickers / sticker-pick / sticker-record / sticker-library / features / recent-media / modules → 全绿；
+  全量 1719 个测试通过；语法 615 文件；oxlint 0 error / 160 warning；清单 0 待审。
+
 ## 1.6.73
 
 - B35 **心智侧两个薄模块合并**（都过删除测试）：
