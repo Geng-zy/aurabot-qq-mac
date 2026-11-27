@@ -1954,5 +1954,11 @@ last    {"source":"definitions","names":["purge_apply","purge_revert","purge_sta
 ### 发布
 
 ```text
-提交 / tag / Release / CI：见下一条记录
+提交      c77ab01（main）
+tag       v1.6.59 → c77ab01
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.59
+附件      dsh-aurabot-qq-1.6.59.tgz  19,646,753 字节
+          远端 digest = sha256:8cffc1ff59f0025080fb1facdab231114312ca498d80052ea80edd1e403ffc47
+          = 本地候选包 = Mini 上装的那份（三方同哈希）
+CI        run 45933994156 → ubuntu-latest success、macos-latest success（11:31 双绿）
 ```
