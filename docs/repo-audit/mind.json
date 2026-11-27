@@ -108,8 +108,8 @@
     "path": "src/mind/memory/index.js",
     "area": "mind/memory",
     "owner": "mind-memory",
-    "verdict": "split",
-    "evidence": "307 行；import：mind-adapter/index.js、mind/conversation.js、mind/index.js、mind/inner/index.js、mind/memory/sleep.js、mind/personality/index.js、mind/self/index.js；测试：无直接 import；4 个 mind 内部文件只从这里取 parseJson（conversation.js:2、inner/index.js:10、personality/index.js:14、self/index.js:7）；行为由 11 个 createMind 测试覆盖（同 index.js 行）；内部依赖 23（mind/budget.js、mind/clock.js、mind/memory/curve.js、mind/memory/deletion.js、mind/memory/encode-batch.js、mind/memory/encode-pending.js、mind/memory/encoding-state.js、mind/memory/followups.js、mind/memory/keywords.js、mind/memory/panel.js、mind/memory/privacy-text.js、mind/memory/recall.js、mind/memory/render.js、mind/memory/sharing.js、mind/memory/special.js、mind/memory/strengthen.js、mind/memory/text.js、mind/memory/vector-state.js、mind/memory/vectors.js、mind/memory/visibility.js、mind/memory/words.js、mind/memory/working.js、mind/place.js）；记忆装配：接入 think/embed/rerank/state 的 connect 66-75、ask 预算 115-133、embedEpisodes/embedText 136-170、jobs 队列 173-181、insert 184-201、编码三件套装配 204-249、recall/render/strengthen/followups/special/working/deletion/sharing/panel 装配 252-300，返回 59 个键（302-306）；307 行、内部依赖 23 个文件；接口过宽（59 键）。建议只把 ask、embedEpisodes/embedText、jobs 三段搬去 memory/model.js 与 memory/jobs.js，insert/save/row 的 SQL 与 store.tx 用法留在原文件；四个 parseJson 引用改指 memory/text.js 即可解开跨域耦合"
+    "verdict": "keep",
+    "evidence": "307 行；import：mind-adapter/index.js、mind/conversation.js、mind/index.js、mind/inner/index.js、mind/memory/sleep.js、mind/personality/index.js、mind/self/index.js；测试：无直接 import；4 个 mind 内部文件只从这里取 parseJson（conversation.js:2、inner/index.js:10、personality/index.js:14、self/index.js:7）；行为由 11 个 createMind 测试覆盖（同 index.js 行）；内部依赖 23（mind/budget.js、mind/clock.js、mind/memory/curve.js、mind/memory/deletion.js、mind/memory/encode-batch.js、mind/memory/encode-pending.js、mind/memory/encoding-state.js、mind/memory/followups.js、mind/memory/keywords.js、mind/memory/panel.js、mind/memory/privacy-text.js、mind/memory/recall.js、mind/memory/render.js、mind/memory/sharing.js、mind/memory/special.js、mind/memory/strengthen.js、mind/memory/text.js、mind/memory/vector-state.js、mind/memory/vectors.js、mind/memory/visibility.js、mind/memory/words.js、mind/memory/working.js、mind/place.js）；记忆装配：接入 think/embed/rerank/state 的 connect 66-75、ask 预算 115-133、embedEpisodes/embedText 136-170、jobs 队列 173-181、insert 184-201、编码三件套装配 204-249、recall/render/strengthen/followups/special/working/deletion/sharing/panel 装配 252-300，返回 59 个键（302-306）；307 行、内部依赖 23 个文件；接口过宽（59 键）。建议只把 ask、embedEpisodes/embedText、jobs 三段搬去 memory/model.js 与 memory/jobs.js，insert/save/row 的 SQL 与 store.tx 用法留在原文件；四个 parseJson 引用改指 memory/text.js 即可解开跨域耦合 B45 已把「模型与向量调用」（ask 带预算、embedEpisodes、embedText）拆成 memory/embedding-ops.js（78 行），本文件 306 → 262 行，只剩记忆本身（入库/检索/复习/遗忘/整理）；<300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/mind/memory/keywords.js",
@@ -292,5 +292,12 @@
     "owner": "mind-inner",
     "verdict": "keep",
     "evidence": "81 行；1 个内部依赖（emotion/catalog.js）；1 处 import（inner/index.js）；被 test/mind-inner.test.js 覆盖（深想触发条件、写回记忆与情绪）。职责：「认真想一次」的判定与流程——needsDeep（越想越难受 / 涉及管理员 / 小模型要求）、DEEP_SYSTEM 提示词、deepThink（调模型、reappraise、写看法/打算）。依赖全部注入（getAsk 惰性取模型、budgetAllow、memory/emotion/motivation/body、currentContext）。"
+  },
+  {
+    "path": "src/mind/memory/embedding-ops.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "78 行；0 个内部依赖（全部注入：getThink/getEmbed/getEmbedModel/canEmbed、budget、vectors、row、log、estimateTokens、queueJob、hash）；1 处 import（memory/index.js）；经 test/mind-memory.test.js 等覆盖。职责：三种对外调用——ask（预算闸门 + 用量回填，隐私场景不占预算）、embedEpisodes（批量算向量、失败入队重试）、embedText（查询向量，带 4 秒超时与模型一致性判断）。能力用 getter 注入，因为 think/embed 是 connect() 事后接上的。"
   }
 ]

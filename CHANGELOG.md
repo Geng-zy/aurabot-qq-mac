@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.83
+
+- B45 **记忆拆分：模型与向量调用独立成模块**（`memory/embedding-ops.js` 78 行，`memory/index.js` 306 → 262 行）。
+  - 拆出三种对外调用：`ask`（预算闸门 + 用量回填，隐私场景不占预算）、`embedEpisodes`（批量算向量、失败入队重试）、
+    `embedText`（查询向量，4 秒超时 + 模型一致性判断）。
+  - 能力用 getter 注入（`getThink`/`getEmbed`/`getEmbedModel`/`canEmbed`）：`think`/`embed` 是 `connect()` 事后接上的，
+    `canEmbed` 稍后才定义 —— 直接传值会拿到 null 或撞 TDZ（这一版先踩了，已改成惰性创建）。
+  - 留下：记忆本身（入库、检索、复习、遗忘、整理）。
+- 回归：全量 1730 个测试通过；语法 629 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.82
 
 - B44 **生图拆分第二轮：五条供应商链独立成模块**（`features/imagegen-providers.js` 202 行，

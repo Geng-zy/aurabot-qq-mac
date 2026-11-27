@@ -5,6 +5,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { retention, initialStability, levelOf } from './curve.js'
 import { createVectorState, createVectorIndex } from './vectors.js'
+import { createEmbeddingOps } from './embedding-ops.js'
 import { estimateTokens } from '../budget.js'
 import { zonedToEpoch, shortTime, dayKey, localParts, parseBirthday } from '../clock.js'
 import { placeOf, shortId } from '../place.js'
@@ -111,62 +112,17 @@ export function createMemory(deps) {
   }
 
   // ---------- 模型调用（带预算） ----------
-  async function ask(scene, system, text, maxTokens = 1200) {
-    if (!think) throw new Error('没接模型')
-    const est = estimateTokens(system) + estimateTokens(text) + maxTokens
-    // 隐私判断是安全闸，不占用后台创作预算；否则预算耗尽会把所有出站都卡死。
-    const finish = scene === 'privacy' ? () => {} : deps.budget.reserve(scene, est)
-    if (!finish) {
-      const e = new Error('今天的后台预算用完了')
-      e.code = 'BUDGET'
-      e.budgetEstimate = est
-      throw e
-    }
-    try {
-      const r = await think({ scene, system, text, maxTokens })
-      const out = typeof r === 'string' ? r : String(r?.text || '')
-      const used = typeof r === 'object' && r?.tokens ? r.tokens : estimateTokens(system) + estimateTokens(text) + estimateTokens(out)
-      finish(used)
-      return out
-    } finally { finish() }
-  }
-
-  // ---------- 向量 ----------
-  async function embedEpisodes(ids) {
-    const model = embedModel()
-    const list = ids.map(row).filter(Boolean).filter((e) => !vectors.has(e.id, model))
-    if (!list.length || !canEmbed()) {
-      for (const e of list) queueJob('embed', e.id)
-      return 0
-    }
-    try {
-      const vs = await embed(list.map((e) => e.gist))
-      let written = 0
-      if (embedModel() !== model) return written
-      list.forEach((e, i) => {
-        if (row(e.id)?.gist !== e.gist || !vs[i]?.length) return
-        vectors.put(e.id, model, vs[i], hash(e.gist))
-        written++
-      })
-      return written
-    } catch (error) {
-      log.debug('算向量失败，稍后再算：', error.message)
-      for (const e of list) if (row(e.id)) queueJob('embed', e.id)
-      return 0
-    }
-  }
-  async function embedText(text, timeoutMs = 4000) {
-    if (!canEmbed() || !String(text || '').trim()) return null
-    let timer
-    try {
-      const model = embedModel()
-      const r = await Promise.race([embed([text], { query: true }), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('超时')), timeoutMs) })])
-      return model === embedModel() ? r[0] || null : null
-    } catch (error) {
-      log.debug('线索算向量失败：', error.message)
-      return null
-    } finally { clearTimeout(timer) }
-  }
+  // ---------- 模型与向量调用（实现在 embedding-ops.js） ----------
+  // 惰性创建：think/embed 由 connect() 事后接上，canEmbed 稍后才定义，
+  // 构造期就建会拿到空值或撞 TDZ。
+  let embeddingOps = null
+  const opsOf = () => (embeddingOps ||= createEmbeddingOps({
+    getThink: () => think, getEmbed: () => embed, getEmbedModel: embedModel, canEmbed,
+    budget: deps.budget, vectors, row, log, estimateTokens, queueJob: (k, r, d) => queueJob(k, r, d), hash,
+  }))
+  const ask = (...a) => opsOf().ask(...a)
+  const embedEpisodes = (...a) => opsOf().embedEpisodes(...a)
+  const embedText = (...a) => opsOf().embedText(...a)
 
   // ---------- 后台任务 ----------
   function queueJob(kind, ref, data = {}) {

@@ -3486,3 +3486,35 @@ Air   imagegen 相关（shape / img2img / template / codex-auth / fixes）→ 71
 Release dsh-aurabot-qq-1.6.82.tgz  19,675,148 字节
         sha256 cf32d705677d624c8962a653fd45e9471b677d7a85ba9a86dcf14b4d743f4b26
 ```
+
+---
+
+## B45 · 记忆拆分：模型与向量调用（1.6.83）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `memory/index.js` | 306 → **262** | 记忆本身：入库、检索、复习、遗忘、整理 |
+| `memory/embedding-ops.js`（新） | **78** | `ask`（预算闸门 + 用量回填，隐私不占预算）、`embedEpisodes`（批量算向量、失败入队）、`embedText`（查询向量，4 秒超时 + 模型一致性） |
+
+能力用 getter 注入并在首次调用时惰性创建 —— `think`/`embed` 由 `connect()` 事后接上、`canEmbed` 稍后才定义，
+构造期直接建会拿到空值或撞 TDZ（这一版先踩了，改完再跑）。
+
+```text
+Air   mind-memory / mind-features / mind-reembed / mind-inner → 65 pass
+      全量 1730 passed / 0 failed / 0 skipped；语法 629 文件；oxlint 0 error；清单 0 待审
+过程  三次自查：自由变量未 getter 化（embed/embedModel/think）、TDZ（canEmbed/ask 早于定义）、
+      以及 embedding-ops 里残留 deps.budget 引用
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.83（回滚点 ~/aurabot-release-backups/20261128-013941）、01:39:46 启动
+模块   embedding-ops.js 导出 createEmbeddingOps，工厂返回 ask/embedEpisodes/embedText；
+       未接模型时 ask 如实抛「没接模型」（预算与能力检查都在）
+接口   /mind/inner → ok=true；配置逐字段一致；Purge 三个工具仍在；01:35 之后新增 error：0 条
+
+提交   B45；tag v1.6.83
+Release dsh-aurabot-qq-1.6.83.tgz  19,677,091 字节
+        sha256 63028ea30bffb5eaf8d783ff95e72eba6d98beddf5bc90d8c894dd71a995eb58
+```
