@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.71
+
+- B33 **备份路由合并 + 注入接口收窄**：`src/features/backup-cloud-routes.js`（66 行）并入
+  `src/features/backup-routes.js`（71 → 148 行），导出统一为 `registerBackupRoutes`。
+  - 两套备份路由共用同一批通用依赖（`backupAction / readBody / getConfig / setConfig`），
+    拆两个文件时每个都要各传一遍；合并后共 15 条端点（本机 9 条 + 云 6 条），面板路由快照仍是 **137 条**。
+  - 依赖从 **19 个平铺参数收成两个领域对象**：`backup{13}`（打包/恢复/延期会话）与 `remote{6}`（推送任务/WebDAV），
+    `host/routes.js` 的备份注册块从 **36 行降到 16 行**；`remoteView`（面板看到的云设置形状）随路由一起迁入，字段不变。
+  - 契约与行为零变化：`/backup/*` 全部路径、返回字段、`x-aurabot-backup` 面板标记校验、
+    `/backup/remote/cancel` 的取消语义（B32）都原样保留。
+- 测试：跟随新注册形状更新 `backup-webdav`（取消路由用例）与 `backup-push-cancel`（静态断言），
+  备份相关套件 23 个用例通过；全量 1708 个测试通过；语法 615 文件；oxlint 0 error / 160 warning；清单 0 待审。
+
 ## 1.6.70
 
 - B32 **云备份推送可取消 + 失败清理**（`src/core/backup-webdav.js`、`src/host/backup-schedule.js`、

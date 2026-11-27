@@ -14,18 +14,11 @@
     "evidence": "50 行、2 个内部依赖（node:fs:3、node:path:4）。唯一 importer src/host.js:61（import）+ host.js:842（registerAvatarRoutes 调用块）。测试：test/ 下 0 处 import 本文件；5 条端点中 4 条经 test/e2e.test.js:1278-1284 用 fake.call 覆盖（/avatar、/avatar/upload、/avatar/reset、/avatar/sync-qq），/panel/sea（第 19 行）只被 client/client.js:5193 与 client/parts/styles.js:458 当背景图 URL 引用。文档：docs/ 下 0 处提及。分层违规（REFACTOR-PLAN:32 panel 不该直接改文件）：6 处 fs 调用（第 11、16、22、31、37、42 行）+ 第 44 行 onebot.call('set_qq_avatar') 直连平台。并入新建 src/panel/core.js：签名 3 行 + 文件头 2 行 = 省 5 行，host.js:842 调用块 3 行并入单次 registerPanelRoutes；fs 与 onebot 两段下沉到 features/avatar.js。"
   },
   {
-    "path": "src/features/backup-cloud-routes.js",
-    "area": "panel",
-    "owner": "panel-backup",
-    "verdict": "merge",
-    "evidence": "66 行、0 个内部依赖。唯一 importer src/host.js:48（import）+ host.js:791（调用块 791-818，共 28 行依赖清单、15 个注入参数）。测试：/backup/remote/state、/backup/remote/config、/backup/push 由 test/e2e.test.js 与 test/system-processes.test.js 用 fake.call 覆盖；/backup/remote/list（第 46 行）、/backup/remote/restore（第 52 行）在 test/、docs/ 下 0 处引用。文档：docs/ 下 0 处提及本文件或这 5 条路径。导出 2 个：remoteView 纯视图映射（第 6-25 行，把 token 折成 hasToken）、registerBackupCloudRoutes。2 处 catch（第 49、63 行）与 src/host/http.js:60-67 的 answer() 逐字节相同。并入新建 src/panel/backup.js：签名 4 行 + 文件头 3 行（2 行注释 + 空行）+ 2 行冗余 catch = 省 9 行；host.js:791-818 的 28 行收敛成 1 个 backup 组依赖对象。 B32 新增 POST /backup/remote/cancel（route 快照 136→137），空闲时如实说没有在跑的推送。"
-  },
-  {
     "path": "src/features/backup-routes.js",
     "area": "panel",
     "owner": "panel-backup",
-    "verdict": "merge",
-    "evidence": "71 行、0 个内部依赖。唯一 importer src/host.js:47（import）+ host.js:755（调用块 755-790，36 行依赖清单、19 个注入参数，为 21 个路由文件里最多）。9 条端点：/backup/state 与 /backup/create 由 test/system-processes.test.js 用 fake.call 覆盖；/backup/verify（第 22 行）、/backup/open（第 43 行）、/backup/upload（第 45 行）、/backup/restore-path（第 51 行）、/backup/cancel（第 57 行）、/backup/sessions/retry（第 61 行）、/backup/sessions/cancel（第 68 行）在 test/、docs/ 下 0 处引用。文档：docs/ 下 0 处提及。真实逻辑只有第 29-41 行的 createBackup 进度任务编排（getJob/setJob 三段回调），其余是 1 行转发。并入新建 src/panel/backup.js：签名 8 行 + 文件头 3 行 = 省 11 行；host.js:755-790 的 36 行收敛成 1 个 backup 组依赖对象。"
+    "verdict": "keep",
+    "evidence": "148 行（B33 后）；0 内部依赖；1 处 import（src/host/routes.js）。B33 把 backup-cloud-routes.js（66 行）合并进来：两套备份路由共用同一批通用依赖（backupAction/readBody/getConfig），拆两个文件时每个都要各传一遍；合并后共 15 条端点（本机 state/verify/create/open/upload/restore-path/cancel/sessions-retry/sessions-cancel + 云 remote-state/remote-config/push/remote-cancel/remote-list/remote-restore）。依赖从 19 个平铺参数收成两个领域对象：backup{13 个} 与 remote{6 个}，host/routes.js 的注册块从 36 行降到 16 行；remoteView 也随之一并迁入（面板看到的云设置形状不变）。回归：test/backup-api、backup-webdav（含取消路由）、backup-push-cancel、backup-stage、backup、host-routes 快照 137 条。"
   },
   {
     "path": "src/features/bridge-routes.js",

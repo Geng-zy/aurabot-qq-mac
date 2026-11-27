@@ -19,8 +19,7 @@ import { registerMindPeopleRoutes } from '../features/mind-people-routes.js'
 import { registerMindSelfRoutes } from '../features/mind-self-routes.js'
 import { registerPersonaRoutes } from '../features/persona-routes.js'
 import { registerDebugRoutes } from '../features/debug-routes.js'
-import { registerBackupRestoreRoutes } from '../features/backup-routes.js'
-import { registerBackupCloudRoutes } from '../features/backup-cloud-routes.js'
+import { registerBackupRoutes } from '../features/backup-routes.js'
 import { registerNoticeRoutes } from '../features/notice-routes.js'
 import { registerHostRoutes } from '../features/host-routes.js'
 import { registerLocalRoutes } from '../features/local-routes.js'
@@ -127,23 +126,22 @@ export function registerAllRoutes(d) {
 
   registerDebugRoutes({ route, readBody, getConfig, hub })
 
-  registerBackupRestoreRoutes({
+  // 备份：本机 + 云共用一份路由表，依赖按领域收成两个对象（以前是 19 个平铺参数、36 行清单）
+  registerBackupRoutes({
     route, backupAction, readBody, readRaw, query, dataDir: d.dataDir, openFolder, log,
-    getConfig, version: d.version, workspaceDirOf: d.workspaceDirOf, captureMind,
-    getJob: d.getBackupJob, setJob: d.setBackupJob,
-    listBackups: d.listBackups, pendingRestore: d.pendingRestore, pendingSessions: d.pendingSessions,
-    pendingModules: d.pendingModules, inspectBackup: d.inspectBackup, createBackup: d.createBackup,
-    stageReceivedBackup: d.stageReceivedBackup, stageRestore: d.stageRestore,
-    cancelRestore: d.cancelRestore, retryPendingSessions: d.retryPendingSessions,
-    cancelPendingSessions: d.cancelPendingSessions,
-  })
-
-  // ---------- 云备份（定时器本体在 host.js，路由只读状态、触发一次） ----------
-  registerBackupCloudRoutes({
-    route, backupAction, readBody, getConfig, setConfig, mergeFromPanel: d.mergeFromPanel, log,
-    getPushJob: d.getPushJob, nextAt: d.nextPushAt, doPush: d.doPush, cancelPush: d.cancelPush,
-    listWebdavBackups: d.listWebdavBackups, downloadWebdavBackup: d.downloadWebdavBackup,
-    stageReceivedBackup: d.stageReceivedBackup,
+    getConfig, setConfig, mergeFromPanel: d.mergeFromPanel, version: d.version,
+    workspaceDirOf: d.workspaceDirOf, captureMind,
+    backup: {
+      getJob: d.getBackupJob, setJob: d.setBackupJob, listBackups: d.listBackups,
+      pendingRestore: d.pendingRestore, pendingSessions: d.pendingSessions, pendingModules: d.pendingModules,
+      inspectBackup: d.inspectBackup, createBackup: d.createBackup, stageReceivedBackup: d.stageReceivedBackup,
+      stageRestore: d.stageRestore, cancelRestore: d.cancelRestore,
+      retryPendingSessions: d.retryPendingSessions, cancelPendingSessions: d.cancelPendingSessions,
+    },
+    remote: {
+      getPushJob: d.getPushJob, nextAt: d.nextPushAt, doPush: d.doPush, cancelPush: d.cancelPush,
+      listWebdavBackups: d.listWebdavBackups, downloadWebdavBackup: d.downloadWebdavBackup,
+    },
   })
 
   registerHostRoutes({ route, ctx, getConfig, presetFor: (id) => purge.presetFor?.(id) || '', lastPreset: () => purge.lastPreset?.() || null, recentPresets: () => purge.recentPresets?.() || [] })

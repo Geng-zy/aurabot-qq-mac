@@ -52,6 +52,6 @@ test('推送进行中取消：在途请求被 abort，job 落成 cancelled 而�
 test('路由注册要把 cancelPush 透传到调度器（不能落到路由自己的兜底文案）', async () => {
   const { readFileSync } = await import('node:fs')
   const src = readFileSync(new URL('../src/host/routes.js', import.meta.url), 'utf8')
-  assert.ok(/registerBackupCloudRoutes\(\{[\s\S]*?cancelPush: d\.cancelPush/.test(src),
-    'routes.js 必须在 registerBackupCloudRoutes 的依赖里带上 cancelPush，否则接口只会返回兜底文案')
+  assert.ok(/registerBackupRoutes\(\{[\s\S]*?cancelPush: d\.cancelPush/.test(src),
+    'routes.js 必须在 registerBackupRoutes 的 remote 依赖里带上 cancelPush，否则接口只会返回兜底文案')
 })

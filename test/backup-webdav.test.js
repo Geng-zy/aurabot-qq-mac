@@ -177,9 +177,9 @@ test('取消发生在清理旧备份阶段：上传结果保留，停止继续�
 
 test('取消路由：空闲时如实说没有在跑的推送', async () => {
   const routes = new Map()
-  const { registerBackupCloudRoutes } = await import('../src/features/backup-cloud-routes.js')
+  const { registerBackupRoutes } = await import('../src/features/backup-routes.js')
   const calls = []
-  registerBackupCloudRoutes({
+  registerBackupRoutes({
     route: (p, fn) => routes.set(p, fn),
     backupAction: (fn) => fn,
     readBody: async () => ({}),
@@ -187,10 +187,12 @@ test('取消路由：空闲时如实说没有在跑的推送', async () => {
     setConfig: () => {},
     mergeFromPanel: (c) => c,
     log: { info() {}, warn() {} },
-    getPushJob: () => null,
-    nextAt: () => null,
-    doPush: async () => ({ ok: true }),
-    cancelPush: () => { calls.push('cancel'); return { ok: false, message: '当前没有在跑的推送' } },
+    remote: {
+      getPushJob: () => null,
+      nextAt: () => null,
+      doPush: async () => ({ ok: true }),
+      cancelPush: () => { calls.push('cancel'); return { ok: false, message: '当前没有在跑的推送' } },
+    },
   })
   const r = await routes.get('/backup/remote/cancel')({})
   assert.equal(r.ok, false)

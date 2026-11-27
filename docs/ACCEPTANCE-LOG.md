@@ -2912,3 +2912,42 @@ Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.70
 CI        run 45992808035 → macos-latest success、ubuntu-latest success（19:50 双绿）
 终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
 ```
+
+---
+
+## B33 · 备份路由合并 + 注入接口收窄（1.6.71）
+
+批次来源：`docs/REPO-INVENTORY.md` 里 `src/features/backup-routes.js` 与 `src/features/backup-cloud-routes.js`
+两条 verdict=merge。审计写的是「并入调用方」，但并入 `host.js` 与 B1「组合根只做装配」冲突，
+所以按同一目标换了个方向：**两个备份路由文件互相合并**，并把 19 个平铺注入参数收成两个领域对象。
+
+### 1. 接口（codebase-design）
+
+| 之前 | 现在 |
+|---|---|
+| 两个文件各注册一批路由，`backupAction/readBody/getConfig/setConfig` 各传一遍 | 一个 `registerBackupRoutes`，通用依赖只出现一次 |
+| 19 个平铺参数（host/routes.js 里 36 行依赖清单） | `backup{13}`（打包/恢复/延期会话）+ `remote{6}`（推送任务/WebDAV）+ 8 个通用依赖 |
+| `remoteView` 在云路由文件里 | 随路由一起迁入 `backup-routes.js`，导出名字与返回字段不变 |
+
+面板契约零变化：15 条端点路径、返回字段、`x-aurabot-backup` 标记校验、B32 的取消语义都原样保留；
+路由快照仍是 **137 条**。
+
+### 2. 自动测试（Air）
+
+```text
+backup-api / backup-webdav（含取消路由用例）/ backup-push-cancel（静态断言跟随新注册形状）/
+backup-stage / host-routes（快照 137）→ 23 tests / 23 pass
+全量 1708 passed / 0 failed / 0 skipped；语法 615 文件；oxlint 0 error / 160 warning；清单 0 待审
+```
+
+### 3. Mini 实机验收
+
+```text
+安装   1.6.71（回滚点 ~/aurabot-release-backups/20261127-201052）
+启动   20:10:56 Aurabot v1.6.71 已加载
+本机   GET /backup/state → ok=true，键 deferredSessions/dir/job/list/modules/ok/pending（未变）
+云     GET /backup/remote/state → ok=true，remote 字段仍是 autoCreate/branch/enabled/forceOverwrite/hasToken…
+取消   POST /backup/remote/cancel（带面板标记）→ {"ok":false,"message":"当前没有在跑的推送"}（B32 语义在）
+守卫   不带标记 → {"ok":false,"message":"请从面板发起操作"}（面板标记校验仍生效）
+配置   升级前后 config.json 逐字段一致；Purge /host/tools 三个工具仍在；20:10 之后新增 error：0 条
+```
