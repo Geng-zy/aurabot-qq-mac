@@ -2500,3 +2500,16 @@ Mini   1.6.64 安装并启动 16:08:57 Aurabot v1.6.64 已加载
 
 审批归属：本批未改审批链路；该会话的 `permission/preset` 仍是 `danger-full-access`（与 B22 记录一致），
 切换 agent preset 不改变审批归属 —— 工具可见性由 preset 决定，审批由 permission preset 决定，两者互不影响。
+
+### 4. 发布（v1.6.64）
+
+```text
+提交      55ed638（B25/B26 修复 + 验收记录）
+tag       v1.6.64
+Release   https://github.com/Geng-zy/aurabot-qq-mac/releases/tag/v1.6.64
+附件      dsh-aurabot-qq-1.6.64.tgz  19,649,917 字节
+          远端 digest sha256:b1ad581dcc80b617a10f555753ae289f8eb2fcaa899bad724991d34a0956c33b
+          = Air 重新打包的同哈希 = mini 上安装的那份
+CI        run 45963648076 → ubuntu-latest success、macos-latest success（16:17 双绿）
+终验      scripts/verify-release.mjs：版本一致 + 资产同哈希 —— 全部通过
+```
