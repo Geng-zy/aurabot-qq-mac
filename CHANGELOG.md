@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.88
+
+- B50 **人格拆分：每晚走一步 / 习惯 / 相似度独立成模块**（`mind/personality/index.js` 487 → 257 行）。
+  - `personality/nightly.js`（115 行）：`tally`（一天里的证据折成方向权重）、`movement`（要不要动、动多少：
+    步长 × 管理员影响上限 × 外向/内向因子）、`nightly`（影子模式、连续 3 步与到档提醒、很久没证据时回落）。
+  - `personality/habits.js`（146 行）：`habitsNightly`（同类场合反复出现且被正面回应才成习惯，总被冷落则慢慢消失）、
+    `saveHabitsVersion`、`forgetEvidence`（证据被删后回溯修正 traitSteps 与习惯）、`restoreHabits`、`alert`。
+  - `personality/similar.js`（17 行）：两段文字重合度（单独成文件避免 habits ↔ index 循环依赖）。
+  - 留下：存档与对外接口（`values/value/infer/confirm/restore/observe/text/state` 等）。
+- 回归：mind 相关 90 pass；全量 1730 个测试通过；语法 640 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.87
 
 - B49 **关系拆分：「说给人听」独立成模块**（`mind/relations/describe.js` 142 行，`relations/index.js` 425 → 299 行）。

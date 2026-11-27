@@ -3630,3 +3630,33 @@ Air   mind 相关 54 pass（含「关系的细节」与「对群的了解」）�
 Release dsh-aurabot-qq-1.6.87.tgz  19,683,396 字节
         sha256 bf16e2115d643b8d098f50beab98de0475c22913441de84100432ffba7a4df18
 ```
+
+---
+
+## B50 · 人格拆分（1.6.88）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `personality/index.js` | 487 → **257** | 存档与对外接口：`values/value/infer/confirm/restore/encodeAsk/observe/text/state` |
+| `personality/nightly.js`（新） | **115** | `tally` / `movement` / `nightly`（影子模式、连续 3 步与到档提醒、久无证据回落） |
+| `personality/habits.js`（新） | **146** | `habitsNightly` / `saveHabitsVersion` / `forgetEvidence` / `restoreHabits` / `alert` |
+| `personality/similar.js`（新） | **17** | 两段文字重合度（避免 habits ↔ index 循环依赖） |
+
+```text
+Air   mind 相关 90 pass；全量 1730 passed / 0 failed / 0 skipped；语法 640 文件；oxlint 0 error；清单 0 待审
+过程  自查修掉 4 处：alert 随块搬走导致 nightly 引用不到、habits 需要 movement（改成从 nightly 注入）、
+      similar 循环依赖（独立成文件）、habit 工厂多余的 movement 注入
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.88（回滚点 ~/aurabot-release-backups/20261128-024725）、02:47:30 启动
+接口   GET /mind/self → ok=true：19 项特质、49 个习惯（确认过=false），人格面板数据完整
+       （/personality 与 /persona/panel 返回「模块没开」，是模块开关的既有行为，与本批无关）
+配置   升级前后逐字段一致；Purge 三个工具仍在；02:40 之后新增 error：0 条
+
+提交   B50；tag v1.6.88
+Release dsh-aurabot-qq-1.6.88.tgz  19,685,330 字节
+        sha256 ea45a71b2df3544aec8162835c817d808bfa6209d8cc4ca731b365c0e94e9e92
+```

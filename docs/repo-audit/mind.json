@@ -227,8 +227,8 @@
     "path": "src/mind/personality/index.js",
     "area": "mind/personality",
     "owner": "mind-personality",
-    "verdict": "split",
-    "evidence": "487 行；import：mind/index.js、mind/memory/sleep.js；测试：test/mind-personality.test.js 直接 import TRAITS/bandOf/similar/createPersonality；test/mind-fixes.test.js、test/mind-core.test.js、test/mind-design.test.js 经 mind.personality 覆盖；内部依赖 3（mind/clock.js、mind/memory/index.js、mind/personality/traits.js）；三件事：状态记录 observe 157-194 与 trait 夜间步进 nightly 200-297（门槛/步子/拉力/影响力上限）、习惯 habitsNightly 404-431 与版本 restoreHabits 387、展示 selfText/sceneText/changed/habits 432-479；487 行、内部依赖 personality/traits.js、clock.js、memory/index.js；建议按「记录/夜间步进/习惯」三块下沉，kv 键 personality 与 versions 表的 kind=traits/habits 写入方式保持不变"
+    "verdict": "keep",
+    "evidence": "487 行；import：mind/index.js、mind/memory/sleep.js；测试：test/mind-personality.test.js 直接 import TRAITS/bandOf/similar/createPersonality；test/mind-fixes.test.js、test/mind-core.test.js、test/mind-design.test.js 经 mind.personality 覆盖；内部依赖 3（mind/clock.js、mind/memory/index.js、mind/personality/traits.js）；三件事：状态记录 observe 157-194 与 trait 夜间步进 nightly 200-297（门槛/步子/拉力/影响力上限）、习惯 habitsNightly 404-431 与版本 restoreHabits 387、展示 selfText/sceneText/changed/habits 432-479；487 行、内部依赖 personality/traits.js、clock.js、memory/index.js；建议按「记录/夜间步进/习惯」三块下沉，kv 键 personality 与 versions 表的 kind=traits/habits 写入方式保持不变 B50 把「每晚走一步」拆成 nightly.js（115）、「习惯与证据遗忘」拆成 habits.js（146）、similar 拆成 similar.js（17），本文件 487 → 257 行，只剩存档与对外接口（values/value/infer/confirm/restore/observe/text/state 等）；<300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/mind/personality/traits.js",
@@ -348,5 +348,26 @@
     "owner": "mind-relations",
     "verdict": "keep",
     "evidence": "142 行；0 个内部依赖（get/REL_TYPES/place/groupOf/now 全部注入）；1 处 import（mind/relations/index.js）；被 test/mind-relations.test.js / mind-features / mind-inner 覆盖。职责：把关系与看法说成中文（describe：眼前最多 4 人，按管理员优先→亲近度→最近联系排序，分档说熟络/喜欢/信任，带称呼与群规）与拼提示词（prompt + promptLimit 截断）。B49 从 relations/index.js 抽出，纯字符串组装，不碰库。"
+  },
+  {
+    "path": "src/mind/personality/nightly.js",
+    "area": "mind/personality",
+    "owner": "mind-personality",
+    "verdict": "keep",
+    "evidence": "115 行；0 个内部依赖（load/save/now/P/setting/TRAIT/TRAIT_IDS/bandOf/r2/clamp/deps/log/habitsNightly/alert 全部注入）；1 处 import（mind/personality/index.js）；被 test/mind-personality.test.js 覆盖。职责：每晚走一步——tally（一天里的证据折成方向权重）、movement（要不要动、动多少：步长×管理员影响上限×外向/内向因子）、nightly（影子模式、连续 3 步与到档提醒、很久没证据时回落）。B50 从 personality/index.js 抽出。"
+  },
+  {
+    "path": "src/mind/personality/habits.js",
+    "area": "mind/personality",
+    "owner": "mind-personality",
+    "verdict": "keep",
+    "evidence": "146 行；0 个内部依赖（store/load/save/now/r2/clamp/P/DAY/deps/movement/alert 注入）；2 处 import（personality/index.js、personality/similar.js）；被 test/mind-personality.test.js 覆盖。职责：习惯这一支——habitsNightly（同类场合反复出现且被正面回应才成习惯，总被冷落则慢慢消失）、saveHabitsVersion、forgetEvidence（证据被删后回溯修正 traitSteps 与习惯）、restoreHabits、alert。B50 从 personality/index.js 抽出。"
+  },
+  {
+    "path": "src/mind/personality/similar.js",
+    "area": "mind/personality",
+    "owner": "mind-personality",
+    "verdict": "keep",
+    "evidence": "17 行；0 个内部依赖；2 处 import（personality/index.js 再导出、personality/habits.js）；被 test/mind-personality.test.js 覆盖。职责：两段文字的重合度（0～1），习惯归并与性格都用它。B50 从 personality/index.js 抽出，单独成文件是为了避免 habits ↔ index 的循环依赖。"
   }
 ]
