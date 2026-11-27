@@ -157,8 +157,8 @@
     "path": "src/mind/memory/sleep.js",
     "area": "mind/memory",
     "owner": "mind-memory",
-    "verdict": "split",
-    "evidence": "423 行；import：mind/index.js；测试：无直接 import；test/mind-features.test.js:198、test/mind-memory.test.js、test/mind-reembed.test.js:71 调用 mind.sleep({quality})，sleeper.sleep 另见 test/mind-fixes.test.js；内部依赖 3（mind/clock.js、mind/memory/index.js、mind/personality/index.js）；一晚的整理链：encode/embed/reembed/links/replay/review/reconsolidate/recompute/soften/archive/dream 十一步（sleep/consolidateSleep 366 起），另有 review 239-300、soften 301-318、archive 319-365；423 行、内部依赖 memory/index.js、clock.js、personality/index.js；建议按步下沉为 memory/sleep/*.js，顺序、预算短路（BUDGET 记「预算用完」）与 sleep.lastAt/sleep.lastReport 两个键保持原样"
+    "verdict": "keep",
+    "evidence": "423 行；import：mind/index.js；测试：无直接 import；test/mind-features.test.js:198、test/mind-memory.test.js、test/mind-reembed.test.js:71 调用 mind.sleep({quality})，sleeper.sleep 另见 test/mind-fixes.test.js；内部依赖 3（mind/clock.js、mind/memory/index.js、mind/personality/index.js）；一晚的整理链：encode/embed/reembed/links/replay/review/reconsolidate/recompute/soften/archive/dream 十一步（sleep/consolidateSleep 366 起），另有 review 239-300、soften 301-318、archive 319-365；423 行、内部依赖 memory/index.js、clock.js、personality/index.js；建议按步下沉为 memory/sleep/*.js，顺序、预算短路（BUDGET 记「预算用完」）与 sleep.lastAt/sleep.lastReport 两个键保持原样 B48 把回顾（review.js 71）、淡化与归档（forget.js 45）、做梦（dream.js 38）、来源校验与建联系（links.js 34）四块拆出去，本文件 423 → 286 行，只剩整理流程本身 （replay / reconsolidate / recompute / sleep / consolidateSleep 与逐步预算）；<300 且职责单一，split 改判 keep。"
   },
   {
     "path": "src/mind/memory/special.js",
@@ -313,5 +313,33 @@
     "owner": "mind-adapter",
     "verdict": "keep",
     "evidence": "33 行；1 个内部依赖（mind/index.js 的 effortForScene/speechScene）；1 处 import（mind-adapter/index.js）；被 test/mind-adapter.test.js 覆盖（超时错误码 MIND_ASK_TIMEOUT 与自适应深度）。职责：withAskTimeout（给心智模型调用套 120s 超时，免得编码/人格推断挂住把窗口队列永久占死）、createEffort（按场景与性格算思考深度）。B47 从 mind-adapter/index.js 抽出。"
+  },
+  {
+    "path": "src/mind/memory/review.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "71 行；0 个内部依赖（store/mem/now/tz/parseJson/dayKey/parsePeriod/sourceUnchanged/name 全部注入）；1 处 import（memory/sleep.js）；被 test/mind-memory.test.js 的「回顾」用例覆盖。职责：睡前给这一天/这一周/这一个月各写一段第一人称回顾（REVIEW_SYSTEM/REVIEWS/reviewed/reviewPeriod/review）；写过的、没什么事的不写，周/月优先用更小一级的回顾作素材，素材不足时回落到经历本身（按重要度+情绪挑 80 条）。B48 从 sleep.js 抽出。"
+  },
+  {
+    "path": "src/mind/memory/forget.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "45 行；0 个内部依赖（store/mem/now/setting 注入）；1 处 import（memory/sleep.js）；被 test/mind-memory.test.js 覆盖。职责：soften（睡前按 emotion.sleepSoften 把情绪强度打折一次）、archive（回想强度低于 levelTip 的归档，数据不删；未到期的约定不归档）。B48 从 sleep.js 抽出。"
+  },
+  {
+    "path": "src/mind/memory/dream.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "38 行；0 个内部依赖（store/mem/now/random/log/name/parseJson/setting/sourceUnchanged 注入）；1 处 import（memory/sleep.js）；被 test/mind-memory.test.js 的「睡觉整理」用例覆盖。职责：做梦（取最近 5 条 + 更早 2 条 + 心事，拼一段梦，按 dreamRecall × 强度（被叫醒再 ×2.5）决定记不记得；只写一条 kind='dream'，不当真事）。B48 从 sleep.js 抽出。"
+  },
+  {
+    "path": "src/mind/memory/links.js",
+    "area": "mind/memory",
+    "owner": "mind-memory",
+    "verdict": "keep",
+    "evidence": "34 行；0 个内部依赖（store/mem 注入）；1 处 import（memory/sleep.js）；被 test/mind-memory.test.js 覆盖。职责：sourceUnchanged（来源经历是否还在、没被改过）、linkSimilar（用向量余弦 ≥0.8 给相像的经历建联系）、vecOf（按 id 取向量）。B48 从 sleep.js 抽出。"
   }
 ]

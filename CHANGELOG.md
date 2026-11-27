@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.86
+
+- B48 **睡觉整理拆分：回顾 / 淡化归档 / 做梦 / 建联系独立成模块**（`memory/sleep.js` 423 → 285 行）。
+  - `review.js`（71 行）：睡前给这一天/这一周/这一个月各写一段第一人称回顾；写过的、没什么事的不写，
+    周/月优先用更小一级的回顾作素材，素材不足时回落到经历本身（按重要度+情绪挑 80 条）。
+  - `forget.js`（45 行）：`soften`（按 `emotion.sleepSoften` 把情绪强度打折一次）、`archive`（回想强度低于 `levelTip` 的归档，数据不删）。
+  - `dream.js`（38 行）：做梦（最近 5 条 + 更早 2 条 + 心事，按 `dreamRecall × 强度 ×（被叫醒 2.5）` 决定记不记得；只写一条 `dream`）。
+  - `links.js`（34 行）：`sourceUnchanged`、`linkSimilar`（向量余弦 ≥0.8 建联系）、`vecOf`。
+  - 留下：整理流程本身（`replay / reconsolidate / recompute / sleep / consolidateSleep` 与逐步预算）。
+- 回归：mind 相关 69 pass；全量 1730 个测试通过；语法 636 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.85
 
 - B47 **心智对接层拆分：身份换算与调用策略独立成模块**（`mind-adapter/index.js` 327 → 299 行）。

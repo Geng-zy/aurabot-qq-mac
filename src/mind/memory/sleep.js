@@ -6,9 +6,12 @@
 import { parseJson } from './index.js'
 import { dayKey, parsePeriod } from '../clock.js'
 import { similar as textSimilar } from '../personality/index.js'
+import { createReview } from './review.js'
+import { createForget } from './forget.js'
+import { createDream } from './dream.js'
+import { createLinks } from './links.js'
 
 const DAY = 86400000
-const clamp01 = (x) => Math.min(1, Math.max(0, Number(x) || 0))
 // 梦和整理出来的「知道的事」不能当新经历的依据（梦不当真；也不从结论里再推结论）
 const NOT_EVIDENCE = new Set(['public-note', 'shared-note', 'dream', 'semantic', 'day-summary', 'week-summary', 'month-summary'])
 // 会过时的「知道的事」：情况变了（搬家、换工作、分手、口味变了）要更新
@@ -24,32 +27,8 @@ export function createSleep(mem, deps) {
   const random = deps.random || Math.random
   const S = (k) => setting('memory.' + k)
   const name = () => deps.identity().name || '她'
-  function sourceUnchanged(e) {
-    const current = mem.row(e.id)
-    return current?.gist === e.gist && current.detail === e.detail && current.window === e.window && current.json === e.json
-  }
-
-  /** 给相像的经历建联系（向量余弦 ≥ 0.8）。 */
-  function linkSimilar(ids) {
-    let n = 0
-    const ins = store.prep('INSERT OR IGNORE INTO links (a, b, kind, weight) VALUES (?, ?, ?, ?)')
-    for (const id of ids) {
-      const v = mem.vectors
-      const self = mem.row(id)
-      if (!self) continue
-      // 拿它自己的向量去找
-      const hits = v.search(vecOf(id), { model: mem.embedModel(), limit: 6, min: 0.8, filter: (x) => x !== id })
-      for (const h of hits) {
-        const [a, b] = id < h.id ? [id, h.id] : [h.id, id]
-        n += ins.run(a, b, 'similar', h.sim).changes
-      }
-    }
-    return n
-  }
-  function vecOf(id) {
-    const r = store.prep('SELECT dim, vec FROM vectors WHERE id = ? AND model = ?').get(String(id), mem.embedModel())
-    return r ? Array.from(new Float32Array(r.vec.buffer, r.vec.byteOffset, r.dim)) : null
-  }
+  // 来源校验与建联系在 links.js
+  const { sourceUnchanged, linkSimilar, vecOf } = createLinks({ store, mem })
 
   const CONSOLIDATE_SYSTEM = () => `你是${name()}在睡梦里整理记忆。下面是${name()}最近的经历（带编号和日期），以及和它们相关的更早的经历。
 找出在不同日子里反复出现、可以当成“知道的事”的东西（比如某个人的习惯、喜好、你们之间的固定模式），以及经历之间的因果或前后续关系。
@@ -236,127 +215,10 @@ export function createSleep(mem, deps) {
     return n
   }
 
-  // ---------- 回顾：每天、每周、每月写一段 ----------
-  const REVIEW_SYSTEM = (what) => `你是${name()}，睡前回想${what}。下面是这段时间里你记得的事（按时间）。
-用第一人称、口语写一段回顾：发生了哪些要紧的事、和谁、你的心情怎么变的。只用给你的内容，不要编，不要加没有的人和事；琐碎的略过。
-${what === '这一天' ? '一百五十字以内' : '两百五十字以内'}。只输出 JSON：{"summary":""}`
-  const REVIEWS = {
-    day: { kind: 'day-summary', what: '这一天', from: null },
-    week: { kind: 'week-summary', what: '这一周', from: 'day-summary' },
-    month: { kind: 'month-summary', what: '这个月', from: 'week-summary' },
-  }
-  const reviewed = (kind, key) => Boolean(store.prep("SELECT 1 FROM episodes WHERE kind = ? AND json_extract(json, '$.day') = ?").get(kind, key)) || Boolean(store.get(`review.${kind}.${key}`))
-  /** 给一段时间写回顾（写过、或这段时间没什么事就不写）。返回新记的 id。 */
-  async function reviewPeriod(type, key, range) {
-    const R = REVIEWS[type]
-    if (reviewed(R.kind, key)) return null
-    // 周、月：优先用更小一级的回顾，不够再用经历本身
-    let rows = []
-    if (R.from) rows = store.prep('SELECT * FROM episodes WHERE kind = ? AND at >= ? AND at < ? ORDER BY at').all(R.from === 'week-summary' ? 'week-summary' : 'day-summary', range.start, range.end)
-    if (R.from === 'week-summary' && rows.length < 2) rows = store.prep("SELECT * FROM episodes WHERE kind = 'day-summary' AND at >= ? AND at < ? ORDER BY at").all(range.start, range.end)
-    if (rows.length < 2) {
-      rows = store.prep("SELECT * FROM episodes WHERE status IN ('live', 'archived') AND at >= ? AND at < ? AND coalesce(kind, '') NOT IN ('dream', 'public-note', 'day-summary', 'week-summary', 'month-summary') ORDER BY at LIMIT 400").all(range.start, range.end)
-        .map((r) => ({ ...r, data: JSON.parse(r.json) }))
-        .sort((a, b) => (b.data.importance || 0) + (b.data.emotion?.intensity || 0) - (a.data.importance || 0) - (a.data.emotion?.intensity || 0))
-        .slice(0, 80).sort((a, b) => a.at - b.at)
-    }
-    if (rows.length < 2) { store.set(`review.${R.kind}.${key}`, { at: now(), empty: true }); return null }
-    // 提示词和可见性检查使用同一批来源。
-    rows = rows.slice(-100)
-    const text = rows.map((r) => `- ${dayKey(r.at, deps.tz())} ${r.gist}`).join('\n')
-    const out = parseJson(await mem.ask('review', REVIEW_SYSTEM(R.what), text, 900))
-    const summary = String(out?.summary || '').trim()
-    if (!summary) return null
-    const imp = Math.min(1, 0.6 + 0.1 * Math.log2(rows.length))
-    return store.tx(() => {
-      if (reviewed(R.kind, key) || !rows.every(sourceUnchanged)) return null
-      return mem.insert({ at: range.end - 1, window: '', gist: summary.slice(0, 600), kind: R.kind, importance: imp, speaker: 'self', attention: 1, extra: { day: key, period: { start: range.start, end: range.end }, from: rows.map((r) => r.id) } })
-    })
-  }
-  /** 睡觉时：没写过回顾的前几天、上一周、上个月补上（今天还没过完，不写）。 */
-  async function review() {
-    const tz = deps.tz()
-    const at = now()
-    const made = []
-    for (const job of mem.takeJobs('review', 12)) {
-      const { type, key, range } = job.data
-      if (!REVIEWS[type] || !range || !key) { mem.doneJob(job.id); continue }
-      const id = await reviewPeriod(type, key, range)
-      if (id) made.push(id)
-      if (id || reviewed(REVIEWS[type].kind, key)) mem.doneJob(job.id)
-    }
-    for (let i = 3; i >= 1; i--) {
-      const day = dayKey(at - i * DAY, tz)
-      const range = parsePeriod(day, at, tz)
-      if (range) { const id = await reviewPeriod('day', day, range); if (id) made.push(id) }
-    }
-    const week = parsePeriod('上周', at, tz)
-    if (week) { const id = await reviewPeriod('week', dayKey(week.start, tz), week); if (id) made.push(id) }
-    const month = parsePeriod('上个月', at, tz)
-    if (month) { const id = await reviewPeriod('month', dayKey(month.start, tz).slice(0, 7), month); if (id) made.push(id) }
-    return made.length
-  }
-
-  /** 睡一觉，前一天的情绪淡一点（研究结论不一致，默认很弱）。 */
-  function soften(since) {
-    const k = Number(setting('emotion.sleepSoften')) || 0
-    if (k <= 0) return 0
-    let n = 0
-    store.tx(() => {
-      for (const r of store.prep("SELECT * FROM episodes WHERE at >= ? AND json LIKE '%\"emotion\":{%'").all(since)) {
-        const e = { ...r, data: JSON.parse(r.json) }
-        if (!e.data.emotion || e.data.softened) continue
-        e.data.emotion.intensity = clamp01(e.data.emotion.intensity * (1 - k))
-        e.data.softened = true
-        mem.save(e)
-        n++
-      }
-    })
-    return n
-  }
-
-  /** 想不起来的归档（数据不删，管理员在面板里看得到，加强一下就回来）。 */
-  function archive() {
-    const tip = Number(S('levelTip'))
-    let n = 0
-    const at = now()
-    store.tx(() => {
-      for (const r of store.prep("SELECT * FROM episodes WHERE status = 'live'").all()) {
-        const e = { ...r, data: JSON.parse(r.json) }
-        // 还没到时间的约定不归档；没说时间、很久没想起的会和别的事一样慢慢淡忘
-        if (e.data.kind === 'intention' && !e.data.done && e.data.due && e.data.due > at - 3 * DAY) continue
-        if (mem.rOf(e, at) < tip) { e.status = 'archived'; mem.save(e); n++ }
-      }
-    })
-    return n
-  }
-
-  const DREAM_SYSTEM = () => `你是${name()}的梦。把下面这些最近的经历、旧记忆和心事打散了拼在一起，写一段梦（第一人称，一两百字，像真的梦那样跳跃、不讲逻辑）。
-最后单独一行写：情绪强度=0到1之间的数。`
-
-  /** 做梦。大部分醒来就忘；情绪强的、被叫醒的更容易记得。梦不会被当成真发生过的事。 */
-  async function dream({ wokenUp = false } = {}) {
-    const recent = store.prep("SELECT * FROM episodes WHERE status = 'live' AND at >= ? AND coalesce(kind, '') != 'dream' ORDER BY random() LIMIT 5").all(now() - 2 * DAY)
-    const old = store.prep("SELECT * FROM episodes WHERE status IN ('live', 'archived') AND at < ? ORDER BY random() LIMIT 2").all(now() - 7 * DAY)
-    const worries = mem.dueIntentions({ within: 3 * DAY })
-    if (!recent.length && !old.length) return null
-    const out = await mem.ask('dream', DREAM_SYSTEM(), [...recent.map((x) => '最近：' + x.gist), ...old.map((x) => '以前：' + x.gist), ...worries.map((x) => '心事：' + x.gist)].join('\n'), 600)
-    const sources = [...recent, ...old, ...worries]
-    if (!sources.every(sourceUnchanged)) return null
-    const m = out.match(/情绪强度\s*[=＝:：]\s*([01](?:\.\d+)?)/)
-    const intensity = m ? clamp01(m[1]) : 0.3
-    const text = out.replace(/\n?.*情绪强度.*$/m, '').trim()
-    if (!text) return null
-    const chance = Math.min(1, Number(S('dreamRecall')) * (0.5 + intensity * 1.5) * (wokenUp ? 2.5 : 1))
-    const remembered = random() < chance
-    const log2 = store.get('dreams.log', [])
-    log2.unshift({ at: now(), text, intensity, remembered })
-    store.set('dreams.log', log2.slice(0, 30))
-    let id = null
-    if (remembered) id = mem.insert({ at: now(), window: '', gist: text.slice(0, 300), kind: 'dream', importance: 0.3, emotion: { name: '梦里的感觉', intensity, valence: 0 }, speaker: 'self', attention: 0.7, extra: { from: sources.map((e) => e.id) } })
-    store.set('dreams.last', { at: now(), text, intensity, remembered })
-    return { text, intensity, remembered, id }
-  }
+  // ---------- 回顾 / 淡化与归档 / 做梦：分别在 review.js、forget.js、dream.js ----------
+  const { review } = createReview({ store, mem, now, tz: () => deps.tz(), parseJson, dayKey, parsePeriod, sourceUnchanged, name })
+  const { soften, archive } = createForget({ store, mem, now, setting })
+  const { dream } = createDream({ store, mem, now, random, log, name, parseJson, setting, sourceUnchanged })
 
   /**
    * 睡一觉的整理。quality 0～1：睡得少整理得也少（只做一部分）。

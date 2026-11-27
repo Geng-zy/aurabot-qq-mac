@@ -3579,3 +3579,23 @@ Air   mind-adapter / mind-features / mind-share / mind-inner / mind-fixes → 83
 Release dsh-aurabot-qq-1.6.85.tgz  19,679,044 字节
         sha256 332a8d98fb166c35d2952e09ceda0ec908cc3505cfb2372ebb192aa97c1adbd3
 ```
+
+---
+
+## B48 · 睡觉整理拆分（1.6.86）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `memory/sleep.js` | 423 → **285** | 整理流程本身：`replay / reconsolidate / recompute / sleep / consolidateSleep` 与逐步预算 |
+| `memory/review.js`（新） | **71** | 日/周/月回顾（写过的、没事的不写；周月先用小一级回顾，素材不足回落经历，按重要度+情绪挑 80 条） |
+| `memory/forget.js`（新） | **45** | `soften`（按 `emotion.sleepSoften` 打折一次）、`archive`（低于 `levelTip` 归档，数据不删） |
+| `memory/dream.js`（新） | **38** | 做梦（`dreamRecall × 强度 × 被叫醒 2.5` 决定记不记得；只写一条 `dream`） |
+| `memory/links.js`（新） | **34** | `sourceUnchanged` / `linkSimilar`（余弦 ≥0.8 建联系）/ `vecOf` |
+
+```text
+Air   mind 相关 69 pass；全量 1730 passed / 0 failed / 0 skipped；语法 636 文件；oxlint 0 error；清单 0 待审
+过程  几次自查：review.js 里 tz 自遮蔽（const tz = tz()）、dream 缺 setting/sourceUnchanged、links 少解构 vecOf、
+      以及一次切错边界（把 sleep() 也切进 dream.js）—— 都靠测试逐一抓出并修回
+Mini  1.6.86 启动（02:14:58）；review/forget/dream/links 四个模块真机导出正常；
+      /mind/inner ok；配置一致；Purge 三工具在；0 新增 error
+```
