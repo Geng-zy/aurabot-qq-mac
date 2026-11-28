@@ -46,7 +46,7 @@
     "area": "mind",
     "owner": "mind-core",
     "verdict": "split",
-    "evidence": "866 行；import：mind-adapter/index.js、mind/replay.js、scripts/replay-privacy.js；测试：test/mind-core.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-features.test.js、test/mind-fixes.test.js、test/mind-generic.test.js、test/mind-design.test.js、test/mind-inner.test.js、test/mind-conversation.test.js、test/mind-body-emotion.test.js、test/backup.test.js 11 个测试直接 import createMind；内部依赖 16（mind/body/index.js、mind/budget.js、mind/clock.js、mind/conversation.js、mind/emotion/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/motivation/index.js、mind/params.js、mind/personality/index.js、mind/place.js、mind/relations/index.js、mind/self/index.js、mind/self/public-style.js、mind/store.js）；对外只导出 createMind/PARAMS/GROUPS/placeOf/shortId/mindFileExists 6 个名字（package.json exports \"./mind\"），返回对象 67 个键：设置 5、身份 5、平台 id 与窗口 4、人 8（person/notePerson/listPeople/forgetPerson/setNoMemory/forgottenList/restorePerson/peopleGraph）、人格卡与版本 10、感知与 history 6、import 5、删除备份 5、子模块与提示词 14、状态与 close 5；业务实现约 690 行：设置校验 71-114、身份与年龄 118-151、人格卡版本与 prune 153-235、人员合并 linkPerson 268-303、感知与 history 310-369、importBatch 事务 384-432、删除日志 applyDeletionLog 452-479、忘掉/恢复 487-621、星图 623-646、快照 648-681；真正的装配只有 683-790 的 108 行。建议把设置、版本、导入、遗忘恢复四段下沉为 mind/ 子模块，store.tx 边界、快照命名 mind-<stamp>.sqlite 与 memory.audienceRevision 触发点保持在原位 B51 第一刀：把「批量导入」拆成 mind/import.js（87 行），本文件 866 → 796 行；「忘掉一个人」试过拆出但依赖太多子系统（emotion/conversation/inner/writeDeletion），已回滚，留待下一刀连同这些一起处理。"
+    "evidence": "866 行；import：mind-adapter/index.js、mind/replay.js、scripts/replay-privacy.js；测试：test/mind-core.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-features.test.js、test/mind-fixes.test.js、test/mind-generic.test.js、test/mind-design.test.js、test/mind-inner.test.js、test/mind-conversation.test.js、test/mind-body-emotion.test.js、test/backup.test.js 11 个测试直接 import createMind；内部依赖 16（mind/body/index.js、mind/budget.js、mind/clock.js、mind/conversation.js、mind/emotion/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/motivation/index.js、mind/params.js、mind/personality/index.js、mind/place.js、mind/relations/index.js、mind/self/index.js、mind/self/public-style.js、mind/store.js）；对外只导出 createMind/PARAMS/GROUPS/placeOf/shortId/mindFileExists 6 个名字（package.json exports \"./mind\"），返回对象 67 个键：设置 5、身份 5、平台 id 与窗口 4、人 8（person/notePerson/listPeople/forgetPerson/setNoMemory/forgottenList/restorePerson/peopleGraph）、人格卡与版本 10、感知与 history 6、import 5、删除备份 5、子模块与提示词 14、状态与 close 5；业务实现约 690 行：设置校验 71-114、身份与年龄 118-151、人格卡版本与 prune 153-235、人员合并 linkPerson 268-303、感知与 history 310-369、importBatch 事务 384-432、删除日志 applyDeletionLog 452-479、忘掉/恢复 487-621、星图 623-646、快照 648-681；真正的装配只有 683-790 的 108 行。建议把设置、版本、导入、遗忘恢复四段下沉为 mind/ 子模块，store.tx 边界、快照命名 mind-<stamp>.sqlite 与 memory.audienceRevision 触发点保持在原位 B51 第一刀：把「批量导入」拆成 mind/import.js（87 行），本文件 866 → 796 行；「忘掉一个人」试过拆出但依赖太多子系统（emotion/conversation/inner/writeDeletion），已回滚，留待下一刀连同这些一起处理。 B52 第二刀：把「忘掉一个人」整支（含它依赖的记忆/情绪/会话/内心）收成mind/forgetting.js（153 行）门面，本文件 796 → 676 行；仍需再切设置/版本/感知记录才能 <300。"
   },
   {
     "path": "src/mind/inner/index.js",
@@ -376,5 +376,12 @@
     "owner": "mind",
     "verdict": "keep",
     "evidence": "87 行；0 个内部依赖（store/person/savePerson/now/log 注入）；1 处 import（mind/index.js）；被 test/mind-memory.test.js / mind-features.test.js 覆盖。职责：批量导入（整批一个事务、同 tag 只导一次、重复 id 跳过；带 imported/importDone 查询、vectorOf/episode 读取）。B51 从 mind/index.js 抽出。"
+  },
+  {
+    "path": "src/mind/forgetting.js",
+    "area": "mind",
+    "owner": "mind",
+    "verdict": "keep",
+    "evidence": "153 行；0 个内部依赖（store/canon/isOwner/person/savePerson/now/log/getMemory/getEmotion/getConversation/getInner/recordDeletion/writeDeletion/addVersion/GENERATED_COLUMNS 全部注入）；1 处 import（mind/index.js）；被 test/mind-memory.test.js（忘掉一个人 / 恢复区 / 并发编码不复活）覆盖。职责：忘掉一个人（他相关的事、与他的私聊、他说过的原话 → 恢复区；和别人一起经历的事留着；管理员不能忘；恢复区留 30 天）、setNoMemory、forgottenList、restorePerson。B52 从 mind/index.js 抽出：它要碰记忆/情绪/会话/内心四层，把这四层收成 getter 注入，模块内部只调用不自己找。"
   }
 ]

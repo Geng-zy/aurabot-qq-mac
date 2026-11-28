@@ -3690,3 +3690,31 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 641 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.89.tgz  19,685,982 字节
         sha256 040d6db85e4ca8c3a0c5bc36e6131cbe343c18ac2682ea85d686d26209f8995f
 ```
+
+---
+
+## B52 · mind/index.js 第二刀：忘掉一个人（1.6.90）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind/index.js` | 796 → **676** | 心智各层装配与对外接口（仍需再切设置/版本/感知记录） |
+| `mind/forgetting.js`（新） | **153** | `forgetPerson` / `setNoMemory` / `forgottenList` / `restorePerson` |
+
+上一轮拆不动的原因：这一支要碰记忆、情绪、会话、内心四层。这轮改成 **getter 注入**
+（`getMemory`/`getEmotion`/`getConversation`/`getInner`），模块内部只调用、不自己找，一次就通了。
+
+```text
+Air   mind 相关 140 pass；全量 1730 passed / 0 failed / 0 skipped；语法 642 文件；oxlint 0 error；清单 0 待审
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.90（回滚点 ~/aurabot-release-backups/20261128-091650）、09:16:55 启动
+接口   GET /mind/self → ok=true，19 项特质 + 58 个习惯（forgetting 门面抽出后心智面板照常）
+配置   升级前后逐字段一致；Purge 三个工具仍在；09:00 之后新增 error：0 条
+
+提交   B52；tag v1.6.90
+Release dsh-aurabot-qq-1.6.90.tgz  19,688,067 字节
+        sha256 5f3eeb431955930fb85330f69f4842e950d71cb2a749904424ec2229199a00eb
+```

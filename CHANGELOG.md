@@ -2,6 +2,15 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.90
+
+- B52 **mind/index.js 第二刀：「忘掉一个人」整支独立成门面**（`mind/forgetting.js` 153 行，`mind/index.js` 796 → 676 行）。
+  - 拆出 `forgetPerson` / `setNoMemory` / `forgottenList` / `restorePerson`。这一支要碰记忆、情绪、会话、内心四层，
+    因此把「碰谁」收成 getter 注入（`getMemory`/`getEmotion`/`getConversation`/`getInner`），模块内部只调用、不自己找 ——
+    上一轮之所以拆不动，就是逐个补注入仍然让依赖从别处冒出来。
+  - 规矩原样保留：他相关的事 / 与他的私聊 / 他说过的原话进恢复区；和别人一起经历的事留着；管理员不能忘；恢复区留 30 天。
+- 回归：mind 相关 140 pass；全量 1730 个测试通过；语法 642 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.89
 
 - B51 **mind/index.js 第一刀：批量导入独立成模块**（`mind/import.js` 87 行，`mind/index.js` 866 → 796 行）。
