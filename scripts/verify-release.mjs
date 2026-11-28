@@ -14,6 +14,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const sleepMs = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 const skipRemote = process.argv.includes('--skip-remote')
 const run = (cmd, args) => execFileSync(cmd, args, { cwd: ROOT, encoding: 'utf8' }).trim()
 
@@ -46,13 +47,23 @@ else ok('发布记录', `${pairs.length} 个版本有哈希`)
 
 if (skipRemote) console.log('· 跳过远端比对（--skip-remote）')
 else for (const [, version, sha] of pairs) {
-  try {
-    const digest = run('gh', ['api', `repos/Geng-zy/aurabot-qq-mac/releases/tags/v${version}`, '--jq', '.assets[0].digest'])
-    if (digest === `sha256:${sha}`) ok(`v${version} 资产`, '与记录同哈希')
-    else bad(`v${version} 资产`, `记录 ${sha.slice(0, 12)}… ≠ 远端 ${digest || '(空)'}`)
-  } catch (error) {
-    bad(`v${version} 资产`, error.message.split('\n')[0])
+  // 连续几十次 gh api 会撞上次级限流（abuse detection）：重试 + 退避，
+  // 只有重试仍然失败才算不通过（哈希对不上则一次就判失败）。
+  let digest = ''
+  let lastError = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      digest = run('gh', ['api', `repos/Geng-zy/aurabot-qq-mac/releases/tags/v${version}`, '--jq', '.assets[0].digest'])
+      lastError = null
+      break
+    } catch (error) {
+      lastError = error
+      sleepMs(1500 * (attempt + 1))
+    }
   }
+  if (lastError) bad(`v${version} 资产`, lastError.message.split('\n')[0])
+  else if (digest === `sha256:${sha}`) ok(`v${version} 资产`, '与记录同哈希')
+  else bad(`v${version} 资产`, `记录 ${sha.slice(0, 12)}… ≠ 远端 ${digest || '(空)'}`)
 }
 
 // 3. 版本一致

@@ -3959,3 +3959,35 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 659 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.98.tgz  19,702,316 字节
         sha256 cdc8794e52663a376bca5de7d8120ea8f79f997e2a54a1d3538be64030368825
 ```
+
+---
+
+## B60 · song/studio.js 第四刀（收尾，1.6.99）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `song/studio.js` | 536 → **147**（改判 keep：门面） | `status()` 六组件体检 + 面板动作转调 + 对外接口 |
+| `song/session.js`（新） | **406** | 找歌 → 下载缓存 → 分离 → 换声 → 变调 → 混音 → 截语音条 → 失败提示节流；队列/`profileJob`/`failNoticed` 归它 |
+| `song/song-utils.js`（新） | **42** | `mixArgs` / `INSTRUMENTAL`+`rankCandidates` / `clipWindow` / `explainSongError` / `VOCAL_MIN_DB` |
+
+删掉 `studio.js`，模块就没有面板入口（deletion test）—— 只剩门面职责，故改判 keep。
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 661 文件；oxlint 0 error；清单 0 待审
+过程  自查修掉 6 处：相对路径（core/ vs ../core/）、store 的 readJson 要从 core 引、
+      session 需要注入 status()（点歌前置检查）、profileJob 改 getter、模块清单补 session/song-utils
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.99（回滚点 ~/aurabot-release-backups/20261128-1409xx 之前一版 1.6.98）、14:09:27 启动
+接口   /song/status → ok、ready=true、六个组件全绿；voices=1、current=null、queue=0、history=0
+       （session.js 的队列快照在真机上形状正确）
+       /mind/state → ok（心智侧照常）
+配置   Purge 三工具在；14:00 后新增 error：0 条
+
+提交   B60；tag v1.6.99
+Release dsh-aurabot-qq-1.6.99.tgz  19,704,630 字节
+        sha256 2cb0571a20c87fd6b58a1d5dc8ecb7adea704967b9742608a70cfb70eeccbb51
+```

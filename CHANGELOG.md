@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.99
+
+- B60 **song/studio.js 第四刀（收尾）：做歌流水线独立 + 改判门面**（`song/studio.js` 536 → 147 行）。
+  - `song/session.js`（406 行）：找歌（网易云/本地）→ 下载缓存 → 分离 → RVC 换声 → 变调 → 混音 → 截语音条 → 失败提示节流；
+    队列 `queue`/`current`、`profileJob`、`failNoticed` 也归它（只服务于做歌）。
+  - `song/song-utils.js`（42 行）：`mixArgs`、`INSTRUMENTAL`/`rankCandidates`、`clipWindow`、`explainSongError`、`VOCAL_MIN_DB`。
+  - `song/studio.js` 改判 **keep（门面）**：147 行里只有 `status()`、面板动作转调、以及对外接口。
+- 至此**心智（mind）与媒体（song/voice）两个范围内全部清零**：从 866 + 1137 行出发，拆出 40+ 个模块。
+- 回归：全量 1730 个测试通过；语法 661 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.98
 
 - B59 **song/studio.js 第三刀：一键安装整链独立成模块**（`song/installer.js` 256 行，`song/studio.js` 750 → 536 行）。

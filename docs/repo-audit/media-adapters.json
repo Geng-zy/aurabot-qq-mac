@@ -367,8 +367,8 @@
     "path": "src/song/studio.js",
     "area": "song",
     "owner": "song-studio",
-    "verdict": "split",
-    "evidence": "1137 行（>300）、35 个 export；被 src/modules/song/index.js import、被 src/voice/tts.js:83（动态 import 只取 defaultRoot/MAC_STACK）、test/song.test.js、test/macos.test.js、test/local.test.js 覆盖；内部依赖 9 个（core/net、core/store、core/zip、core/python、core/img、song/netease、song/local_music、song/pipeline、local/local）。五段职责：安装栈与下载校验（19-148：APPLIO_REPO/APPLIO_COMMIT 固定 commit、MAC_STACK、INSTALL_STEPS、fetchFile/ensureReadable/dirSize/defaultRoot/explainInstallError）、分离模型清单与导入（155-253：LEAP_XE/EXTRA_SEPARATORS/RUBBERBAND_MAC/SEPARATOR_FILES/separatorLinks/registerExtraSeparator/importSeparator）、音色模型资产（274-395：pathsOf/listVoices/importModels/deleteVoice/pruneCache/looksLikePth）、纯参数函数（398-423：VOCAL_MIN_DB/mixArgs/rankCandidates/clipWindow）、流程编排（489-1137：createSongStudio，安装 541-761、做一首 762-1137、convertSpeech 909、面板方法表 1124 行）。voice/tts.js 只为两个安装常量而依赖整个 1137 行文件，是拆分的第一动因。 B57 第一刀：把音色库那一支（列出/导入/删除/清缓存、python 与 rubberband 位置）拆成 song/voice-library.js（117 行），本文件 1137 → 1033 行；仍需再切分离器环境与安装链才能 <300。 B58 第二刀：把分离器环境（模型清单/下载/路径/命令行/体检）拆成 separator-env.js（262）、跑进程封装拆成 run.js（57）、安装清单拆成 stack.js（10），本文件 1033 → 750 行；还需再切「一键安装链」与「做歌流水线」两刀。 B59 第三刀：把「一键安装」整链拆成 installer.js（256）与 repo.js（5），并把 pyEnvOf 归到 separator-env.js，本文件 750 → 536 行；只剩做歌流水线与面板接口，再来一刀即可 <300。"
+    "verdict": "keep",
+    "evidence": "147 行；面板门面：status()（六个组件体检 + 音色列表 + 安装/队列/历史快照）、一键安装入口、\n    搜索/账号/音色导入导出/删音色/分离器链接等面板动作，全部转调 installer.js 与 session.js。\n    自 1137 行起，B57–B60 四刀拆出 voice-library(117)、separator-env(262)、run(57)、stack(10)、installer(256)、repo(5)、\n    session(406)、song-utils(42)，算法与流程全部搬走；deletion test：删掉它，模块面板就没有入口。\n    <300 且只剩门面职责，split 改判 keep。"
   },
   {
     "path": "src/voice/asr.js",
@@ -460,5 +460,19 @@
     "owner": "song",
     "verdict": "keep",
     "evidence": "5 行；0 个内部依赖；2 处 import（studio.js 再导出、installer.js）；经安装清单测试覆盖。职责：装哪个版本的 Applio（官方 tag 对应提交，固定住以免上游改动把安装弄坏）。B59 从 studio.js 抽出，避免 studio ↔ installer 循环依赖。"
+  },
+  {
+    "path": "src/song/session.js",
+    "area": "song",
+    "owner": "song",
+    "verdict": "keep",
+    "evidence": "406 行；5 个内部依赖（song-utils、separator-env、voice-library、run、pipeline、netease/local_music、core/store）；1 处 import（song/studio.js）；被 test/song.test.js（点歌前置检查、取消、失败提示）覆盖。职责：做一首歌的全流程——找歌（网易云/本地）、下载与缓存、分离、RVC 换声、变调、混音、截成语音条、失败提示节流；队列 queue/current 与 failNoticed/profileJob 也归它（只服务于做歌）。status/P/cfg/say 由 studio 注入。B60 从 studio.js 抽出。"
+  },
+  {
+    "path": "src/song/song-utils.js",
+    "area": "song",
+    "owner": "song",
+    "verdict": "keep",
+    "evidence": "42 行；0 个内部依赖；2 处 import（studio.js、session.js）；被 test/song.test.js 覆盖。职责：做歌用的纯函数——mixArgs（ffmpeg 混音参数）、INSTRUMENTAL 判断与 rankCandidates（纯音乐排最后）、clipWindow（取副歌窗口）、explainSongError（把错误翻译成人话）、VOCAL_MIN_DB。B60 从 studio.js 抽出。"
   }
 ]

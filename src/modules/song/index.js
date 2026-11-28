@@ -13,7 +13,7 @@ export default {
   version: '1.0.0',
   description: '用她的声音翻唱一首歌，做好发语音条（qq_song_cover、/sing）',
   tab: 'song',
-  files: ['song/studio.js', 'song/voice-library.js', 'song/separator-env.js', 'song/run.js', 'song/stack.js', 'song/installer.js', 'song/repo.js'],
+  files: ['song/studio.js', 'song/voice-library.js', 'song/separator-env.js', 'song/run.js', 'song/stack.js', 'song/installer.js', 'song/repo.js', 'song/session.js', 'song/song-utils.js'],
   setup(api) {
     const { hub, local, http } = api.core
     let closed = false
