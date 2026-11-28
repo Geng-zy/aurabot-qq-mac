@@ -4463,3 +4463,11 @@ tag v1.7.13；dsh-aurabot-qq-1.7.13.tgz 19,751,951 字节
 `docs/ACCEPTANCE-LOG.md` 行数少记 48 行（4457 vs 4409），清单确实过期 —— 检查按设计生效。
 
 正确顺序（写进流程）：**先写完所有文档 → 再 `npm run inventory` → 再提交**。1.7.14 只做这件事。
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261129-001013（含 1.7.13 的 tgz）
+Mini 1.7.14 安装启动（00:10:18）；state version=1.7.14；Purge 三工具在；配置逐字段一致
+tag v1.7.14；dsh-aurabot-qq-1.7.14.tgz 19,752,406 字节
+     sha256 8843309809a7f0825db7a46dc9fb90c4c81d326614e50c78e36cfe37423071d3
+     （注意：这条追加又会让清单落后 —— 1.7.15 起把「验收记录追加」挪到重生成清单之前）
+```
