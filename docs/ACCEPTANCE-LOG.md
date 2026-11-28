@@ -4471,3 +4471,26 @@ tag v1.7.14；dsh-aurabot-qq-1.7.14.tgz 19,752,406 字节
      sha256 8843309809a7f0825db7a46dc9fb90c4c81d326614e50c78e36cfe37423071d3
      （注意：这条追加又会让清单落后 —— 1.7.15 起把「验收记录追加」挪到重生成清单之前）
 ```
+
+---
+
+## 修复：清单与验收记录的死循环（1.7.15，M1 收尾）
+
+M1 的检查本身在 1.7.13 生效，但连红两次的原因不是手误，是**结构性循环**：
+`docs/ACCEPTANCE-LOG.md` 不随包发布却把行数记进清单，而验收记录要写发布哈希 ——
+「先写记录再生成清单」清单永远落后一步，反过来清单立刻过期。
+
+| 项 | 值 |
+|---|---|
+| 修复 | `scripts/repo-inventory.mjs` 只给 `package.json files` 白名单内的文件记行数，非发布物显示 `—` |
+| 循环验证 | 干净工作区里追加 1 行到验收记录 → 重生成清单 → `git diff -- docs/REPO-INVENTORY.md` **无输出** |
+| 幂等 | 连续两次生成同一哈希 |
+| CI | push 运行 46165980003：`test (ubuntu)` ✓ 3m09s、`test (macos)` ✓ 4m42s、`ui-smoke` ✓ 48s |
+| 测试 | 1756 passed / 0 failed；语法 674 文件；oxlint 0 error；清单 0 待审 |
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261129-005205（含 1.7.14 的 tgz）
+Mini 1.7.15 安装启动（00:52:10）；state version=1.7.15；Purge 三工具在；配置逐字段一致
+tag v1.7.15；dsh-aurabot-qq-1.7.15.tgz 19,751,113 字节
+     sha256 69ff95da84cec34c312b519a9c70212e2851705a36bd1a936633e170072a907e
+```
