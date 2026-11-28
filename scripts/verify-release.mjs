@@ -34,7 +34,13 @@ try {
 
 // 2. 记录 vs Release 资产
 const log = readFileSync(join(ROOT, 'docs/ACCEPTANCE-LOG.md'), 'utf8')
-const pairs = [...log.matchAll(/候选包\s+\/tmp\/dsh-aurabot-qq-(\d+\.\d+\.\d+)\.tgz[\s\S]*?sha256\s+([0-9a-f]{64})/g)]
+// 记录里出现过两种措辞：早期的「候选包 /tmp/dsh-aurabot-qq-X.tgz」和后来的「Release dsh-aurabot-qq-X.tgz」。
+// 两种都要认，否则新版本会被静默跳过（1.6.61–1.6.78 就是这样漏掉的）。
+const pairTexts = [
+  ...log.matchAll(/候选包\s+\/tmp\/dsh-aurabot-qq-(\d+\.\d+\.\d+)\.tgz[\s\S]{0,400}?sha256\s+([0-9a-f]{64})/g),
+  ...log.matchAll(/Release\s+dsh-aurabot-qq-(\d+\.\d+\.\d+)\.tgz[\s\S]{0,400}?sha256\s+([0-9a-f]{64})/g),
+].map((m) => [m[0], m[1], m[2]])
+const pairs = pairTexts.filter(([, version], i, all) => all.findIndex((x) => x[1] === version) === i)
 if (!pairs.length) bad('发布记录', 'docs/ACCEPTANCE-LOG.md 里没有「候选包 + sha256」')
 else ok('发布记录', `${pairs.length} 个版本有哈希`)
 

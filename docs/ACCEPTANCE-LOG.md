@@ -3819,3 +3819,22 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 652 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.93.tgz  19,695,664 字节
         sha256 927aad47de4dc53ca840ec19b45a838d15d2a219388032710c3331a057fff4a9
 ```
+
+---
+
+## 1.6.94 · 发布校验工具修正
+
+```text
+问题   verify-release 只认「候选包 /tmp/...」措辞 → 1.6.61–1.6.78 从没被校验过，却一直打印「全部通过」
+       版本号与 sha256 之间跨度过大 → 1.6.58 抓到隔壁 1.6.31 的哈希
+修法   两种措辞都认 + 按版本去重 + 跨度限制 400 字
+结果   42 个版本逐个比对远端 digest：全部通过（含 1.6.58 / 1.6.79 / 1.6.93）
+       连跑两次结果一致
+```
+
+```text
+Mini  1.6.94 安装并启动（12:31:57），/mind/self ok，Purge 三工具在
+提交  tag v1.6.94
+Release dsh-aurabot-qq-1.6.94.tgz  19,696,108 字节
+        sha256 bd4239705d5f46bde688dc617bdd64a525605f4b5555aee570fc35d734f54c60
+```
