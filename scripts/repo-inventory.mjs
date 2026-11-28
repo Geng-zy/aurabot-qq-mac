@@ -193,7 +193,9 @@ export function buildInventory() {
       path: rel,
       kind: kindOf(rel),
       area: areaOf(rel),
-      lines: SHIPPED(rel) ? countLines(abs) : null, // 非发布物不计行数（见 SHIPPED 的注释）
+      // 清单自己的行数也不记：它是自我指涉的（记了行数 → 行数变化 → 清单再变一次），
+      // 每轮生成都可能翻一位数字，于是发布资产与仓库永远差一行（2026-11-29 实测 1045 vs 1046）。
+      lines: SHIPPED(rel) && rel !== 'docs/REPO-INVENTORY.md' ? countLines(abs) : null,
       bytes: (() => { try { return statSync(abs).size } catch { return 0 } })(),
       imports: [],
       importers: [],

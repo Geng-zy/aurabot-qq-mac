@@ -13,14 +13,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // 等待条件成立的上限。原来 8 秒，是在「机器空闲」假设下定的：全量套件满载时，
 // 真实定时器（sleep、退避、flush）会被拖慢，8 秒偶尔不够用，表现为这条用例间歇失败。
 // 放宽到 20 秒只是去掉这个时间假设——条件本身仍然必须成立，等不到照样失败。
-async function until(fn, ms = 20000) {
+async function until(fn, ms = 20000, describe = null) {
   const t = Date.now()
   while (Date.now() - t < ms) {
     const v = await fn()
     if (v) return v
     await sleep(50)
   }
-  throw new Error('等不到条件成立')
+  throw new Error(describe ? describe() : '等不到条件成立')
 }
 
 function fakePng(w, h, salt = 0) {
@@ -1698,7 +1698,40 @@ test('翻聊天记录：读当前聊天更早的消息', async () => {
   assert.doesNotMatch(history, /历史请求不公开|历史回执不公开/)
 })
 
-const lastCall = (word) => until(() => { const t = fake.turns.at(-1); return t?.userText.includes(word) && t.toolCalls.length ? t.toolCalls[0] : null })
+// 找「含有这句话的那一轮」的第一次工具调用。
+// 以前只看 fake.turns.at(-1)：只要她在这期间又多跑了一轮（主动找你、整理记忆、别的用例留下的尾巴），
+// 期望的那轮就永远不是「最后一轮」，于是空等 20 秒失败 —— 2026-11-28 CI 上那次 20001ms 就是这条路径。
+// 现在从新到旧找，等不到还会把现场（第几轮、最后一轮说了什么）写进错误里。
+// 只认「这次调用之后新增」的轮次（from 是起等时的长度）：既能容忍后面又追加了别的轮次，
+// 又不会把前面用例留下的同名词轮次当成结果。
+const lastCall = (word) => {
+  const from = fake.turns.length
+  return until(() => {
+    for (let i = fake.turns.length - 1; i >= from; i--) {
+      const t = fake.turns[i]
+      if (t?.userText?.includes(word) && t.toolCalls?.length) return t.toolCalls[0]
+    }
+    return null
+  }, 20000, () => {
+    const last = fake.turns.at(-1)
+    return `等「${word}」的工具调用；起等时有 ${from} 轮、现在 ${fake.turns.length} 轮，最后一轮是「${String(last?.userText || '').slice(0, 40)}」`
+  })
+}
+
+// 回归：2026-11-28 的 CI 抖动 —— 期待的那一轮后面又追加了别的轮次（她主动发消息 / 整理记忆），
+// 旧的 lastCall 只看「最后一轮」，于是等满 20 秒失败。这里构造同样的形状，要求立刻命中。
+test('回归：lastCall 不会因为后面又追加了一轮就等不到', async () => {
+  const mark = fake.turns.length
+  const waiting = lastCall('改昵称测试') // 先起等（和真实用法一致：push 消息之后再等）
+  fake.turns.push({ userText: '改昵称测试', toolCalls: [{ result: { ok: true } }] })
+  fake.turns.push({ userText: '（她自己去写的说说）', toolCalls: [] })
+  const t0 = Date.now()
+  const call = await waiting
+  const spent = Date.now() - t0
+  fake.turns.length = mark
+  assert.deepEqual(call.result, { ok: true }, '要拿到那一轮的调用结果')
+  assert.ok(spent < 3000, `不该靠轮询硬等（用了 ${spent}ms）`)
+})
 
 test('#6 改资料：默认仅管理员私聊，昵称 / 签名 / 头像走 SnowLuma 对应动作', async () => {
   mock.push(priv(OWNER, text('改昵称测试')))
