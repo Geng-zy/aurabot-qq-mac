@@ -39,7 +39,7 @@
             h('div', { className: 'ab-body-foot' },
               b.lastSleep ? h('span', null, `上一觉 ${b.lastSleep.hours} 小时 · 睡眠质量 ${Math.round(b.lastSleep.quality * 100)}%` + (b.lastSleep.wokenBy ? ' · 被叫醒' : '')) : null,
               b.asleep ? h(Btn, { small: true, onClick: () => act('/mind/wake') }, '叫醒她')
-                : h(Btn, { small: true, onClick: () => { if (confirm('让她现在去睡？')) act('/mind/sleepnow') } }, '让她睡吧')))),
+                : h(Btn, { small: true, onClick: async () => { if (await AB_CONFIRM.ask('让她现在去睡？', { confirmLabel: '让她睡' })) act('/mind/sleepnow') } }, '让她睡吧')))),
         h('div', { className: 'ab-now-detail' },
           h(Card, { fold: 'mind-feelings', title: '此刻的感受（' + emotions.length + ' 项）', className: 'ab-feelings', collapseAtEnd: emotions.length > 5 },
             emotions.length ? h('ul', { className: 'ab-feeling-list' }, emotions.map((e, i) => h('li', { key: i },

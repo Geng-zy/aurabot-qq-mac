@@ -345,6 +345,9 @@
 .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
 .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
 .ab-confirm{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ab-confirm-sheet{position:sticky;bottom:10px;z-index:30;display:grid;gap:7px;padding:12px 14px;margin-top:12px;border:1px solid var(--ab-err);border-radius:12px;background:var(--ab-card);box-shadow:0 10px 28px var(--ab-ink-shadow)}
+.ab-confirm-sheet b{font-size:13px;line-height:1.5;color:var(--ab-text);white-space:pre-wrap}
+.ab-confirm-sheet small{color:var(--ab-sub);font-size:12px;line-height:1.55;white-space:pre-wrap}
 .ab-confirm-open{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--ab-err);border-radius:10px;background:var(--ab-card-2)}
 .ab-confirm-open b{font-size:12.5px;color:var(--ab-text)}
 .ab-confirm-open small{color:var(--ab-sub);font-size:12px;line-height:1.55}

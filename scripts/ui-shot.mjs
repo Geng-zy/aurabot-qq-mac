@@ -221,7 +221,20 @@ try {
   check('翻唱：六组件体检可读', /python|Applio|分离|ffmpeg|音色|权重/i.test(songText), songText.slice(0, 80))
 
   // 6) B6 两条流程：备份危险动作走行内二次确认、本地脚本列表可读
+  //    1) 全局确认渲染器（所有危险动作共用）：ask → 出现确认条 → 取消 → 收起
   await open('page=backup&state=live&mode=normal')
+  const sheet = await page.evaluate(async () => {
+    const { AB_CONFIRM } = window.__PANEL__.__panelTest
+    const pending = AB_CONFIRM.ask('测试：要删掉吗？', { hint: '说明', confirmLabel: '删掉' })
+    await new Promise((r) => setTimeout(r, 250))
+    const shown = (document.querySelector('.ab-confirm-sheet')?.innerText || '').replace(/\n/g, ' / ')
+    AB_CONFIRM.answer(false)
+    const value = await pending
+    await new Promise((r) => setTimeout(r, 250))
+    return { shown, value, closed: !document.querySelector('.ab-confirm-sheet') }
+  })
+  check('行内确认：能弹出并带说明', /删掉/.test(sheet.shown) && /说明/.test(sheet.shown), sheet.shown)
+  check('行内确认：取消返回 false 并收起', sheet.value === false && sheet.closed)
   // 这个输入在折叠区里，先展开
   const fold = page.locator('details').filter({ has: page.locator('input[placeholder*="完整路径"]') }).first()
   if (await fold.count()) { await fold.locator('summary').first().click(); await wait(250) }

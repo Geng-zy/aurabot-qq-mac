@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.7.7 highlights
+## 1.7.8 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -138,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.7.7.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.7.8.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.7.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.8.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -223,7 +223,7 @@ save bar (dirty → saving → saved, **⌘S** anytime); only switches apply imm
 <p><strong>Cover songs</strong> · six-part environment check plus one-click install progress.</p>
 <img src="docs/screenshots/aurabot-song.png" alt="Cover songs" width="100%">
 
-<p><strong>Backup</strong> · state card explains what an import will replace; destructive actions confirm in place.</p>
+<p><strong>Backup</strong> · state card explains what an import will replace; every destructive action (import, replace, delete, push, restart) confirms in place instead of a full-screen browser dialog.</p>
 <img src="docs/screenshots/aurabot-backup.png" alt="Backup" width="100%">
 
 <p><strong>Modules</strong> · built-in and user modules with switches and expandable errors; a broken panel stays contained.</p>

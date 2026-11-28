@@ -51,8 +51,8 @@
           status?.step || '正在检查本地环境…') : null,
         notice && busy !== 'install' ? h('div', { className: 'ab-small', role: 'status' }, notice) : null,
         local ? h('div', { className: 'ab-flex', style: { gap: 8 } },
-          h(Btn, { small: true, kind: local.configured ? undefined : 'primary', disabled: !canInstall || status.running || Boolean(busy), onClick: () => {
-            if (local.configured || confirm('安装到 ~/Aurabot/mind？已有文件会复用。缺少模型时会下载约 18 GB 的原版权重并在本机转换。')) act('install')
+          h(Btn, { small: true, kind: local.configured ? undefined : 'primary', disabled: !canInstall || status.running || Boolean(busy), onClick: async () => {
+            if (local.configured || (await AB_CONFIRM.ask('安装到 ~/Aurabot/mind？', { hint: '已有文件会复用。缺少模型时会下载约 18 GB 的原版权重并在本机转换。', confirmLabel: '安装' }))) act('install')
           } }, status.running ? '正在检查或安装…' : local.configured ? '检查与修复' : '一键下载安装'),
           h(Btn, { small: true, disabled: !local.configured || status.running || Boolean(busy), onClick: () => act('test') }, busy === 'test' ? '正在测试…' : '试一下')) : null,
         local && !canInstall ? h('p', { className: 'ab-muted ab-small' }, '一键安装需要 Apple 芯片 Mac。') : null)

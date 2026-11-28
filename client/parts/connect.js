@@ -25,6 +25,7 @@
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '重新连接'))
       const noEndpoint = !st.onebot.endpoint.wsUrl && !st.onebot.endpoint.httpUrl
+      const confirm = useConfirm()
       return h('div', { className: 'ab-grid' },
         noEndpoint ? h(Empty, {
           icon: '🔌', title: '还没填 QQ 网关地址',
@@ -60,12 +61,13 @@
                 if (r.ok) { setMoveTo(''); reload() }
               } }, '搬过去'))),
             h(Btn, { small: true, kind: 'ghost', onClick: async () => {
-              if (!confirm('重新开始所有 QQ 会话？普通旧会话会归档，有工作树的旧会话会留在侧栏。')) return
+              if (!(await confirm.ask('重新开始所有 QQ 会话？', { hint: '普通旧会话会归档，有工作树的旧会话会留在侧栏。', confirmLabel: '重新开始' }))) return
               const r = await post('/sessions/reset')
               toast(r.message)
               if (r.ok) reload()
             } }, '重新开始所有 QQ 会话'),
         ),
+        confirm.node
       )
     }
 

@@ -49,7 +49,7 @@
         try {
           const text = await file.text()
           const scope = importScope(text)
-          if (!confirm(`导入「${file.name}」\n可见范围：${scope || '（空，服务端会拒绝）'}\n确认写入知识库？`)) return
+          if (!(await confirm.ask('导入「' + file.name + '」？', { hint: '可见范围：' + (scope || '（空，服务端会拒绝）'), confirmLabel: '写入知识库' }))) return
           const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope })
           toast(r.ok ? '导入了' : (r.message || '导入失败'), r.ok ? 'ok' : 'err')
           if (r.ok) load()
@@ -81,7 +81,7 @@
             previews.push(`${file.name} → ${scope}`)
           } catch (error) { preFailed.push(`${file.name}: ${error.message}`) }
         }
-        if (!confirm(`将导入 ${ready.length} 份文件${preFailed.length ? `，另有 ${preFailed.length} 份读取/范围为空的不会提交` : ''}\n\n${previews.join('\n')}${preFailed.length ? '\n\n不会提交：\n' + preFailed.join('\n') : ''}\n\n确认写入？`)) { e.target.value = ''; return }
+        if (!(await confirm.ask('导入 ' + ready.length + ' 份文件？', { hint: (previews.join('\n') + (preFailed.length ? '\n不会提交：' + preFailed.join('\n') : '')).slice(0, 400), confirmLabel: '写入知识库' }))) { e.target.value = ''; return }
         let ok = 0
         const failed = [...preFailed]
         for (const { file, text, scope } of ready) {
@@ -128,11 +128,12 @@
           h(Btn, { small: true, onClick: () => save(f.path) }, '保存'),
           h(Btn, { small: true, kind: 'ghost', onClick: () => setRenaming({ path: f.path, value: f.title }) }, '改名'),
           h(Btn, { small: true, kind: 'danger', onClick: async () => {
-            if (!confirm('删掉这个知识库文件？')) return
+            if (!(await confirm.ask('删掉这个知识库文件？', { confirmLabel: '删掉' }))) return
             const r = await post('/knowledge/delete', { path: f.path })
             toast(r.ok ? '删掉了' : (r.message || '删不掉'), r.ok ? 'ok' : 'err')
             if (r.ok) load()
           } }, '删除')))) : []
+      const confirm = useConfirm()
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '知识库文件', desc: 'data/knowledge 下的 Markdown / 文本。scope 控制哪些会话能读。', right: h('span', { className: 'ab-flex', style: { gap: 6 } }, h(Select, { value: folderFilter, onChange: setFolderFilter, width: 170, options: [{ value: '', label: '全部目录' }, ...folders.map((f) => ({ value: f, label: f }))] }), h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新')) },
           loadErr ? h(ErrorBlock, { title: '读不到知识库', message: loadErr, hint: '知识库文件在数据目录 knowledge/ 下。', onRetry: load })
@@ -170,5 +171,5 @@
           h('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: 460, overflow: 'auto', fontSize: 12.5 } }, open.text),
           open.total ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 6 } }, `已显示 ${String(open.text || '').length} / ${open.total} 字` + (open.truncated ? '，还有后续内容' : '，已到结尾')) : null,
           open.truncated ? h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, onClick: loadMore }, '加载更多')) : null) : null,
-      )
+        confirm.node)
     }

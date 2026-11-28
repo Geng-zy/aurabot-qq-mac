@@ -206,7 +206,8 @@
                 state: saving ? 'dirty' : 'dirty', saving, isMac: isMacLike(),
                 onSave: () => save(), onReset: () => setDraft(clone(cfg)),
               }) : savedFlash ? h(SaveBar, { state: 'saved' }) : null))),
-        toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null)
+        toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null,
+        h(GlobalConfirmHost))
     }
 
     /** 硬依赖缺失时的兜底页：不渲染业务面板，只说明升级路径。 */

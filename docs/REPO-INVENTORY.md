@@ -4,12 +4,12 @@
 事实（行数、依赖、被依赖、测试引用）来自 `git ls-files` + 源码解析；结论来自 `docs/repo-audit/*.json`。
 口径见 [REFACTOR-PLAN.md](REFACTOR-PLAN.md)；宿主兼容判定见 [HOST-COMPAT.md](HOST-COMPAT.md)。
 
-纳入清单的文件：**899**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**486**。
+纳入清单的文件：**1009**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**487**。
 
 | 结论 | 文件数 |
 |---|---|
-| 保留 | 659 |
-| 待审 | 106 |
+| 保留 | 661 |
+| 待审 | 214 |
 | 保留·补文档 | 40 |
 | 保留·生成物 | 38 |
 | 拆分 | 26 |
@@ -27,8 +27,8 @@
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
 | `assets/platform-architecture.svg` | asset | assets | 43 | 0 | 0 | 保留 | asset | 43 行 SVG / 4381 字节；README.md:21 与 README_EN.md:21 用作「平台架构」示意图 |
 | `assets/platform-banner.svg` | asset | assets | 57 | 0 | 0 | 保留 | asset | 57 行 SVG / 3770 字节；README.md:3 与 README_EN.md:3 的页首 banner |
-| `CHANGELOG.md` | config | root | 2683 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
-| `client/client.js` | client-build | client | 6461 | 0 | 0 | 保留·生成物 | client-shell | 随发布更新（行数见清单「行」列）：由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论 |
+| `CHANGELOG.md` | config | root | 2695 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
+| `client/client.js` | client-build | client | 6549 | 0 | 0 | 保留·生成物 | client-shell | 随发布更新（行数见清单「行」列）：由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论 |
 | `client/client.template.js` | client-template | client | 280 | 0 | 2 | 拆分 | client-shell | 280 行；DSH 入口：__ModuleLoader__.load 包装 + require('react')/hooks 解构 + primitives()/isMacLike()（宿主能力探测）+ inject/PANEL_ID/API/PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS + 工具 get/post/clipboard/clone/setPath/getPath/pct/cx/fmtTokens/fmtCost/chatLabel/峰谷 4 函数/音调 3 函数/timeAgo/REACT_MOOD_BANDS + 结尾 exports.__panelTest/apply/inject/AurabotPage/WhaleIcon；被全部 104 个片段以 h/useState/useEffect/useRef/get/post/clipboard/cx/setPath/getPath/getPath/pct 与 API 引用（h 出现在 101 个片段、get 53、post 45、cx 32、setPath 22）；锁：primitives-guard.test.js（loader→factory→apply 注册 2 个 slot、缺 primitives 时渲染 MissingPrimitivesPage）、persona-filter-select.test.js 与 panel-mind.test.js（__panelTest 的 22 个键）、about-panel.test.js（PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS 必须是 4 空格顶格单行常量）；结构事实：113 行代码 + 19 行注释 + 149 行空行，其中第 127–269 行是 143 行连续空行（CSS 迁去 parts/styles.js 后留下的洞），第 126 行「样式（只注入一次）」已成空标题；可移出到 parts：timeAgo（6 个片段用）、fmtTokens（mindMemory/overview）、fmtCost 与 chatLabel（overview）、BJ_OFFSET/pad2/bjPartsOf/fmtNextChange（只有 costCard 用）、pitchNum/pitchText/pitchLabel（只有 voice 用）、REACT_MOOD_BANDS（只有 stickers 用）、仓库 3 个常量（about/market/simulate 用）；必须留在模板：loader 包装、require/hooks、primitives 与 isMacLike、API、结尾 exports 与 return module.exports。拆完模板约 110 行，净省约 170 行（含 143 行空行） |
 | `client/parts/0tokens.js` | client-part | client | 58 | 0 | 0 | 保留 | client-panel | 约 60 个语义 token：浅色 + 深色各一份（深色只覆盖同名 token），外加浏览器自身表面的主题化（选区、插入符、滚动条、tabular-nums、reduced-motion）。面板里唯一允许写颜色字面量的文件（test/client-tokens.test.js 拦截其它文件）；对比度由同一条测试按 WCAG 算（正文 4.5:1、强调 3:1）。 |
 | `client/parts/about.js` | client-part | client | 20 | 0 | 0 | 保留 | client-shell | 20 行；关于页（版本、API 版本、手册/仓库/发布/提交/鸣谢/模块库链接），只依赖 Card 与模板常量 PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS；被 wizard.js 的 TAB_CONTENT.about 引用；锁：about-panel.test.js 在 vm 里只注入 h 和 Card 就跑 About(...) 并核对 7 个链接 href，因此本文件必须保持只用 h/Card 和 3 个常量；client-build |
@@ -38,7 +38,7 @@
 | `client/parts/apply.js` | client-part | client | 20 | 0 | 0 | 保留 | client-shell | 14 行；DSH 插件入口：slots.inject('main') 注册 AurabotPage、slots.inject('sidebar.panellist') 注册 WhaleIcon（order 20），缺 primitives 时注册 MissingPrimitivesPage；被 client.template.js 的 exports.apply 引用；锁：primitives-guard.test.js 断言 apply 后恰好注册 2 个 slot 且主面板渲染出「DSH UI primitives」「0.2.2-rc.3」；client-build |
 | `client/parts/asr.js` | client-part | client | 36 | 0 | 0 | 保留 | client-pages | 36 行；语音识别页（开关、API Key、模型选择、AsrStatus 下载态）；被 wizard.js 的 TAB_CONTENT.asr 引用；锁：client-build |
 | `client/parts/asrStatus.js` | client-part | client | 12 | 0 | 0 | 合并 | client-components | 12 行；语音识别模型状态与「下载识别模型」按钮（读 phase、post /voice/asr-prepare）；只被 asr.js 引用；锁：client-build；并入 asr.js：删除测试通过（把 phase 判定贴回唯一调用点），估算省 0 行、少 1 个文件边界；与 asr 页的开关/Key 同文件后，phase 文案不再两处维护；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交） |
-| `client/parts/aurabotPage.js` | client-part | client | 212 | 0 | 0 | 拆分 | client-shell | 195 行；应用外壳：9 个 useState + 6 个 useRef + 1 个 useMemo(dirty) + 4 个 useEffect（tab/toast/draft/dirty/saving/writeLock/stateRevision/scrollRef）、reload 5 秒轮询、save 写锁与 revision 竞态、toast 文案分级（/失败|出错|没成功/ 判定 err）、go/jump 的锚点展开、TAB/扩展页装配与整页布局；被 apply.js 注册为 main；锁：ui-navigation.test.js 断言 go() 里有 id === 'character' → selfmind；client-build；拆法：把 st/draft/reload/save/dirty/toast/jump 收进 usePanel()（新 client-hooks），外壳只留布局，预估 195→110 行，省约 85 行（同时让 46 个片段用到的 toast 有单一来源） |
+| `client/parts/aurabotPage.js` | client-part | client | 213 | 0 | 0 | 拆分 | client-shell | 195 行；应用外壳：9 个 useState + 6 个 useRef + 1 个 useMemo(dirty) + 4 个 useEffect（tab/toast/draft/dirty/saving/writeLock/stateRevision/scrollRef）、reload 5 秒轮询、save 写锁与 revision 竞态、toast 文案分级（/失败|出错|没成功/ 判定 err）、go/jump 的锚点展开、TAB/扩展页装配与整页布局；被 apply.js 注册为 main；锁：ui-navigation.test.js 断言 go() 里有 id === 'character' → selfmind；client-build；拆法：把 st/draft/reload/save/dirty/toast/jump 收进 usePanel()（新 client-hooks），外壳只留布局，预估 195→110 行，省约 85 行（同时让 46 个片段用到的 toast 有单一来源） |
 | `client/parts/avatarCard.js` | client-part | client | 41 | 0 | 0 | 拆分 | client-components | 40 行；头像卡（预览、换一张、恢复默认、同步成 QQ 头像）+ 人格分节格式库（PSEC_HEAD 正则、PSEC_SUGGEST 7 个建议标题、PSEC_COLORS 10 个配色、psec 序号、splitPersona、joinPersona、autoRows）；AvatarCard 被 persona.js 引用，格式库 6 个符号被 persona.js、personaSection.js、titleFilter.js 引用；锁：client-build；拆法：格式库（约 25 行）移入 client-utils 的人格分节编解码，AvatarCard 只留 UI（40→15 行），personaSection/titleFilter 不再从卡片文件取正则与配色 |
 | `client/parts/backup.js` | client-part | client | 137 | 0 | 0 | 保留 | client-pages | 106 行；备份与恢复页（导入/导出、备份历史、远端文件列表、deferredSessions 提示），自带 call（第 18 行 raw fetch + x-aurabot-backup 头）、after、1 秒轮询；被 wizard.js 的 TAB_CONTENT.backup 引用；锁：client-build.test.js 断言 function Backup({ toast }) 与「备份：打包数据目录」文案 + client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100；重复实现：call/after/轮询与 remoteBackup.js 第 20/21/19 行逐字重复，应抽 useBackupJob（见 client-utils 条目），本文件可省约 5 行 |
 | `client/parts/breezeQuota.js` | client-part | client | 29 | 0 | 0 | 保留 | client-components | 29 行；Breeze 额度卡（查询、领取、下次刷新时间）；被 voice.js 引用；锁：client-build |
@@ -52,10 +52,10 @@
 | `client/parts/codexSub.js` | client-part | client | 54 | 0 | 0 | 保留 | client-components | 54 行；Codex 生图账号卡（登录状态、刷新、操作、密码键），依赖 Btn/Row/useField；被 imageGen.js 引用；锁：client-build |
 | `client/parts/commandList.js` | client-part | client | 10 | 0 | 0 | 合并 | client-components | 10 行；QQ 命令列表卡（静态 Card + 命令说明）；只被 access.js 引用，无其他导出；锁：client-build；并入 access.js：删除测试通过（整段贴回唯一调用点），估算省 0 行、少 1 个文件边界；放回 access 后与 FIND_SECTIONS 的 qq-commands 锚点同文件，改锚点不易漏；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交） |
 | `client/parts/confirmInline.js` | client-part | client | 29 | 0 | 0 | 保留 | client-panel | 约 40 行：行内二次确认（危险动作原地展开「确定要…吗」+ 取消/继续，焦点落在继续、Esc 撤回）。取代备份页里的原生 confirm —— 原生弹窗挡整页、带不了细节、Playwright 也断不稳。被 scripts/ui-shot.mjs 的备份流程断言覆盖。 |
-| `client/parts/connect.js` | client-part | client | 72 | 0 | 0 | 保留 | client-pages | 56 行；连接页（连接状态、6 个动作按钮、QQ 网关配置 OneBotFields、工作区与会话维护）；被 wizard.js 的 TAB_CONTENT.connect 引用；锁：client-build |
+| `client/parts/connect.js` | client-part | client | 74 | 0 | 0 | 保留 | client-pages | 56 行；连接页（连接状态、6 个动作按钮、QQ 网关配置 OneBotFields、工作区与会话维护）；被 wizard.js 的 TAB_CONTENT.connect 引用；锁：client-build |
 | `client/parts/costCard.js` | client-part | client | 24 | 0 | 0 | 保留 | client-components | 24 行；DeepSeek 峰谷省钱卡（开关、节假日列表、下次切换时间），依赖模板 fmtNextChange/bjPartsOf/pad2/BJ_OFFSET；被 model.js 引用；锁：offpeak.test.js 断言 client.js 含「DeepSeek 峰谷省钱模式」、f.sw('cost.offPeak')、f.list('cost.offPeakHolidays'、「下次切换 」、st?.offpeak?.peak、st?.offpeak?.next；client-build |
 | `client/parts/debugChat.js` | client-part | client | 30 | 0 | 0 | 保留 | client-components | 30 行；概览里的调试对话卡（输入、发送、结果）；被 overview.js 引用；锁：client-build |
-| `client/parts/diary.js` | client-part | client | 55 | 0 | 0 | 拆分 | client-pages | 47 行；QQ 空间页（权限/日记开关/社交互动/历史说说），同时导出 SOCIAL_KIND 给 qzoneSocial.js 用，形成 diary ↔ qzoneSocial 双向依赖（全仓唯一片段级循环）；被 wizard.js 的 TAB_CONTENT.diary 引用；锁：client-build；拆法：SOCIAL_KIND（约 2 行）移入 qzoneSocial.js 或 client-utils，循环消失；预估 47→45 行 |
+| `client/parts/diary.js` | client-part | client | 56 | 0 | 0 | 拆分 | client-pages | 47 行；QQ 空间页（权限/日记开关/社交互动/历史说说），同时导出 SOCIAL_KIND 给 qzoneSocial.js 用，形成 diary ↔ qzoneSocial 双向依赖（全仓唯一片段级循环）；被 wizard.js 的 TAB_CONTENT.diary 引用；锁：client-build；拆法：SOCIAL_KIND（约 2 行）移入 qzoneSocial.js 或 client-utils，循环消失；预估 47→45 行 |
 | `client/parts/diaryArchive.js` | client-part | client | 23 | 0 | 0 | 保留 | client-components | 23 行；空间日记归档卡（未保存判断、定时刷新）；被 diary.js 引用；锁：client-build |
 | `client/parts/diaryAudience.js` | client-part | client | 30 | 0 | 0 | 保留 | client-components | 30 行；说说可见范围卡（自己/好友/指定人、好友列表选择），依赖 stickerCell 的 AUDIENCE_OPTIONS；被 diary.js 引用；锁：client-build |
 | `client/parts/diaryMedia.js` | client-part | client | 42 | 0 | 0 | 保留 | client-components | 42 行；说说配图卡（生成/上传、未保存提醒）；被 diary.js 引用；锁：client-build |
@@ -73,7 +73,7 @@
 | `client/parts/imageFallbacks.js` | client-part | client | 36 | 0 | 0 | 保留 | client-components | 36 行；生图兜底渠道列表（每项 API Key/地址/清空），依赖 Select/Btn/Row；被 imageGen.js 引用；锁：client-build |
 | `client/parts/imageGen.js` | client-part | client | 122 | 0 | 0 | 保留 | client-pages | 117 行；生图页（开关/服务商 Codex 或本地/模型/Key/白名单入口/画作库/形象卡），117 行、12 个依赖；被 wizard.js 的 TAB_CONTENT.imagegen 引用；锁：paintings.test.js 断言 h(PaintGallery, { draft, setDraft, toast }) 渲染时传 toast；client-build |
 | `client/parts/installProgress.js` | client-part | client | 20 | 0 | 0 | 合并 | client-components | 20 行；安装进度条（步骤条、当前步用时、下载量与网速）+ 常量 SONG_PARTS（翻唱 6 个组件名）；SONG_PARTS 只被 song.js 用，fmtBytes/fmtDur 反向依赖 voiceImport.js；被 song.js 引用；锁：client-build；并入 song.js：唯一消费者，删除测试通过；估算省 0–2 行，但消掉 installProgress → voiceImport 的反向依赖，并把 SONG_PARTS 放回使用处；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交） |
-| `client/parts/knowledge.js` | client-part | client | 174 | 0 | 0 | 保留 | client-pages | 166 行；知识库页 6 个职责（列表、预览分页 readSeq 竞态、全文搜索 mark 高亮、导入 md 并解析 scope、写笔记、重命名/删除/移动），10 次 get/post；被 wizard.js 的 TAB_CONTENT.knowledge 引用；锁：client-build；166 行低于 300 行拆分线，页内聚在一个组件，本批只做去重不动边界 |
+| `client/parts/knowledge.js` | client-part | client | 175 | 0 | 0 | 保留 | client-pages | 166 行；知识库页 6 个职责（列表、预览分页 readSeq 竞态、全文搜索 mark 高亮、导入 md 并解析 scope、写笔记、重命名/删除/移动），10 次 get/post；被 wizard.js 的 TAB_CONTENT.knowledge 引用；锁：client-build；166 行低于 300 行拆分线，页内聚在一个组件，本批只做去重不动边界 |
 | `client/parts/listArea.js` | client-part | client | 31 | 0 | 0 | 保留 | client-primitives | 11 行；列表文本域（行/逗号分隔、失焦归一、外部改动才覆盖），被 useField 的 f.list 引用；锁：client-build |
 | `client/parts/localApi.js` | client-part | client | 61 | 0 | 0 | 拆分 | client-pages | 52 行；本地接口页（ffmpeg 路径、每个 slot 的接管状态、生成模板/信任/试一下、复制给 DSH），同时导出 MOD_STATE 给 moduleRow.js 用；被 wizard.js 的 TAB_CONTENT.local 与 TAB_CONTENT.video 两处引用；锁：module-copy.test.js 断言「复制给 DSH」文案；client-build；拆法：MOD_STATE（10 行）移入 modules 区域的模块状态工具，页面 52→42 行；video/local 两页共用同一组件的现状需要文档化 |
 | `client/parts/logLine.js` | client-part | client | 5 | 0 | 0 | 保留 | client-primitives | 5 行；一行日志（时间/区域/正文 + 级别 class）；被 logs.js 与 recentLogs.js 两处引用；锁：client-build；fan-in 2，删除测试不通过 |
@@ -83,12 +83,12 @@
 | `client/parts/mindInner.js` | client-part | client | 68 | 0 | 0 | 保留 | client-pages | 60 行；念头与行动页（内心日记、她想要的、动力、主动找你、待批权限、本地小模型），定义 act(path,body,label) 包装；被 wizard.js 的 TAB_CONTENT.inner 引用；锁：panel-mind.test.js「内心」断言 10 段文案 + Meter 陪伴和归属 + 内嵌 MindLocalModel；client-build |
 | `client/parts/mindInput.js` | client-part | client | 17 | 0 | 0 | 保留 | client-primitives | 14 行；参数输入（失焦/Enter 提交、number 或 text、单位后缀）；只被 mindSettings.js 引用；锁：panel-mind.test.js 断言 ctlOf('记忆改写程度').type === panel.MindInput 且 props.number === true，ctlOf('时区').props.number === false；本文件是第三种数字输入（另有 useField.num 与 f.range 的内嵌 number），但改它会破 panel-mind 契约，本批保持 |
 | `client/parts/mindLocalModel.js` | client-part | client | 59 | 0 | 0 | 保留 | client-components | 59 行；本地小模型卡（状态、检查与修复、安装轮询、模型/解释器路径、下载安装），被 mindInner.js 与 mindSettings.js 两处引用；锁：panel-mind.test.js「本地模型检查显示最终结果」用假 fetch + 定时器断言「正在检查本地环境…」「无需下载」且不残留 timer，另断言没设模型时的原因、42K token、一键下载安装、检查与修复；client-build |
-| `client/parts/mindMemory.js` | client-part | client | 142 | 0 | 0 | 保留 | client-pages | 130 行；记忆页（概况计数、原始记录对照、梦、待整理），读 mindNow 的 mindDay/MIND_KIND/MIND_LEVEL；被 mood.js 引用；锁：panel-mind.test.js「记忆页」断言 34.6K、梦见在海里、原来记的：…、1 个聊天有还没记下的新消息；client-build |
+| `client/parts/mindMemory.js` | client-part | client | 144 | 0 | 0 | 保留 | client-pages | 130 行；记忆页（概况计数、原始记录对照、梦、待整理），读 mindNow 的 mindDay/MIND_KIND/MIND_LEVEL；被 mood.js 引用；锁：panel-mind.test.js「记忆页」断言 34.6K、梦见在海里、原来记的：…、1 个聊天有还没记下的新消息；client-build |
 | `client/parts/mindNow.js` | client-part | client | 78 | 0 | 0 | 拆分 | client-pages | 70 行；「她现在」页（身体状态/心情/此刻感受/投喂/睡觉），70 行；同时导出 mindDay、MIND_KIND、MIND_LEVEL 三个格式化器，被 mindMemory、mindPeople、mindSelf、mindVersions 4 个页面引用；锁：panel-mind.test.js 断言 h1=她现在、三个 Meter 标签=精力/困意/饥饿、投喂卡文案；client-build；拆法：mindDay/MIND_KIND/MIND_LEVEL（约 12 行）移入 client-utils 的时间/记忆格式化，页面只留 UI，预估 70→58 行 |
-| `client/parts/mindPeople.js` | client-part | client | 170 | 0 | 0 | 保留 | client-pages | 159 行；关系页（人物列表/六维关系/称呼与印象/老梗别碰心结/群了解/恢复区/关系星图），8 次 post、5 次 toast；被 wizard.js 的 TAB_CONTENT.persona 引用；锁：panel-mind.test.js「关系页」断言 dl/dt/dd 前 4 项、专一提示、激情变化 -6 分；client-build |
-| `client/parts/mindSelf.js` | client-part | client | 92 | 0 | 0 | 保留 | client-pages | 77 行；人格与自我页（19 项特质分组、现在的值、小习惯、她写下的、故事、人格卡/自我/性格三套版本、她看到的提示词），依赖 MindVersions/Range；被 identity.js 引用；锁：panel-mind.test.js「人格与自我页」断言 依据/第 4 档变到第 5 档/现在 62/「大鱼」→「小鱼」；client-build |
+| `client/parts/mindPeople.js` | client-part | client | 176 | 0 | 0 | 保留 | client-pages | 159 行；关系页（人物列表/六维关系/称呼与印象/老梗别碰心结/群了解/恢复区/关系星图），8 次 post、5 次 toast；被 wizard.js 的 TAB_CONTENT.persona 引用；锁：panel-mind.test.js「关系页」断言 dl/dt/dd 前 4 项、专一提示、激情变化 -6 分；client-build |
+| `client/parts/mindSelf.js` | client-part | client | 94 | 0 | 0 | 保留 | client-pages | 77 行；人格与自我页（19 项特质分组、现在的值、小习惯、她写下的、故事、人格卡/自我/性格三套版本、她看到的提示词），依赖 MindVersions/Range；被 identity.js 引用；锁：panel-mind.test.js「人格与自我页」断言 依据/第 4 档变到第 5 档/现在 62/「大鱼」→「小鱼」；client-build |
 | `client/parts/mindSettings.js` | client-part | client | 97 | 0 | 0 | 保留 | client-pages | 65 行；心智参数页（按 GET /mind/settings 的 groups/params 生成 Row、搜索跨分类、恢复默认、高级项折叠、内嵌 MindLocalModel）；被 wizard.js 的 TAB_CONTENT.mindsettings 引用；锁：panel-mind.test.js「心智设置」用 slots 驱动断言 Row 顺序、默认值与依据、Switch/MindInput 类型、恢复默认只在改过的项出现、心智核心没起来时的说明；client-build |
-| `client/parts/mindVersions.js` | client-part | client | 69 | 0 | 0 | 保留 | client-pages | 69 行；版本对比与清理（人格卡/自我/性格三类、逐版本对比、批量清理）；被 mindSelf.js 引用；锁：client-build |
+| `client/parts/mindVersions.js` | client-part | client | 71 | 0 | 0 | 保留 | client-pages | 69 行；版本对比与清理（人格卡/自我/性格三类、逐版本对比、批量清理）；被 mindSelf.js 引用；锁：client-build |
 | `client/parts/missingPrimitivesPage.js` | client-part | client | 7 | 0 | 0 | 保留 | client-shell | 7 行；缺 client-ui-primitives 时的升级提示页（纯静态，无依赖）；被 apply.js 引用；锁：primitives-guard.test.js 断言渲染文本含「DSH UI primitives」与「0.2.2-rc.3」；client-build |
 | `client/parts/model.js` | client-part | client | 65 | 0 | 0 | 保留 | client-pages | 55 行；聊天模型页（模型下拉、思考强度、视觉、测试连接），组合 ChatModels 与 CostCard；被 wizard.js 的 TAB_CONTENT.model 引用；锁：client-build |
 | `client/parts/modelPicker.js` | client-part | client | 28 | 0 | 0 | 保留 | client-components | 28 行；模型下拉（拉 /models、分组、写回 provider/model），28 行；被 asr.js、imageGen.js、mood.js 三处复用；锁：client-build |
@@ -105,7 +105,7 @@
 | `client/parts/paintCell.js` | client-part | client | 10 | 0 | 0 | 合并 | client-components | 10 行；单张画作的缩略单元（img + 提示词 + 时间）；只被 paintGallery.js 引用、无其他导出、无共享常量；锁：client-build；并入 paintGallery.js：删除测试通过（删掉只是把 10 行贴回唯一调用点），估算省 0 行、少 1 个文件边界；与 paintGallery 一起改更不易漏改 toast 契约；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交） |
 | `client/parts/paintGallery.js` | client-part | client | 30 | 0 | 0 | 保留 | client-components | 30 行；「她的画作」卡（列表、单张删除、打开文件夹、刷新）；被 imageGen.js 引用；锁：paintings.test.js 断言 function PaintGallery({ draft, setDraft, toast }) 签名，并断言 const del = async (file) => 之后 400 字符内出现 load()；client-build |
 | `client/parts/panelSandboxHtml.js` | client-part | client | 36 | 0 | 0 | 保留·补文档 | client-shell | 36 行；生成 iframe 的 srcdoc（第 33 行内联 <style> + postMessage shim + token 校验），是全仓唯一不在 styles.js 里的样式片段；被 extPanel.js 引用；锁：client-build；缺文档：sandbox 属性、token 生命周期、可用 postMessage 字段没有契约文档，补进扩展面板文档后再谈收敛 |
-| `client/parts/persona.js` | client-part | client | 122 | 0 | 0 | 保留 | client-components | 122 行；人格卡编辑（分节、润色对比、保存/恢复草稿、版本、头像），12 个依赖；被 identity.js 引用；锁：client-build |
+| `client/parts/persona.js` | client-part | client | 123 | 0 | 0 | 保留 | client-components | 122 行；人格卡编辑（分节、润色对比、保存/恢复草稿、版本、头像），12 个依赖；被 identity.js 引用；锁：client-build |
 | `client/parts/personaSection.js` | client-part | client | 28 | 0 | 0 | 保留 | client-components | 28 行；单节人格编辑（标题、字数、上移下移删除、AI 润色、对比），依赖 avatarCard 的 psec/PSEC_COLORS/autoRows 与 AiButton；被 persona.js 引用；锁：client-build |
 | `client/parts/pickAvatar.js` | client-part | client | 13 | 0 | 0 | 保留 | client-utils | 13 行；头像选择工具（动态 input[type=file]、5MB 限制、FileReader → POST /avatar/upload）+ avatarSrc（/avatar?v=at）；被 avatarCard.js 与 overview.js 引用；锁：client-build |
 | `client/parts/platforms.js` | client-part | client | 33 | 0 | 0 | 保留 | client-pages | 29 行；平台连接页（QQ 状态卡、Telegram token、能力标签、跳转连接页）；被 wizard.js 的 TAB_CONTENT.platforms 引用；锁：ui-navigation.test.js 断言 function Platforms 与 go('connect')；client-build |
@@ -125,24 +125,25 @@
 | `client/parts/song.js` | client-part | client | 102 | 0 | 0 | 保留 | client-pages | 98 行；翻唱页（环境安装进度 InstallProgress、声音、翻唱效果、网易云点歌、试唱），9 个依赖；被 wizard.js 的 TAB_CONTENT.song 引用；锁：client-build |
 | `client/parts/starMap.js` | client-part | client | 62 | 0 | 0 | 保留 | client-components | 62 行；关系星图 SVG（取 /mind/people/graph、按亲近度环形排布、悬停高亮），62 行、7 次 get/post；被 mindPeople.js 引用；锁：client-build |
 | `client/parts/stateKit.js` | client-part | client | 54 | 0 | 0 | 保留 | client-panel | Empty（教学式空态：图标/标题/解释/主行动，旧的一行调用仍兼容）、Skeleton（卡片/行/头像，aria-busy + 读屏文案）、ErrorBlock（就地错误、重试、复制诊断、role=alert）。被 client-form-kit 的 5 条测试直接渲染断言。 |
-| `client/parts/stickerCell.js` | client-part | client | 41 | 0 | 0 | 拆分 | client-components | 41 行；单个表情单元（预览、标签、可见范围选择、保存）；同时导出 AUDIENCE_OPTIONS 与 AUDIENCE_LABEL，被 diaryAudience.js 与 diary.js 引用；被 stickers.js 引用；锁：client-build；拆法：AUDIENCE_OPTIONS/AUDIENCE_LABEL（约 5 行）移入 client-utils 的可见范围常量，表情单元只留 UI，预估 41→36 行 |
-| `client/parts/stickers.js` | client-part | client | 202 | 0 | 0 | 保留 | client-pages | 194 行；表情包页（开关/概率/偷取策略/表情库/多选删除/QQ 收藏导入/AI 补标签后台任务），194 行是全仓第 3 大片段、11 处 Btn、9 次 post；被 wizard.js 的 TAB_CONTENT.stickers 引用；锁：client-build；未拆理由：单一组件、单一数据源（GET /stickers + GET /sticker/caption-status），低于 300 行拆分线；若后续再加卡片，按「表情库 / 起名任务 / 贴表情」三卡拆 |
-| `client/parts/styles.js` | client-part | client | 670 | 0 | 1 | 保留 | client-styles | 634 行（1.6.44 已执行：删掉 108 条规则 / 37 个死类名，739 → 634；生成物 client.js 5887 → 5783）；新增 test/client-css.test.js 防回潮。 |
+| `client/parts/stickerCell.js` | client-part | client | 42 | 0 | 0 | 拆分 | client-components | 41 行；单个表情单元（预览、标签、可见范围选择、保存）；同时导出 AUDIENCE_OPTIONS 与 AUDIENCE_LABEL，被 diaryAudience.js 与 diary.js 引用；被 stickers.js 引用；锁：client-build；拆法：AUDIENCE_OPTIONS/AUDIENCE_LABEL（约 5 行）移入 client-utils 的可见范围常量，表情单元只留 UI，预估 41→36 行 |
+| `client/parts/stickers.js` | client-part | client | 203 | 0 | 0 | 保留 | client-pages | 194 行；表情包页（开关/概率/偷取策略/表情库/多选删除/QQ 收藏导入/AI 补标签后台任务），194 行是全仓第 3 大片段、11 处 Btn、9 次 post；被 wizard.js 的 TAB_CONTENT.stickers 引用；锁：client-build；未拆理由：单一组件、单一数据源（GET /stickers + GET /sticker/caption-status），低于 300 行拆分线；若后续再加卡片，按「表情库 / 起名任务 / 贴表情」三卡拆 |
+| `client/parts/styles.js` | client-part | client | 673 | 0 | 1 | 保留 | client-styles | 634 行（1.6.44 已执行：删掉 108 条规则 / 37 个死类名，739 → 634；生成物 client.js 5887 → 5783）；新增 test/client-css.test.js 防回潮。 |
 | `client/parts/switch.js` | client-part | client | 4 | 0 | 0 | 保留 | client-primitives | 4 行；宿主 Switch 的薄封装（on/onChange/disabled/label/title），4 行；被 12 个片段引用；锁：panel-mind.test.js 断言 ctlOf('单一注意力').type === panel.Switch；client-build；删除测试不通过（12 处调用点会各写一遍 primitives 契约） |
 | `client/parts/titleFilter.js` | client-part | client | 37 | 0 | 0 | 保留 | client-components | 37 行；群头衔过滤卡（开关、自动拉群头衔、分组映射）；被 group.js 引用；锁：client-build |
 | `client/parts/toastBus.js` | client-part | client | 45 | 0 | 0 | 保留 | client-panel | 约 45 行：Toast 总线 + Toaster。publish/subscribe/claimHost/hosted；Toaster 挂在宿主 shell.overlay（apply.js 注册），面板侧 aurabotPage 用 hosted() 决定是否渲染自己那份，避免两份提示。被 scripts/ui-shot.mjs 的「Toast 只一份」断言覆盖。 |
 | `client/parts/updateNotes.js` | client-part | client | 13 | 0 | 0 | 保留 | client-components | 13 行；版本更新说明卡（localStorage 记已读）；被 overview.js 引用；锁：client-build |
+| `client/parts/useConfirm.js` | client-part | client | 62 | 0 | 0 | 保留 | client-panel | 行内确认：AB_CONFIRM（Promise 版，一次只处理一个，Esc 取消）+ GlobalConfirmHost（挂在工作台根部的唯一渲染器）+ useConfirm()（组件内薄封装，node 恒为 null 兼容老调用点）。取代面板里全部原生 confirm()；被 scripts/ui-shot.mjs 的「弹出并带说明 / 取消返回 false 并收起」断言覆盖。 |
 | `client/parts/useField.js` | client-part | client | 53 | 0 | 0 | 保留 | client-hooks | 53 行（1.6.45 已执行：新增 secretPlaceholder / f.secret / notify 三个共享实现，把 13 处密钥占位与 21 处提示收敛）；新增 test/client-form-kit.test.js 3 个用例。 |
 | `client/parts/useStyle.js` | client-part | client | 18 | 0 | 0 | 保留 | client-hooks | 18 行；样式注入 hook（旧无主 style 先删、按 plugin 标记复用、textContent=CSS），18 行；被 aurabotPage.js 引用；锁：client-build；与 styles.js 的 CSS 常量构成唯一注入点 |
 | `client/parts/voice.js` | client-part | client | 126 | 0 | 0 | 保留 | client-pages | 119 行；语音合成页（音色选择、Edge/Breeze 双后端、音调滑条、试听、RVC 变声入口），9 个依赖、31 处 Row；被 wizard.js 的 TAB_CONTENT.voice 引用；锁：client-build |
-| `client/parts/voiceImport.js` | client-part | client | 66 | 0 | 0 | 拆分 | client-components | 66 行；音色导入卡（克隆/上传/删除、raw fetch 上传）；同时导出 fmtBytes/fmtDur 两个格式化器，被 installProgress.js 引用；被 song.js 引用；锁：client-build；拆法：fmtBytes/fmtDur（约 4 行）移入 client-utils 的格式化工具，installProgress 与 voiceImport 的跨文件依赖消失，预估 66→62 行 |
+| `client/parts/voiceImport.js` | client-part | client | 68 | 0 | 0 | 拆分 | client-components | 66 行；音色导入卡（克隆/上传/删除、raw fetch 上传）；同时导出 fmtBytes/fmtDur 两个格式化器，被 installProgress.js 引用；被 song.js 引用；锁：client-build；拆法：fmtBytes/fmtDur（约 4 行）移入 client-utils 的格式化工具，installProgress 与 voiceImport 的跨文件依赖消失，预估 66→62 行 |
 | `client/parts/voiceSongModel.js` | client-part | client | 14 | 0 | 0 | 合并 | client-components | 14 行；语音条变声（RVC）卡：Card + 2 个 Row（音色下拉、变调数字）；只被 voice.js 引用，无共享导出；锁：client-build；并入 voice.js：删除测试通过（12 行贴回唯一调用点），估算省 0 行、少 1 个文件边界；与 voice.js 的 useField 实例复用同一 draft；注意：5 个 merge 全部执行后片段数 104→99，必须同步把 test/client-build.test.js 第 15 行的 parts ≥100 断言改成 ≥95（这是契约变更，要和本批一起提交） |
 | `client/parts/whaleIcon.js` | client-part | client | 10 | 0 | 0 | 保留 | client-primitives | 10 行；鲸鱼图标 SVG；被 WorkspaceNav.js 与 apply.js（侧栏图标）引用；锁：client-build |
 | `client/parts/wizard.js` | client-part | client | 87 | 0 | 0 | 拆分 | client-shell | 87 行；设置向导（4 步表单）+ 路由表 TAB_CONTENT（28 个键）、TAB_KEYS（18 个键的脏检查字段）、moduleSearchText；被 aurabotPage.js 引用（TAB_CONTENT/TAB_KEYS/moduleSearchText/Wizard），moduleSearchText 另被 featureFinder.js 引用；锁：security-panel（security: Security）、browser-panel（browser: Browser, local: LocalApi, 与 browser: ['browser']）、about-panel（about: About）、ui-navigation（NAV_GROUPS 与 TAB_CONTENT 一致）、panel-mind（TAB_CONTENT 每个 id 必须是函数、TABS 无重复 id）；拆法：TAB_CONTENT/TAB_KEYS/moduleSearchText 移入 navigation.js（与 NAV_GROUPS 同处），向导只留 Wizard，预估 87→45 行，迁移 40 行不改行为 |
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4190 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4211 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -182,14 +183,14 @@
 | `docs/repo-audit/batch9-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/channels.json` | doc | docs | 387 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 channels.json。 |
 | `docs/repo-audit/chat-host.json` | doc | docs | 408 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 chat-host.json。 |
-| `docs/repo-audit/client.json` | doc | docs | 982 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
+| `docs/repo-audit/client.json` | doc | docs | 996 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
 | `docs/repo-audit/core-data.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/core-security.json` | doc | docs | 268 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
 | `docs/repo-audit/features-modules.json` | doc | docs | 289 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。 |
 | `docs/repo-audit/media-adapters.json` | doc | docs | 478 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
 | `docs/repo-audit/mind.json` | doc | docs | 464 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
 | `docs/repo-audit/tests-scripts-config.json` | doc | docs | 254 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
-| `docs/REPO-INVENTORY.md` | doc | docs | 929 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
+| `docs/REPO-INVENTORY.md` | doc | docs | 1039 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-backup.png` | doc | docs | — | 0 | 0 | 保留 | client-panel | README.md 备份与恢复页示例图（状态卡 + 导入走行内确认），来自 docs/ui-baseline/pages/backup.png；1.7.6 起引用。 |
 | `docs/screenshots/aurabot-connect.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 连接页示例图（一键诊断结果区），来自 docs/ui-baseline/pages/connect.png。 |
 | `docs/screenshots/aurabot-empty-state.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md / README_EN.md 的「还没有内容时」示例图（模块管理空态）；来自 docs/ui-baseline/states/modules-empty.png。 |
@@ -211,6 +212,114 @@
 | `docs/screenshots/aurabot-workbench-overview.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 与 README_EN.md 的面板导览直接 <img> 引用（工作台截图）；由 scripts/ui-shot.mjs 从 docs/ui-baseline/pages/overview.png 复制而来。 |
 | `docs/SESSION-HANDOFF.md` | doc | docs | 1315 | 0 | 0 | 保留 | docs | 随发布更新（行数见清单「行」列）：交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。 |
 | `docs/ui-baseline/api-fixtures.json` | doc | docs | 12303 | 0 | 0 | 保留 | docs | 真机接口抓包快照（/mind/* /modules /song/status /image/status 等 19 个接口），供 scripts/ui-preview.mjs 渲染真实形状；由 Mini 上一次性抓取，不参与产品运行。 |
+| `docs/ui-baseline/archive/1.7.7/narrow.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/about.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/access.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/asr.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/backup.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/browser.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/connect.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/diary.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/group.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/imagegen.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/inner.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/knowledge.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/local.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/logs.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/market.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/mindsettings.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/model.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/modules.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/mood.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/now.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/overview.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/persona.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/platforms.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/security.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/selfmind.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/song.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/stickers.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/video.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/pages/voice.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/about-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/about-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/about-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/access-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/access-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/access-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/asr-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/asr-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/asr-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/backup-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/backup-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/backup-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/browser-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/browser-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/browser-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/connect-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/connect-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/connect-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/diary-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/diary-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/diary-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/group-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/group-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/group-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/imagegen-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/imagegen-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/imagegen-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/inner-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/inner-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/inner-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/knowledge-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/knowledge-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/knowledge-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/local-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/local-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/local-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/logs-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/logs-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/logs-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/mindsettings-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/mindsettings-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/mindsettings-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/model-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/model-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/model-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/modules-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/modules-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/modules-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/mood-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/mood-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/mood-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/now-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/now-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/now-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/overview-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/overview-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/overview-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/persona-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/persona-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/persona-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/security-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/security-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/security-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/selfmind-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/selfmind-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/selfmind-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/song-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/song-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/song-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/stickers-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/stickers-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/stickers-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/video-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/video-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/video-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/voice-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/voice-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/states/voice-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
+| `docs/ui-baseline/archive/1.7.7/theme-dark.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/dsh-plugins.png` | doc | docs | — | 0 | 0 | 保留 | docs | 同一轮拍的宿主插件列表页截图，用于确认 rc.3 的 sidebar.panellist 座位形状；引用位置见 docs/UI-PLAN.md §3.1 的 slot 表。 |
 | `docs/ui-baseline/dsh-shell.png` | doc | docs | — | 0 | 0 | 保留 | docs | Air 上 Playwright 拍的 DSH 宿主壳截图（参照物，不是产品资源）；生成方式见 docs/UI-PLAN.md §1 的方法表，Chromium 由 scripts/ui-shot.mjs 同一套 playwright-core 驱动。 |
 | `docs/ui-baseline/narrow.png` | doc | docs | — | 0 | 0 | 保留 | docs | scripts/ui-shot.mjs 产出的窄屏（620px）基线，每批覆盖，用于对比布局回归。 |
@@ -243,6 +352,7 @@
 | `docs/ui-baseline/pages/video.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/pages/voice.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/panel-inventory.json` | doc | docs | 386 | 0 | 0 | 保留 | docs | 28 页的组件树盘点数据（卡片/表单行/空态/折叠），由 UI 规划那轮的渲染脚本产出。 |
+| `docs/ui-baseline/README.md` | doc | docs | 22 | 0 | 0 | 保留 | client-panel | 截图基线目录说明：pages/states 是滚动覆盖，archive/<版本>/ 是定格；写明生成命令（scripts/ui-shot.mjs）与归档时机。 |
 | `docs/ui-baseline/state.live.json` | doc | docs | 1 | 0 | 0 | 保留 | docs | Mini 的 /state 快照（12 个内置模块、49 人、19 特质、51 个配置键），供预览渲染；升级后由 ui-shot 重新抓取。 |
 | `docs/ui-baseline/states/about-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/states/about-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
@@ -323,7 +433,7 @@
 | `docs/ui-baseline/states/voice-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/states/voice-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/theme-dark.png` | doc | docs | — | 0 | 0 | 保留 | docs | scripts/ui-shot.mjs 产出的深色模式基线，用于对比主题 token 回归。 |
-| `docs/UI-PLAN.md` | doc | docs | 371 | 0 | 0 | 保留 | docs | UI 盘点与设计规划（Operate 模式）：现状盘点（28 页/34 卡片/64 表单行）、rc.3 slot 与 token 能力边界、设计方向、原功能→新入口→验收映射、B0–B7 分批与每批验收条件。B0 已按它落地（1.7.0），B1 进行中；由 scripts/ui-shot.mjs 的断言与 docs/ui-baseline/ 的截图共同兜底。 |
+| `docs/UI-PLAN.md` | doc | docs | 378 | 0 | 0 | 保留 | docs | UI 盘点与设计规划（Operate 模式）：现状盘点（28 页/34 卡片/64 表单行）、rc.3 slot 与 token 能力边界、设计方向、原功能→新入口→验收映射、B0–B7 分批与每批验收条件。B0 已按它落地（1.7.0），B1 进行中；由 scripts/ui-shot.mjs 的断言与 docs/ui-baseline/ 的截图共同兜底。 |
 | `docs/USER-MANUAL.md` | doc | docs | 190 | 0 | 0 | 保留 | doc | 188 行；面向用户的设置路径（⌥K 搜索、系统 → 备份、心智 → 记忆）与 client/client.js 的 NAV_GROUPS 和搜索索引一致，被 README.md 导航引用；不含版本号 |
 | `LICENSE` | config | root | 21 | 0 | 0 | 保留 | repo | 21 行 MIT 全文；Copyright (c) 2026 Aurabot contributors；与 package.json 的 `"license": "MIT"` 和 README.md 末尾「许可证：[MIT](LICENSE)」一致 |
 | `models/LICENSE` | vendor-model | models | 21 | 0 | 0 | 第三方 | vendor-model | 21 行 MIT 全文，Copyright (c) 2022 staoxiao —— BAAI bge-small-zh-v1.5 的模型许可；THIRD-PARTY-NOTICES.md:49 指向随包的这份文件 |
@@ -344,7 +454,7 @@
 | `scripts/replay-privacy.js` | script | scripts | 63 | 0 | 0 | 保留·补文档 | tooling-replay | 63 行；package.json 的 scripts.mind:privacy + files[]；import src/mind/index.js 的 createMind（L3），在内联 12 条合成样例（L10 起）上跑 encodeWindow/recallMore 统计泄漏；0 个测试覆盖（test/ 下 grep replay-privacy 无命中）；同类隐私契约由 test/mind-design.test.js 的 6 个分享/私密用例覆盖，脚本只做人工统计；建议补 --input 分支 smoke 断言；与 replay-mind.js 不重叠（只统计分享/泄漏，不产报告） |
 | `scripts/repo-inventory.mjs` | script | scripts | 291 | 0 | 1 | 保留·补文档 | tooling-audit | 随发布更新（行数见清单「行」列）：工作区未提交（git status ?? scripts/repo-inventory.mjs），package.json 无对应 script 入口；只被 docs/REFACTOR-PLAN.md:67、test/repo-inventory.test.js 与本次审计引用；gitFiles() 在 L36 同时读 `git ls-files -z` 与 `--others --exclude-standard`（行数/import/被依赖由此算），模式开关在 L227（--tsv/--md/--write/summary）；建议先入库并加 `npm run inventory`；与 check-syntax/lint 不重叠（只生成清单与合并结论，不改源码） |
 | `scripts/ui-preview.mjs` | script | scripts | 172 | 0 | 0 | 保留 | client-panel | 面板预览服务：用 client/client.js 的真组件 + 真机快照（docs/ui-baseline/state.live.json、api-fixtures.json）渲染整块工作台，桩掉宿主 primitives 与 /aurabot/api/*，支持 page/state/mode/theme 参数。不连宿主、不连 QQ，供 Playwright 截图与断言。 |
-| `scripts/ui-shot.mjs` | script | scripts | 303 | 0 | 1 | 保留 | client-panel | UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。 |
+| `scripts/ui-shot.mjs` | script | scripts | 316 | 0 | 1 | 保留 | client-panel | UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。 |
 | `scripts/verify-release.mjs` | script | scripts | 80 | 0 | 0 | 保留 | tooling-release | 95 行；终验脚本：① 复算全仓清单并要求 0 待审；② 把 docs/ACCEPTANCE-LOG.md 里 19 个版本的 sha256 与 GitHub Release 资产 digest 逐条比对；③ 校验 package.json 版本 = 最近 tag。只读不改仓库，任一项失败以非 0 退出；--skip-remote 可离线跑。 |
 | `src/channels/adapter-facade.js` | source | channels/adapter-facade.js | 42 | 2 | 0 | 保留 | channels | 42 行、0 个内部依赖、2 处 import（src/channels/qq/adapter.js:4、src/channels/telegram/index.js）、0 个测试直接引用。成员清点：run()=start()、commitEvent()=on() 是纯改名且 src/ 下 0 调用（grep sendBySession|commitEvent 只命中本文件与 test/platform-hub.test.js:49-63），8 个 start/stop/ready/state/status/on/send/convert 是直转，实做只有 sendBySession 的 session→chatId 映射（9-15 行）和 38-40 行把 transport 其余键整表拷到 adapter。删除测试：删掉后两个 adapter 各要复制 16 行，判 keep；键拷贝同时把 qq/index.js 的 24 个非契约键暴露到 PlatformAdapter 上，是下一批收窄的入口。 |
 | `src/channels/ids.js` | source | channels/ids.js | 4 | 12 | 1 | 保留 | channels | re-export shim → src/core/ids.js（原 133 行纯 chatId 解析：parseChat/chatIdOf/normChat/parsePerson，0 依赖）。core/tasks、core/access、core/bridge 原来反向 import 它，现在都指 core。 |

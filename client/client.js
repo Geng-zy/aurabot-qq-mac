@@ -466,7 +466,7 @@ window.__ModuleLoader__.load({
     return h('div', { key: it.file, className: 'ab-shot' },
     h('a', { href: src, target: '_blank', rel: 'noreferrer' }, h('img', { src, alt: '她的形象', loading: 'lazy' })),
     h('div', { className: 'cap' }, it.primary ? '★ 主图' : h('a', { href: '#', onClick: (e) => { e.preventDefault(); act('/image/appearance/primary', { file: it.file }, '设成主图了') } }, '设为主图')),
-    h(Btn, { small: true, kind: 'danger', title: '移到废纸篓', onClick: () => { if (confirm('把这张移到废纸篓？')) act('/image/appearance/delete', { file: it.file }, '移到废纸篓了') } }, '✕'))
+    h(Btn, { small: true, kind: 'danger', title: '移到废纸篓', onClick: async () => { if (await AB_CONFIRM.ask('把这张移到废纸篓？', { confirmLabel: '移到废纸篓' })) act('/image/appearance/delete', { file: it.file }, '移到废纸篓了') } }, '✕'))
     })),
     h(Row, { label: '形象描述', hint: '画她自己时加进提示词。可以点「看图写一段」让能看图的模型写，也可以自己写、改' },
     h('div', { style: { flex: 1 } },
@@ -756,7 +756,8 @@ window.__ModuleLoader__.load({
     state: saving ? 'dirty' : 'dirty', saving, isMac: isMacLike(),
     onSave: () => save(), onReset: () => setDraft(clone(cfg)),
     }) : savedFlash ? h(SaveBar, { state: 'saved' }) : null))),
-    toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null)
+    toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null,
+    h(GlobalConfirmHost))
     }
 
     /** 硬依赖缺失时的兜底页：不渲染业务面板，只说明升级路径。 */
@@ -770,7 +771,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-flex', style: { marginTop: 10, flexWrap: 'wrap' } },
     h(Btn, { small: true, kind: 'primary', onClick: () => pickAvatar(toast, reload) }, '换一张'),
     custom ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/avatar/reset'); toast(r.message, 'ok'); reload() } }, '恢复默认') : null,
-    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('把这张图设成机器人号的 QQ 头像？')) return; const r = await post('/avatar/sync-qq'); notify(toast, r) } }, '同步成 QQ 头像')),
+    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await AB_CONFIRM.ask('把这张图设成机器人号的 QQ 头像？', { confirmLabel: '同步' }))) return; const r = await post('/avatar/sync-qq'); notify(toast, r) } }, '同步成 QQ 头像')),
     h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '这是面板里显示的头像；点「同步成 QQ 头像」才会改机器人号在 QQ 上的头像。'))
     }
 
@@ -1068,8 +1069,8 @@ window.__ModuleLoader__.load({
     status?.reusedModel || status?.reusedPython ? h('span', { className: 'ab-muted ab-small' }, status.reusedModel && status.reusedPython ? '复用已有模型和环境' : status.reusedModel ? '复用已有模型' : '复用已有环境') : null,
     download && !status.running ? h('span', { className: 'ab-muted ab-small' }, '待下载 ' + download) : null),
     h(Row, { label: '运行环境', hint: '已有文件会复用。新环境装在 ~/Aurabot/imagegen，安装后可离线生成。' },
-    h(Btn, { small: true, kind: status?.ready ? undefined : 'primary', disabled: !status?.supported || status.running || status.pending > 0 || Boolean(busy), onClick: () => {
-    if (status.ready || confirm((download ? '将下载' + download + '并安装缺少的依赖。' : '将安装缺少的依赖。') + '继续表示你已查看并同意模型许可。')) act('install')
+    h(Btn, { small: true, kind: status?.ready ? undefined : 'primary', disabled: !status?.supported || status.running || status.pending > 0 || Boolean(busy), onClick: async () => {
+    if (status.ready || (await AB_CONFIRM.ask(download ? '下载 ' + download + ' 并安装依赖？' : '安装缺少的依赖？', { hint: '继续表示你已查看并同意模型许可。', confirmLabel: '安装' }))) act('install')
     } }, status?.running || busy === 'install' ? '正在部署…' : status?.ready ? '检查与修复' : '一键部署'),
     h(Btn, { small: true, disabled: !status?.ready || status.running || status.pending > 0 || Boolean(busy), onClick: () => act('test') }, busy === 'test' ? '正在试画…' : '试画一张')),
     (notice || status?.message) && !status?.running ? h('p', { className: 'ab-small', role: 'status' }, notice || status.message) : null,
@@ -1265,6 +1266,7 @@ window.__ModuleLoader__.load({
     h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
     h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '重新连接'))
     const noEndpoint = !st.onebot.endpoint.wsUrl && !st.onebot.endpoint.httpUrl
+    const confirm = useConfirm()
     return h('div', { className: 'ab-grid' },
     noEndpoint ? h(Empty, {
     icon: '🔌', title: '还没填 QQ 网关地址',
@@ -1300,12 +1302,13 @@ window.__ModuleLoader__.load({
     if (r.ok) { setMoveTo(''); reload() }
     } }, '搬过去'))),
     h(Btn, { small: true, kind: 'ghost', onClick: async () => {
-    if (!confirm('重新开始所有 QQ 会话？普通旧会话会归档，有工作树的旧会话会留在侧栏。')) return
+    if (!(await confirm.ask('重新开始所有 QQ 会话？', { hint: '普通旧会话会归档，有工作树的旧会话会留在侧栏。', confirmLabel: '重新开始' }))) return
     const r = await post('/sessions/reset')
     toast(r.message)
     if (r.ok) reload()
     } }, '重新开始所有 QQ 会话'),
     ),
+    confirm.node
     )
     }
 
@@ -1376,8 +1379,9 @@ window.__ModuleLoader__.load({
     if (r && r.ok !== false) { setData(r); setLoadErr(''); if (r.warning) toast(r.warning) } else { setData(null); setLoadErr(r?.message || '读不到日记状态') }
     }).catch((e) => setLoadErr('连不上插件：' + e.message)) : null)
     useEffect(() => { load() }, [on])
+    const confirm = useConfirm()
     const social = modOn(st, 'qzone-social') ? h(QzoneSocial, { draft, setDraft, toast }) : h(ModOff, { name: '空间互动', go })
-    if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记', go }), social)
+    if (!on) return h(Fragment, null, h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记', go }), social), confirm.node)
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '空间日记', right: f.sw('diary.enabled'), desc: '她用可公开的经历和当前心情写说说。普通日记只在「仅自己可见」时自动从当天的画作或表情包里配图。' },
     h(Row, { label: '每天自动发布上限', hint: '设为 0 可暂停自动发布' }, f.num('diary.timesPerDay', { min: 0, max: 6 })),
@@ -1413,10 +1417,10 @@ window.__ModuleLoader__.load({
     h('div', { className: 'body' }, d.text,
     (d.warnings || []).map((warning, index) => h('div', { key: index, className: 'ab-small', style: { color: 'var(--ab-warn)' } }, warning)),
     d.error ? h('div', { className: 'ab-small', style: { color: 'var(--ab-err)' } }, d.error) : null),
-    d.tid && !d.deletedAt ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('从 QQ 空间删除这条说说？')) return; try { const r = await post('/qzone/delete', { tid: d.tid }); toast(r.message) } catch (e) { toast(e.message) } finally { await load() } } }, '从空间删除') : null))),
+    d.tid && !d.deletedAt ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await confirm.ask('从 QQ 空间删除这条说说？', { confirmLabel: '删除' }))) return; try { const r = await post('/qzone/delete', { tid: d.tid }); toast(r.message) } catch (e) { toast(e.message) } finally { await load() } } }, '从空间删除') : null))),
     ),
     social,
-    )
+    confirm.node)
     }
 
     const SOCIAL_KIND = { reply: '回复评论', comment: '评论', like: '点赞' }
@@ -2139,7 +2143,7 @@ window.__ModuleLoader__.load({
     }).catch((e) => setStatusErr('连不上插件：' + e.message))
     useEffect(() => { loadStatus() }, [])
     const testImage = async () => {
-    if (!confirm('会先保存当前生图设置，再调用当前服务画一张测试图，可能消耗额度。继续？')) return
+    if (!(await AB_CONFIRM.ask('画一张测试图？', { hint: '会先保存当前生图设置，再调用当前服务画一张，可能消耗额度。', confirmLabel: '继续' }))) return
     setTestingImage(true); setImageTest(null)
     try {
     const saved = await post('/save', { imageGen: draft.imageGen })
@@ -2323,7 +2327,7 @@ window.__ModuleLoader__.load({
     try {
     const text = await file.text()
     const scope = importScope(text)
-    if (!confirm(`导入「${file.name}」\n可见范围：${scope || '（空，服务端会拒绝）'}\n确认写入知识库？`)) return
+    if (!(await confirm.ask('导入「' + file.name + '」？', { hint: '可见范围：' + (scope || '（空，服务端会拒绝）'), confirmLabel: '写入知识库' }))) return
     const r = await post('/knowledge/note', { title: file.name.replace(/\.[^.]+$/, ''), content: text, scope })
     toast(r.ok ? '导入了' : (r.message || '导入失败'), r.ok ? 'ok' : 'err')
     if (r.ok) load()
@@ -2355,7 +2359,7 @@ window.__ModuleLoader__.load({
     previews.push(`${file.name} → ${scope}`)
     } catch (error) { preFailed.push(`${file.name}: ${error.message}`) }
     }
-    if (!confirm(`将导入 ${ready.length} 份文件${preFailed.length ? `，另有 ${preFailed.length} 份读取/范围为空的不会提交` : ''}\n\n${previews.join('\n')}${preFailed.length ? '\n\n不会提交：\n' + preFailed.join('\n') : ''}\n\n确认写入？`)) { e.target.value = ''; return }
+    if (!(await confirm.ask('导入 ' + ready.length + ' 份文件？', { hint: (previews.join('\n') + (preFailed.length ? '\n不会提交：' + preFailed.join('\n') : '')).slice(0, 400), confirmLabel: '写入知识库' }))) { e.target.value = ''; return }
     let ok = 0
     const failed = [...preFailed]
     for (const { file, text, scope } of ready) {
@@ -2402,11 +2406,12 @@ window.__ModuleLoader__.load({
     h(Btn, { small: true, onClick: () => save(f.path) }, '保存'),
     h(Btn, { small: true, kind: 'ghost', onClick: () => setRenaming({ path: f.path, value: f.title }) }, '改名'),
     h(Btn, { small: true, kind: 'danger', onClick: async () => {
-    if (!confirm('删掉这个知识库文件？')) return
+    if (!(await confirm.ask('删掉这个知识库文件？', { confirmLabel: '删掉' }))) return
     const r = await post('/knowledge/delete', { path: f.path })
     toast(r.ok ? '删掉了' : (r.message || '删不掉'), r.ok ? 'ok' : 'err')
     if (r.ok) load()
     } }, '删除')))) : []
+    const confirm = useConfirm()
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '知识库文件', desc: 'data/knowledge 下的 Markdown / 文本。scope 控制哪些会话能读。', right: h('span', { className: 'ab-flex', style: { gap: 6 } }, h(Select, { value: folderFilter, onChange: setFolderFilter, width: 170, options: [{ value: '', label: '全部目录' }, ...folders.map((f) => ({ value: f, label: f }))] }), h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新')) },
     loadErr ? h(ErrorBlock, { title: '读不到知识库', message: loadErr, hint: '知识库文件在数据目录 knowledge/ 下。', onRetry: load })
@@ -2444,7 +2449,7 @@ window.__ModuleLoader__.load({
     h('pre', { style: { whiteSpace: 'pre-wrap', maxHeight: 460, overflow: 'auto', fontSize: 12.5 } }, open.text),
     open.total ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 6 } }, `已显示 ${String(open.text || '').length} / ${open.total} 字` + (open.truncated ? '，还有后续内容' : '，已到结尾')) : null,
     open.truncated ? h('div', { style: { marginTop: 6 } }, h(Btn, { small: true, onClick: loadMore }, '加载更多')) : null) : null,
-    )
+    confirm.node)
     }
 
     function ListArea({ value, onChange, placeholder, numbers }) {
@@ -2778,7 +2783,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-flex', style: { gap: 6 } },
     h(Btn, { small: true, kind: 'primary', onClick: () => act('/mind/permission/decide', { n: r.n, yes: true }) }, '批准'),
     h(Btn, { small: true, onClick: () => act('/mind/permission/decide', { n: r.n, yes: false }) }, '不批'))))) : h('p', { className: 'ab-muted' }, '没有等你批的'),
-    grantedKeys.length ? h('div', { style: { marginTop: 10 } }, h('b', null, '已经批过的'), h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 6, marginTop: 6 } }, grantedKeys.map((k) => h(Btn, { key: k, small: true, onClick: () => { if (confirm('收回「' + k + '」？')) act('/mind/permission/revoke', { key: k }) } }, k + ' ✕')))) : null),
+    grantedKeys.length ? h('div', { style: { marginTop: 10 } }, h('b', null, '已经批过的'), h('div', { className: 'ab-flex', style: { flexWrap: 'wrap', gap: 6, marginTop: 6 } }, grantedKeys.map((k) => h(Btn, { key: k, small: true, onClick: async () => { if (await AB_CONFIRM.ask('收回「' + k + '」？', { confirmLabel: '收回' })) act('/mind/permission/revoke', { key: k }) } }, k + ' ✕')))) : null),
     h(MindLocalModel, { toast, usage: d.usage }))
     }
 
@@ -2853,8 +2858,8 @@ window.__ModuleLoader__.load({
     status?.step || '正在检查本地环境…') : null,
     notice && busy !== 'install' ? h('div', { className: 'ab-small', role: 'status' }, notice) : null,
     local ? h('div', { className: 'ab-flex', style: { gap: 8 } },
-    h(Btn, { small: true, kind: local.configured ? undefined : 'primary', disabled: !canInstall || status.running || Boolean(busy), onClick: () => {
-    if (local.configured || confirm('安装到 ~/Aurabot/mind？已有文件会复用。缺少模型时会下载约 18 GB 的原版权重并在本机转换。')) act('install')
+    h(Btn, { small: true, kind: local.configured ? undefined : 'primary', disabled: !canInstall || status.running || Boolean(busy), onClick: async () => {
+    if (local.configured || (await AB_CONFIRM.ask('安装到 ~/Aurabot/mind？', { hint: '已有文件会复用。缺少模型时会下载约 18 GB 的原版权重并在本机转换。', confirmLabel: '安装' }))) act('install')
     } }, status.running ? '正在检查或安装…' : local.configured ? '检查与修复' : '一键下载安装'),
     h(Btn, { small: true, disabled: !local.configured || status.running || Boolean(busy), onClick: () => act('test') }, busy === 'test' ? '正在测试…' : '试一下')) : null,
     local && !canInstall ? h('p', { className: 'ab-muted ab-small' }, '一键安装需要 Apple 芯片 Mac。') : null)
@@ -2915,7 +2920,7 @@ window.__ModuleLoader__.load({
     const mem = counts.memory || {}
     const usage = state?.usage
     const act = async (path, id, ask) => {
-    if (ask && !confirm(ask)) return
+    if (ask && !(await confirm.ask(ask, { confirmLabel: '继续' }))) return
     const r = await post(path, { id })
     toast(r.message || (r.ok ? '好了' : '没成功'))
     relatedTicket.current++
@@ -2923,7 +2928,7 @@ window.__ModuleLoader__.load({
     load(); loadState()
     }
     const sleepNow = async () => {
-    if (!confirm('现在就让她睡一觉整理记忆？会调用模型、花 token（按睡觉整理的思考深度），一般几十秒到几分钟。')) return
+    if (!(await confirm.ask('现在就让她睡一觉整理记忆？', { hint: '会调用模型、花 token（按睡觉整理的思考深度），一般几十秒到几分钟。', confirmLabel: '让她睡' }))) return
     setSleeping(true)
     const r = await post('/mind/sleep', {})
     setSleeping(false)
@@ -2939,6 +2944,7 @@ window.__ModuleLoader__.load({
     if (r.ok) { setShare(null); load() }
     } finally { setSharing(false) }
     }
+    const confirm = useConfirm()
     return h(Fragment, null,
     h('div', { className: 'ab-memory-head' },
     h(Card, { title: '记忆概况', className: 'ab-memory-summary' },
@@ -2994,7 +3000,8 @@ window.__ModuleLoader__.load({
     h(Card, { fold: 'memory-dreams', title: '最近的梦', desc: '睡觉整理时做的梦。大部分醒来就忘；情绪强的、被叫醒的会记得，记得的才会变成她的记忆（梦不会被当成真发生过的事）。' },
     (state?.dreams || []).length ? h('div', { className: 'ab-list' }, state.dreams.map((d, i) => h('div', { key: i, className: 'ab-li' },
     h('div', { className: 'meta' }, mindDay(d.at), d.remembered ? ' · 她记得' : ' · 醒来忘了'),
-    h('div', { className: 'body' }, d.text)))) : h(Empty, { text: '还没做过梦' })))
+    h('div', { className: 'body' }, d.text)))) : h(Empty, { text: '还没做过梦' })),
+    confirm.node)
     }
 
     /** 关系：她认识的每个人（按 QQ 号认人）和每个群。数值是她自己的看法，你可以纠正几项。 */
@@ -3044,7 +3051,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-body-foot' },
     b.lastSleep ? h('span', null, `上一觉 ${b.lastSleep.hours} 小时 · 睡眠质量 ${Math.round(b.lastSleep.quality * 100)}%` + (b.lastSleep.wokenBy ? ' · 被叫醒' : '')) : null,
     b.asleep ? h(Btn, { small: true, onClick: () => act('/mind/wake') }, '叫醒她')
-    : h(Btn, { small: true, onClick: () => { if (confirm('让她现在去睡？')) act('/mind/sleepnow') } }, '让她睡吧')))),
+    : h(Btn, { small: true, onClick: async () => { if (await AB_CONFIRM.ask('让她现在去睡？', { confirmLabel: '让她睡' })) act('/mind/sleepnow') } }, '让她睡吧')))),
     h('div', { className: 'ab-now-detail' },
     h(Card, { fold: 'mind-feelings', title: '此刻的感受（' + emotions.length + ' 项）', className: 'ab-feelings', collapseAtEnd: emotions.length > 5 },
     emotions.length ? h('ul', { className: 'ab-feeling-list' }, emotions.map((e, i) => h('li', { key: i },
@@ -3124,17 +3131,21 @@ window.__ModuleLoader__.load({
     const who = (p.name || '这个人') + '（' + p.id.replace(/^qq:/, 'QQ ') + '）'
     let body = { id: p.id, mode }
     if (mode === 'delete') {
-    if (!confirm('忘掉 ' + who + '？\n\n她对他的关系、关于他的事、和他的私聊、他说过的原话都会移进恢复区（30 天内能放回来，之后就真的没了）。和别人一起经历、他只是在场的事留着。')) return
-    if (!confirm('再确认一次：现在就忘掉 ' + who + '？')) return
+    if (!(await confirm.ask('忘掉 ' + who + '？', { hint: '她对他的关系、关于他的事、和他的私聊、他说过的原话都会移进恢复区（30 天内能放回来）。和别人一起经历、他只是在场的事留着。', confirmLabel: '继续' }))) return
+    if (!(await confirm.ask('再确认一次：现在就忘掉 ' + who + '？', { confirmLabel: '忘掉' }))) return
     body.confirm = true
     } else if (mode === 'stop') {
-    const clear = confirm('以后不记 ' + who + ' 了：他说的话不再进她的记忆（聊天照常回）。\n\n以前关于他的记忆要不要也一起移走？\n「确定」= 一起移进恢复区；「取消」= 以前的留着')
+    const clear = await confirm.ask('以后不记 ' + who + ' 了', {
+    hint: '他说的话不再进她的记忆（聊天照常回）。以前关于他的记忆要不要也一起移走？',
+    options: [{ label: '一起移进恢复区', value: 'clear' }, { label: '以前的留着', value: 'keep' }],
+    cancelLabel: '取消',
+    })
     body.clear = clear
     }
     const r = await post('/mind/people/forget', body)
     toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err'); load()
     }
-    const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); notify(toast, r); load() }
+    const restorePerson = async (g) => { if (!(await confirm.ask('把 ' + (g.name || g.id) + ' 从恢复区放回来？', { confirmLabel: '放回来' }))) return; const r = await post('/mind/people/restore', { id: g.id }); notify(toast, r); load() }
 
     const list = d?.list || []
     const needle = q.trim().toLowerCase()
@@ -3213,7 +3224,7 @@ window.__ModuleLoader__.load({
     if (await edit(p.id, { note: impression.text })) setImpression((current) => current?.id === p.id ? null : current)
     } }, '保存印象'))) : null) : null,
     h('footer', { className: 'ab-person-actions' },
-    isOpen && (r.knots || []).length ? h(Btn, { small: true, kind: 'ghost', onClick: () => { if (confirm('把她对这个人的心结都清掉？')) return edit(p.id, { knots: [] }) } }, '清掉心结') : null,
+    isOpen && (r.knots || []).length ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await confirm.ask('把她对这个人的心结都清掉？', { confirmLabel: '清掉' }))) return edit(p.id, { knots: [] }) } }, '清掉心结') : null,
     isOpen && !p.owner ? (p.noMemory
     ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/mind/people/forget', { id: p.id, mode: 'resume' }); toast(r.message); load() } }, '恢复记录')
     : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'stop') }, '停止记录')) : null,
@@ -3224,6 +3235,7 @@ window.__ModuleLoader__.load({
     } }, '写印象'),
     h(Btn, { small: true, expanded: isOpen, controls: isOpen ? detailId : undefined, onClick: () => setOpen(isOpen ? '' : p.id) }, isOpen ? '收起' : '详细')))
     }
+    const confirm = useConfirm()
     return h('div', { className: 'ab-people' },
     h(Card, { desc: d && (d.exclusive ? '「专一」已开启，亲密、激情和承诺只对管理员。' : '「专一」已关闭，她也可能慢慢喜欢上别人。') },
     h('div', { className: 'ab-people-tools' },
@@ -3248,7 +3260,8 @@ window.__ModuleLoader__.load({
     h('article', { key: g.id, className: 'ab-people-group' },
     h('b', null, g.name || '群'),
     h('div', { className: 'ab-person-meta' }, g.id + (g.at ? ' · ' + timeAgo(g.at) : '')),
-    h('p', null, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null)
+    h('p', null, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null,
+    confirm.node)
     }
 
     /** 人格与自我：她本来的样子（特质，等你确认）、现在的样子、不知不觉的变化和提醒、她自己改过的、自我故事、各种版本可以退回。 */
@@ -3273,8 +3286,8 @@ window.__ModuleLoader__.load({
     }))
     const ps = d.personality
     const groups = [['E', '外向'], ['A', '宜人'], ['C', '尽责'], ['N', '情绪敏感'], ['O', '开放'], ['H', '诚实谦逊'], ['AT', '依恋'], ['X', '表达']]
-    const restore = async (kind, id) => { if (!confirm('退回到这个版本？（会新存一个版本，写明是退回）')) return; const r = await post('/mind/self/restore', { kind, id }); toast(r.message || (r.ok ? '退回了' : '没成功')); load() }
-    const infer = async () => { if (ps.confirmed && !confirm('重新从人格卡推一份？只是给你参考，确认之前不会改她本来的样子。')) return; setBusy(true); const r = await post('/mind/traits/infer', {}); setBusy(false); toast(r.message); load() }
+    const restore = async (kind, id) => { if (!(await confirm.ask('退回到这个版本？', { hint: '会新存一个版本，写明是退回。', confirmLabel: '退回' }))) return; const r = await post('/mind/self/restore', { kind, id }); toast(r.message || (r.ok ? '退回了' : '没成功')); load() }
+    const infer = async () => { if (ps.confirmed && !(await confirm.ask('重新从人格卡推一份？', { hint: '只是给你参考，确认之前不会改她本来的样子。', confirmLabel: '推算' }))) return; setBusy(true); const r = await post('/mind/traits/infer', {}); setBusy(false); toast(r.message); load() }
     const confirmBase = async () => { const r = await post('/mind/traits/confirm', { base: draft }); toast(r.message); load() }
     const changeSelf = (what, label, multiline) => {
     const cur = what === 'values' || what === 'hobbies' || what === 'looks' ? d.profile[what] : what === 'story' ? d.profile.story.text : what === 'name' ? d.identity.name : what === 'ownerCall' ? d.ownerCall : d.identity.nickname
@@ -3289,6 +3302,7 @@ window.__ModuleLoader__.load({
     }
     const unread = (ps.alerts || []).filter((a) => !a.read)
     const BY = { owner: '你', self: '她自己', sleep: '睡觉时', migration: '迁移' }
+    const confirm = useConfirm()
     return h(Fragment, null,
     edit ? h(Card, { title: '改' + edit.label, desc: '会存一个版本；长文字建议在「人设」页改。' },
     h(Field, {
@@ -3322,7 +3336,7 @@ window.__ModuleLoader__.load({
     h(Row, { label: '外貌', hint: d.profile.looks || '（没写）' }, h(Btn, { small: true, onClick: () => changeSelf('looks', '外貌') }, '改')),
     h(Row, { label: '对你的称呼', hint: '她现在叫你「' + (d.ownerCall || '管理员') + '」' + (d.profile.ownerCall ? '' : '（你一开始设的）') + '。' + (d.ownerCallOk === true ? '她可以自己换个叫法，会通知你。' : '她现在不能自己改：' + d.ownerCallOk + '。') + '开关在「设置 → 身份」。' },
     h(Btn, { small: true, onClick: () => changeSelf('ownerCall', '对你的称呼') }, '改')),
-    h(Row, { label: '想变成的样子', hint: (d.profile.goals || []).length ? d.profile.goals.map((g) => g.text).join('；') : '（没有）' }, (d.profile.goals || []).length ? h(Btn, { small: true, onClick: async () => { const g = d.profile.goals[0]; if (!confirm('删掉「' + g.text + '」？')) return; await post('/mind/self/goal/drop', { text: g.text }); load() } }, '删一个') : null)),
+    h(Row, { label: '想变成的样子', hint: (d.profile.goals || []).length ? d.profile.goals.map((g) => g.text).join('；') : '（没有）' }, (d.profile.goals || []).length ? h(Btn, { small: true, onClick: async () => { const g = d.profile.goals[0]; if (!(await confirm.ask('删掉「' + g.text + '」？', { confirmLabel: '删掉' }))) return; await post('/mind/self/goal/drop', { text: g.text }); load() } }, '删一个') : null)),
     h(Card, { fold: 'self-story', title: '她的故事', desc: '她用自己的话写的「我是怎么变成现在这样的」（叙事身份，McAdams）；有重要的经历时，睡觉整理会更新，重要的经历成为新的一章。', right: h(Btn, { small: true, onClick: () => changeSelf('story', '她的故事', true) }, '改') },
     d.profile.story.text ? h('div', { className: 'ab-small', style: { whiteSpace: 'pre-wrap' } }, d.profile.story.text) : h(Empty, { text: '还没写' }),
     (d.profile.story.chapters || []).length ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '章节：' + d.profile.story.chapters.map((c) => mindDay(c.at).slice(0, 10) + ' ' + c.title).join(' · ')) : null),
@@ -3343,7 +3357,8 @@ window.__ModuleLoader__.load({
     i > 0 ? h(Btn, { small: true, onClick: () => restore('traits', v.id) }, '退回') : null))) : h(Empty, { text: '还没有' })),
     h(MindVersions, { versions: d.versions, restore, load, toast }),
     h(Card, { fold: 'self-prompt', title: '她看到的「她是谁」', desc: '每轮放在系统提示词开头的内容（人格卡 + 她自己写的 + 故事摘要 + 不知不觉的变化）。很少变，所以大多数时候能命中缓存。' },
-    h('pre', { className: 'ab-small', style: { whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' } }, d.prompt)))
+    h('pre', { className: 'ab-small', style: { whiteSpace: 'pre-wrap', maxHeight: 360, overflow: 'auto' } }, d.prompt)),
+    confirm.node)
     }
 
     function MindSettings({ toast, jump }) {
@@ -3480,11 +3495,11 @@ window.__ModuleLoader__.load({
     if (r.ok) setComparison(r.versions)
     else toast(r.message, 'err')
     }
-    const bulk = () => {
+    const bulk = async () => {
     const start = new Date(from + 'T00:00:00').getTime()
     const end = new Date(through + 'T00:00:00')
     end.setDate(end.getDate() + 1)
-    if (confirm('清理这段日期内的版本？会保留标记的重要版本和最新版本。')) return change('/mind/version/delete', { kind, from: start, through: end.getTime() })
+    if (await confirm.ask('清理这段日期内的版本？', { hint: '会保留标记的重要版本和最新版本。', confirmLabel: '清理' })) change('/mind/version/delete', { kind, from: start, through: end.getTime() })
     }
     const content = (v) => {
     if (v.kind === 'persona') return [v.data.name, v.data.card].filter(Boolean).join('\n')
@@ -3492,7 +3507,8 @@ window.__ModuleLoader__.load({
     if (v.kind === 'traits') return Object.entries(v.data.cur || {}).map(([key, value]) => key + ' · ' + Math.round(value * 100)).join('\n')
     return [v.data.before, v.data.after].filter(Boolean).join('\n\n')
     }
-    return h(Card, { fold: 'self-versions-manage', title: '版本对比与清理' },
+    const confirm = useConfirm()
+    return h(Fragment, null, h(Card, { fold: 'self-versions-manage', title: '版本对比与清理' },
     h(Row, { label: '类别' }, h(Select, { value: kind, options: kinds, onChange: (value) => { setKind(value); setFirst(''); setSecond(''); setComparison(null); setExtra([]); setHasMore(true) }, disabled: loading })),
     h(Row, { label: '两个版本' },
     h(Select, { value: first, options, onChange: (value) => { setFirst(value); setComparison(null) } }),
@@ -3505,11 +3521,12 @@ window.__ModuleLoader__.load({
     selected ? h(Row, { label: '第一个版本' },
     h(Btn, { small: true, onClick: () => change('/mind/version/pin', { id: selected.id, pinned: !selected.pinned }) }, selected.pinned ? '取消标记' : '标记重要'),
     kind === 'habits' ? h(Btn, { small: true, onClick: () => restore(kind, selected.id) }, '退回习惯版本') : null,
-    h(Btn, { small: true, onClick: () => { if (confirm('删除所选版本？')) change('/mind/version/delete', { id: selected.id }).then(() => setFirst('')) } }, '删除版本')) : null,
+    h(Btn, { small: true, onClick: async () => { if (await confirm.ask('删除所选版本？', { confirmLabel: '删除' })) change('/mind/version/delete', { id: selected.id }).then(() => setFirst('')) } }, '删除版本')) : null,
     h(Row, { label: '按日期清理' },
     h('input', { type: 'date', className: 'ab-input', value: from, 'aria-label': '起始日期', onChange: (e) => setFrom(e.target.value) }),
     h('input', { type: 'date', className: 'ab-input', value: through, 'aria-label': '结束日期', onChange: (e) => setThrough(e.target.value) }),
-    h(Btn, { small: true, disabled: !from || !through || from > through, onClick: bulk }, '清理范围')))
+    h(Btn, { small: true, disabled: !from || !through || from > through, onClick: bulk }, '清理范围'))),
+    confirm.node)
     }
 
     /** 面板里的调试对话：不经过 QQ、不写进她的心智，直接把她说的话显示出来（来自原项目 f476866）。 */
@@ -4181,7 +4198,7 @@ window.__ModuleLoader__.load({
     }
     useEffect(() => { load() }, [shown])
     const del = async (file) => {
-    if (!confirm('删掉这张画？\n' + file)) return
+    if (!(await AB_CONFIRM.ask('删掉这张画？', { hint: file, confirmLabel: '删掉' }))) return
     const r = await post('/image/gallery/delete', { file }).catch(() => ({ ok: false }))
     toast(r.message || (r.ok ? '删掉了' : '删除失败'), r.ok ? 'ok' : 'err')
     load()
@@ -4295,7 +4312,7 @@ window.__ModuleLoader__.load({
     const setSecs = (secs) => patch({ secs })
     const updSec = (k, p) => setSecs(edit.secs.map((s) => (s.k === k ? { ...s, ...p } : s)))
     const moveSec = (i, d) => { const n = edit.secs.slice(); const [x] = n.splice(i, 1); n.splice(i + d, 0, x); setSecs(n) }
-    const delSec = (s) => { if (s.text.trim() && !confirm('删掉「' + (s.title || '未命名') + '」这一节？')) return; setSecs(edit.secs.filter((x) => x.k !== s.k)) }
+    const delSec = async (s) => { if (s.text.trim() && !(await confirm.ask('删掉「' + (s.title || '未命名') + '」这一节？', { confirmLabel: '删掉' }))) return; setSecs(edit.secs.filter((x) => x.k !== s.k)) }
     const addSec = (title) => setSecs([...edit.secs, psec(title, '')])
     const polish = async (s) => {
     const r = await post('/persona/polish', { name: edit.name, title: s.title === null ? '' : s.title, text: s.text, others: edit.secs.filter((x) => x.k !== s.k).map((x) => (x.title === null ? '开场' : x.title)) })
@@ -4313,6 +4330,7 @@ window.__ModuleLoader__.load({
     const setMode = (w) => { if (w && waiting) { toast('先把 AI 润色的那几节选定一版', 'err'); return } setWhole(w); try { localStorage.setItem('aurabot.persona.whole', w ? '1' : '0') } catch (e) {} }
     const titles = edit ? edit.secs.map((s) => s.title) : []
     const suggest = PSEC_SUGGEST.filter((t) => !titles.includes(t))
+    const confirm = useConfirm()
     return h('div', { className: 'ab-persona' },
     h('div', { className: 'ab-plist' },
     list.map((p) => h('button', { key: p.id, type: 'button', className: cx('ab-pitem', sel === p.id && 'on'), onClick: () => setSel(p.id) },
@@ -4324,7 +4342,7 @@ window.__ModuleLoader__.load({
     edit ? h(Card, { title: '编辑人格', desc: '人格写在系统提示词的最前面，按节写更好改。离开不会自动保存；切标签/切页面会先记住草稿，下次进来会问你要不要恢复；输入框里 Ctrl+Z 可撤回。保存后大肥鱼下一轮回复起就按新的来。',
     right: h('div', { className: 'ab-flex' },
     edit.id !== current ? h(Btn, { small: true, onClick: async () => { const r = await post('/persona/use', { id: edit.id }); toast(r.message); refresh(); reload() } }, '设为当前') : null,
-    edit.id !== current ? h(Btn, { small: true, kind: 'danger', onClick: async () => { if (!confirm('删掉这个人格？')) return; const r = await post('/persona/delete', { id: edit.id }); if (r.ok) { try { localStorage.removeItem(personaDraftKey(edit.id)) } catch (e) {} setList(r.list); setSel(current) } else toast(r.message) } }, '删除') : null) },
+    edit.id !== current ? h(Btn, { small: true, kind: 'danger', onClick: async () => { if (!(await confirm.ask('删掉这个人格？', { confirmLabel: '删掉' }))) return; const r = await post('/persona/delete', { id: edit.id }); if (r.ok) { try { localStorage.removeItem(personaDraftKey(edit.id)) } catch (e) {} setList(r.list); setSel(current) } else toast(r.message) } }, '删除') : null) },
     restore ? h('div', { className: 'ab-flex', style: { marginTop: 12, padding: '8px 10px', border: '1px solid var(--ab-line-2, currentColor)', borderRadius: 8, background: 'rgba(255,255,255,.04)' } },
     h('span', { className: 'ab-small' }, '发现上次没保存的人格改动（' + String(restore.body || '').length + ' 字' + (restore.at ? '，' + new Date(restore.at).toLocaleString() : '') + '）。要恢复吗？'),
     h('div', { className: 'ab-spacer' }),
@@ -4354,7 +4372,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-spacer' }),
     h(Btn, { kind: 'primary', disabled: !dirty || !!waiting, onClick: save }, dirty ? '保存人格' : '已保存')),
     ) : h(Card, null, h(Empty, { icon: '⏳', text: '加载中…' })),
-    )
+    confirm.node)
     }
 
     /**
@@ -4584,7 +4602,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-flex', style: { marginTop: 10, alignItems: 'center' } },
     h('span', { className: 'ab-flex' },
     h(Btn, { small: true, kind: 'primary', disabled: running, onClick: async () => after(await call('/backup/remote/config', saveBody()), true) }, '保存设置'),
-    h(Btn, { small: true, disabled: running, onClick: async () => { if (!confirm('现在就把最新备份推到 ' + (webdav ? 'WebDAV' : 'Gitee') + '？（不会重新打包，推 backups 里最新的一份）')) return; after(await call('/backup/push')) } }, running ? '推送中…' : '立即推送'))),
+    h(Btn, { small: true, disabled: running, onClick: async () => { if (!(await AB_CONFIRM.ask('现在就把最新备份推到 ' + (webdav ? 'WebDAV' : 'Gitee') + '？', { hint: '不会重新打包，推 backups 里最新的一份。', confirmLabel: '推送' }))) return; after(await call('/backup/push')) } }, running ? '推送中…' : '立即推送'))),
     job && job.error ? h('div', { className: 'ab-note err', style: { marginTop: 10 } }, '推送失败：' + job.error) : null,
     job && job.result ? h('div', { className: 'ab-small ab-muted', style: { marginTop: 10 } }, '上次推送：' + job.result.message) : null,
     h('details', { style: { marginTop: 10 } },
@@ -5062,6 +5080,7 @@ window.__ModuleLoader__.load({
     toast(r.ok ? label + '改好了' : '没改成：' + (r.message || '找不到这张表情'), r.ok ? 'ok' : 'err')
     if (r.ok) onChanged()
     }
+    const confirm = useConfirm()
     return h('div', {
     className: cx('ab-sticker', picking && 'pick', selected && 'on'),
     onClick: picking ? () => onToggle(it.md5) : undefined,
@@ -5075,9 +5094,9 @@ window.__ModuleLoader__.load({
     onBlur: () => { if (!picking && name !== (it.name || '')) save({ name }, '名字') } }),
     h('input', { className: 'tg', value: tags, placeholder: '加标签，空格隔开', title: '标签，空格或逗号隔开，最多 5 个', readOnly: Boolean(picking), tabIndex: picking ? -1 : undefined, onChange: (e) => setTags(e.target.value),
     onBlur: () => { if (!picking && tags.trim() !== tagText) save({ tags: tags.split(/[\s,，、#]+/).map((x) => x.trim()).filter(Boolean).slice(0, 5) }, '标签') } }),
-    picking ? null : h(Btn, { small: true, kind: 'danger', title: '删除', onClick: async () => { if (!confirm('删掉这张表情？（QQ 收藏里也会删）')) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
+    picking ? null : h(Btn, { small: true, kind: 'danger', title: '删除', onClick: async () => { if (!(await confirm.ask('删掉这张表情？', { hint: 'QQ 收藏里也会删。', confirmLabel: '删掉' }))) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
     !picking && it.name ? h(Btn, { small: true, kind: 'ghost', title: '同名表情默认发这张', onClick: async () => { const r = await post('/sticker/primary', { md5: it.md5 }); toast(r.ok ? '设为主图了' : (r.message || '没设成'), r.ok ? 'ok' : 'err'); if (r.ok) onChanged() } }, '主图') : null,
-    )
+    confirm.node)
     }
 
     // 和 QQ 空间自身的可见范围一致（ugc_right 1/4/16/64/128）
@@ -5157,7 +5176,7 @@ window.__ModuleLoader__.load({
     if (!picked.length) return
     const n = picked.length
     const ask = dropQQ ? '删掉选中的 ' + n + ' 张表情？（QQ 收藏里也会一起删）' : '删掉选中的 ' + n + ' 张表情？（只删本地库，QQ 收藏保留）'
-    if (!confirm(ask)) return
+    if (!(await confirm.ask(ask, { confirmLabel: '继续' }))) return
     const r = await post('/sticker/delete-batch', { md5s: picked, fromQQ: dropQQ })
     toast(r.message || (r.ok ? '删掉了 ' + n + ' 张' : '没删成'), r.ok ? 'ok' : 'err')
     setPicked([])
@@ -5206,6 +5225,7 @@ window.__ModuleLoader__.load({
     h(Btn, { key: 'pick', small: true, kind: 'ghost', onClick: () => { setPicking(true); setPicked([]) } }, '多选'),
     h(Btn, { key: 'reload', small: true, kind: 'ghost', onClick: load }, '刷新'),
     ]
+    const confirm = useConfirm()
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '表情包', right: f.sw('stickers.enabled'), desc: '回复里写 <sticker:名字> 就会发对应的表情；也会按概率自动配一张。' },
     h(Row, { label: '自动配表情的概率' }, f.percent('stickers.autoChance')),
@@ -5287,7 +5307,7 @@ window.__ModuleLoader__.load({
     h(Row, { label: '每小时上限', hint: '每个会话单独算，免得在热闹的群里刷屏' }, f.range('stickers.reactMaxPerHour', 0, 60, 1, (v) => v + ' 次')),
     ),
     h(FaceMapCard, null),
-    )
+    confirm.node)
     }
 
     /**
@@ -5642,6 +5662,9 @@ window.__ModuleLoader__.load({
     .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
     .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
     .ab-confirm{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .ab-confirm-sheet{position:sticky;bottom:10px;z-index:30;display:grid;gap:7px;padding:12px 14px;margin-top:12px;border:1px solid var(--ab-err);border-radius:12px;background:var(--ab-card);box-shadow:0 10px 28px var(--ab-ink-shadow)}
+    .ab-confirm-sheet b{font-size:13px;line-height:1.5;color:var(--ab-text);white-space:pre-wrap}
+    .ab-confirm-sheet small{color:var(--ab-sub);font-size:12px;line-height:1.55;white-space:pre-wrap}
     .ab-confirm-open{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--ab-err);border-radius:10px;background:var(--ab-card-2)}
     .ab-confirm-open b{font-size:12.5px;color:var(--ab-text)}
     .ab-confirm-open small{color:var(--ab-sub);font-size:12px;line-height:1.55}
@@ -6070,6 +6093,69 @@ window.__ModuleLoader__.load({
     }
 
     /**
+    * 行内确认：面板里所有「删掉 / 覆盖 / 推送 / 重新开始」都走这里，不再用原生 confirm()。
+    *
+    * 两条入口共用一个渲染器（`GlobalConfirmHost`，挂在工作台根部）：
+    *   `useConfirm()`   组件内用，返回 { ask, node }（node 现在恒为 null，保留是为了不改老调用点）；
+    *   `AB_CONFIRM.ask()`  组件外或不想加 hook 的地方用。
+    * 返回 Promise：默认 true / false；传 options 时得到选中的 value；Esc 等于取消。
+    */
+    const AB_CONFIRM = (() => {
+    let state = null
+    let resolver = null
+    const listeners = new Set()
+    const emit = () => { for (const fn of listeners) fn(state) }
+    return {
+    ask(question, opts = {}) {
+    // 一次只处理一个：前一个还开着就先当取消，避免弹窗叠在一起
+    if (resolver) { const prev = resolver; resolver = null; prev(false) }
+    state = { question, hint: opts.hint || '', confirmLabel: opts.confirmLabel || '继续', cancelLabel: opts.cancelLabel || '取消', options: opts.options || null }
+    emit()
+    return new Promise((resolve) => { resolver = resolve })
+    },
+    answer(value) {
+    const done = resolver
+    resolver = null
+    state = null
+    emit()
+    done?.(value)
+    },
+    current: () => state,
+    subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn) },
+    }
+    })()
+
+    /** 挂在工作台根部的唯一渲染器。 */
+    function GlobalConfirmHost() {
+    const [state, setState] = useState(AB_CONFIRM.current())
+    const firstRef = useRef(null)
+    useEffect(() => AB_CONFIRM.subscribe(setState), [])
+    useEffect(() => {
+    if (!state) return
+    firstRef.current?.focus()
+    const onKey = (e) => { if (e.key === 'Escape') AB_CONFIRM.answer(state.options ? null : false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+    }, [state])
+    if (!state) return null
+    return h('div', { className: 'ab-confirm-sheet', role: 'alertdialog', 'aria-label': state.question },
+    h('b', null, state.question),
+    state.hint ? h('small', null, state.hint) : null,
+    h('div', { className: 'ab-confirm-actions' },
+    state.options
+    ? state.options.map((o, i) => h('span', { key: o.value, ref: i === 0 ? firstRef : undefined, tabIndex: -1, className: 'ab-confirm-focus' },
+    h(Btn, { small: true, kind: i === 0 ? 'primary' : 'ghost', onClick: () => AB_CONFIRM.answer(o.value) }, o.label)))
+    : h('span', { ref: firstRef, tabIndex: -1, className: 'ab-confirm-focus' },
+    h(Btn, { small: true, kind: 'primary', onClick: () => AB_CONFIRM.answer(true) }, state.confirmLabel)),
+    h(Btn, { small: true, kind: 'ghost', onClick: () => AB_CONFIRM.answer(state.options ? null : false) }, state.cancelLabel)))
+    }
+
+    /** 组件里的老写法：`if (!(await confirm.ask('…'))) return`。渲染由 GlobalConfirmHost 负责。 */
+    function useConfirm() {
+    return { ask: (question, opts) => AB_CONFIRM.ask(question, opts), node: null }
+    }
+
+    /**
     * 把接口返回直接提示给管理员：成功绿色、失败红色，文案取 message。
     * 原来 18 处写的是 notify(r)，改造时容易漏掉一半。
     */
@@ -6302,7 +6388,8 @@ window.__ModuleLoader__.load({
     inp.onchange = () => inp.files && upload(inp.files)
     inp.click()
     }
-    return h(Card, { title: '音色模型', desc: '插件不自带音色。把你有权使用的 RVC 模型导进来：.pth（可以带 .index），或者装着它们的 zip。只存在本机。自己训练的是 so-vits-svc 之类别的模型、或者想用自己的推理参数？去「本地接口」页接「翻唱换声」。' },
+    const confirm = useConfirm()
+    return h(Fragment, null, h(Card, { title: '音色模型', desc: '插件不自带音色。把你有权使用的 RVC 模型导进来：.pth（可以带 .index），或者装着它们的 zip。只存在本机。自己训练的是 so-vits-svc 之类别的模型、或者想用自己的推理参数？去「本地接口」页接「翻唱换声」。' },
     h('div', {
     className: 'ab-drop' + (over ? ' over' : ''), role: 'button', tabIndex: 0,
     onClick: pick, onKeyDown: (e) => (e.key === 'Enter' || e.key === ' ') && pick(),
@@ -6324,11 +6411,12 @@ window.__ModuleLoader__.load({
     h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
     h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => { setProfFor(profFor === v.id ? '' : v.id); setProfDir('') } },
     profFor === v.id ? '收起' : v.hasProfile ? '重新生成档案' : '生成音色档案'),
-    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); notify(toast, r); onChange() } }, '删除')),
+    h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await confirm.ask('删掉音色「' + v.id + '」？', { hint: '连同它的 index 和音色档案一起删。', confirmLabel: '删掉' }))) return; const r = await post('/song/voice/delete', { id: v.id }); notify(toast, r); onChange() } }, '删除')),
     profFor === v.id ? h('div', { className: 'ab-flex', style: { margin: '6px 0 10px' } },
     h('input', { className: 'ab-input', style: { flex: 1 }, value: profDir, placeholder: '「' + v.id + '」的数据集文件夹完整路径（本人的干声录音，wav / flac / mp3），如 ' + exPath('Downloads/数据集'),
     onChange: (e) => setProfDir(e.target.value), onKeyDown: (e) => e.key === 'Enter' && buildProfile(v.id) }),
     h(Btn, { small: true, kind: 'primary', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => buildProfile(v.id) }, '开始生成')) : null))))
+    , confirm.node)
     }
 
     const fmtBytes = (n) => (n >= 1024 ** 3 ? (n / 1024 ** 3).toFixed(2) + ' GB' : (n / 1024 ** 2).toFixed(n >= 100 * 1024 ** 2 ? 0 : 1) + ' MB')
@@ -6451,7 +6539,7 @@ window.__ModuleLoader__.load({
     }
 
     // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
-    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS, ListArea, ConfirmInline }
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS, ListArea, ConfirmInline, useConfirm, AB_CONFIRM, GlobalConfirmHost }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

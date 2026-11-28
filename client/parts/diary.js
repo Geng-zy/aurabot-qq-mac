@@ -7,8 +7,9 @@
         if (r && r.ok !== false) { setData(r); setLoadErr(''); if (r.warning) toast(r.warning) } else { setData(null); setLoadErr(r?.message || '读不到日记状态') }
       }).catch((e) => setLoadErr('连不上插件：' + e.message)) : null)
       useEffect(() => { load() }, [on])
+      const confirm = useConfirm()
       const social = modOn(st, 'qzone-social') ? h(QzoneSocial, { draft, setDraft, toast }) : h(ModOff, { name: '空间互动', go })
-      if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记', go }), social)
+      if (!on) return h(Fragment, null, h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记', go }), social), confirm.node)
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '空间日记', right: f.sw('diary.enabled'), desc: '她用可公开的经历和当前心情写说说。普通日记只在「仅自己可见」时自动从当天的画作或表情包里配图。' },
           h(Row, { label: '每天自动发布上限', hint: '设为 0 可暂停自动发布' }, f.num('diary.timesPerDay', { min: 0, max: 6 })),
@@ -44,10 +45,10 @@
               h('div', { className: 'body' }, d.text,
                 (d.warnings || []).map((warning, index) => h('div', { key: index, className: 'ab-small', style: { color: 'var(--ab-warn)' } }, warning)),
                 d.error ? h('div', { className: 'ab-small', style: { color: 'var(--ab-err)' } }, d.error) : null),
-              d.tid && !d.deletedAt ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('从 QQ 空间删除这条说说？')) return; try { const r = await post('/qzone/delete', { tid: d.tid }); toast(r.message) } catch (e) { toast(e.message) } finally { await load() } } }, '从空间删除') : null))),
+              d.tid && !d.deletedAt ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await confirm.ask('从 QQ 空间删除这条说说？', { confirmLabel: '删除' }))) return; try { const r = await post('/qzone/delete', { tid: d.tid }); toast(r.message) } catch (e) { toast(e.message) } finally { await load() } } }, '从空间删除') : null))),
         ),
         social,
-      )
+        confirm.node)
     }
 
     const SOCIAL_KIND = { reply: '回复评论', comment: '评论', like: '点赞' }

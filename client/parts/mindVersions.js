@@ -34,11 +34,11 @@
         if (r.ok) setComparison(r.versions)
         else toast(r.message, 'err')
       }
-      const bulk = () => {
+      const bulk = async () => {
         const start = new Date(from + 'T00:00:00').getTime()
         const end = new Date(through + 'T00:00:00')
         end.setDate(end.getDate() + 1)
-        if (confirm('清理这段日期内的版本？会保留标记的重要版本和最新版本。')) return change('/mind/version/delete', { kind, from: start, through: end.getTime() })
+        if (await confirm.ask('清理这段日期内的版本？', { hint: '会保留标记的重要版本和最新版本。', confirmLabel: '清理' })) change('/mind/version/delete', { kind, from: start, through: end.getTime() })
       }
       const content = (v) => {
         if (v.kind === 'persona') return [v.data.name, v.data.card].filter(Boolean).join('\n')
@@ -46,7 +46,8 @@
         if (v.kind === 'traits') return Object.entries(v.data.cur || {}).map(([key, value]) => key + ' · ' + Math.round(value * 100)).join('\n')
         return [v.data.before, v.data.after].filter(Boolean).join('\n\n')
       }
-      return h(Card, { fold: 'self-versions-manage', title: '版本对比与清理' },
+      const confirm = useConfirm()
+      return h(Fragment, null, h(Card, { fold: 'self-versions-manage', title: '版本对比与清理' },
         h(Row, { label: '类别' }, h(Select, { value: kind, options: kinds, onChange: (value) => { setKind(value); setFirst(''); setSecond(''); setComparison(null); setExtra([]); setHasMore(true) }, disabled: loading })),
         h(Row, { label: '两个版本' },
           h(Select, { value: first, options, onChange: (value) => { setFirst(value); setComparison(null) } }),
@@ -59,11 +60,12 @@
         selected ? h(Row, { label: '第一个版本' },
           h(Btn, { small: true, onClick: () => change('/mind/version/pin', { id: selected.id, pinned: !selected.pinned }) }, selected.pinned ? '取消标记' : '标记重要'),
           kind === 'habits' ? h(Btn, { small: true, onClick: () => restore(kind, selected.id) }, '退回习惯版本') : null,
-          h(Btn, { small: true, onClick: () => { if (confirm('删除所选版本？')) change('/mind/version/delete', { id: selected.id }).then(() => setFirst('')) } }, '删除版本')) : null,
+          h(Btn, { small: true, onClick: async () => { if (await confirm.ask('删除所选版本？', { confirmLabel: '删除' })) change('/mind/version/delete', { id: selected.id }).then(() => setFirst('')) } }, '删除版本')) : null,
         h(Row, { label: '按日期清理' },
           h('input', { type: 'date', className: 'ab-input', value: from, 'aria-label': '起始日期', onChange: (e) => setFrom(e.target.value) }),
           h('input', { type: 'date', className: 'ab-input', value: through, 'aria-label': '结束日期', onChange: (e) => setThrough(e.target.value) }),
-          h(Btn, { small: true, disabled: !from || !through || from > through, onClick: bulk }, '清理范围')))
+          h(Btn, { small: true, disabled: !from || !through || from > through, onClick: bulk }, '清理范围'))),
+        confirm.node)
     }
 
     /** 面板里的调试对话：不经过 QQ、不写进她的心智，直接把她说的话显示出来（来自原项目 f476866）。 */

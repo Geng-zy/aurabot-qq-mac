@@ -40,17 +40,21 @@
         const who = (p.name || '这个人') + '（' + p.id.replace(/^qq:/, 'QQ ') + '）'
         let body = { id: p.id, mode }
         if (mode === 'delete') {
-          if (!confirm('忘掉 ' + who + '？\n\n她对他的关系、关于他的事、和他的私聊、他说过的原话都会移进恢复区（30 天内能放回来，之后就真的没了）。和别人一起经历、他只是在场的事留着。')) return
-          if (!confirm('再确认一次：现在就忘掉 ' + who + '？')) return
+          if (!(await confirm.ask('忘掉 ' + who + '？', { hint: '她对他的关系、关于他的事、和他的私聊、他说过的原话都会移进恢复区（30 天内能放回来）。和别人一起经历、他只是在场的事留着。', confirmLabel: '继续' }))) return
+          if (!(await confirm.ask('再确认一次：现在就忘掉 ' + who + '？', { confirmLabel: '忘掉' }))) return
           body.confirm = true
         } else if (mode === 'stop') {
-          const clear = confirm('以后不记 ' + who + ' 了：他说的话不再进她的记忆（聊天照常回）。\n\n以前关于他的记忆要不要也一起移走？\n「确定」= 一起移进恢复区；「取消」= 以前的留着')
+          const clear = await confirm.ask('以后不记 ' + who + ' 了', {
+            hint: '他说的话不再进她的记忆（聊天照常回）。以前关于他的记忆要不要也一起移走？',
+            options: [{ label: '一起移进恢复区', value: 'clear' }, { label: '以前的留着', value: 'keep' }],
+            cancelLabel: '取消',
+          })
           body.clear = clear
         }
         const r = await post('/mind/people/forget', body)
         toast(r.message || (r.ok ? '好了' : '没成功'), r.ok ? 'ok' : 'err'); load()
       }
-      const restorePerson = async (g) => { if (!confirm('把 ' + (g.name || g.id) + ' 从恢复区放回来？')) return; const r = await post('/mind/people/restore', { id: g.id }); notify(toast, r); load() }
+      const restorePerson = async (g) => { if (!(await confirm.ask('把 ' + (g.name || g.id) + ' 从恢复区放回来？', { confirmLabel: '放回来' }))) return; const r = await post('/mind/people/restore', { id: g.id }); notify(toast, r); load() }
 
       const list = d?.list || []
       const needle = q.trim().toLowerCase()
@@ -129,7 +133,7 @@
                   if (await edit(p.id, { note: impression.text })) setImpression((current) => current?.id === p.id ? null : current)
                 } }, '保存印象'))) : null) : null,
           h('footer', { className: 'ab-person-actions' },
-            isOpen && (r.knots || []).length ? h(Btn, { small: true, kind: 'ghost', onClick: () => { if (confirm('把她对这个人的心结都清掉？')) return edit(p.id, { knots: [] }) } }, '清掉心结') : null,
+            isOpen && (r.knots || []).length ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await confirm.ask('把她对这个人的心结都清掉？', { confirmLabel: '清掉' }))) return edit(p.id, { knots: [] }) } }, '清掉心结') : null,
             isOpen && !p.owner ? (p.noMemory
               ? h(Btn, { small: true, kind: 'ghost', onClick: async () => { const r = await post('/mind/people/forget', { id: p.id, mode: 'resume' }); toast(r.message); load() } }, '恢复记录')
               : h(Btn, { small: true, kind: 'ghost', onClick: () => forget(p, 'stop') }, '停止记录')) : null,
@@ -140,6 +144,7 @@
             } }, '写印象'),
             h(Btn, { small: true, expanded: isOpen, controls: isOpen ? detailId : undefined, onClick: () => setOpen(isOpen ? '' : p.id) }, isOpen ? '收起' : '详细')))
       }
+      const confirm = useConfirm()
       return h('div', { className: 'ab-people' },
         h(Card, { desc: d && (d.exclusive ? '「专一」已开启，亲密、激情和承诺只对管理员。' : '「专一」已关闭，她也可能慢慢喜欢上别人。') },
           h('div', { className: 'ab-people-tools' },
@@ -164,7 +169,8 @@
           h('article', { key: g.id, className: 'ab-people-group' },
             h('b', null, g.name || '群'),
             h('div', { className: 'ab-person-meta' }, g.id + (g.at ? ' · ' + timeAgo(g.at) : '')),
-            h('p', null, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null)
+            h('p', null, [...(g.style || []), ...(g.rules || []).map((x) => '规矩：' + x), g.note].filter(Boolean).join('；') || '还没摸清楚'))))) : null,
+        confirm.node)
     }
 
     /** 人格与自我：她本来的样子（特质，等你确认）、现在的样子、不知不觉的变化和提醒、她自己改过的、自我故事、各种版本可以退回。 */

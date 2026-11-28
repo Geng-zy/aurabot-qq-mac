@@ -53,7 +53,7 @@
       const mem = counts.memory || {}
       const usage = state?.usage
       const act = async (path, id, ask) => {
-        if (ask && !confirm(ask)) return
+        if (ask && !(await confirm.ask(ask, { confirmLabel: '继续' }))) return
         const r = await post(path, { id })
         toast(r.message || (r.ok ? '好了' : '没成功'))
         relatedTicket.current++
@@ -61,7 +61,7 @@
         load(); loadState()
       }
       const sleepNow = async () => {
-        if (!confirm('现在就让她睡一觉整理记忆？会调用模型、花 token（按睡觉整理的思考深度），一般几十秒到几分钟。')) return
+        if (!(await confirm.ask('现在就让她睡一觉整理记忆？', { hint: '会调用模型、花 token（按睡觉整理的思考深度），一般几十秒到几分钟。', confirmLabel: '让她睡' }))) return
         setSleeping(true)
         const r = await post('/mind/sleep', {})
         setSleeping(false)
@@ -77,6 +77,7 @@
           if (r.ok) { setShare(null); load() }
         } finally { setSharing(false) }
       }
+      const confirm = useConfirm()
       return h(Fragment, null,
         h('div', { className: 'ab-memory-head' },
           h(Card, { title: '记忆概况', className: 'ab-memory-summary' },
@@ -132,7 +133,8 @@
         h(Card, { fold: 'memory-dreams', title: '最近的梦', desc: '睡觉整理时做的梦。大部分醒来就忘；情绪强的、被叫醒的会记得，记得的才会变成她的记忆（梦不会被当成真发生过的事）。' },
           (state?.dreams || []).length ? h('div', { className: 'ab-list' }, state.dreams.map((d, i) => h('div', { key: i, className: 'ab-li' },
             h('div', { className: 'meta' }, mindDay(d.at), d.remembered ? ' · 她记得' : ' · 醒来忘了'),
-            h('div', { className: 'body' }, d.text)))) : h(Empty, { text: '还没做过梦' })))
+            h('div', { className: 'body' }, d.text)))) : h(Empty, { text: '还没做过梦' })),
+        confirm.node)
     }
 
     /** 关系：她认识的每个人（按 QQ 号认人）和每个群。数值是她自己的看法，你可以纠正几项。 */

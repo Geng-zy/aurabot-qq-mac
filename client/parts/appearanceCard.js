@@ -34,7 +34,7 @@
               return h('div', { key: it.file, className: 'ab-shot' },
                 h('a', { href: src, target: '_blank', rel: 'noreferrer' }, h('img', { src, alt: '她的形象', loading: 'lazy' })),
                 h('div', { className: 'cap' }, it.primary ? '★ 主图' : h('a', { href: '#', onClick: (e) => { e.preventDefault(); act('/image/appearance/primary', { file: it.file }, '设成主图了') } }, '设为主图')),
-                h(Btn, { small: true, kind: 'danger', title: '移到废纸篓', onClick: () => { if (confirm('把这张移到废纸篓？')) act('/image/appearance/delete', { file: it.file }, '移到废纸篓了') } }, '✕'))
+                h(Btn, { small: true, kind: 'danger', title: '移到废纸篓', onClick: async () => { if (await AB_CONFIRM.ask('把这张移到废纸篓？', { confirmLabel: '移到废纸篓' })) act('/image/appearance/delete', { file: it.file }, '移到废纸篓了') } }, '✕'))
             })),
         h(Row, { label: '形象描述', hint: '画她自己时加进提示词。可以点「看图写一段」让能看图的模型写，也可以自己写、改' },
           h('div', { style: { flex: 1 } },

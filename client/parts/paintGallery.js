@@ -8,7 +8,7 @@
       }
       useEffect(() => { load() }, [shown])
       const del = async (file) => {
-        if (!confirm('删掉这张画？\n' + file)) return
+        if (!(await AB_CONFIRM.ask('删掉这张画？', { hint: file, confirmLabel: '删掉' }))) return
         const r = await post('/image/gallery/delete', { file }).catch(() => ({ ok: false }))
         toast(r.message || (r.ok ? '删掉了' : '删除失败'), r.ok ? 'ok' : 'err')
         load()

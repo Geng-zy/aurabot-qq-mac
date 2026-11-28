@@ -978,5 +978,19 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "README.md 平台连接页示例图，来自 docs/ui-baseline/pages/platforms.png。"
+  },
+  {
+    "path": "client/parts/useConfirm.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "行内确认：AB_CONFIRM（Promise 版，一次只处理一个，Esc 取消）+ GlobalConfirmHost（挂在工作台根部的唯一渲染器）+ useConfirm()（组件内薄封装，node 恒为 null 兼容老调用点）。取代面板里全部原生 confirm()；被 scripts/ui-shot.mjs 的「弹出并带说明 / 取消返回 false 并收起」断言覆盖。"
+  },
+  {
+    "path": "docs/ui-baseline/README.md",
+    "area": "docs",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "截图基线目录说明：pages/states 是滚动覆盖，archive/<版本>/ 是定格；写明生成命令（scripts/ui-shot.mjs）与归档时机。"
   }
 ]

@@ -9,7 +9,7 @@
       }).catch((e) => setStatusErr('连不上插件：' + e.message))
       useEffect(() => { loadStatus() }, [])
       const testImage = async () => {
-        if (!confirm('会先保存当前生图设置，再调用当前服务画一张测试图，可能消耗额度。继续？')) return
+        if (!(await AB_CONFIRM.ask('画一张测试图？', { hint: '会先保存当前生图设置，再调用当前服务画一张，可能消耗额度。', confirmLabel: '继续' }))) return
         setTestingImage(true); setImageTest(null)
         try {
           const saved = await post('/save', { imageGen: draft.imageGen })

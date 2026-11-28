@@ -31,7 +31,8 @@
         inp.onchange = () => inp.files && upload(inp.files)
         inp.click()
       }
-      return h(Card, { title: '音色模型', desc: '插件不自带音色。把你有权使用的 RVC 模型导进来：.pth（可以带 .index），或者装着它们的 zip。只存在本机。自己训练的是 so-vits-svc 之类别的模型、或者想用自己的推理参数？去「本地接口」页接「翻唱换声」。' },
+      const confirm = useConfirm()
+      return h(Fragment, null, h(Card, { title: '音色模型', desc: '插件不自带音色。把你有权使用的 RVC 模型导进来：.pth（可以带 .index），或者装着它们的 zip。只存在本机。自己训练的是 so-vits-svc 之类别的模型、或者想用自己的推理参数？去「本地接口」页接「翻唱换声」。' },
         h('div', {
           className: 'ab-drop' + (over ? ' over' : ''), role: 'button', tabIndex: 0,
           onClick: pick, onKeyDown: (e) => (e.key === 'Enter' || e.key === ' ') && pick(),
@@ -53,11 +54,12 @@
                 h('span', { className: 'ab-small', style: { color: v.hasProfile ? 'var(--ab-ok)' : 'var(--ab-sub)' } }, v.hasProfile ? ' · 有音色档案' : ' · 没有音色档案（不定调、不校正音色）')),
               h(Btn, { small: true, kind: 'ghost', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => { setProfFor(profFor === v.id ? '' : v.id); setProfDir('') } },
                 profFor === v.id ? '收起' : v.hasProfile ? '重新生成档案' : '生成音色档案'),
-              h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!confirm('删掉音色「' + v.id + '」？（连同它的 index 和音色档案）')) return; const r = await post('/song/voice/delete', { id: v.id }); notify(toast, r); onChange() } }, '删除')),
+              h(Btn, { small: true, kind: 'ghost', onClick: async () => { if (!(await confirm.ask('删掉音色「' + v.id + '」？', { hint: '连同它的 index 和音色档案一起删。', confirmLabel: '删掉' }))) return; const r = await post('/song/voice/delete', { id: v.id }); notify(toast, r); onChange() } }, '删除')),
             profFor === v.id ? h('div', { className: 'ab-flex', style: { margin: '6px 0 10px' } },
               h('input', { className: 'ab-input', style: { flex: 1 }, value: profDir, placeholder: '「' + v.id + '」的数据集文件夹完整路径（本人的干声录音，wav / flac / mp3），如 ' + exPath('Downloads/数据集'),
                 onChange: (e) => setProfDir(e.target.value), onKeyDown: (e) => e.key === 'Enter' && buildProfile(v.id) }),
               h(Btn, { small: true, kind: 'primary', disabled: Boolean(s.profileJob && s.profileJob.running), onClick: () => buildProfile(v.id) }, '开始生成')) : null))))
+      , confirm.node)
     }
 
     const fmtBytes = (n) => (n >= 1024 ** 3 ? (n / 1024 ** 3).toFixed(2) + ' GB' : (n / 1024 ** 2).toFixed(n >= 100 * 1024 ** 2 ? 0 : 1) + ' MB')

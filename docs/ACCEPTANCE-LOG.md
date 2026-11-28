@@ -4188,3 +4188,24 @@ Mini 1.7.7 安装启动（19:19:56）；真机包内 PanelBoundary / 这个模�
 发布 tag v1.7.7；dsh-aurabot-qq-1.7.7.tgz 19,742,960 字节
      sha256 f220a956e40307c3da03a2becaf3eae34073c671a49f5bd482b137f795689998
 ```
+
+---
+
+## UI 收尾（1.7.8）—— 规划 B0–B7 的三个尾巴
+
+| 收尾项 | 结果 |
+|---|---|
+| 原生 `confirm()` 清零 | 新增 `AB_CONFIRM`（Promise 版）+ `GlobalConfirmHost`（工作台根部唯一渲染器），`useConfirm()` 变成薄封装；**29 处调用点全部迁移**，面板里不再有浏览器原生对话框 |
+| 截图基线归档 | `docs/ui-baseline/README.md` 说明滚动覆盖 vs 定格；`archive/1.7.7/` 存下 B7 结束时的 44 张图 |
+| 文档收尾 | UI-PLAN 记录三项完成；README / README_EN / 用户手册统一成「所有危险动作页内确认」 |
+
+```text
+Air  ui-shot 通过：28 页 + 29 页 × 三态 + 深色 + 窄屏
+     新增断言：行内确认能弹出并带说明、取消返回 false 并收起（直接驱动 AB_CONFIRM）
+Air  全量 1740 passed / 0 failed；oxlint 0 error；语法 671 文件；清单 487 文件 / 0 待审
+Mini 1.7.8 安装启动（20:04:39）；真机 client.js 里 AB_CONFIRM 19 处、ab-confirm-sheet 4 处，
+     `confirm(` 只剩 1 处（是注释里那句「不再用原生 confirm()」）
+     state version=1.7.8；配置一致；Purge 三工具在；0 新增 error
+发布 tag v1.7.8；dsh-aurabot-qq-1.7.8.tgz 19,747,818 字节
+     sha256 85385ce7f96c3c267983d3a27ea48cb92503d20b4ab852632a7a9e4d6144e058
+```

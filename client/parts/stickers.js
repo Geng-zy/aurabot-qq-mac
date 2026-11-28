@@ -63,7 +63,7 @@
         if (!picked.length) return
         const n = picked.length
         const ask = dropQQ ? '删掉选中的 ' + n + ' 张表情？（QQ 收藏里也会一起删）' : '删掉选中的 ' + n + ' 张表情？（只删本地库，QQ 收藏保留）'
-        if (!confirm(ask)) return
+        if (!(await confirm.ask(ask, { confirmLabel: '继续' }))) return
         const r = await post('/sticker/delete-batch', { md5s: picked, fromQQ: dropQQ })
         toast(r.message || (r.ok ? '删掉了 ' + n + ' 张' : '没删成'), r.ok ? 'ok' : 'err')
         setPicked([])
@@ -112,6 +112,7 @@
           h(Btn, { key: 'pick', small: true, kind: 'ghost', onClick: () => { setPicking(true); setPicked([]) } }, '多选'),
           h(Btn, { key: 'reload', small: true, kind: 'ghost', onClick: load }, '刷新'),
         ]
+      const confirm = useConfirm()
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '表情包', right: f.sw('stickers.enabled'), desc: '回复里写 <sticker:名字> 就会发对应的表情；也会按概率自动配一张。' },
           h(Row, { label: '自动配表情的概率' }, f.percent('stickers.autoChance')),
@@ -193,7 +194,7 @@
           h(Row, { label: '每小时上限', hint: '每个会话单独算，免得在热闹的群里刷屏' }, f.range('stickers.reactMaxPerHour', 0, 60, 1, (v) => v + ' 次')),
         ),
         h(FaceMapCard, null),
-      )
+        confirm.node)
     }
 
     /**

@@ -10,6 +10,7 @@
         toast(r.ok ? label + '改好了' : '没改成：' + (r.message || '找不到这张表情'), r.ok ? 'ok' : 'err')
         if (r.ok) onChanged()
       }
+      const confirm = useConfirm()
       return h('div', {
         className: cx('ab-sticker', picking && 'pick', selected && 'on'),
         onClick: picking ? () => onToggle(it.md5) : undefined,
@@ -23,9 +24,9 @@
           onBlur: () => { if (!picking && name !== (it.name || '')) save({ name }, '名字') } }),
         h('input', { className: 'tg', value: tags, placeholder: '加标签，空格隔开', title: '标签，空格或逗号隔开，最多 5 个', readOnly: Boolean(picking), tabIndex: picking ? -1 : undefined, onChange: (e) => setTags(e.target.value),
           onBlur: () => { if (!picking && tags.trim() !== tagText) save({ tags: tags.split(/[\s,，、#]+/).map((x) => x.trim()).filter(Boolean).slice(0, 5) }, '标签') } }),
-        picking ? null : h(Btn, { small: true, kind: 'danger', title: '删除', onClick: async () => { if (!confirm('删掉这张表情？（QQ 收藏里也会删）')) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
+        picking ? null : h(Btn, { small: true, kind: 'danger', title: '删除', onClick: async () => { if (!(await confirm.ask('删掉这张表情？', { hint: 'QQ 收藏里也会删。', confirmLabel: '删掉' }))) return; await post('/sticker/delete', { md5: it.md5 }); onChanged() } }, '✕'),
         !picking && it.name ? h(Btn, { small: true, kind: 'ghost', title: '同名表情默认发这张', onClick: async () => { const r = await post('/sticker/primary', { md5: it.md5 }); toast(r.ok ? '设为主图了' : (r.message || '没设成'), r.ok ? 'ok' : 'err'); if (r.ok) onChanged() } }, '主图') : null,
-      )
+        confirm.node)
     }
 
     // 和 QQ 空间自身的可见范围一致（ugc_right 1/4/16/64/128）
