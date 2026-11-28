@@ -915,5 +915,19 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "README.md 字段级校验示例图（超范围当场标错、不提交），来自 docs/ui-baseline/states/mindsettings-error.png。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-whitelist.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 白名单页示例图（号码名单校验），来自 docs/ui-baseline/pages/access.png；1.7.4 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-connect.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 连接页示例图（一键诊断结果区），来自 docs/ui-baseline/pages/connect.png。"
   }
 ]

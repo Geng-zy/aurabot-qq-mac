@@ -120,3 +120,16 @@ test('Field 把错误串成 aria-describedby，且初始 aria-invalid=false', ()
   assert.match(json, /不能为空/)
   assert.match(json, /她会这样叫你/)
 })
+
+test('ListArea 数字名单：非法项标出并留在框里，草稿只收有效项', () => {
+  const { panel, render } = setup()
+  const committed = []
+  const node = render(panel.ListArea, { value: [], numbers: true, placeholder: '每行一个 QQ 号', onChange: (v) => committed.push(v) })
+  const json = JSON.stringify(node)
+  assert.match(json, /ab-listarea/, '要有容错外壳')
+  assert.match(json, /aria-invalid/, '要有 aria-invalid')
+  // 号码规则（4～15 位纯数字）在组件源码里，渲染树看不到，直接查源码
+  const src = readFileSync(join(PARTS, 'listArea.js'), 'utf8')
+  assert.ok(src.includes('4,15'), '号码规则要写进组件')
+  assert.ok(src.includes('ab-row-err'), '非法项要有可见错误')
+})

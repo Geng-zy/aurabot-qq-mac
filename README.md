@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.7.3 更新
+## 1.7.4 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -142,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.3.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.4.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.3.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.4.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -175,7 +175,7 @@ local
 | 看人物关系或内心日记 | 心智 → 关系 / 念头与行动 |
 | 看资料、写笔记或控制知识可见范围 | 心智 → 知识库 |
 | 修改人设、性格设置和后台预算 | 自我与设置 |
-| 配置 QQ 连接、白名单或空间日记 | QQ 会话 |
+| 配置 QQ 连接、白名单或空间日记 | QQ 会话（连接页可一键诊断；白名单里的号码当场校验） |
 | 配置 Telegram | 平台 → Telegram |
 | 配置语音、生图、表情或翻唱 | 表达与创作 |
 | 看日志、备份或接入自定义脚本 | 系统 |
@@ -203,6 +203,12 @@ local
 
 <p><strong>心智设置</strong> · 按分类看参数，每行写着默认值与依据，可以单独恢复默认。</p>
 <img src="docs/screenshots/aurabot-mind-settings.png" alt="心智设置" width="100%">
+
+<p><strong>连接</strong> · 一键诊断逐项给出结果；没填网关地址时先给一条可点的空态。</p>
+<img src="docs/screenshots/aurabot-connect.png" alt="连接与诊断" width="100%">
+
+<p><strong>白名单</strong> · 不是有效号码的项当场标出、留在框里待改，不会被悄悄存进去。</p>
+<img src="docs/screenshots/aurabot-whitelist.png" alt="白名单" width="100%">
 
 <p><strong>读不到时</strong> · 错误留在页面上，带「重试」和「复制诊断」，不靠 Toast 顶替。</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="错误态" width="100%">

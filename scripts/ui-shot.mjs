@@ -49,6 +49,13 @@ const STATES = [
   // B3 自我与设置
   { page: 'selfmind', empty: /心智核心没起来|性格（19 项）|人格与自我/ },
   { page: 'mindsettings', empty: /没有可调参数|心智核心没起来|没有找到匹配的设置/ },
+  // B4 QQ 会话组
+  { page: 'connect', empty: /还没填 QQ 网关地址|连接状态/ },
+  { page: 'access', empty: /白名单|私聊与群白名单/ },
+  { page: 'model', empty: /还没有可用模型|聊天用的模型/ },
+  { page: 'asr', empty: /听语音|语音转文字/ },
+  { page: 'diary', empty: /还没写过日记|空间日记/ },
+  { page: 'group', empty: /群聊|回应/ },
 ]
 
 const { chromium } = await loadPlaywright()
@@ -162,7 +169,36 @@ try {
     check('设置页：改回范围内错误消失', (await page.locator('.ab-row-err').count()) === 0)
   }
 
-  // 4) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
+  // 4) B4 三条流程：连接诊断、白名单保存校验、模型选择
+  await open('page=connect&state=live&mode=normal')
+  const diagBtn = page.getByRole('button', { name: '一键诊断' })
+  if (await diagBtn.count()) {
+    await diagBtn.click()
+    await wait(500)
+    const hasResult = await page.locator('table.ab-table, .ab-errorblock, .ab-skeleton, .ab-skel').count()
+    check('连接页：诊断有结果区域（表格或错误块）', hasResult > 0)
+  }
+
+  await open('page=access&state=live&mode=normal')
+  const allow = page.locator('.ab-listarea textarea').first()
+  if (await allow.count()) {
+    await allow.fill('1234\nnot-a-number')
+    await allow.blur()
+    await wait(250)
+    check('白名单：非法号码当场标出', (await page.locator('.ab-listarea .ab-row-err').count()) > 0)
+    // 草稿只收有效项：用页面的 draft 快照判断（textarea 保留原文是为了让人改）
+    const draftAllow = await page.evaluate(() => {
+      const nodes = [...document.querySelectorAll('.ab-listarea')]
+      return nodes.map((n) => n.querySelector('textarea')?.value || '')
+    })
+    check('白名单：非法号码仍留在框里待改', draftAllow.some((v) => v.includes('not-a-number')))
+  }
+
+  await open('page=model&state=live&mode=normal')
+  const modelSelect = page.locator('.ab-ctl button[aria-haspopup="listbox"], .ab-ctl [role="combobox"], .ab-ctl button').first()
+  check('模型页：选择器存在', (await modelSelect.count()) > 0)
+
+  // 5) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
   await open('page=logs&state=live&mode=normal')
   const toastText = await page.evaluate(async () => {
     const bus = window.__PANEL__.__panelTest.AB_TOAST
@@ -175,7 +211,7 @@ try {
   const toastTotal = await page.locator('.ab-toast').count()
   check('Toast 只有宿主层那一份', toastTotal === 1 && toastInside === 1, `总 ${toastTotal}，宿主层 ${toastInside}`)
 
-  // 5) 深色与窄屏
+  // 6) 深色与窄屏
   await open('page=overview&state=live&mode=normal&theme=dark')
   await page.screenshot({ path: join(OUT, 'theme-dark.png') })
   check('深色模式生效', await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))

@@ -4093,3 +4093,26 @@ Mini 1.7.3 安装启动（17:09:49）；真机 client.js 里 ab-row-err / ab-row
 发布 tag v1.7.3；dsh-aurabot-qq-1.7.3.tgz 19,731,735 字节
      sha256 5011df546c6adeda9e3a50db1659ba8a57a82fadd2b1e9d27aaadacb1ef6887c
 ```
+
+---
+
+## B4 · QQ 会话组六页（1.7.4）
+
+| 页 | 本批变化 |
+|---|---|
+| 连接 `connect` | 诊断：骨架 → 可重试错误块 → 结果区 `aria-live`；没填网关地址时先给可点空态（展开并滚到网关配置） |
+| 白名单 `access` | `ListArea` 重写：本地保留原文、只把有效项写进草稿；非 4–15 位纯数字当场标红并留在框里，`aria-invalid` 同步 |
+| 聊天模型 `model` | 读不到列表给可重试错误块；DSH 无模型时给教学空态 |
+| QQ 空间 `diary` | 骨架 → 错误块（重试）→ 「还没写过日记」教学空态 |
+| 回复规则 `group` / 语音识别 `asr` | 本批只纳入三态与导航断言（group 无自有接口、asr 走 voice 模块开关） |
+
+```text
+Air  ui-shot 通过：28 页 + 18 页 × 三态 + 深色 + 窄屏；新增三条流程断言
+     （连接诊断有结果区 / 白名单非法号码标红且保留 / 模型选择器存在）
+Air  全量 1740 passed / 0 failed（新增 ListArea 一条）；oxlint 0 error；语法 669 文件；清单 0 待审
+Mini 1.7.4 安装启动；真机 client.js 里 ab-listarea / 4,15 / 这些不是有效号码 / 还没填 QQ 网关地址 / 还没有可用模型 都在
+     diagnose 10 项全过；models 4 个；diary 历史 4 条；asr-status 明确回「DSH 里没有开启语音输入插件」（空态依据）
+     配置一致；Purge 三工具在；0 新增 error
+发布 tag v1.7.4；dsh-aurabot-qq-1.7.4.tgz 19,734,321 字节
+     sha256 561680f214b23f6af13293bc820368681add8f0f53bc61b97fa0c8872e8386a4
+```

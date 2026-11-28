@@ -270,7 +270,7 @@ window.__ModuleLoader__.load({
     /* @include parts */
 
     // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
-    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS }
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS, ListArea }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

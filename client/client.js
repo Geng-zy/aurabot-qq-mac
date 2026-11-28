@@ -1183,8 +1183,17 @@ window.__ModuleLoader__.load({
     const conn = st.onebot.state === 'connected'
     const login = st.onebot.login
     const [diag, setDiag] = useState(null)
-    const runDiag = async () => { setDiag({ busy: true }); try { setDiag(await get('/onebot/diagnose')) } catch (e) { setDiag(null); toast(e.message, 'err') } }
-    const diagView = diag ? (diag.busy ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '正在一项项检查…') : h('div', { style: { marginTop: 10 } },
+    const [diagErr, setDiagErr] = useState('')
+    const runDiag = async () => {
+    setDiag({ busy: true }); setDiagErr('')
+    try {
+    const r = await get('/onebot/diagnose')
+    if (r && r.ok === false) { setDiag(null); setDiagErr(r.message || '诊断没跑起来') } else setDiag(r)
+    } catch (e) { setDiag(null); setDiagErr('连不上插件：' + e.message) }
+    }
+    const diagView = diagErr
+    ? h('div', { style: { marginTop: 10 } }, h(ErrorBlock, { title: '诊断没跑起来', message: diagErr, hint: '可能是插件正在重载；稍后再试一次。', onRetry: runDiag }))
+    : diag ? (diag.busy ? h('div', { style: { marginTop: 8 } }, h(Skeleton, { kind: 'row', rows: 3, label: '正在一项项检查' })) : h('div', { style: { marginTop: 10 }, 'aria-live': 'polite' },
     diag.problem ? h('div', { className: 'ab-note warn' }, diag.problem) : h('div', { className: 'ab-note' }, '每一项都正常。'),
     h('table', { className: 'ab-table', style: { marginTop: 6 } }, h('tbody', null, (diag.items || []).map((it, i) => h('tr', { key: i },
     h('td', { style: { width: 24 } }, it.ok === true ? '✓' : it.ok === false ? '✗' : '·'),
@@ -1194,7 +1203,14 @@ window.__ModuleLoader__.load({
     h(Btn, { small: true, kind: 'primary', onClick: runDiag }, '一键诊断'),
     h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
     h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '重新连接'))
+    const noEndpoint = !st.onebot.endpoint.wsUrl && !st.onebot.endpoint.httpUrl
     return h('div', { className: 'ab-grid' },
+    noEndpoint ? h(Empty, {
+    icon: '🔌', title: '还没填 QQ 网关地址',
+    text: '在下面的「QQ 网关配置」里填 WebSocket 或 HTTP 地址（一般是 ws://127.0.0.1:3001），保存后她会自动连上。',
+    action: '去填网关地址', onAction: () => { const el = document.getElementById('ab-section-qq-endpoint'); if (el && el.tagName === 'DETAILS') el.open = true; el?.scrollIntoView({ block: 'start' }) },
+    secondary: '重新走一遍向导', onSecondary: () => openWizard && openWizard(),
+    }) : null,
     h(Card, { title: '连接状态' },
     h('div', { className: 'ab-kv' },
     h('span', null, 'QQ 网关'), h('span', null, h('span', { className: 'ab-flex' }, h('i', { className: cx('ab-dot', conn ? 'ok' : st.onebot.state === 'connecting' ? 'warn' : 'err') }), { connected: '已连上', connecting: '连接中', disconnected: '断开了，正在重连', stopped: '没启动（总开关关着）', unconfigured: '还没配置' }[st.onebot.state] || st.onebot.state)),
@@ -1293,8 +1309,11 @@ window.__ModuleLoader__.load({
     function Diary({ st, draft, setDraft, toast }) {
     const f = useField(draft, setDraft)
     const [data, setData] = useState(null)
+    const [loadErr, setLoadErr] = useState('')
     const on = modOn(st, 'diary')
-    const load = () => (on ? get('/diary/history').then((r) => { setData(r); if (r.warning) toast(r.warning) }).catch((e) => toast('日记状态刷新失败：' + e.message)) : null)
+    const load = () => (on ? get('/diary/history').then((r) => {
+    if (r && r.ok !== false) { setData(r); setLoadErr(''); if (r.warning) toast(r.warning) } else { setData(null); setLoadErr(r?.message || '读不到日记状态') }
+    }).catch((e) => setLoadErr('连不上插件：' + e.message)) : null)
     useEffect(() => { load() }, [on])
     const social = modOn(st, 'qzone-social') ? h(QzoneSocial, { draft, setDraft, toast }) : h(ModOff, { name: '空间互动' })
     if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记' }), social)
@@ -1322,7 +1341,12 @@ window.__ModuleLoader__.load({
     h(DiaryMedia, { st, draft, setDraft, toast }),
     h(DiaryArchive, { st, draft, setDraft, toast }),
     h(Card, { fold: 'diary-history', title: '发布历史' },
-    !data ? h(Empty, { icon: '⏳', text: '加载中…' }) : !data.items || data.items.length === 0 ? h(Empty, { icon: '📔', text: '还没写过日记。' }) :
+    loadErr ? h(ErrorBlock, { title: '读不到日记状态', message: loadErr, hint: '空间日记由 diary 模块提供。', onRetry: load })
+    : !data ? h(Skeleton, { kind: 'row', rows: 3, label: '正在读日记状态' })
+    : !data.items || data.items.length === 0 ? h(Empty, {
+    icon: '📔', title: '还没写过日记',
+    text: '到了设定的时段、她又正好有空有动力时会自己写一条；也可以现在让她写一篇试试。',
+    }) :
     h('div', { className: 'ab-list' }, data.items.map((d, i) => h('div', { key: i, className: 'ab-li' },
     h('div', { className: 'meta' }, new Date(d.at).toLocaleString(), h('br'), d.deletedAt ? '已从空间删除' : d.dryRun ? '试运行' : d.ok ? (AUDIENCE_LABEL[d.visibility] || '已发布') : '失败'),
     h('div', { className: 'body' }, d.text,
@@ -2338,11 +2362,31 @@ window.__ModuleLoader__.load({
     function ListArea({ value, onChange, placeholder, numbers }) {
     const parse = (t) => t.split(numbers ? /[\n,，;；\s]+/ : /[\n,，;；]+/).map((s) => s.trim()).filter(Boolean)
     const [text, setText] = useState(value.join('\n'))
-    // 外面改了（保存、撤销、重新载入）而且和框里内容对不上时才覆盖
-    useEffect(() => { if (parse(text).join('\n') !== value.join('\n')) setText(value.join('\n')) }, [value.join('\n')])
-    return h('textarea', { className: 'ab-textarea', style: { minHeight: 60 }, placeholder, value: text,
-    onChange: (e) => { setText(e.target.value); onChange(parse(e.target.value)) },
-    onBlur: () => setText(parse(text).join('\n')) })
+    // 号码名单：非纯数字的项当场标出来，并且不写进草稿（免得保存了也连不上）
+    const invalidOf = (items) => (numbers ? items.filter((x) => !/^\d{4,15}$/.test(x)) : [])
+    const bad = invalidOf(parse(text))
+    const external = value.join('\n')
+    const lastExternal = useRef(external)
+    useEffect(() => {
+    // 外面改了（保存、撤销、重新载入）才覆盖；框里还有非法项时不覆盖，免得错误跟着消失
+    if (external === lastExternal.current) return
+    lastExternal.current = external
+    if (!invalidOf(parse(text)).length) setText(external)
+    }, [external])
+    const commit = (next, { blur = false } = {}) => {
+    const items = parse(next)
+    const wrong = invalidOf(items)
+    onChange(items.filter((x) => !wrong.includes(x)))
+    if (blur && !wrong.length) setText(items.join('\n'))
+    }
+    return h('div', { className: 'ab-listarea' },
+    h('textarea', {
+    className: cx('ab-textarea', bad.length && 'bad'), style: { minHeight: 60 }, placeholder, value: text,
+    'aria-invalid': bad.length ? 'true' : 'false',
+    onChange: (e) => { setText(e.target.value); commit(e.target.value) },
+    onBlur: () => commit(text, { blur: true }),
+    }),
+    bad.length ? h('small', { className: 'ab-row-err', role: 'alert' }, '这些不是有效号码，已跳过：' + bad.join('、')) : null)
     }
 
     // 绑定到草稿配置的控件
@@ -3383,7 +3427,11 @@ window.__ModuleLoader__.load({
     function Model({ draft, setDraft, toast, st }) {
     const [list, setList] = useState(null)
     const [ping, setPing] = useState({})
-    useEffect(() => { get('/models').then((r) => setList(r.list || [])) }, [])
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/models').then((r) => {
+    if (r && r.ok !== false) { setList(r.list || []); setLoadErr('') } else { setList([]); setLoadErr(r?.message || '读不到模型列表') }
+    }).catch((e) => { setList([]); setLoadErr('连不上插件：' + e.message) })
+    useEffect(() => { load() }, [])
     const key = (m) => m.provider + '::' + m.model
     const cur = draft.model.provider && draft.model.model ? draft.model.provider + '::' + draft.model.model : ''
     const curModel = cur && list ? list.find((m) => key(m) === cur) : null
@@ -3405,7 +3453,13 @@ window.__ModuleLoader__.load({
     const r = await post('/model/ping', { provider: m.provider, model: m.model })
     setPing((p) => ({ ...p, [key(m)]: r.ok ? (r.ms / 1000).toFixed(1) + ' 秒' : '失败：' + (r.message || '') }))
     }
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到模型列表', message: loadErr, hint: '模型由 DSH 提供；确认 DSH 里有可用模型后重试。', onRetry: load }))
     return h('div', { className: 'ab-grid' },
+    list === null ? h(Skeleton, { kind: 'card', label: '正在读模型列表' }) : null,
+    list && list.length === 0 ? h(Empty, {
+    icon: '🧩', title: 'DSH 里还没有可用模型',
+    text: '先在 DSH 里配好一个模型（设置 → 模型），这里就能选它；也可以先留「跟随 DSH 默认」。',
+    }) : null,
     h(Card, { title: '聊天用的模型', desc: '新建的 QQ 会话按这里的设置来；已有会话也可以在 DSH 里点开单独切换。聊天对速度很敏感，可以先点「测速」挑个快的。' },
     h(Row, { label: '思考强度', hint: noReasoning ? '这个模型不支持思考强度，会自动忽略' : '聊天建议「低」，回得快' }, h(Seg, { value: draft.model.reasoningEffort || 'low', disabled: noReasoning, onChange: (v) => setDraft(setPath(draft, 'model.reasoningEffort', v)), options: [{ value: 'low', label: '低' }, { value: 'high', label: '高' }, { value: 'max', label: '最高' }] })),
     h(Row, { label: '视觉能力', hint: visionHint }, h(Seg, {
@@ -6247,7 +6301,7 @@ window.__ModuleLoader__.load({
     }
 
     // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
-    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS }
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS, ListArea }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

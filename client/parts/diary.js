@@ -1,8 +1,11 @@
     function Diary({ st, draft, setDraft, toast }) {
       const f = useField(draft, setDraft)
       const [data, setData] = useState(null)
+      const [loadErr, setLoadErr] = useState('')
       const on = modOn(st, 'diary')
-      const load = () => (on ? get('/diary/history').then((r) => { setData(r); if (r.warning) toast(r.warning) }).catch((e) => toast('日记状态刷新失败：' + e.message)) : null)
+      const load = () => (on ? get('/diary/history').then((r) => {
+        if (r && r.ok !== false) { setData(r); setLoadErr(''); if (r.warning) toast(r.warning) } else { setData(null); setLoadErr(r?.message || '读不到日记状态') }
+      }).catch((e) => setLoadErr('连不上插件：' + e.message)) : null)
       useEffect(() => { load() }, [on])
       const social = modOn(st, 'qzone-social') ? h(QzoneSocial, { draft, setDraft, toast }) : h(ModOff, { name: '空间互动' })
       if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记' }), social)
@@ -30,7 +33,12 @@
         h(DiaryMedia, { st, draft, setDraft, toast }),
         h(DiaryArchive, { st, draft, setDraft, toast }),
         h(Card, { fold: 'diary-history', title: '发布历史' },
-          !data ? h(Empty, { icon: '⏳', text: '加载中…' }) : !data.items || data.items.length === 0 ? h(Empty, { icon: '📔', text: '还没写过日记。' }) :
+          loadErr ? h(ErrorBlock, { title: '读不到日记状态', message: loadErr, hint: '空间日记由 diary 模块提供。', onRetry: load })
+            : !data ? h(Skeleton, { kind: 'row', rows: 3, label: '正在读日记状态' })
+            : !data.items || data.items.length === 0 ? h(Empty, {
+              icon: '📔', title: '还没写过日记',
+              text: '到了设定的时段、她又正好有空有动力时会自己写一条；也可以现在让她写一篇试试。',
+            }) :
             h('div', { className: 'ab-list' }, data.items.map((d, i) => h('div', { key: i, className: 'ab-li' },
               h('div', { className: 'meta' }, new Date(d.at).toLocaleString(), h('br'), d.deletedAt ? '已从空间删除' : d.dryRun ? '试运行' : d.ok ? (AUDIENCE_LABEL[d.visibility] || '已发布') : '失败'),
               h('div', { className: 'body' }, d.text,

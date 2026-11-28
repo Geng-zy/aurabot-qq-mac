@@ -4,8 +4,17 @@
       const conn = st.onebot.state === 'connected'
       const login = st.onebot.login
       const [diag, setDiag] = useState(null)
-      const runDiag = async () => { setDiag({ busy: true }); try { setDiag(await get('/onebot/diagnose')) } catch (e) { setDiag(null); toast(e.message, 'err') } }
-      const diagView = diag ? (diag.busy ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 8 } }, '正在一项项检查…') : h('div', { style: { marginTop: 10 } },
+      const [diagErr, setDiagErr] = useState('')
+      const runDiag = async () => {
+        setDiag({ busy: true }); setDiagErr('')
+        try {
+          const r = await get('/onebot/diagnose')
+          if (r && r.ok === false) { setDiag(null); setDiagErr(r.message || '诊断没跑起来') } else setDiag(r)
+        } catch (e) { setDiag(null); setDiagErr('连不上插件：' + e.message) }
+      }
+      const diagView = diagErr
+        ? h('div', { style: { marginTop: 10 } }, h(ErrorBlock, { title: '诊断没跑起来', message: diagErr, hint: '可能是插件正在重载；稍后再试一次。', onRetry: runDiag }))
+        : diag ? (diag.busy ? h('div', { style: { marginTop: 8 } }, h(Skeleton, { kind: 'row', rows: 3, label: '正在一项项检查' })) : h('div', { style: { marginTop: 10 }, 'aria-live': 'polite' },
         diag.problem ? h('div', { className: 'ab-note warn' }, diag.problem) : h('div', { className: 'ab-note' }, '每一项都正常。'),
         h('table', { className: 'ab-table', style: { marginTop: 6 } }, h('tbody', null, (diag.items || []).map((it, i) => h('tr', { key: i },
           h('td', { style: { width: 24 } }, it.ok === true ? '✓' : it.ok === false ? '✗' : '·'),
@@ -15,7 +24,14 @@
         h(Btn, { small: true, kind: 'primary', onClick: runDiag }, '一键诊断'),
         h(Btn, { small: true, onClick: async () => { const r = await get('/onebot/test'); toast(r.message) } }, '测试连接'),
         h(Btn, { small: true, onClick: async () => { const r = await post('/onebot/reconnect'); notify(toast, r); reload() } }, '重新连接'))
+      const noEndpoint = !st.onebot.endpoint.wsUrl && !st.onebot.endpoint.httpUrl
       return h('div', { className: 'ab-grid' },
+        noEndpoint ? h(Empty, {
+          icon: '🔌', title: '还没填 QQ 网关地址',
+          text: '在下面的「QQ 网关配置」里填 WebSocket 或 HTTP 地址（一般是 ws://127.0.0.1:3001），保存后她会自动连上。',
+          action: '去填网关地址', onAction: () => { const el = document.getElementById('ab-section-qq-endpoint'); if (el && el.tagName === 'DETAILS') el.open = true; el?.scrollIntoView({ block: 'start' }) },
+          secondary: '重新走一遍向导', onSecondary: () => openWizard && openWizard(),
+        }) : null,
         h(Card, { title: '连接状态' },
           h('div', { className: 'ab-kv' },
             h('span', null, 'QQ 网关'), h('span', null, h('span', { className: 'ab-flex' }, h('i', { className: cx('ab-dot', conn ? 'ok' : st.onebot.state === 'connecting' ? 'warn' : 'err') }), { connected: '已连上', connecting: '连接中', disconnected: '断开了，正在重连', stopped: '没启动（总开关关着）', unconfigured: '还没配置' }[st.onebot.state] || st.onebot.state)),

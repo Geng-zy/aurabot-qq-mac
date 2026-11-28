@@ -1,7 +1,11 @@
     function Model({ draft, setDraft, toast, st }) {
       const [list, setList] = useState(null)
       const [ping, setPing] = useState({})
-      useEffect(() => { get('/models').then((r) => setList(r.list || [])) }, [])
+      const [loadErr, setLoadErr] = useState('')
+      const load = () => get('/models').then((r) => {
+        if (r && r.ok !== false) { setList(r.list || []); setLoadErr('') } else { setList([]); setLoadErr(r?.message || '读不到模型列表') }
+      }).catch((e) => { setList([]); setLoadErr('连不上插件：' + e.message) })
+      useEffect(() => { load() }, [])
       const key = (m) => m.provider + '::' + m.model
       const cur = draft.model.provider && draft.model.model ? draft.model.provider + '::' + draft.model.model : ''
       const curModel = cur && list ? list.find((m) => key(m) === cur) : null
@@ -23,7 +27,13 @@
         const r = await post('/model/ping', { provider: m.provider, model: m.model })
         setPing((p) => ({ ...p, [key(m)]: r.ok ? (r.ms / 1000).toFixed(1) + ' 秒' : '失败：' + (r.message || '') }))
       }
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到模型列表', message: loadErr, hint: '模型由 DSH 提供；确认 DSH 里有可用模型后重试。', onRetry: load }))
       return h('div', { className: 'ab-grid' },
+        list === null ? h(Skeleton, { kind: 'card', label: '正在读模型列表' }) : null,
+        list && list.length === 0 ? h(Empty, {
+          icon: '🧩', title: 'DSH 里还没有可用模型',
+          text: '先在 DSH 里配好一个模型（设置 → 模型），这里就能选它；也可以先留「跟随 DSH 默认」。',
+        }) : null,
         h(Card, { title: '聊天用的模型', desc: '新建的 QQ 会话按这里的设置来；已有会话也可以在 DSH 里点开单独切换。聊天对速度很敏感，可以先点「测速」挑个快的。' },
           h(Row, { label: '思考强度', hint: noReasoning ? '这个模型不支持思考强度，会自动忽略' : '聊天建议「低」，回得快' }, h(Seg, { value: draft.model.reasoningEffort || 'low', disabled: noReasoning, onChange: (v) => setDraft(setPath(draft, 'model.reasoningEffort', v)), options: [{ value: 'low', label: '低' }, { value: 'high', label: '高' }, { value: 'max', label: '最高' }] })),
           h(Row, { label: '视觉能力', hint: visionHint }, h(Seg, {
