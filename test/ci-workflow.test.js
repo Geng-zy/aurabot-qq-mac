@@ -20,13 +20,26 @@ test('CI 只服务 main、版本 tag 与 PR，不引入环境或部署', () => {
   assert.doesNotMatch(yml, /environment:|deploy|publish/i, 'CI 不做部署或发布动作（Release 由人确认后手动建）')
 })
 
-test('CI 引用的每个 npm 脚本都真实存在', () => {
-  for (const line of runLines) {
-    const m = line.match(/npm (?:run )([\w:.-]+)/) // 只认 `npm run x`：install / pack 是 npm 自己的命令
-    if (!m) continue
-    const name = m[1]
+// npm 自己的子命令（不会去查 scripts）；注意不要把 test 放进来 —— `npm test` 就是 scripts.test
+const NPM_BUILTIN = new Set([
+  'install', 'i', 'ci', 'uninstall', 'pack', 'publish', 'exec', 'ls', 'view', 'version', 'init',
+  'link', 'whoami', 'config', 'update', 'audit', 'dedupe', 'fund', 'help', 'search', 'outdated',
+  'rebuild', 'prune', 'cache', 'login', 'logout', 'doctor', 'explain', 'repo', 'root', 'bin', 'prefix',
+])
+
+test('CI 引用的每个 npm 脚本都真实存在（含 npm test 这种省略 run 的写法）', () => {
+  // 回归：审查 M2 —— 原来只匹配 `npm run x`，而工作流真正的测试入口是 `npm test`（第 62 行），
+  // 把 scripts.test 改名后工作流照旧调 npm test，自测仍然全绿。
+  const calls = [...yml.matchAll(/\bnpm (?:run )?([\w:@./-]+)/g)].map((m) => m[1])
+  assert.ok(calls.length >= 3, `只解析到 ${calls.length} 处 npm 调用，解析逻辑可能失效`)
+  const checked = []
+  for (const name of calls) {
+    if (NPM_BUILTIN.has(name)) continue
+    checked.push(name)
     assert.ok(pkg.scripts[name], `CI 调了不存在的脚本：npm ${name}`)
   }
+  assert.ok(checked.includes('test'), '工作流的 npm test 必须被纳入校验（否则改名不会被发现）')
+  assert.ok(checked.includes('build:client'), '构建入口也要纳入校验')
 })
 
 test('CI 调用的脚本文件都在仓库里', () => {

@@ -4494,3 +4494,37 @@ Mini 1.7.15 安装启动（00:52:10）；state version=1.7.15；Purge 三工具�
 tag v1.7.15；dsh-aurabot-qq-1.7.15.tgz 19,751,113 字节
      sha256 69ff95da84cec34c312b519a9c70212e2851705a36bd1a936633e170072a907e
 ```
+
+---
+
+## 修复：工作流自测漏掉 npm test（审查 M2，无发布）
+
+**为什么选它**：未解决项里，M3/M4/H2 无可复现的行为后果，release 串行 API 是旧代码的健壮性改进；
+**M2 是本批新代码自身的假绿**，且复现确定 —— 把 `scripts.test` 改名后工作流照旧调 `npm test`，自测仍然全绿。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.15 · 内置 Node v24.21.0 · Purge 三工具在列。
+
+**最小失败用例（修复前，基线）**
+
+```text
+# scratch 克隆里把 scripts.test 改名为 test:run（工作流第 62 行仍是 npm test）
+$ node --test test/ci-workflow.test.js
+ℹ pass 9   ℹ fail 0        ← 假绿：根本没校验 npm test
+```
+
+**修复后（同一 scratch 克隆）**
+
+```text
+✖ CI 引用的每个 npm 脚本都真实存在（含 npm test 这种省略 run 的写法）
+  AssertionError: CI 调了不存在的脚本：npm test
+```
+
+**修复内容**：`test/ci-workflow.test.js` 改为扫全文件所有 `npm …` 调用（含多行 `run: |` 块），
+排除 npm 自己的子命令后逐个核对 `package.json` 的 `scripts`；并断言 `test`、`build:client` 必须在被校验集合里。
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 真实仓库 | 1756 passed / 0 failed；语法 674 文件；oxlint 0 error；清单 487 文件 0 待审 |
+| 发布物 | 改动只在 `test/`，重打包哈希与 1.7.15 资产**完全一致**（69ff95da…），因此不发布 |
