@@ -41,6 +41,13 @@ test('生成产物要在 CI 里核对，不能只生成不比对', () => {
   assert.match(yml, /tar -tzf/, '打出来的包要核对内容')
 })
 
+test('清单本身过期要让 CI 红（--write 只保证待审为 0）', () => {
+  // 回归：审查 M1 —— 提交上来的 docs/REPO-INVENTORY.md 过期时，--write 会就地改写却仍然退出 0，
+  // 于是过期清单能直接进发布包。工作流必须再比对一次。
+  assert.match(yml, /git diff --exit-code -- docs\/REPO-INVENTORY\.md/, '要有一段比对清单产物')
+  assert.match(yml, /npm run inventory/, '错误提示里要告诉人怎么重新生成')
+})
+
 test('UI 冒烟只跑代表页、产出不写回仓库基线', () => {
   const smoke = yml.slice(yml.indexOf('ui-smoke:'))
   assert.match(smoke, /scripts\/ui-shot\.mjs --pages=/, '要指定代表页，全量留给本地')

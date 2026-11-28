@@ -39,6 +39,14 @@ jobs:
           node-version: '24'
       - name: Inventory has no unreviewed files
         run: node scripts/repo-inventory.mjs --write
+      - name: Inventory artifact is up to date
+        run: |
+          # --write 只保证「待审为 0」；提交上来的清单本身过期时它会就地改写、然后照常退出 0。
+          # 这里比对一次，过期就红：docs/REPO-INVENTORY.md 在发布物里，不许和源码漂移。
+          if ! git diff --exit-code -- docs/REPO-INVENTORY.md; then
+            echo "::error::docs/REPO-INVENTORY.md 与源码不一致：本地跑 npm run inventory 并提交这份清单"
+            exit 1
+          fi
       - name: Install dev tooling
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Syntax check

@@ -4407,3 +4407,51 @@ Mini 1.7.12 安装启动（23:20:21）；state version=1.7.12；Purge 三工具�
 tag v1.7.12；dsh-aurabot-qq-1.7.12.tgz 19,751,486 字节
      sha256 de2cb82e7d755b81e8ca3928ff565096ed9a91992c32ab484408d27308149ef6
 ```
+
+---
+
+## 修复：过期清单能进发布包（1.7.13，审查 M1）
+
+**为什么选它**：H1/H3 已修，剩下的 H2 是记录措辞（无行为）；**M1 有可复现的物料后果** ——
+1.7.10 的发布资产里 `docs/REPO-INVENTORY.md` 就比源码旧 3 行，而 CI 全程是绿的。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.12→1.7.13 · 内置 Node v24.21.0 · Purge 三工具在列 · Mini `gengzhiyu@100.89.128.72`。
+
+**最小失败用例（修复前，基线）**
+
+```text
+# 临时分支上故意提交一行过期清单：| `scripts/ui-shot.mjs`（过期行，故意写错） …
+$ node scripts/repo-inventory.mjs --write
+docs/REPO-INVENTORY.md 已写入：1012 行，待审 0
+步骤退出码=0                       ← 清单被就地改写，没人发现
+
+$ git diff --stat -- docs/REPO-INVENTORY.md
+ docs/REPO-INVENTORY.md | 2 +-        ← 提交的版本确实是过期的，工作区被修正
+（工作流里唯一的 diff 步骤是 `git diff --exit-code -- client/client.js`）
+```
+
+**修复后（同一份过期提交，同一序列）**
+
+```text
+$ node scripts/repo-inventory.mjs --write && git diff --exit-code -- docs/REPO-INVENTORY.md
+… 显示清单差异 …
+检出过期 → 退出码 1（CI 会红）
+工作流的错误提示：docs/REPO-INVENTORY.md 与源码不一致：本地跑 npm run inventory 并提交这份清单
+```
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 全量测试 | 1756 passed / 0 failed（新增 1 条，`test/ci-workflow.test.js`） |
+| 语法 / lint / 清单 | 674 文件通过 / oxlint 0 error / 487 文件 0 待审 |
+| 生成链路 | `node scripts/repo-inventory.mjs` 0 待审；`client.js` 与源码一致 |
+
+**发布**（包内容只变 `docs/REPO-INVENTORY.md`；`.github/`、`test/` 不在发布物内）
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261128-235422（含 1.7.12 的 tgz）
+Mini 1.7.13 安装启动（23:54:28）；state version=1.7.13；Purge 三工具在；配置逐字段一致；0 新增 error
+tag v1.7.13；dsh-aurabot-qq-1.7.13.tgz 19,751,951 字节
+     sha256 610bcb4935aaa7915021e4478bf457b6e33178e4ded144a0107d8bf59a993036
+```
