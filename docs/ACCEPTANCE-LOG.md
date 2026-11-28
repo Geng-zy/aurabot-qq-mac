@@ -4258,3 +4258,14 @@ Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0
 发布 tag v1.7.10；dsh-aurabot-qq-1.7.10.tgz 19,749,921 字节
      sha256 904dc677fa62b8910cee258c8680842a480b6aac2c8694e3c772558f6272f9b5
 ```
+
+### CI 批次遗留项的核查（回答「这一批还有没做的吗」）
+
+| 项 | 状态 | 证据 |
+|---|---|---|
+| push / PR 自动触发 | **没做成，卡在 fork 开关** | 仓库 `.fork: true`；`actions/runs?event=push` = **0**、`event=pull_request` = **0**，历史 100 次运行全是 `workflow_dispatch`；已试 `PUT .../workflows/pr-check.yml/enable` + 空提交探针推送，仍不触发 |
+| release-check 时序竞态 | **已修** | tag 先推、Release 后建时，`verify-release` 会因 404 判红；现在先 `gh release view` 探测，没有 Release 就 warning 跳过（`if: steps.rel.outputs.exists == 'true'`），测试加断言盯住 |
+| handoff 文档没写 CI | 未做（有意） | `docs/SESSION-HANDOFF.md`、`docs/HANDOFF.md` 在发布包里；改它们会改摘要、需要重发版本，本批不做无关重发。CI 入口已写在 README（包内）与验收记录（包外） |
+| 探针空提交 | 保留 | `54dae88` 是空提交，只为验证 push 触发；不影响内容，留作记录 |
+
+修复后 CI 复跑：run `46151842829` —— `test (ubuntu)` ✓ 3m07s、`test (macos)` ✓ 4m24s、`ui-smoke` ✓ 47s、`release-check` 非 tag 跳过（预期）。
