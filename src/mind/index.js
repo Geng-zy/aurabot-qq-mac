@@ -48,6 +48,8 @@ import { createImport } from './import.js'
 import { createForgetting } from './forgetting.js'
 import { createIdentityMap } from './identity-map.js'
 import { createPeopleGraph } from './people-graph.js'
+import { createSettings } from './settings.js'
+import { createVersions } from './versions.js'
 
 export function createMind(opts) {
   const log = opts.log || noopLog
@@ -62,53 +64,17 @@ export function createMind(opts) {
   const identityMap = createIdentityMap({ store, opts })
   const { sameMap, canon, getOwnerId, setOwnerId, keepOwnerPrivate, privateOwners } = identityMap
 
-  // ---------- 设置 ----------
-  function savedSettings() {
-    return store.get('settings', {})
-  }
-  function settings() {
-    return resolveSettings(savedSettings())
-  }
-  function setting(key) {
-    return settings()[key]
-  }
-  /**
-   * 改设置。by='owner' 才能改 ownerOnly 的项；她自己（by='self'）改不了。
-   * 年龄会同时记下设置的时间，之后每过一次生日自动加一岁。
-   */
-  function updateSettings(patch, by = 'owner') {
-    const saved = savedSettings()
-    const next = { ...saved }
-    const excerpts = setting('memory.ownerEverydayExcerpts')
-    const changed = []
-    for (const [key, value] of Object.entries(patch || {})) {
-      const p = paramOf(key)
-      if (!p) continue
-      if (p.ownerOnly && by !== 'owner') throw new Error(`「${p.label}」只能由管理员设置`)
-      if (key === 'identity.timezone' && !validTimeZone(value)) throw new Error('时区不认识：' + value)
-      next[key] = clampParam(p, value)
-      changed.push(key)
-    }
-    // 全部校验通过后才提交，设置和年龄锚点在同一个事务里。
-    store.tx(() => {
-      if (changed.includes('identity.age')) store.set('identity.ageSetAt', now())
-      store.set('settings', next)
-      if (next['memory.ownerEverydayExcerpts'] !== excerpts) memory.touchAudience()
-    })
-    return changed
-  }
-  function resetSetting(key) {
-    const saved = savedSettings()
-    const previous = setting(key)
-    delete saved[key]
-    const next = resolveSettings(saved)
-    store.tx(() => {
-      store.set('settings', saved)
-      if (key === 'memory.ownerEverydayExcerpts' && next[key] !== previous) memory.touchAudience()
-    })
-  }
-
-  const tz = () => setting('identity.timezone')
+  // 设置在 settings.js（惰性：它要在「管理员日常原话」开关变化时通知记忆）
+  let settingsApi = null
+  const settingsOf = () => (settingsApi ||= createSettings({
+    store, now, resolveSettings, paramOf, clampParam, validTimeZone, getMemory: () => memory,
+  }))
+  const savedSettings = (...a) => settingsOf().savedSettings(...a)
+  const settings = (...a) => settingsOf().settings(...a)
+  const setting = (...a) => settingsOf().setting(...a)
+  const updateSettings = (...a) => settingsOf().updateSettings(...a)
+  const resetSetting = (...a) => settingsOf().resetSetting(...a)
+  const tz = (...a) => settingsOf().tz(...a)
 
   // ---------- 身份 ----------
   function identity() {
@@ -185,48 +151,10 @@ export function createMind(opts) {
     return isOwner(id) || privateOwners.has(canon(id))
   }
 
-  // ---------- 版本 ----------
-  function addVersion(kind, data, { by = 'owner', reason = '', pinned = false } = {}) {
-    const r = store.prep('INSERT INTO versions (kind, at, by, reason, pinned, json) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(kind, now(), by, reason, pinned ? 1 : 0, JSON.stringify(data))
-    pruneVersions(kind)
-    return Number(r.lastInsertRowid)
-  }
-  function listVersions(kind, limit = 100, before = Number.MAX_SAFE_INTEGER) {
-    return store.prep('SELECT id, kind, at, by, reason, pinned, json FROM versions WHERE kind = ? AND id < ? ORDER BY id DESC LIMIT ?')
-      .all(kind, before, limit).map((r) => ({ id: r.id, kind: r.kind, at: r.at, by: r.by, reason: r.reason, pinned: Boolean(r.pinned), data: JSON.parse(r.json) }))
-  }
-  function deleteVersion(id) {
-    return Number(store.prep('DELETE FROM versions WHERE id = ?').run(Number(id)).changes)
-  }
-  function deleteVersions(kind, { from, through }) {
-    if (!['persona', 'self', 'traits', 'habits'].includes(kind) || !Number.isFinite(from) || !Number.isFinite(through) || from >= through) {
-      throw new Error('请填写有效的版本类别和日期范围')
-    }
-    return Number(store.prep(`DELETE FROM versions WHERE kind = ? AND at >= ? AND at < ? AND pinned = 0
-      AND id <> (SELECT max(id) FROM versions WHERE kind = ?)`).run(kind, from, through, kind).changes)
-  }
-  function getVersion(id) {
-    const row = store.prep('SELECT id, kind, at, by, reason, pinned, json FROM versions WHERE id = ?').get(Number(id))
-    return row ? { id: row.id, kind: row.kind, at: row.at, by: row.by, reason: row.reason, pinned: Boolean(row.pinned), data: JSON.parse(row.json) } : null
-  }
-  function pinVersion(id, pinned = true) {
-    store.prep('UPDATE versions SET pinned = ? WHERE id = ?').run(pinned ? 1 : 0, Number(id))
-  }
-  /** 超过保留数的旧版本自动清理；标为重要的不清，最新一个永远保留。 */
-  function pruneVersions(kind) {
-    const keep = Math.max(1, Number(setting('memory.versionKeep')) || 50)
-    const ids = store.prep('SELECT id FROM versions WHERE kind = ? AND pinned = 0 ORDER BY id DESC').all(kind).map((r) => r.id)
-    for (const id of ids.slice(keep)) store.prep('DELETE FROM versions WHERE id = ?').run(id)
-  }
-  /** 退回到某个人格卡版本（会新存一个版本，写明是退回）。 */
-  function restorePersona(id) {
-    const row = store.prep("SELECT by, json FROM versions WHERE id = ? AND kind = 'persona'").get(Number(id))
-    if (!row) throw new Error('没有这个版本')
-    const v = JSON.parse(row.json)
-    const publish = ['owner', 'migration'].includes(row.by) && v.published !== false
-    return setPersonaCard(v.card, { by: 'owner', reason: `退回到版本 ${id}`, name: v.name, nickname: v.nickname, publish })
-  }
+  // 版本历史在 versions.js
+  const { addVersion, listVersions, deleteVersion, deleteVersions, getVersion, pinVersion, restorePersona } = createVersions({
+    store, now, setting: (...a) => setting(...a), setPersonaCard: (...a) => setPersonaCard(...a), getMemory: () => memory,
+  })
 
   // ---------- 认识的人 ----------
   function person(id) {

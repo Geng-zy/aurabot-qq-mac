@@ -3750,3 +3750,37 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 644 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.91.tgz  19,689,692 字节
         sha256 3656a7199be4fa56f320756e778daf6cde1a750916a643b8d1570c948d4e6ebf
 ```
+
+---
+
+## B54 · mind/index.js 第四刀：设置与版本（1.6.92）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind/index.js` | 642 → **570** | 心智各层装配与对外接口 |
+| `mind/settings.js`（新） | **54** | 设置读写与校验：默认值解析、only-owner 项、时区、年龄锚点、日常原话开关触发可见性重算 |
+| `mind/versions.js`（新） | **49** | 版本历史：增删查、置顶、按保留数清理、恢复人格卡版本 |
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 646 文件；oxlint 0 error；清单 0 待审
+过程  批量替换误伤：getMemory 替换把字符串键 'memory.ownerEverydayExcerpts' 也改了 →
+      「日常原话」开关不再触发可见性重算，被 mind-design 隐私用例抓到，已改回字面键名
+      （这条教训写进笔记：改引用前先排除字符串字面量）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.92（回滚点 ~/aurabot-release-backups/20261128-115930）、11:59:36 启动
+      期间 Tailscale 掉线（status: stopped），拉起后恢复；上传重试一次成功
+模块   settings.js 导出 createSettings、versions.js 导出 createVersions
+       用假 store 演练：updateSettings('memory.ownerEverydayExcerpts'=false) → touchAudience 调用 1 次、
+         落库 {"memory.ownerEverydayExcerpts":false}
+         addVersion('traits') → id 7；listVersions 返回数组
+       （/api/settings、/api/personality/versions 走的是人格模块开关，当前环境下是「模块没开」，与本批无关）
+配置   升级前后逐字段一致；Purge 三个工具仍在；11–12 点新增 error：0 条
+
+提交   B54；tag v1.6.92
+Release dsh-aurabot-qq-1.6.92.tgz  19,691,580 字节
+        sha256 81d36b4d0b48be0719d80df970397b25a30790318cc447d966b271423e1f6006
+```

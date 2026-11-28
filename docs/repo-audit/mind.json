@@ -46,7 +46,7 @@
     "area": "mind",
     "owner": "mind-core",
     "verdict": "split",
-    "evidence": "866 行；import：mind-adapter/index.js、mind/replay.js、scripts/replay-privacy.js；测试：test/mind-core.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-features.test.js、test/mind-fixes.test.js、test/mind-generic.test.js、test/mind-design.test.js、test/mind-inner.test.js、test/mind-conversation.test.js、test/mind-body-emotion.test.js、test/backup.test.js 11 个测试直接 import createMind；内部依赖 16（mind/body/index.js、mind/budget.js、mind/clock.js、mind/conversation.js、mind/emotion/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/motivation/index.js、mind/params.js、mind/personality/index.js、mind/place.js、mind/relations/index.js、mind/self/index.js、mind/self/public-style.js、mind/store.js）；对外只导出 createMind/PARAMS/GROUPS/placeOf/shortId/mindFileExists 6 个名字（package.json exports \"./mind\"），返回对象 67 个键：设置 5、身份 5、平台 id 与窗口 4、人 8（person/notePerson/listPeople/forgetPerson/setNoMemory/forgottenList/restorePerson/peopleGraph）、人格卡与版本 10、感知与 history 6、import 5、删除备份 5、子模块与提示词 14、状态与 close 5；业务实现约 690 行：设置校验 71-114、身份与年龄 118-151、人格卡版本与 prune 153-235、人员合并 linkPerson 268-303、感知与 history 310-369、importBatch 事务 384-432、删除日志 applyDeletionLog 452-479、忘掉/恢复 487-621、星图 623-646、快照 648-681；真正的装配只有 683-790 的 108 行。建议把设置、版本、导入、遗忘恢复四段下沉为 mind/ 子模块，store.tx 边界、快照命名 mind-<stamp>.sqlite 与 memory.audienceRevision 触发点保持在原位 B51 第一刀：把「批量导入」拆成 mind/import.js（87 行），本文件 866 → 796 行；「忘掉一个人」试过拆出但依赖太多子系统（emotion/conversation/inner/writeDeletion），已回滚，留待下一刀连同这些一起处理。 B52 第二刀：把「忘掉一个人」整支（含它依赖的记忆/情绪/会话/内心）收成mind/forgetting.js（153 行）门面，本文件 796 → 676 行；仍需再切设置/版本/感知记录才能 <300。 B53 第三刀：把「同平台 id 归一」拆成 identity-map.js（26 行）、「关系星图」拆成 people-graph.js（30 行），本文件 676 → 642 行；「设置/版本/感知记录」试切时依赖过多已回滚，仍需后续几刀。"
+    "evidence": "866 行；import：mind-adapter/index.js、mind/replay.js、scripts/replay-privacy.js；测试：test/mind-core.test.js、test/mind-memory.test.js、test/mind-personality.test.js、test/mind-features.test.js、test/mind-fixes.test.js、test/mind-generic.test.js、test/mind-design.test.js、test/mind-inner.test.js、test/mind-conversation.test.js、test/mind-body-emotion.test.js、test/backup.test.js 11 个测试直接 import createMind；内部依赖 16（mind/body/index.js、mind/budget.js、mind/clock.js、mind/conversation.js、mind/emotion/index.js、mind/inner/index.js、mind/memory/index.js、mind/memory/sleep.js、mind/motivation/index.js、mind/params.js、mind/personality/index.js、mind/place.js、mind/relations/index.js、mind/self/index.js、mind/self/public-style.js、mind/store.js）；对外只导出 createMind/PARAMS/GROUPS/placeOf/shortId/mindFileExists 6 个名字（package.json exports \"./mind\"），返回对象 67 个键：设置 5、身份 5、平台 id 与窗口 4、人 8（person/notePerson/listPeople/forgetPerson/setNoMemory/forgottenList/restorePerson/peopleGraph）、人格卡与版本 10、感知与 history 6、import 5、删除备份 5、子模块与提示词 14、状态与 close 5；业务实现约 690 行：设置校验 71-114、身份与年龄 118-151、人格卡版本与 prune 153-235、人员合并 linkPerson 268-303、感知与 history 310-369、importBatch 事务 384-432、删除日志 applyDeletionLog 452-479、忘掉/恢复 487-621、星图 623-646、快照 648-681；真正的装配只有 683-790 的 108 行。建议把设置、版本、导入、遗忘恢复四段下沉为 mind/ 子模块，store.tx 边界、快照命名 mind-<stamp>.sqlite 与 memory.audienceRevision 触发点保持在原位 B51 第一刀：把「批量导入」拆成 mind/import.js（87 行），本文件 866 → 796 行；「忘掉一个人」试过拆出但依赖太多子系统（emotion/conversation/inner/writeDeletion），已回滚，留待下一刀连同这些一起处理。 B52 第二刀：把「忘掉一个人」整支（含它依赖的记忆/情绪/会话/内心）收成mind/forgetting.js（153 行）门面，本文件 796 → 676 行；仍需再切设置/版本/感知记录才能 <300。 B53 第三刀：把「同平台 id 归一」拆成 identity-map.js（26 行）、「关系星图」拆成 people-graph.js（30 行），本文件 676 → 642 行；「设置/版本/感知记录」试切时依赖过多已回滚，仍需后续几刀。 B54 第四刀：把「设置」拆成 settings.js（54 行）、「版本」拆成 versions.js（49 行），本文件 642 → 570 行；仍需再切认识的人/感知记录/删除/备份/此刻才能 <300。"
   },
   {
     "path": "src/mind/inner/index.js",
@@ -397,5 +397,19 @@
     "owner": "mind",
     "verdict": "keep",
     "evidence": "30 行；0 个内部依赖（store/relations 注入，惰性创建）；1 处 import（mind/index.js）；经 mind-share 等测试覆盖。职责：关系星图（点是人、线是同一段记忆里一起出现过；只读已有记忆，不另存）。B53 从 mind/index.js 抽出。"
+  },
+  {
+    "path": "src/mind/settings.js",
+    "area": "mind",
+    "owner": "mind",
+    "verdict": "keep",
+    "evidence": "54 行；0 个内部依赖（store/now/resolveSettings/paramOf/clampParam/validTimeZone/getMemory 注入）；1 处 import（mind/index.js）；被 test/mind-design.test.js（设置夹紧、ownerOnly、时区校验、日常原话开关触发可见性重算）覆盖。职责：设置的读写与校验（默认值解析、只能管理员改的项、时区校验、年龄锚点、日常原话开关变化时通知记忆）。B54 从 mind/index.js 抽出。"
+  },
+  {
+    "path": "src/mind/versions.js",
+    "area": "mind",
+    "owner": "mind",
+    "verdict": "keep",
+    "evidence": "49 行；0 个内部依赖（store/now/setting/setPersonaCard/getMemory 注入）；1 处 import（mind/index.js）；被 mind 相关测试覆盖。职责：版本历史（人格卡/自我/特质/习惯）增删查、置顶、按保留数清理、恢复人格卡版本。B54 从 mind/index.js 抽出。"
   }
 ]
