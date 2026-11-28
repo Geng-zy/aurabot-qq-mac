@@ -4221,12 +4221,24 @@ Mini 1.7.8 安装启动（20:04:39）；真机 client.js 里 AB_CONFIRM 19 处�
 | `test/ci-workflow.test.js` | 7 条断言守工作流：触发面、脚本存在性、生成产物比对、冒烟不污染基线、tag 校验发布、无 beta/旧 Node 引用 |
 | 清单放行 | `docs/ui-baseline/archive/` 与 `pages/`、`states/` 同性质，生成器与测试都放行 |
 
+**真 CI 结果（GitHub Actions，run 46148040376 / 46147392256）**
+
+| 任务 | 结果 |
+|---|---|
+| `test (ubuntu-latest)` | ✓ 3m07s |
+| `test (macos-latest)` | ✓ 4m41s（此前一直 steps:0 被取消，这轮恢复并跑通） |
+| `ui-smoke (ubuntu)` | ✓ 1m05s（含 Chromium 安装；`React is not defined` 的缺口就是这次运行暴露并修掉的） |
+| `release-check` | 非 tag 事件 → 跳过（预期） |
+
 ```text
 Air  本地复跑 CI 的每个入口：
      清单 487 文件 / 0 待审；client.js 与源码一致（git diff 空）；tar 布局三件齐（src/host.js、client/client.js、package.json）
      语法 672 文件；oxlint 0 error；全量 1747 passed / 0 failed（新增 7 条）
      ui-shot 子集实跑：--pages=overview,persona --states=0 --out=/tmp/ui-smoke → 通过，仅产出 2 张图
      verify-release 本地跑（带 token）→ 全部通过（48 个版本有哈希）
+CI 首次运行暴露真缺口：预览服务需要 React 18 UMD，CI 里没装 → 白屏「React is not defined」。
+     已修：CI 装 react@18/react-dom@18；预览缺 React 时直接报错退出（不再白屏）。
+     另清掉 actions/checkout@v4、setup-node@v4（跑在已弃用的 Node 20）→ 升 v5，并加断言禁止退回。
 Mini 1.7.9 安装启动（20:51:07）；state version=1.7.9；配置一致；Purge 三工具在；0 新增 error
 发布 tag v1.7.9；dsh-aurabot-qq-1.7.9.tgz 19,749,472 字节
      sha256 f15806b68f55b91f8710defa68a4b22d98d24e7e0033f26a5028801b490e9dfd
