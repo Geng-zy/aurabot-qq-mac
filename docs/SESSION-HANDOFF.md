@@ -17,14 +17,14 @@
 ### 0.1 当前基线
 
 ```text
-上一个发布             v1.7.17（终验版本；1.6.31–1.6.49 共 19 个批发布都在 docs/ACCEPTANCE-LOG.md）
-package.json           1.7.17
+上一个发布             v1.7.18（终验版本；1.6.31–1.6.49 共 19 个批发布都在 docs/ACCEPTANCE-LOG.md）
+package.json           1.7.18
 全量测试               1645 passed / 0 failed / 0 skipped
 语法检查               600 个文件通过
 oxlint                 0 errors / 158 warnings
 全仓清单               688 行，自有代码文件 430 个，0 待审（docs/REPO-INVENTORY.md）
 终验脚本               node scripts/verify-release.mjs（清单 0 待审 + 19 个 Release 资产哈希 + 版本一致）
-Mac mini               装的是 1.7.17；真实 purge 1.7.170；每批实机证据见 ACCEPTANCE-LOG
+Mac mini               装的是 1.7.18；真实 purge 1.7.180；每批实机证据见 ACCEPTANCE-LOG
 ```
 
 清单口径（1.6.49 起）：`test/**` 与 `docs/repo-audit/**` 的结论自动生成，**源码 / 客户端 / 脚本 / 文档
@@ -1277,7 +1277,7 @@ docs/OVERLAP-AUDIT.md            与 DSH 能力重叠审计
 docs/PURGE-COMPAT.md             dsh-purge 兼容
 docs/REFACTOR-PLAN.md            重构总纲（目标架构 / 审计口径 / 批次表）
 docs/REPO-INVENTORY.md           全仓清单与每文件结论（生成物）
-docs/HOST-COMPAT.md              宿主兼容判定（rc.3 / purge 1.7.170）
+docs/HOST-COMPAT.md              宿主兼容判定（rc.3 / purge 1.7.180）
 docs/ACCEPTANCE-LOG.md           每批验收证据（自动测试 / 模拟网关 / 真实 purge / Mini 实机）
 docs/repo-audit/*.json           审计结论数据（清单的唯一来源）
 client/README.md                 client 单文件构建

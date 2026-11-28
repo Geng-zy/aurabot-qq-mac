@@ -4670,3 +4670,45 @@ Mini 1.7.17 安装启动（02:41:05）；state version=1.7.17；Purge 三工具�
 tag v1.7.17；dsh-aurabot-qq-1.7.17.tgz 19,752,288 字节
      sha256 a18ef5fdc32e500fe91d89a689f63c56a67e681e5d3470abdf4aeaa60ecd12cc
 ```
+
+---
+
+## 修复：CHANGELOG 里 1.7.10 的补发理由与事实相反（1.7.18，审查 H2）
+
+**为什么选它**：这是审查清单上最后一项未解决项，且证据是硬的 —— 两条断言都能实测推翻。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.17→1.7.18 · 内置 Node v24.21.0 · Purge 三工具在列。
+
+**最小失败用例（基线）**
+
+```text
+# 1.7.10 原文：「1.7.9 的包不含 CI 二次修正的 ui-preview 改动」
+$ diff -rq /tmp/c179/package /tmp/c1710/package
+  CHANGELOG.md · README.md · README_EN.md · docs/{FEATURES-AND-IMPLEMENTATION,HANDOFF,REPO-INVENTORY,SESSION-HANDOFF}.md · package.json
+  ↑ 只有 7 份文档 + 版本号；ui-preview.mjs 未出现在任何一侧
+
+$ ls /tmp/c1710/package/scripts        # scripts/ 根本不在发布物里
+  mind-replay-report.js  replay-mind.js  replay-privacy.js
+```
+
+**修复**
+
+| 项 | 内容 |
+|---|---|
+| CHANGELOG 1.7.10 段 | 改成事实描述：本版只让 CI 装 React；预览脚本的 fail-fast 实际在 1.7.12 落地；补发的性质是「让 tag / 资产 / Mini 与仓库重新同源」，不是修代码 |
+| 新闸门 | `test/changelog-sync.test.js` 3 条：最新段 == `package.json` 版本、验收记录里每个有哈希的版本都要有段落、段号不重复 |
+| 反向验证 | 只改 `package.json` 版本不写段落 → 闸门立刻红（`CHANGELOG 顶部是 1.7.17，package.json 是 1.7.18`） |
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 全量测试 | 1764 passed / 0 failed（+3） |
+| 语法 / lint / 清单 | 677 文件通过 / oxlint 0 error / 488 文件 0 待审 |
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261129-025544（含 1.7.17 的 tgz）
+Mini 1.7.18 安装启动（02:55:48）；state version=1.7.18；Purge 三工具在；配置逐字段一致
+tag v1.7.18；dsh-aurabot-qq-1.7.18.tgz 19,752,336 字节
+     sha256 6cc6bbf72ccd800657748b50e33dc93b4315d37cb788d235d78838bca9dba65c
+```

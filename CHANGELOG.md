@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.7.18
+
+### 修复：CHANGELOG 里 1.7.10 的补发理由与事实相反（审查 H2）
+
+- 问题：1.7.10 那段写着「1.7.9 的包不含 CI 二次修正的 ui-preview 改动」，于是补发。实测两件事都不成立：
+  1. 那次 `ui-preview.mjs` 的改动**根本没写进代码**（fail-fast 一直到 1.7.12 才真正落地，见审查 H1）；
+  2. `scripts/` **不在发布物里**（`package.json` 的 `files` 只含三个 replay 脚本），写了也不会进包。
+  1.7.9 与 1.7.10 的包内容差异实测只有 7 份文档 + `package.json` 版本号。
+- 修复：把 1.7.10 那段改成事实描述，并写明补发的真实性质是「让 tag / 资产 / Mini 与仓库重新同源」。
+- 新增机械闸门 `test/changelog-sync.test.js`（3 条）：CHANGELOG 最新一段必须等于 `package.json` 版本、
+  验收记录里每个有哈希的版本都必须有对应段落、段号不许重复。反向验证：只改版本号不写段落 → 立刻红。
+- 回归：1764 个测试通过（+3）；语法 676 文件；oxlint 0 error；清单 488 文件 / 0 待审。
+
 ## 1.7.17
 
 ### 修复：归档目录整块免审计（审查 M4）
@@ -104,12 +117,16 @@
 
 ### 交付工具链 · CI 二次修正（1.7.9 首次真跑暴露的缺口）
 
-- **`ui-smoke` 缺 React**：CI 首次运行时预览服务白屏（`React is not defined`）—— 已让 CI 装 `react@18 react-dom@18`，
-  并让 `scripts/ui-preview.mjs` 在找不到 React UMD 时**直接报错退出**，而不是渲染一个白页。
+- **`ui-smoke` 缺 React**：CI 首次运行时预览服务白屏（`React is not defined`）。本版让 CI 装
+  `react@18 react-dom@18`；预览脚本自身的 fail-fast 在 **1.7.12** 才真正落地（见 1.7.12 段与审查 H1）。
 - **actions 升到 v5**：`actions/checkout@v4`、`actions/setup-node@v4` 跑在 GitHub 已弃用的 Node 20 上（运行时有弃用警告）；
   `test/ci-workflow.test.js` 加断言禁止退回 v4。
 - 真 CI 结果：`test (ubuntu)` 3m07s ✓、`test (macos)` 4m41s ✓（此前一直 steps:0 被取消，本轮恢复）、`ui-smoke` 1m05s ✓。
 - 回归：1748 个测试通过（+1）；oxlint 0 error；清单 0 待审。
+- **补发说明（2026-11-29 更正）**：本版相对 1.7.9 的包内容差异只有 7 份文档 + `package.json` 的版本号，
+  实测 `scripts/` 根本不在发布物里（`package.json` 的 `files` 只含三个 replay 脚本）。
+  所以补发的性质是**让 tag / 资产 / Mini 与仓库重新同源**，不是修代码 —— 当时那句「1.7.9 的包不含 ui-preview 改动」
+  的说法不成立（那次改动实际没写进代码，且写了也不进包）。
 
 ## 1.7.9
 
