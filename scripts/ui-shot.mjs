@@ -26,8 +26,10 @@ const arg = (name, fallback = '') => {
   const hit = process.argv.find((a) => a.startsWith('--' + name + '='))
   return hit ? hit.slice(name.length + 3) : fallback
 }
-const ONLY = arg('pages') ? new Set(arg('pages').split(',').map((x) => x.trim()).filter(Boolean)) : null
-const WITH_STATES = arg('states', '1') !== '0'
+const PAGES_ARG = arg('pages')
+const HAS_PAGES_FLAG = process.argv.some((a) => a === '--pages' || a.startsWith('--pages='))
+const ONLY = PAGES_ARG ? new Set(PAGES_ARG.split(',').map((x) => x.trim()).filter(Boolean)) : (HAS_PAGES_FLAG ? new Set() : null)
+const STATES_ARG = arg('states', '1')
 const OUT_ARG = arg('out')
 const OUT = OUT_ARG ? OUT_ARG : join(ROOT, 'docs/ui-baseline')
 const PAGE_DIR = join(OUT, 'pages')
@@ -40,6 +42,26 @@ const PAGES = [
   'connect', 'access', 'group', 'model', 'asr', 'diary', 'voice', 'stickers', 'imagegen', 'song', 'video',
   'logs', 'backup', 'security', 'browser', 'local', 'about', 'modules', 'market',
 ]
+
+// 参数校验放在最前面：写错页名要当场失败，不能「跑 0 页还报通过」。
+// （2026-11-28 审查 H3：--pages=nosuchpage 曾静默通过，CI 会变成空转但全是绿的）
+if (STATES_ARG !== '0' && STATES_ARG !== '1') {
+  console.error(`--states 只接受 0 或 1，收到「${STATES_ARG}」`)
+  process.exit(2)
+}
+if (ONLY) {
+  if (ONLY.size === 0) {
+    console.error('--pages= 后面没有页名；要全量就别传这个参数')
+    process.exit(2)
+  }
+  const unknown = [...ONLY].filter((id) => !PAGES.includes(id))
+  if (unknown.length) {
+    console.error(`未知页面：${unknown.join('、')}`)
+    console.error(`可选页面（${PAGES.length} 个）：${PAGES.join('、')}`)
+    process.exit(2)
+  }
+}
+const WITH_STATES = STATES_ARG === '1'
 
 // 五个代表页 × 三态：空态文案随页面不同
 const STATES = [

@@ -4,11 +4,11 @@
 事实（行数、依赖、被依赖、测试引用）来自 `git ls-files` + 源码解析；结论来自 `docs/repo-audit/*.json`。
 口径见 [REFACTOR-PLAN.md](REFACTOR-PLAN.md)；宿主兼容判定见 [HOST-COMPAT.md](HOST-COMPAT.md)。
 
-纳入清单的文件：**1010**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**487**。
+纳入清单的文件：**1011**（受版本控制 + 未提交的新文件）；其中自有代码（src / client 片段 / 脚本）**487**。
 
 | 结论 | 文件数 |
 |---|---|
-| 保留 | 662 |
+| 保留 | 663 |
 | 待审 | 214 |
 | 保留·补文档 | 40 |
 | 保留·生成物 | 38 |
@@ -27,7 +27,7 @@
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
 | `assets/platform-architecture.svg` | asset | assets | 43 | 0 | 0 | 保留 | asset | 43 行 SVG / 4381 字节；README.md:21 与 README_EN.md:21 用作「平台架构」示意图 |
 | `assets/platform-banner.svg` | asset | assets | 57 | 0 | 0 | 保留 | asset | 57 行 SVG / 3770 字节；README.md:3 与 README_EN.md:3 的页首 banner |
-| `CHANGELOG.md` | config | root | 2723 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
+| `CHANGELOG.md` | config | root | 2740 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：顶部 `## 1.6.31`（L5）的修复条目对应工作区未提交的 src/voice/duration.js + src/voice/tts.js + src/chat/voice-file.js；L10「全量 1572 个测试通过（新增 10 个音频时长/空音频用例）」与本次实测 `ℹ tests 1572 / pass 1572` 一致；上一条 1.6.30 记的是 1562（L17） |
 | `client/client.js` | client-build | client | 6549 | 0 | 0 | 保留·生成物 | client-shell | 随发布更新（行数见清单「行」列）：由 scripts/build-client.mjs 第 7–12 行读取 client.template.js 与 client/parts/*.js（按文件名排序）拼接产出，client/README.md 第 12 行要求必须提交；锁：client-build.test.js 逐个片段校验函数名已拼进 client.js，并断言 parts 数量 ≥100，并断言产物无未展开的 @include；手改会在下次 npm run build:client 被覆盖，唯一修法是改片段再重建；本文件不进 104 片段的分组讨论 |
 | `client/client.template.js` | client-template | client | 280 | 0 | 2 | 拆分 | client-shell | 280 行；DSH 入口：__ModuleLoader__.load 包装 + require('react')/hooks 解构 + primitives()/isMacLike()（宿主能力探测）+ inject/PANEL_ID/API/PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS + 工具 get/post/clipboard/clone/setPath/getPath/pct/cx/fmtTokens/fmtCost/chatLabel/峰谷 4 函数/音调 3 函数/timeAgo/REACT_MOOD_BANDS + 结尾 exports.__panelTest/apply/inject/AurabotPage/WhaleIcon；被全部 104 个片段以 h/useState/useEffect/useRef/get/post/clipboard/cx/setPath/getPath/getPath/pct 与 API 引用（h 出现在 101 个片段、get 53、post 45、cx 32、setPath 22）；锁：primitives-guard.test.js（loader→factory→apply 注册 2 个 slot、缺 primitives 时渲染 MissingPrimitivesPage）、persona-filter-select.test.js 与 panel-mind.test.js（__panelTest 的 22 个键）、about-panel.test.js（PROJECT_REPO/UPSTREAM_REPO/MODULE_REPOS 必须是 4 空格顶格单行常量）；结构事实：113 行代码 + 19 行注释 + 149 行空行，其中第 127–269 行是 143 行连续空行（CSS 迁去 parts/styles.js 后留下的洞），第 126 行「样式（只注入一次）」已成空标题；可移出到 parts：timeAgo（6 个片段用）、fmtTokens（mindMemory/overview）、fmtCost 与 chatLabel（overview）、BJ_OFFSET/pad2/bjPartsOf/fmtNextChange（只有 costCard 用）、pitchNum/pitchText/pitchLabel（只有 voice 用）、REACT_MOOD_BANDS（只有 stickers 用）、仓库 3 个常量（about/market/simulate 用）；必须留在模板：loader 包装、require/hooks、primitives 与 isMacLike、API、结尾 exports 与 return module.exports。拆完模板约 110 行，净省约 170 行（含 143 行空行） |
 | `client/parts/0tokens.js` | client-part | client | 58 | 0 | 0 | 保留 | client-panel | 约 60 个语义 token：浅色 + 深色各一份（深色只覆盖同名 token），外加浏览器自身表面的主题化（选区、插入符、滚动条、tabular-nums、reduced-motion）。面板里唯一允许写颜色字面量的文件（test/client-tokens.test.js 拦截其它文件）；对比度由同一条测试按 WCAG 算（正文 4.5:1、强调 3:1）。 |
@@ -143,7 +143,7 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4260 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4360 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -190,7 +190,7 @@
 | `docs/repo-audit/media-adapters.json` | doc | docs | 478 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
 | `docs/repo-audit/mind.json` | doc | docs | 464 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
 | `docs/repo-audit/tests-scripts-config.json` | doc | docs | 254 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
-| `docs/REPO-INVENTORY.md` | doc | docs | 1040 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
+| `docs/REPO-INVENTORY.md` | doc | docs | 1041 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-backup.png` | doc | docs | — | 0 | 0 | 保留 | client-panel | README.md 备份与恢复页示例图（状态卡 + 导入走行内确认），来自 docs/ui-baseline/pages/backup.png；1.7.6 起引用。 |
 | `docs/screenshots/aurabot-connect.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 连接页示例图（一键诊断结果区），来自 docs/ui-baseline/pages/connect.png。 |
 | `docs/screenshots/aurabot-empty-state.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md / README_EN.md 的「还没有内容时」示例图（模块管理空态）；来自 docs/ui-baseline/states/modules-empty.png。 |
@@ -454,7 +454,7 @@
 | `scripts/replay-privacy.js` | script | scripts | 63 | 0 | 0 | 保留·补文档 | tooling-replay | 63 行；package.json 的 scripts.mind:privacy + files[]；import src/mind/index.js 的 createMind（L3），在内联 12 条合成样例（L10 起）上跑 encodeWindow/recallMore 统计泄漏；0 个测试覆盖（test/ 下 grep replay-privacy 无命中）；同类隐私契约由 test/mind-design.test.js 的 6 个分享/私密用例覆盖，脚本只做人工统计；建议补 --input 分支 smoke 断言；与 replay-mind.js 不重叠（只统计分享/泄漏，不产报告） |
 | `scripts/repo-inventory.mjs` | script | scripts | 291 | 0 | 1 | 保留·补文档 | tooling-audit | 随发布更新（行数见清单「行」列）：工作区未提交（git status ?? scripts/repo-inventory.mjs），package.json 无对应 script 入口；只被 docs/REFACTOR-PLAN.md:67、test/repo-inventory.test.js 与本次审计引用；gitFiles() 在 L36 同时读 `git ls-files -z` 与 `--others --exclude-standard`（行数/import/被依赖由此算），模式开关在 L227（--tsv/--md/--write/summary）；建议先入库并加 `npm run inventory`；与 check-syntax/lint 不重叠（只生成清单与合并结论，不改源码） |
 | `scripts/ui-preview.mjs` | script | scripts | 172 | 0 | 0 | 保留 | client-panel | 面板预览服务：用 client/client.js 的真组件 + 真机快照（docs/ui-baseline/state.live.json、api-fixtures.json）渲染整块工作台，桩掉宿主 primitives 与 /aurabot/api/*，支持 page/state/mode/theme 参数。不连宿主、不连 QQ，供 Playwright 截图与断言。 |
-| `scripts/ui-shot.mjs` | script | scripts | 327 | 0 | 1 | 保留 | client-panel | UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。 |
+| `scripts/ui-shot.mjs` | script | scripts | 349 | 0 | 2 | 保留 | client-panel | UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。 |
 | `scripts/verify-release.mjs` | script | scripts | 80 | 0 | 0 | 保留 | tooling-release | 95 行；终验脚本：① 复算全仓清单并要求 0 待审；② 把 docs/ACCEPTANCE-LOG.md 里 19 个版本的 sha256 与 GitHub Release 资产 digest 逐条比对；③ 校验 package.json 版本 = 最近 tag。只读不改仓库，任一项失败以非 0 退出；--skip-remote 可离线跑。 |
 | `src/channels/adapter-facade.js` | source | channels/adapter-facade.js | 42 | 2 | 0 | 保留 | channels | 42 行、0 个内部依赖、2 处 import（src/channels/qq/adapter.js:4、src/channels/telegram/index.js）、0 个测试直接引用。成员清点：run()=start()、commitEvent()=on() 是纯改名且 src/ 下 0 调用（grep sendBySession|commitEvent 只命中本文件与 test/platform-hub.test.js:49-63），8 个 start/stop/ready/state/status/on/send/convert 是直转，实做只有 sendBySession 的 session→chatId 映射（9-15 行）和 38-40 行把 transport 其余键整表拷到 adapter。删除测试：删掉后两个 adapter 各要复制 16 行，判 keep；键拷贝同时把 qq/index.js 的 24 个非契约键暴露到 PlatformAdapter 上，是下一批收窄的入口。 |
 | `src/channels/ids.js` | source | channels/ids.js | 4 | 12 | 1 | 保留 | channels | re-export shim → src/core/ids.js（原 133 行纯 chatId 解析：parseChat/chatIdOf/normChat/parsePerson，0 依赖）。core/tasks、core/access、core/bridge 原来反向 import 它，现在都指 core。 |
@@ -1025,6 +1025,7 @@
 | `test/tool-scope.test.js` | test | test | 62 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 62 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/turn-timeout.test.js` | test | test | 212 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 212 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/ui-navigation.test.js` | test | test | 27 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 27 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/ui-shot-flags.test.js` | test | test | 43 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 43 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/usage-accounting.test.js` | test | test | 87 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 87 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/usage.test.js` | test | test | 237 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 237 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/video.test.js` | test | test | 115 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 115 行；本行由 scripts/repo-inventory.mjs 自动生成。 |

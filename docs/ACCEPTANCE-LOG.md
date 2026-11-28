@@ -4307,3 +4307,54 @@ Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0
    该 tag 若手动重跑仍能通过（Release 已存在），新 tag 会带上修正。
 
 结论：包、Mini、tag、Release、CI 五方一致，无需再安装或重发。
+
+---
+
+## 修复：`ui-shot` 页名写错静默通过（1.7.11，审查 H3）
+
+**为什么选它**：上一份审查的三条 High 里，H1（预览缺 React 没做 fail-fast）与 H2（1.7.10 重发理由不成立）
+是「文档与代码不符 + 缺失的防御」，没有行为变化；**H3 是本批新引入参数导致的真回归** ——
+`--pages=<未知页>` 过滤出空集却退出 0 并打印「通过」，CI 的 `ui-smoke` 一旦拼错页名就空转但全绿。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.10（修复前）→ 1.7.11 · 内置 Node v24.21.0 · Purge 三工具在列
+（`purge_apply` / `purge_revert` / `purge_status`）· Mini `gengzhiyu@100.89.128.72`。
+
+**最小失败用例（修复前，基线）**
+
+```text
+$ node scripts/ui-shot.mjs --pages=nosuchpage --states=0 --out=/tmp/ui-typo
+UI 截图与断言通过：nosuchpage
+退出码=0
+产出截图数=0
+```
+
+**修复后（同一命令、同一参数）**
+
+```text
+$ node scripts/ui-shot.mjs --pages=nosuchpage --states=0 --out=/tmp/ui-typo
+未知页面：nosuchpage
+可选页面（28 个）：overview、now、mood、…、modules、market
+退出码=2
+$ node scripts/ui-shot.mjs --pages= --states=0 --out=…        → 退出码 2「没有页名」
+$ node scripts/ui-shot.mjs --pages=now --states=2 --out=…      → 退出码 2「--states 只接受 0 或 1」
+```
+
+校验放在 `loadPlaywright()` 之前，所以 CI 里不用装浏览器就能快速失败。
+
+**基线对比（修复未影响正常路径）**
+
+| 运行 | 结果 |
+|---|---|
+| `--pages=overview,persona --states=0` | 通过，产出 2 张图（与修复前一致） |
+| 全量 `ui-shot.mjs` | 通过：28 页 + 29 页 × 3 态 + 深浅色 + 窄屏（与基线一致） |
+| 全量测试 | 1752 passed / 0 failed（新增 4 条，`test/ui-shot-flags.test.js`） |
+| 语法 / lint / 清单 | 673 文件通过 / oxlint 0 error / 487 文件 0 待审 |
+
+**发布**：包内容只变了 `docs/REPO-INVENTORY.md`（`ui-shot.mjs` 行数 + 新测试条目），`scripts/` 不在发布物内。
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261128-225355（含 1.7.10 的 tgz）
+Mini 1.7.11 安装启动（22:54:00）；state version=1.7.11；Purge 三工具在；配置逐字段一致；0 新增 error
+tag v1.7.11；dsh-aurabot-qq-1.7.11.tgz 19,751,067 字节
+     sha256 cc72ed54d72bf041564bab6480a0587f42aa8f535aa8dfe0c1d60422882cc1bd
+```
