@@ -6,7 +6,8 @@ import { join } from 'node:path'
 
 const ROOT = new URL('..', import.meta.url).pathname
 const TEXT = new Set(['.js', '.mjs', '.md', '.yml', '.yaml', '.json', '.txt', '.ts', '.svg', '.mjs'])
-const SKIP = new Set(['.git', 'node_modules', 'models'])
+// ui-baseline 是真机接口的抓包快照（预览与截图用），里面是运行时数据，不是产品文案
+const SKIP = new Set(['.git', 'node_modules', 'models', 'ui-baseline'])
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {

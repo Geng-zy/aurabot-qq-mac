@@ -740,5 +740,75 @@
     "owner": "client-shell",
     "verdict": "split",
     "evidence": "87 行；设置向导（4 步表单）+ 路由表 TAB_CONTENT（28 个键）、TAB_KEYS（18 个键的脏检查字段）、moduleSearchText；被 aurabotPage.js 引用（TAB_CONTENT/TAB_KEYS/moduleSearchText/Wizard），moduleSearchText 另被 featureFinder.js 引用；锁：security-panel（security: Security）、browser-panel（browser: Browser, local: LocalApi, 与 browser: ['browser']）、about-panel（about: About）、ui-navigation（NAV_GROUPS 与 TAB_CONTENT 一致）、panel-mind（TAB_CONTENT 每个 id 必须是函数、TABS 无重复 id）；拆法：TAB_CONTENT/TAB_KEYS/moduleSearchText 移入 navigation.js（与 NAV_GROUPS 同处），向导只留 Wizard，预估 87→45 行，迁移 40 行不改行为"
+  },
+  {
+    "path": "client/parts/0tokens.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "约 60 个语义 token：浅色 + 深色各一份（深色只覆盖同名 token），外加浏览器自身表面的主题化（选区、插入符、滚动条、tabular-nums、reduced-motion）。面板里唯一允许写颜色字面量的文件（test/client-tokens.test.js 拦截其它文件）；对比度由同一条测试按 WCAG 算（正文 4.5:1、强调 3:1）。"
+  },
+  {
+    "path": "client/parts/stateKit.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "Empty（教学式空态：图标/标题/解释/主行动，旧的一行调用仍兼容）、Skeleton（卡片/行/头像，aria-busy + 读屏文案）、ErrorBlock（就地错误、重试、复制诊断、role=alert）。被 client-form-kit 的 5 条测试直接渲染断言。"
+  },
+  {
+    "path": "client/parts/field.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "Field（统一文本输入，:user-invalid 触发错误显示、aria-invalid 双向同步、错误 id 只在显示时进 aria-describedby、页面级 polite 播报器）+ SaveBar（有改动/保存中/已保存三态）。被 test/client-form-kit.test.js 的两条渲染断言覆盖（aria-invalid 与三态）。依据现代 Web 指南 accessible-error-announcement 与 validate-input-after-interaction。"
+  },
+  {
+    "path": "scripts/ui-preview.mjs",
+    "area": "scripts",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "面板预览服务：用 client/client.js 的真组件 + 真机快照（docs/ui-baseline/state.live.json、api-fixtures.json）渲染整块工作台，桩掉宿主 primitives 与 /aurabot/api/*，支持 page/state/mode/theme 参数。不连宿主、不连 QQ，供 Playwright 截图与断言。"
+  },
+  {
+    "path": "scripts/ui-shot.mjs",
+    "area": "scripts",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。"
+  },
+  {
+    "path": "test/client-tokens.test.js",
+    "area": "test",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "4 条守卫：颜色字面量只准在 0tokens.js；浅色与深色的正文/次要文字对比度 ≥4.5:1、强调/状态色 ≥3:1；深色不得新增 token 名。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-workbench-overview.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 与 README_EN.md 的面板导览直接 <img> 引用（工作台截图）；由 scripts/ui-shot.mjs 从 docs/ui-baseline/pages/overview.png 复制而来。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-error-state.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md / README_EN.md 的「读不到时」示例图（日志页错误块）；来自 docs/ui-baseline/states/logs-error.png。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-empty-state.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md / README_EN.md 的「还没有内容时」示例图（模块管理空态）；来自 docs/ui-baseline/states/modules-empty.png。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-narrow.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "窄屏（620px）截图，由 scripts/ui-shot.mjs 产出到 docs/ui-baseline/narrow.png 后复制；供 UI 规划布局与后续批次对比。"
   }
 ]

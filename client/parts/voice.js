@@ -2,8 +2,15 @@
       const f = useField(draft, setDraft)
       const voiceDirty = Boolean(st && st.config) && JSON.stringify(draft.voice) !== JSON.stringify(st.config.voice)
       const [txt, setTxt] = useState('晚安啦，今天也辛苦了，明天见～')
+      const noEngine = Boolean(st && st.voice) && !st.voice.edgeInstalled && !(st.voice.custom && st.voice.custom.url)
+
       const [src, setSrc] = useState('')
       return h('div', { className: 'ab-grid' },
+        noEngine ? h(Empty, {
+          icon: '🔈', title: '还没有可用的语音引擎',
+          text: '装一个语音组件（edge-tts，会建在插件自己的 Python 环境里），或者在下面填一个你自己的 HTTP 语音接口；装好后再打开开关。',
+          action: '安装语音组件', onAction: async () => { toast('正在安装，装完这里会自己变'); await post('/voice/install', {}); reload && reload() },
+        }) : null,
         h(Card, { title: '说话（文字转语音）', right: f.sw('voice.enabled'), desc: '回复里写了 <voice>…</voice> 的部分会变成 QQ 语音条；对方明确要语音时一定发语音；短回复也有一定概率整条变语音。' },
           voiceDirty ? h('div', { className: 'ab-note' }, '语音设置有没保存的改动：点「生成」试听会直接用这一页现在的设置；真正聊天要点底部「保存设置」后才生效。') : null,
           h('div', { style: { margin: '4px 0 12px' } }, f.choices('voice.engine', [

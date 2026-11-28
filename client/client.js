@@ -267,6 +267,65 @@ window.__ModuleLoader__.load({
 
 
 
+    /*
+    * 语义 token —— 面板里唯一允许写颜色字面量的地方。
+    *
+    * 三层：宿主 token（字体/滚动条）→ 这里的语义 token → 组件类。
+    * 深色只覆盖这一组值，组件里不出现十六进制颜色（test/client-tokens.test.js 会拦）。
+    * 命名按用途，不按颜色：surface/card/text/dim/line/accent/ok/warn/err/focus/hover/rail。
+    */
+    const AB_TOKENS = `
+    :root,.ab-root{
+    color-scheme:light;
+    --ab-bg:#f2f3ee;--ab-card:#fffefa;--ab-card-2:#eef2eb;--ab-text:#212c27;--ab-sub:#4e6057;--ab-dim:#596b60;
+    --ab-deep:#205b4a;--ab-sea:#2e7763;--ab-sky:#588b78;--ab-foam:#e9f2eb;--ab-foam-2:#dbece1;
+    --ab-line:#e0e6dd;--ab-line-2:#c9d6cc;--ab-hover:#edf3ed;--ab-ok:#277a5c;--ab-warn:#99651e;--ab-err:#af4440;
+    --ab-rail:#e8eee6;--ab-rail-label:#465b50;--ab-rail-active:#d8e8df;
+    --ab-rail-ink:#243e34;--ab-rail-border:#cddbd1;--ab-rail-mark:#306a57;--ab-rail-mark-bg:#dce9df;--ab-rail-accent:#2e7763;
+    --ab-shadow:0 1px 2px #18382a06,0 8px 26px #18382a06;--ab-radius:18px;
+    --ab-on-accent:#ffffff;--ab-on-dark:#f9fcf2;--ab-unsaved:#e0a75b;--ab-ink-shadow:#09181033;--ab-ink-shadow-2:#123a2f24;
+    --ab-warn-bg:#b7870018;--ab-warn-line:#b7870040;--ab-warn-text:#9a6700;
+    --ab-cover-from:#123b35e8;--ab-cover-mid:#10382f79;--ab-cover-to:#123c2c04;--ab-cover-base:#17493f;
+    --ab-cover-text:#edf6eb;--ab-cover-body:#dfede5;--ab-cover-strong:#f7fcf0;--ab-cover-border:#e4f1dca3;
+    --ab-cover-link-bg:#eaf3e9;--ab-cover-link-ink:#1c3d32;--ab-cover-link-hover:#fffdf1;
+    --ab-cover-ring:#fff4d8b0;--ab-cover-ring-2:#f6f3db34;--ab-cover-halo:#f6f3db22;--ab-cover-portrait-bg:#f5f1df;
+    --ab-cover-ok:#a5edbb;--ab-cover-err:#ffa79e;--ab-cover-warn:#f4cd96;--ab-cover-dim:#c7d0c6;
+    --ab-psec-1:#4f9a8c;--ab-psec-2:#8a7bc0;--ab-psec-3:#c08a4a;--ab-psec-4:#5f8fc7;--ab-psec-5:#c47a90;
+    --ab-psec-6:#6f9f68;--ab-psec-7:#5c6fae;--ab-psec-8:#b9775a;--ab-psec-9:#8d9450;--ab-psec-10:#a173b5;
+    --ab-quick:140ms;--ab-reveal:220ms;--ab-ease:cubic-bezier(.2,.75,.25,1)
+    }
+    body[data-ds-dark-theme] .ab-root{
+    color-scheme:dark;
+    --ab-bg:#141b19;--ab-card:#1c2522;--ab-card-2:#242f2a;--ab-text:#edf2ec;--ab-sub:#b1c2b8;--ab-dim:#a0b4a9;
+    --ab-deep:#afdec8;--ab-sea:#68b89e;--ab-sky:#82c6ae;--ab-foam:#263a32;--ab-foam-2:#304940;
+    --ab-line:#303b35;--ab-line-2:#46564e;--ab-hover:#2a3630;--ab-ok:#91d9b2;--ab-warn:#ecc289;--ab-err:#f3a09b;
+    --ab-rail:#191f1d;--ab-rail-label:#aebfb5;--ab-rail-active:#2a4037;
+    --ab-rail-ink:#edf4ed;--ab-rail-border:#334039;--ab-rail-mark:#b6e5ce;--ab-rail-mark-bg:#29463b;--ab-rail-accent:#85c8ac;
+    --ab-shadow:0 10px 28px #00000013;
+    --ab-on-accent:#0c1512;--ab-on-dark:#0f1a16;--ab-unsaved:#e8b878;--ab-ink-shadow:#00000055;--ab-ink-shadow-2:#0000003d;
+    --ab-warn-bg:#ecc2891f;--ab-warn-line:#ecc2894d;--ab-warn-text:#ecc289;
+    --ab-cover-from:#0d211ceb;--ab-cover-mid:#0b1b1780;--ab-cover-to:#0c1f1805;--ab-cover-base:#0f2a24;
+    --ab-cover-text:#dceae2;--ab-cover-body:#c8d9d0;--ab-cover-strong:#eef6ef;--ab-cover-border:#e4f1dc3d;
+    --ab-cover-link-bg:#1d3229;--ab-cover-link-ink:#dff0e4;--ab-cover-link-hover:#264134;
+    --ab-cover-ring:#fff4d83d;--ab-cover-ring-2:#f6f3db1a;--ab-cover-halo:#f6f3db14;--ab-cover-portrait-bg:#16241f;
+    --ab-cover-ok:#8fd8a8;--ab-cover-err:#f3a09b;--ab-cover-warn:#ecc289;--ab-cover-dim:#7e8f86
+    }
+    `
+
+    /* 浏览器自身那几块也要跟着配色走：选区、插入符、滚动条、数字等宽。 */
+    const AB_BROWSER_UI = `
+    .ab-root::selection,.ab-root *::selection{background:var(--ab-foam-2);color:var(--ab-text)}
+    .ab-root{caret-color:var(--ab-sea);scrollbar-width:thin;scrollbar-color:var(--ab-line-2) transparent}
+    .ab-root::-webkit-scrollbar{width:10px;height:10px}
+    .ab-root::-webkit-scrollbar-thumb{background:var(--ab-line-2);border-radius:8px;border:2px solid transparent;background-clip:content-box}
+    .ab-root::-webkit-scrollbar-thumb:hover{background:var(--ab-dim);background-clip:content-box}
+    .ab-root::-webkit-scrollbar-track{background:transparent}
+    .ab-num{font-variant-numeric:tabular-nums}
+    @media (prefers-reduced-motion:reduce){
+    .ab-root *,.ab-root *::before,.ab-root *::after{animation-duration:1ms !important;animation-iteration-count:1 !important;transition-duration:1ms !important}
+    }
+    `
+
     function PageNav({ group, current, go, dirtyOf, expanded, rail }) {
     return h('div', {
     id: pageNavId(group, rail), className: cx('ab-nav-collapse', rail ? 'ab-rail-collapse' : 'ab-stage-collapse'),
@@ -503,6 +562,7 @@ window.__ModuleLoader__.load({
     const [collapsedGroup, setCollapsedGroup] = useState(null)
     const [wizardOpen, setWizardOpen] = useState(false)
     const [saving, setSaving] = useState(false)
+    const [savedFlash, setSavedFlash] = useState(false)
     const toastTimer = useRef(null)
     const dirtyRef = useRef(false)
     const saveRef = useRef(null)
@@ -589,6 +649,8 @@ window.__ModuleLoader__.load({
     setDraft(clone(r.config))
     }
     toast(r.message || '保存好了', 'ok')
+    setSavedFlash(true)
+    setTimeout(() => setSavedFlash(false), 2400)
     return true
     } finally {
     writeLock.current = false
@@ -608,8 +670,19 @@ window.__ModuleLoader__.load({
     }, [])
 
     if (!st || !draft) {
+    if (err) {
     return h('div', { className: 'ab-root' }, h('div', { className: 'ab-standalone' },
-    err ? h(Card, { title: '暂时无法读取 AuraBot', desc: err, right: h(Btn, { onClick: reload }, '重试') }) : h(Empty, { text: '正在读取 AuraBot…' })))
+    h(ErrorBlock, { title: '暂时无法读取 AuraBot', message: err, hint: '插件可能正在重载；也可以去日志页看细节。', onRetry: () => reload() })))
+    }
+    // 首次加载：rail 骨架 + 内容骨架，别让用户看空白
+    return h('div', { className: 'ab-root' },
+    h('div', { className: 'ab-workspace' },
+    h('aside', { className: 'ab-rail' },
+    h('div', { className: 'ab-rail-skel' }, Array.from({ length: 8 }, (_, i) => h('div', { key: i, className: 'ab-skel ab-skel-line' })))),
+    h('div', { className: 'ab-stage' },
+    h('div', { className: 'ab-content' },
+    h(Skeleton, { kind: 'card', label: '正在读取插件状态' }),
+    h(Skeleton, { kind: 'row', rows: 4, label: '正在读取插件状态' })))))
     }
     const cfg = st.config
     const conn = st.onebot.state === 'connected' && !st.onebot.problem
@@ -617,7 +690,7 @@ window.__ModuleLoader__.load({
     : { cls: cfg.enabled && st.onebot.state === 'connecting' ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? 'QQ 未就绪' : 'QQ 未连接' }
     const persona = st.personas.find((p) => p.id === cfg.persona.current)
     const displayName = st.onebot.login?.nickname || persona?.name || '大肥鱼'
-    const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true) }
+    const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true), pageState: { loading: !st, error: err, retry: reload } }
     const showWizard = !cfg.setupDone || wizardOpen
 
     const mods = st.modules || []
@@ -666,14 +739,14 @@ window.__ModuleLoader__.load({
     group.pages.length > 1 ? h(PageNav, { key: group.id, group, current, go, dirtyOf: tabDirty, expanded: collapsedGroup !== group.id }) : null,
     h('div', { key: current.id, className: 'ab-content', role: 'region', 'aria-label': current.label },
     current.id === 'overview' || current.id === 'now' ? null : h('h1', { className: 'ab-page-title' }, current.label),
-    err ? h('div', { className: 'ab-note warn', role: 'status' }, err) : null,
+    err ? h(ErrorBlock, { title: '读不到插件状态', message: err, hint: '插件可能正在重载；也可以看一下日志页。', onRetry: () => reload() }) : null,
     h(TabBoundary, { key: current.id, onHome: () => go('overview') }, h(body, { ...props, mod: current.ext, slot: current.id === 'video' ? 'video' : undefined })),
     (embeddedModules[current.id] || []).map((m) => h(Card, { key: m.id, fold: 'module-' + m.id, title: m.name },
     h(ExtPage, { ...props, mod: m.id, embedded: true }))),
-    dirty ? h('div', { className: 'ab-savebar' }, h('span', { className: 'msg' }, '有改动还没保存'),
-    h('kbd', { className: 'ab-kbd' }, isMacLike() ? '⌘ S' : 'Ctrl S'),
-    h(Btn, { kind: 'ghost', disabled: saving, onClick: () => setDraft(clone(cfg)) }, '撤销'),
-    h(Btn, { kind: 'primary', disabled: saving, onClick: () => save() }, '保存设置')) : null))),
+    dirty ? h(SaveBar, {
+    state: saving ? 'dirty' : 'dirty', saving, isMac: isMacLike(),
+    onSave: () => save(), onReset: () => setDraft(clone(cfg)),
+    }) : savedFlash ? h(SaveBar, { state: 'saved' }) : null))),
     toastMsg ? toastView(toastMsg) : null)
     }
 
@@ -697,7 +770,8 @@ window.__ModuleLoader__.load({
     const PSEC_SUGGEST = ['你的样子', '性格', '打字习惯', '情绪是活的', '你的生活', '和管理员的关系', '绝对禁止']
     // 每节一个颜色（跟着这一节走，挪位置颜色不变）。低饱和的雾色系，相邻的冷暖交替，深浅两种主题下都不刺眼：
     // 青瓷、雾紫、琥珀、雾蓝、藕粉、苔绿、黛蓝、赭石、橄榄、紫藤
-    const PSEC_COLORS = ['#4f9a8c', '#8a7bc0', '#c08a4a', '#5f8fc7', '#c47a90', '#6f9f68', '#5c6fae', '#b9775a', '#8d9450', '#a173b5']
+    // 每个人一个色：颜色值在 0tokens.js 里（--ab-psec-N），这里只放序号
+    const PSEC_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => 'var(--ab-psec-' + n + ')')
     let psecSeq = 0
     const psec = (title, text) => ({ k: ++psecSeq, title, text })
     const splitPersona = (body) => {
@@ -1385,10 +1459,6 @@ window.__ModuleLoader__.load({
     row('groups', 'QQ 群', ((draft.platforms?.qq?.allow || draft.allow)?.groups || []).map(String), '群'))
     }
 
-    function Empty({ icon, text }) {
-    return h('div', { className: 'ab-empty' }, h('div', { className: 'big' }, icon || '🐋'), text)
-    }
-
     /** 一行一个的列表框：输入时保留原文（含正在敲的空行），只把解析结果交给草稿。 */
 
     function ExtPage({ st, draft, setDraft, toast, reload, mod, embedded }) {
@@ -1632,6 +1702,95 @@ window.__ModuleLoader__.load({
     }
 
     const runMode = (cfg) => cfg.debug ? '调试模式' : cfg.dryRun ? '试运行' : '正式模式'
+
+    /**
+    * Field：统一文本输入（input / textarea）。
+    * 无障碍要点（现代 Web 指南）：
+    *  - 错误只在用户交互之后出现（`:user-invalid`），为此组件内同步 `aria-invalid`；
+    *  - 错误文案的 id 只在「正在显示」时进 `aria-describedby`（隐藏文本也会被读出来）；
+    *  - 错误本身不是 live region，用页面上唯一的 polite 播报器（见 announceFieldError）。
+    */
+    let fieldSeq = 0
+    const fieldAnnouncer = { el: null, timer: null }
+    function announceFieldError(text) {
+    const doc = typeof document !== 'undefined' ? document : null
+    if (!doc) return
+    if (!fieldAnnouncer.el) {
+    const box = doc.createElement('div')
+    box.setAttribute('aria-live', 'polite')
+    box.className = 'ab-sr'
+    doc.body.append(box)
+    fieldAnnouncer.el = box
+    }
+    clearTimeout(fieldAnnouncer.timer)
+    fieldAnnouncer.el.textContent = ''
+    // 等读屏把焦点所在的控件读完再播
+    fieldAnnouncer.timer = setTimeout(() => { fieldAnnouncer.el.textContent = text }, 500)
+    }
+
+    function Field({ label, hint, error, textarea, rows = 4, value, onChange, placeholder, disabled, readOnly, secret, id, inputMode, autoComplete, onBlur }) {
+    const auto = useId()
+    const fid = id || 'ab-field-' + (++fieldSeq) + '-' + String(auto).replace(/[^a-zA-Z0-9_-]/g, '')
+    const errId = fid + '-err'
+    const hintId = fid + '-hint'
+    const ref = useRef(null)
+    const [shown, setShown] = useState(false)
+    // 用户交互之后才把错误显示出来（和 CSS 的 :user-invalid 同一时刻）
+    useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const sync = (announce) => {
+    const invalid = el.matches?.(':user-invalid') || Boolean(error)
+    setShown(invalid)
+    const ids = [hint ? hintId : '', invalid ? errId : ''].filter(Boolean).join(' ')
+    if (ids) el.setAttribute('aria-describedby', ids)
+    else el.removeAttribute('aria-describedby')
+    if (invalid) {
+    el.setAttribute('aria-invalid', 'true')
+    if (announce) announceFieldError((label ? label + '：' : '') + (error || '这项没填对'))
+    } else {
+    el.setAttribute('aria-invalid', 'false')
+    }
+    }
+    const onLeave = () => sync(true)
+    el.addEventListener('blur', onLeave, true)
+    el.addEventListener('change', onLeave, true)
+    el.addEventListener('input', () => sync(false))
+    sync(false)
+    return () => {
+    el.removeEventListener('blur', onLeave, true)
+    el.removeEventListener('change', onLeave, true)
+    }
+    }, [error, hint, label])
+    const common = {
+    id: fid, ref, value: value ?? '', placeholder, disabled, readOnly,
+    'aria-invalid': shown ? 'true' : 'false',
+    'data-error': errId,
+    inputMode, autoComplete,
+    onBlur,
+    onChange: (e) => onChange && onChange(e.target.value),
+    }
+    return h('div', { className: cx('ab-field', shown && 'bad') },
+    label ? h('label', { htmlFor: fid }, label) : null,
+    textarea ? h('textarea', { ...common, rows, className: 'ab-textarea' }) : h('input', { ...common, type: secret ? 'password' : 'text', className: 'ab-input' }),
+    hint ? h('small', { id: hintId, className: 'ab-field-hint' }, hint) : null,
+    h('small', { id: errId, className: 'ab-field-error' }, error || ''))
+    }
+
+    /**
+    * SaveBar：底部保存条三态 —— 有改动 / 保存中 / 已保存。
+    * 只做「提示 + 动作」，不抢焦点：用户可能正在输入。
+    */
+    function SaveBar({ state = 'dirty', onSave, onReset, saving, isMac, note }) {
+    if (state === 'saved') {
+    return h('div', { className: 'ab-savebar saved', role: 'status' }, h('span', { className: 'msg' }, note || '已保存'))
+    }
+    return h('div', { className: 'ab-savebar', role: 'status' },
+    h('span', { className: 'msg' }, note || '有改动还没保存'),
+    h('kbd', { className: 'ab-kbd' }, isMac ? '⌘ S' : 'Ctrl S'),
+    h(Btn, { kind: 'ghost', disabled: saving, onClick: onReset }, '撤销'),
+    h(Btn, { kind: 'primary', disabled: saving, onClick: onSave }, saving ? '保存中…' : '保存设置'))
+    }
 
     function Group({ draft, setDraft, go }) {
     const f = useField(draft, setDraft)
@@ -1916,7 +2075,7 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-label', style: { marginTop: 12 } },
     h('b', null, isPost ? '请求体参数' : 'URL 参数'),
     h('small', null, '参数名和值都自己填；值里可以用 {prompt}、{image}（参考图 base64）；参考图需配置 {image} 才能使用')),
-    params.length
+    (params || []).length
     ? params.map((p, i) => h('div', { key: i, className: 'ab-flex', style: { gap: 6, marginBottom: 6 } },
     h('input', { className: 'ab-input', style: { width: 170 }, value: p.key || '', placeholder: '参数名，如 model', onChange: (e) => setP(i, 'key', e.target.value) }),
     h('input', { className: 'ab-input', style: { flex: 1 }, value: p.value || '', placeholder: '值，可以用 {prompt}', onChange: (e) => setP(i, 'value', e.target.value) }),
@@ -2235,14 +2394,23 @@ window.__ModuleLoader__.load({
     const [level, setLevel] = useState('info')
     const [area, setArea] = useState('')
     const [auto, setAuto] = useState(true)
-    const load = useCallback(() => get('/logs?limit=400&level=' + level + '&area=' + area).then((r) => setItems(r.entries || [])), [level, area])
+    const [err, setErr] = useState('')
+    const load = useCallback(() => get('/logs?limit=400&level=' + level + '&area=' + area).then((r) => {
+    if (r && r.ok !== false) { setItems(r.entries || []); setErr('') } else { setItems([]); setErr(r?.message || '读不到日志') }
+    }).catch((e) => { setItems([]); setErr('连不上插件：' + e.message) }), [level, area])
     useEffect(() => { load(); if (!auto) return; const t = setInterval(load, 3000); return () => clearInterval(t) }, [load, auto])
     return h(Card, { title: '日志', desc: '所有后台动作都在这里，令牌和密码已自动打码。完整日志文件在 ' + '~/.dsh/plugins-data/aurabot/logs/' + '。',
     right: h('div', { className: 'ab-flex' },
     h(Select, { value: level, onChange: setLevel, width: 110, options: [['debug', '全部'], ['info', '一般'], ['warn', '警告'], ['error', '错误']].map(([value, label]) => ({ value, label })) }),
     h(Select, { value: area, onChange: setArea, width: 130, options: [['', '所有模块'], ['core', '核心'], ['chat', '聊天'], ['onebot', 'QQ 网关'], ['snowluma', 'SnowLuma'], ['sticker', '表情'], ['qzone', '空间'], ['voice', '语音'], ['imagegen', '生图'], ['mind', '心智']].map(([value, label]) => ({ value, label })) }),
     h('span', { className: 'ab-switch-row' }, h(Switch, { on: auto, onChange: setAuto }), h('span', { className: 'ab-muted ab-small' }, '自动刷新'))) },
-    items === null ? h(Empty, { icon: '⏳', text: '加载中…' }) : items.length === 0 ? h(Empty, { text: '没有符合条件的日志' }) :
+    err ? h(ErrorBlock, { title: '读不到日志', message: err, onRetry: load })
+    : items === null ? h(Skeleton, { kind: 'row', rows: 6, label: '正在读日志' })
+    : items.length === 0 ? h(Empty, {
+    icon: '🗒️', title: '没有符合条件的日志',
+    text: '换个级别或模块看看；「全部」会显示 debug 级别的细节。',
+    action: '看全部级别', onAction: () => { setLevel('debug'); setArea('') },
+    }) :
     h('div', { className: 'ab-logs' }, items.slice().reverse().map((e, i) => h(LogLine, { key: i, e }))))
     }
 
@@ -2946,7 +3114,9 @@ window.__ModuleLoader__.load({
     const [exact, setExact] = useState('')
     const [pending, setPending] = useState('')
     const saving = useRef(false)
-    useEffect(() => { get('/mind/settings').then(setD) }, [])
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/mind/settings').then((r) => { if (r && r.ok !== false) { setD(r); setLoadErr('') } else setLoadErr(r?.message || '读不到心智参数') }).catch((e) => setLoadErr('连不上插件：' + e.message))
+    useEffect(() => { load() }, [])
     useEffect(() => {
     if (jump?.section === 'mind-local-model') {
     setGroup('local')
@@ -2958,8 +3128,14 @@ window.__ModuleLoader__.load({
     if (jump.setting.advanced) setAdvanced(true)
     }
     }, [jump])
-    if (!d) return h(Card, { title: '设置' }, h('p', { className: 'ab-muted' }, '读取中…'))
-    if (!d.ok) return h(Card, { title: '设置' }, h(Empty, { text: d.message || '心智核心没起来' }))
+    if (loadErr) return h(ErrorBlock, { title: '读不到心智参数', message: loadErr, hint: '心智核心会在插件启动后几秒内就绪。', onRetry: load })
+    if (!d) return h(Skeleton, { kind: 'card', label: '正在读心智参数' })
+    if (!d.ok) return h(Empty, {
+    icon: '🧠', title: '心智核心没起来',
+    text: d.message || '心智参数读不到，去「模块管理」看看心智核心在不在跑。',
+    action: '去模块管理', onAction: () => jump && jump('modules'),
+    })
+    if (!(d.groups || []).length) return h(Empty, { icon: '🎚️', title: '没有可调参数', text: '这个版本的心智核心没有暴露参数表。', secondary: '重新读取', onSecondary: load })
     const update = async (key, body, reset = false) => {
     if (saving.current) return
     saving.current = true
@@ -3075,11 +3251,11 @@ window.__ModuleLoader__.load({
     /** 面板里的调试对话：不经过 QQ、不写进她的心智，直接把她说的话显示出来（来自原项目 f476866）。 */
 
     function MissingPrimitivesPage({ error }) {
-    return h('div', { style: { padding: '28px', maxWidth: '720px', margin: '0 auto', lineHeight: 1.7, color: 'var(--ab-text, #1f2328)' } },
+    return h('div', { style: { padding: '28px', maxWidth: '720px', margin: '0 auto', lineHeight: 1.7, color: 'var(--ab-text, CanvasText)' } },
     h('h1', { style: { fontSize: '22px', margin: '0 0 12px' } }, 'AuraBot 界面需要 DSH UI primitives'),
     h('p', null, '当前 DSH 没有提供 ', h('code', null, 'client-ui-primitives'), '，所以面板不能加载。'),
     h('p', null, '请把 DeepSeek Harness 升级到 ', h('b', null, '0.2.2-rc.3 或更新版本'), '，然后重启 DSH。'),
-    h('p', { style: { color: 'var(--ab-sub, #6b7280)', fontSize: '13px', wordBreak: 'break-word' } }, String(error?.message || error || '')))
+    h('p', { style: { color: 'var(--ab-sub, GrayText)', fontSize: '13px', wordBreak: 'break-word' } }, String(error?.message || error || '')))
     }
 
     function ModOff({ name }) {
@@ -3259,11 +3435,13 @@ window.__ModuleLoader__.load({
     const [data, setData] = useState(null)
     const [newId, setNewId] = useState('')
     const [newName, setNewName] = useState('')
-    const load = () => get('/modules').then(setData)
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/modules').then((r) => { if (r && r.ok !== false) { setData(r); setLoadErr('') } else setLoadErr(r?.message || '读不到模块列表') }).catch((e) => setLoadErr('连不上插件：' + e.message))
     useEffect(() => { load() }, [])
     useEffect(() => { if (data && st.modules) setData((d) => ({ ...d, list: st.modules })) }, [JSON.stringify(st.modules)])
     const setModules = (list) => list && setData((d) => ({ ...d, list }))
-    if (!data) return h(Empty, { icon: '⏳', text: '加载中…' })
+    if (loadErr) return h(ErrorBlock, { title: '读不到模块列表', message: loadErr, onRetry: load })
+    if (!data) return h(Skeleton, { kind: 'card', label: '正在读模块列表' })
     const list = data.list || []
     const platformFeatures = list.filter((m) => m.platformFeature)
     const builtin = list.filter((m) => m.builtin && !m.platformFeature)
@@ -3540,7 +3718,10 @@ window.__ModuleLoader__.load({
     const [usageOpen, setUsageOpen] = useState(false)
     // 下面三张明细表看哪个区间：today / yesterday / 7 / 30（点指标卡切换）
     const [usageRange, setUsageRange] = useState('7')
-    const loadUsage = (range) => get('/usage?range=' + (range || usageRange)).then((r) => { if (r && r.ok !== false) setUsage(r) }).catch(() => {})
+    const [usageErr, setUsageErr] = useState('')
+    const loadUsage = (range) => get('/usage?range=' + (range || usageRange)).then((r) => {
+    if (r && r.ok !== false) { setUsage(r); setUsageErr('') } else setUsageErr(r?.message || '读不到用量')
+    }).catch((e) => setUsageErr('连不上插件：' + e.message))
     useEffect(() => { loadUsage(); get('/models').then((r) => setModels(r.list || [])) }, [])
     const cfg = st.config
     const s = st.stats || {}
@@ -3647,7 +3828,16 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-muted ab-small', style: { marginTop: 12 } },
     '数据保留 ' + (usage.days || 90) + ' 天；聊天回合的 token 由 DSH 会话上报，后台任务由插件自己记。'))
     : h(Card, { title: 'token 用量与花费', right: h(Btn, { small: true, kind: 'ghost', onClick: () => setUsageOpen(false) }, '收起') },
-    h('div', { className: 'ab-muted ab-small' }, '还没读到用量数据…'))
+    usageErr
+    ? h(ErrorBlock, { title: '读不到用量', message: usageErr, hint: '统计来自 DSH 会话上报，稍后会自动更新。', onRetry: () => loadUsage() })
+    : h(Skeleton, { kind: 'card', label: '正在取用量' }))
+    // 连接状态看渠道的 state（QQ 是 'connected'）；一个都没连上才给教学空态
+    const noChannel = !(st.channels || []).some((c) => c && (c.state === 'connected' || c.ready === true))
+    const emptyHint = noChannel ? h(Empty, {
+    icon: '🔌', title: '还没有接上任何一个平台',
+    text: '先把 QQ 网关接上，她才能收到消息；接好以后这一页会显示连接状态、用量和最近日志。',
+    action: '去接网关', onAction: () => go('connect'), secondary: '看接入说明', onSecondary: () => go('about'),
+    }) : null
     return h('div', { className: 'ab-overview' },
     h(UpdateNotes, { st, toast }),
     h('section', { className: 'ab-cover', 'aria-label': '运行概览' },
@@ -3656,6 +3846,7 @@ window.__ModuleLoader__.load({
     h('h1', null, displayName),
     h('p', null, '聊天模型', h('strong', null, chatModel)),
     h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'connect') }, conn ? '查看她现在' : '检查 QQ 连接', navIcon('next'))),
+    emptyHint,
     h('button', { type: 'button', className: 'ab-cover-portrait', 'aria-label': '查看人格卡和头像', onClick: () => go('selfmind') },
     h('img', { src: avatarSrc(st), alt: '' }))),
     cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || 'QQ 网关未就绪。请检查 OneBot 连接。') : null,
@@ -3855,7 +4046,7 @@ window.__ModuleLoader__.load({
     right: h('div', { className: 'ab-flex' },
     edit.id !== current ? h(Btn, { small: true, onClick: async () => { const r = await post('/persona/use', { id: edit.id }); toast(r.message); refresh(); reload() } }, '设为当前') : null,
     edit.id !== current ? h(Btn, { small: true, kind: 'danger', onClick: async () => { if (!confirm('删掉这个人格？')) return; const r = await post('/persona/delete', { id: edit.id }); if (r.ok) { try { localStorage.removeItem(personaDraftKey(edit.id)) } catch (e) {} setList(r.list); setSel(current) } else toast(r.message) } }, '删除') : null) },
-    restore ? h('div', { className: 'ab-flex', style: { marginTop: 12, padding: '8px 10px', border: '1px solid #4a4a55', borderRadius: 8, background: 'rgba(255,255,255,.04)' } },
+    restore ? h('div', { className: 'ab-flex', style: { marginTop: 12, padding: '8px 10px', border: '1px solid var(--ab-line-2, currentColor)', borderRadius: 8, background: 'rgba(255,255,255,.04)' } },
     h('span', { className: 'ab-small' }, '发现上次没保存的人格改动（' + String(restore.body || '').length + ' 字' + (restore.at ? '，' + new Date(restore.at).toLocaleString() : '') + '）。要恢复吗？'),
     h('div', { className: 'ab-spacer' }),
     h(Btn, { small: true, kind: 'primary', onClick: restoreDraft }, '恢复'),
@@ -4496,6 +4687,61 @@ window.__ModuleLoader__.load({
     h('figcaption', { className: 'ab-starmap-caption' }, '距离表示亲近程度，连线表示同一段记忆。选择人物查看详情。'))
     }
 
+    /**
+    * Empty：教学式空态 —— 图标 + 标题 + 一句解释 + 一个主行动。
+    * 旧调用 `h(Empty, { text: '加载中…' })` 仍然能用（只传 text 时退化成一行）。
+    */
+    function Empty({ icon, title, text, action, onAction, secondary, onSecondary }) {
+    const heading = title || text || ''
+    const detail = title ? text : ''
+    return h('div', { className: 'ab-empty', role: 'status' },
+    h('div', { className: 'big', 'aria-hidden': 'true' }, icon || '🐋'),
+    h('b', { className: 'ab-empty-title' }, heading),
+    detail ? h('p', { className: 'ab-empty-desc' }, detail) : null,
+    action || secondary
+    ? h('div', { className: 'ab-empty-actions' },
+    action ? h(Btn, { kind: 'primary', small: true, onClick: onAction }, action) : null,
+    secondary ? h(Btn, { kind: 'ghost', small: true, onClick: onSecondary }, secondary) : null)
+    : null)
+    }
+
+    /** 骨架屏：卡片 / 行 / 头像三种；`label` 给读屏用（视觉上不可见）。 */
+    function Skeleton({ kind = 'row', rows = 3, label = '正在载入' }) {
+    if (kind === 'card') {
+    return h('div', { className: 'ab-skel-card', role: 'status', 'aria-busy': 'true', 'aria-live': 'polite' },
+    h('span', { className: 'ab-sr' }, label),
+    h('div', { className: 'ab-skel ab-skel-title' }),
+    h('div', { className: 'ab-skel ab-skel-line' }),
+    h('div', { className: 'ab-skel ab-skel-line short' }))
+    }
+    if (kind === 'avatar') return h('div', { className: 'ab-skel ab-skel-avatar', role: 'status', 'aria-busy': 'true' }, h('span', { className: 'ab-sr' }, label))
+    return h('div', { className: 'ab-skel-rows', role: 'status', 'aria-busy': 'true', 'aria-live': 'polite' },
+    h('span', { className: 'ab-sr' }, label),
+    Array.from({ length: rows }, (_, i) => h('div', { key: i, className: 'ab-skel ab-skel-line' })))
+    }
+
+    /**
+    * ErrorBlock：就地错误 —— 说明哪里错了、给一个重试、技术细节收进「复制诊断」。
+    * 不用 Toast 替代：Toast 只报动作结果，数据取不到要留在页面上。
+    */
+    function ErrorBlock({ title = '这一块没读出来', message = '', hint = '', onRetry, detail = '' }) {
+    const [copied, setCopied] = useState(false)
+    const copy = async () => {
+    try {
+    await clipboard([title, message, detail].filter(Boolean).join('\n'))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1600)
+    } catch (error) { setCopied(false) }
+    }
+    return h('div', { className: 'ab-errorblock', role: 'alert' },
+    h('b', null, title),
+    message ? h('p', null, message) : null,
+    hint ? h('small', null, hint) : null,
+    h('div', { className: 'ab-errorblock-actions' },
+    onRetry ? h(Btn, { kind: 'primary', small: true, onClick: onRetry }, '重试') : null,
+    (message || detail) ? h(Btn, { kind: 'ghost', small: true, onClick: copy }, copied ? '已复制' : '复制诊断') : null))
+    }
+
     function StickerCell({ it, onChanged, toast, picking, selected, onToggle }) {
     const [name, setName] = useState(it.name || '')
     const tagText = (it.tags || []).join(' ')
@@ -4733,29 +4979,8 @@ window.__ModuleLoader__.load({
     * 多选模式下整张卡片就是勾选框，点一下就选中。
     */
 
-    const CSS = `
-    /* AuraBot workspace */
-    .ab-root{
-    --ab-bg:#f2f3ee;--ab-card:#fffefa;--ab-card-2:#eef2eb;--ab-text:#212c27;--ab-sub:#4e6057;--ab-dim:#596b60;
-    --ab-deep:#205b4a;--ab-sea:#2e7763;--ab-sky:#588b78;--ab-foam:#e9f2eb;--ab-foam-2:#dbece1;
-    --ab-line:#e0e6dd;--ab-line-2:#c9d6cc;--ab-hover:#edf3ed;--ab-ok:#277a5c;--ab-warn:#99651e;--ab-err:#af4440;
-    --ab-rail:#e8eee6;--ab-rail-label:#465b50;--ab-rail-active:#d8e8df;
-    --ab-rail-ink:#243e34;--ab-rail-border:#cddbd1;--ab-rail-mark:#306a57;--ab-rail-mark-bg:#dce9df;--ab-rail-accent:#2e7763;
-    --ab-shadow:0 1px 2px #18382a06,0 8px 26px #18382a06;--ab-radius:18px;
-    --ab-quick:140ms;--ab-reveal:220ms;--ab-ease:cubic-bezier(.2,.75,.25,1);
-    width:100%;height:100%;overflow:auto;box-sizing:border-box;container-type:inline-size;overscroll-behavior:contain;
-    background:var(--ab-bg);color:var(--ab-text);font:13px/1.6 "Inter","PingFang SC",system-ui,sans-serif
-    }
-    body[data-ds-dark-theme] .ab-root{
-    --ab-bg:#141b19;--ab-card:#1c2522;--ab-card-2:#242f2a;--ab-text:#edf2ec;--ab-sub:#b1c2b8;--ab-dim:#a0b4a9;
-    --ab-deep:#afdec8;--ab-sea:#68b89e;--ab-sky:#82c6ae;--ab-foam:#263a32;--ab-foam-2:#304940;
-    --ab-line:#303b35;--ab-line-2:#46564e;--ab-hover:#2a3630;--ab-ok:#91d9b2;--ab-warn:#ecc289;--ab-err:#f3a09b;
-    --ab-rail:#191f1d;--ab-rail-label:#aebfb5;--ab-rail-active:#2a4037;
-    --ab-rail-ink:#edf4ed;--ab-rail-border:#334039;--ab-rail-mark:#b6e5ce;--ab-rail-mark-bg:#29463b;--ab-rail-accent:#85c8ac;
-    --ab-shadow:0 10px 28px #00000013;color-scheme:dark
-    }
-    .ab-root :focus-visible{outline:2px solid var(--ab-sky);outline-offset:3px}
-    .ab-root h1,.ab-root h2{letter-spacing:-.025em;color:inherit}
+    const CSS = AB_TOKENS + AB_BROWSER_UI + `
+    /* AuraBot workspace：组件规则。颜色一律取自 tokens.js 的语义 token。 */
     .ab-icon{display:block;width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
     .ab-workspace{display:grid;grid-template-columns:188px minmax(0,1fr);min-height:100%;align-items:start}
     .ab-rail{
@@ -4799,7 +5024,7 @@ window.__ModuleLoader__.load({
     .ab-page-nav button:hover{color:var(--ab-text);background:var(--ab-hover)}
     .ab-page-nav button[aria-current]{font-weight:680;color:var(--ab-deep);background:var(--ab-foam-2)}
     .ab-rail-pages button:focus-visible,.ab-page-nav button:focus-visible{outline-offset:-2px}
-    .ab-unsaved-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:#e0a75b;flex:none}
+    .ab-unsaved-dot{width:6px;height:6px;display:inline-block;border-radius:50%;background:var(--ab-unsaved);flex:none}
     .ab-content{display:grid;gap:12px;min-width:0}
     .ab-content>*{min-width:0}
     .ab-page-title{font-size:clamp(22px,2.5cqi,28px);margin:0;font-weight:720;line-height:1.25}
@@ -4812,7 +5037,7 @@ window.__ModuleLoader__.load({
     .ab-find-btn{color:var(--ab-sub);min-width:clamp(175px,23cqi,260px);text-align:left}
     .ab-find-btn kbd{margin-inline-start:auto}
     .ab-find-btn .ab-icon,.ab-run-btn .ab-icon{width:14px;height:14px}
-    .ab-finder,.ab-run-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:25;width:380px;max-width:85cqi;box-sizing:border-box;padding:8px;border:1px solid var(--ab-line-2);border-radius:13px;background:var(--ab-card);box-shadow:0 12px 35px #09181033}
+    .ab-finder,.ab-run-pop{position:absolute;right:0;top:calc(100% + 8px);z-index:25;width:380px;max-width:85cqi;box-sizing:border-box;padding:8px;border:1px solid var(--ab-line-2);border-radius:13px;background:var(--ab-card);box-shadow:0 12px 35px var(--ab-ink-shadow)}
     .ab-finder .ab-input{width:100%}
     .ab-finder-list{margin-top:6px;max-height:320px;overflow:auto;display:grid;gap:2px}
     .ab-finder-item,.ab-run-option{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;text-align:left;border:0;background:none;border-radius:8px;padding:7px 10px;color:var(--ab-text);font:inherit;cursor:pointer}
@@ -4909,7 +5134,7 @@ window.__ModuleLoader__.load({
     .ab-sticker .nm:focus,.ab-sticker .tg:focus{background:var(--ab-card-2);border-style:solid;border-color:var(--ab-line)}
     .ab-sticker.pick{cursor:pointer}
     .ab-sticker.on{border-color:var(--ab-sea);box-shadow:0 0 0 2px var(--ab-foam-2)}
-    .ab-sticker .ck{position:absolute;top:6px;left:6px;z-index:2;width:20px;height:20px;border-radius:7px;border:1.5px solid var(--ab-line-2);background:var(--ab-card);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1;color:#fff;transition:background .12s,border-color .12s}
+    .ab-sticker .ck{position:absolute;top:6px;left:6px;z-index:2;width:20px;height:20px;border-radius:7px;border:1.5px solid var(--ab-line-2);background:var(--ab-card);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;line-height:1;color:var(--ab-on-accent);transition:background .12s,border-color .12s}
     .ab-sticker.on .ck{background:var(--ab-sea);border-color:var(--ab-sea)}
     .ab-sticker.pick .nm,.ab-sticker.pick .tg{pointer-events:none}
     .ab-stickers.picking .ab-sticker .x{display:none}
@@ -4946,7 +5171,7 @@ window.__ModuleLoader__.load({
     .ab-pitem.on{border-color:var(--ab-sea);box-shadow:0 0 0 3px var(--ab-foam)}
     .ab-pitem .nm{font-weight:600;display:flex;align-items:center;gap:6px}
     .ab-pitem .tg{color:var(--ab-dim);font-size:11.5px;margin-top:2px}
-    .ab-badge{font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--ab-sea);color:#fff;font-weight:500}
+    .ab-badge{font-size:10.5px;padding:0 6px;border-radius:999px;background:var(--ab-sea);color:var(--ab-on-accent);font-weight:500}
     .ab-psecs{display:flex;flex-direction:column;gap:10px;margin-top:12px}
     .ab-psec{--c:var(--ab-sea);position:relative;overflow:hidden;border:1px solid var(--ab-line);border-radius:14px;background:var(--ab-card);background:radial-gradient(120% 140% at 0 0,color-mix(in srgb,var(--c) 7%,transparent),transparent 46%),var(--ab-card);transition:border-color .2s,box-shadow .2s}
     .ab-psec:before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:3px;border-radius:0 3px 3px 0;background:var(--c);background:linear-gradient(180deg,var(--c),color-mix(in srgb,var(--c) 18%,transparent))}
@@ -4989,8 +5214,39 @@ window.__ModuleLoader__.load({
     .ab-mood > i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--ab-sky),var(--ab-sea))}
     .ab-savebar{position:sticky;bottom:12px;margin-top:16px;display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:12px;background:var(--ab-card);border:1px solid var(--ab-sea);box-shadow:0 6px 24px rgba(0,0,0,.12);z-index:6}
     .ab-savebar .msg{flex:1;color:var(--ab-deep);font-weight:560}
-    .ab-empty{padding:28px 12px;text-align:center;color:var(--ab-dim)}
-    .ab-empty .big{font-size:28px;margin-bottom:4px}
+    .ab-empty{padding:28px 12px;text-align:center;color:var(--ab-dim);display:grid;justify-items:center;gap:6px}
+    .ab-empty .big{font-size:28px;line-height:1;margin-bottom:2px}
+    .ab-empty-title{color:var(--ab-text);font-size:13.5px}
+    .ab-empty-desc{margin:0;max-width:52ch;color:var(--ab-sub);font-size:12.5px;line-height:1.65}
+    .ab-empty-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+    /* 骨架屏：加载超过 300ms 才出现由 JS 控制；这里只管形状与节奏 */
+    .ab-skel-rows,.ab-skel-card{display:grid;gap:10px;padding:4px 0}
+    .ab-skel-card{padding:16px;border:1px solid var(--ab-line);border-radius:var(--ab-radius);background:var(--ab-card)}
+    .ab-skel{background:linear-gradient(90deg,var(--ab-foam) 25%,var(--ab-foam-2) 37%,var(--ab-foam) 63%);background-size:400% 100%;animation:abSkel 1.6s ease-in-out infinite;border-radius:8px}
+    .ab-skel-title{height:14px;width:38%}
+    .ab-skel-line{height:10px;width:100%}
+    .ab-skel-line.short{width:62%}
+    .ab-skel-avatar{width:38px;height:38px;border-radius:50%}
+    .ab-rail-skel{display:grid;gap:10px;padding:6px 2px;opacity:.6}
+    .ab-rail-skel .ab-skel-line{height:12px}
+    @keyframes abSkel{0%{background-position:100% 50%}100%{background-position:0 50%}}
+    /* 就地错误块：留在页面上，可重试、可复制诊断 */
+    .ab-errorblock{display:grid;gap:6px;padding:14px 16px;border:1px solid var(--ab-err);border-radius:12px;background:var(--ab-card);color:var(--ab-text)}
+    .ab-errorblock b{color:var(--ab-err)}
+    .ab-errorblock p{margin:0;color:var(--ab-sub);font-size:12.5px;line-height:1.6;overflow-wrap:anywhere}
+    .ab-errorblock small{color:var(--ab-dim);font-size:12px}
+    .ab-errorblock-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+    /* 表单控件：标签 / 输入 / 提示 / 错误 */
+    .ab-field{display:grid;gap:5px;min-width:0}
+    .ab-field label{font-size:12.5px;font-weight:560;color:var(--ab-text)}
+    .ab-input,.ab-field .ab-textarea{width:100%;box-sizing:border-box;padding:7px 10px;border:1px solid var(--ab-line-2);border-radius:9px;background:var(--ab-card);color:var(--ab-text);font:inherit;font-size:13px}
+    .ab-input:hover,.ab-field .ab-textarea:hover{border-color:var(--ab-dim)}
+    .ab-field-hint{color:var(--ab-dim);font-size:12px}
+    .ab-field-error{display:none;color:var(--ab-err);font-size:12px}
+    .ab-field.bad .ab-field-error,.ab-field:has(input:user-invalid) .ab-field-error,.ab-field:has(textarea:user-invalid) .ab-field-error{display:block}
+    .ab-field.bad .ab-input,.ab-field.bad .ab-textarea,.ab-field:has(:user-invalid) .ab-input,.ab-field:has(:user-invalid) .ab-textarea{border-color:var(--ab-err)}
+    /* 只给读屏的文本 */
+    .ab-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
     .ab-table{width:100%;border-collapse:collapse;font-size:12.5px}
     .ab-table th{text-align:left;color:var(--ab-sub);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--ab-line)}
     .ab-table td{padding:6px 8px;border-bottom:1px solid var(--ab-line)}
@@ -5093,25 +5349,25 @@ window.__ModuleLoader__.load({
     .ab-overview,.ab-now{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0}
     .ab-cover{
     min-height:226px;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;overflow:hidden;
-    padding:24px clamp(22px,4.6cqi,56px);border-radius:22px;color:#f9fcf2;
-    background:linear-gradient(92deg,#123b35e8 0%,#10382f79 52%,#123c2c04),url('/aurabot/api/panel/sea') right 51%/cover,#17493f;
-    box-shadow:0 8px 28px #123a2f24
+    padding:24px clamp(22px,4.6cqi,56px);border-radius:22px;color:var(--ab-cover-text);
+    background:linear-gradient(92deg,var(--ab-cover-from) 0%,var(--ab-cover-mid) 52%,var(--ab-cover-to)),url('/aurabot/api/panel/sea') right 51%/cover,var(--ab-cover-base);
+    box-shadow:0 8px 28px var(--ab-ink-shadow-2)
     }
     .ab-cover h1{font-size:clamp(34px,4.9cqi,59px);line-height:1.1;margin:9px 0 10px;letter-spacing:-.035em;overflow-wrap:anywhere}
-    .ab-cover-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#edf6eb;font-size:12px;font-weight:600}
-    .ab-cover-meta .ab-dot{background:#c7d0c6}.ab-cover-meta .ab-dot.ok{background:#a5edbb}.ab-cover-meta .ab-dot.err{background:#ffa79e}.ab-cover-meta .ab-dot.warn{background:#f4cd96}
-    .ab-cover-copy p{display:flex;gap:8px 13px;flex-wrap:wrap;margin:0 0 17px;color:#dfede5;font-size:13px;overflow-wrap:anywhere}
-    .ab-cover-copy strong{color:#f7fcf0;font-weight:650}
+    .ab-cover-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:var(--ab-cover-text);font-size:12px;font-weight:600}
+    .ab-cover-meta .ab-dot{background:var(--ab-cover-dim)}.ab-cover-meta .ab-dot.ok{background:var(--ab-cover-ok)}.ab-cover-meta .ab-dot.err{background:var(--ab-cover-err)}.ab-cover-meta .ab-dot.warn{background:var(--ab-cover-warn)}
+    .ab-cover-copy p{display:flex;gap:8px 13px;flex-wrap:wrap;margin:0 0 17px;color:var(--ab-cover-body);font-size:13px;overflow-wrap:anywhere}
+    .ab-cover-copy strong{color:var(--ab-cover-strong);font-weight:650}
     .ab-cover-link,.ab-cover-portrait{cursor:pointer;font:inherit}
-    .ab-cover-link{display:inline-flex;align-items:center;gap:12px;min-height:36px;padding:5px 13px;border:1px solid #e4f1dca3;border-radius:8px;background:#eaf3e9;color:#1c3d32;font-weight:670;text-align:left}
-    .ab-cover-link:hover{background:#fffdf1}
+    .ab-cover-link{display:inline-flex;align-items:center;gap:12px;min-height:36px;padding:5px 13px;border:1px solid var(--ab-cover-border);border-radius:8px;background:var(--ab-cover-link-bg);color:var(--ab-cover-link-ink);font-weight:670;text-align:left}
+    .ab-cover-link:hover{background:var(--ab-on-accent)df1}
     .ab-cover-link .ab-icon{width:16px;height:16px}
     .ab-cover-portrait{
     display:grid;place-items:center;width:clamp(96px,14cqi,174px);aspect-ratio:1;padding:9px;margin-right:clamp(0px,2cqi,36px);
-    border:1px solid #fff4d8b0;border-radius:50%;background:#f6f3db34;box-shadow:0 0 0 7px #f6f3db22,0 18px 44px #0a2d2a44
+    border:1px solid var(--ab-on-accent)4d8b0;border-radius:50%;background:var(--ab-cover-ring-2);box-shadow:0 0 0 7px var(--ab-cover-halo),0 18px 44px var(--ab-ink-shadow-2)
     }
-    .ab-cover-portrait img{width:100%;height:100%;min-width:0;aspect-ratio:1;object-fit:cover;object-position:50% 18%;border-radius:50%;clip-path:circle(50%);background:#f5f1df}
-    .ab-cover-portrait:hover{box-shadow:0 0 0 9px #f6f3db44,0 18px 44px #0a2d2a44}
+    .ab-cover-portrait img{width:100%;height:100%;min-width:0;aspect-ratio:1;object-fit:cover;object-position:50% 18%;border-radius:50%;clip-path:circle(50%);background:var(--ab-cover-portrait-bg)}
+    .ab-cover-portrait:hover{box-shadow:0 0 0 9px var(--ab-cover-ring-2),0 18px 44px var(--ab-ink-shadow-2)}
     .ab-section-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
     .ab-section-heading h2{margin:0;color:var(--ab-text);font-size:16px;line-height:1.4;font-weight:700}
     .ab-section-heading>span{color:var(--ab-sub);font-size:11.5px;text-align:right}
@@ -5309,7 +5565,7 @@ window.__ModuleLoader__.load({
     .ab-table tr:hover td{background:var(--ab-hover)}
     .ab-checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
     .ab-check{display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;border:1px solid var(--ab-line);background:var(--ab-card-2);color:var(--ab-sub);font-size:12.5px}
-    .ab-check i{font-style:normal;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--ab-line-2);color:#fff;flex:none}
+    .ab-check i{font-style:normal;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--ab-line-2);color:var(--ab-on-accent);flex:none}
     .ab-check.done{color:var(--ab-text);border-color:color-mix(in srgb,var(--ab-ok) 30%,transparent);background:color-mix(in srgb,var(--ab-ok) 7%,var(--ab-card))}
     .ab-check.done i{background:var(--ab-ok)}
     .ab-drop{border-radius:14px;background:var(--ab-card-2)}
@@ -5320,7 +5576,7 @@ window.__ModuleLoader__.load({
     .ab-install-steps .st:first-child:before{display:none}
     .ab-install-steps .st.done:before,.ab-install-steps .st.on:before{background:var(--ab-sea)}
     .ab-install-steps .st i{position:relative;z-index:1;font-style:normal;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--ab-card);border:2px solid var(--ab-line-2);color:var(--ab-dim)}
-    .ab-install-steps .st.done i{background:var(--ab-sea);border-color:var(--ab-sea);color:#fff}
+    .ab-install-steps .st.done i{background:var(--ab-sea);border-color:var(--ab-sea);color:var(--ab-on-accent)}
     .ab-install-steps .st.on i{border-color:var(--ab-sea);color:var(--ab-sea);box-shadow:0 0 0 4px var(--ab-foam-2)}
     .ab-install-steps .st.on{color:var(--ab-deep);font-weight:600}
     .ab-install-steps .st span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
@@ -5353,7 +5609,7 @@ window.__ModuleLoader__.load({
     .ab-root :is(details.ab-card,.ab-feed-help)::details-content{transition:none!important;animation:none!important}
     }
     .ab-badge.dim{background:var(--ab-card-2);color:var(--ab-sub);border:1px solid var(--ab-line)}
-    .ab-badge.warn{background:rgba(191,135,0,.14);color:#9a6700;border:1px solid rgba(191,135,0,.3)}
+    .ab-badge.warn{background:var(--ab-warn-bg);color:var(--ab-warn-text);border:1px solid var(--ab-warn-line)}
     .ab-badge.err{background:rgba(207,34,46,.1);color:var(--ab-err);border:1px solid rgba(207,34,46,.3)}
     .ab-badge.mine{background:var(--ab-deep)}
     .ab-mod{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--ab-line)}
@@ -5502,8 +5758,15 @@ window.__ModuleLoader__.load({
     const f = useField(draft, setDraft)
     const voiceDirty = Boolean(st && st.config) && JSON.stringify(draft.voice) !== JSON.stringify(st.config.voice)
     const [txt, setTxt] = useState('晚安啦，今天也辛苦了，明天见～')
+    const noEngine = Boolean(st && st.voice) && !st.voice.edgeInstalled && !(st.voice.custom && st.voice.custom.url)
+
     const [src, setSrc] = useState('')
     return h('div', { className: 'ab-grid' },
+    noEngine ? h(Empty, {
+    icon: '🔈', title: '还没有可用的语音引擎',
+    text: '装一个语音组件（edge-tts，会建在插件自己的 Python 环境里），或者在下面填一个你自己的 HTTP 语音接口；装好后再打开开关。',
+    action: '安装语音组件', onAction: async () => { toast('正在安装，装完这里会自己变'); await post('/voice/install', {}); reload && reload() },
+    }) : null,
     h(Card, { title: '说话（文字转语音）', right: f.sw('voice.enabled'), desc: '回复里写了 <voice>…</voice> 的部分会变成 QQ 语音条；对方明确要语音时一定发语音；短回复也有一定概率整条变语音。' },
     voiceDirty ? h('div', { className: 'ab-note' }, '语音设置有没保存的改动：点「生成」试听会直接用这一页现在的设置；真正聊天要点底部「保存设置」后才生效。') : null,
     h('div', { style: { margin: '4px 0 12px' } }, f.choices('voice.engine', [
@@ -5800,7 +6063,7 @@ window.__ModuleLoader__.load({
     }
 
     // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
-    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn }
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

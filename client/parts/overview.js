@@ -4,7 +4,10 @@
       const [usageOpen, setUsageOpen] = useState(false)
       // 下面三张明细表看哪个区间：today / yesterday / 7 / 30（点指标卡切换）
       const [usageRange, setUsageRange] = useState('7')
-      const loadUsage = (range) => get('/usage?range=' + (range || usageRange)).then((r) => { if (r && r.ok !== false) setUsage(r) }).catch(() => {})
+      const [usageErr, setUsageErr] = useState('')
+      const loadUsage = (range) => get('/usage?range=' + (range || usageRange)).then((r) => {
+        if (r && r.ok !== false) { setUsage(r); setUsageErr('') } else setUsageErr(r?.message || '读不到用量')
+      }).catch((e) => setUsageErr('连不上插件：' + e.message))
       useEffect(() => { loadUsage(); get('/models').then((r) => setModels(r.list || [])) }, [])
       const cfg = st.config
       const s = st.stats || {}
@@ -111,7 +114,16 @@
         h('div', { className: 'ab-muted ab-small', style: { marginTop: 12 } },
           '数据保留 ' + (usage.days || 90) + ' 天；聊天回合的 token 由 DSH 会话上报，后台任务由插件自己记。'))
         : h(Card, { title: 'token 用量与花费', right: h(Btn, { small: true, kind: 'ghost', onClick: () => setUsageOpen(false) }, '收起') },
-          h('div', { className: 'ab-muted ab-small' }, '还没读到用量数据…'))
+          usageErr
+            ? h(ErrorBlock, { title: '读不到用量', message: usageErr, hint: '统计来自 DSH 会话上报，稍后会自动更新。', onRetry: () => loadUsage() })
+            : h(Skeleton, { kind: 'card', label: '正在取用量' }))
+      // 连接状态看渠道的 state（QQ 是 'connected'）；一个都没连上才给教学空态
+      const noChannel = !(st.channels || []).some((c) => c && (c.state === 'connected' || c.ready === true))
+      const emptyHint = noChannel ? h(Empty, {
+        icon: '🔌', title: '还没有接上任何一个平台',
+        text: '先把 QQ 网关接上，她才能收到消息；接好以后这一页会显示连接状态、用量和最近日志。',
+        action: '去接网关', onAction: () => go('connect'), secondary: '看接入说明', onSecondary: () => go('about'),
+      }) : null
       return h('div', { className: 'ab-overview' },
         h(UpdateNotes, { st, toast }),
         h('section', { className: 'ab-cover', 'aria-label': '运行概览' },
@@ -120,6 +132,7 @@
             h('h1', null, displayName),
             h('p', null, '聊天模型', h('strong', null, chatModel)),
             h('button', { type: 'button', className: 'ab-cover-link', onClick: () => go(conn ? 'now' : 'connect') }, conn ? '查看她现在' : '检查 QQ 连接', navIcon('next'))),
+        emptyHint,
           h('button', { type: 'button', className: 'ab-cover-portrait', 'aria-label': '查看人格卡和头像', onClick: () => go('selfmind') },
             h('img', { src: avatarSrc(st), alt: '' }))),
         cfg.enabled && !conn ? h('div', { className: 'ab-note err' }, st.onebot.problem || 'QQ 网关未就绪。请检查 OneBot 连接。') : null,

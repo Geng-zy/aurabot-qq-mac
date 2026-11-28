@@ -3991,3 +3991,39 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 661 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.99.tgz  19,704,630 字节
         sha256 2cb0571a20c87fd6b58a1d5dc8ecb7adea704967b9742608a70cfb70eeccbb51
 ```
+
+---
+
+## B0 · 工作台 UI 地基（1.7.0）
+
+**范围**：颜色 token 化、状态三件套（骨架/错误/空态）、表单与保存条、五个代表页落地、截图与断言通道。
+
+| 项 | 结果 |
+|---|---|
+| token | `client/parts/0tokens.js`（约 60 个语义 token，深色只覆盖同名）；`styles.js` 里 84 个颜色字面量清零 |
+| 控件 | `Skeleton` / `ErrorBlock` / `Empty`（教学式）/ `Field` / `SaveBar` |
+| 页面 | overview（骨架 + 用量错误块 + 未接平台空态）、mindsettings（骨架/错误/无参数）、voice（无引擎空态）、modules（骨架/错误）、logs（骨架/错误/教学空态） |
+| 通道 | `scripts/ui-preview.mjs` + `scripts/ui-shot.mjs` |
+
+```text
+Air  ui-shot：28 页正常态 + 5 页 × 加载/错误/空态 + 深色 + 窄屏 —— 断言全绿
+     产出 docs/ui-baseline/pages（28）、states（15）、theme-dark.png、narrow.png
+Air  全量 1739 passed / 0 failed；语法 667 文件；oxlint 0 error；清单 483 文件 / 0 待审
+```
+
+### Mini 实机验收（1.7.0）
+
+```text
+安装   1.7.0（回滚点 ~/aurabot-release-backups/20261128-152852）、15:28:57 启动
+面板包 装到真机的 client.js 里五个控件与 token 层都在：
+       AB_TOKENS / Skeleton / ErrorBlock / SaveBar / Field / .ab-errorblock / .ab-skel-line 全部 true
+       （包内 119 个颜色字面量都在 0tokens.js 那一段里，组件规则里没有）
+五个代表页的数据接口都 ok（面板能拿到底层数据）：
+       /state（version 1.7.0、enabled true）、/mind/settings（groups 有 identity/body…）、
+       /song/status（ready true）、/modules（dir + apiVersion）、/logs（entries 有日志）
+配置   升级前后逐字段一致；Purge 三个工具仍在；15:25 后新增 error：0 条
+
+发布   tag v1.7.0
+       dsh-aurabot-qq-1.7.0.tgz  19,720,736 字节
+       sha256 f879ba59838ffcf2961ce92923ad6beaa274e4931fe32be8ba76b4fbcd4a2ffd
+```

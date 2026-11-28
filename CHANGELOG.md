@@ -2,6 +2,28 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.7.0
+
+### B0 · 工作台 UI 地基（UI 规划第一批）
+
+- **颜色 token 化**：`client/parts/0tokens.js` 成为唯一允许写颜色字面量的地方（语义 token 约 60 个，
+  深色只覆盖同一批名字）。`styles.js` 里的 84 个十六进制颜色清零，组件里一律 `var(--ab-*)`。
+  新增 `test/client-tokens.test.js`：颜色只准出现在 token 文件、深色不得新增 token 名、
+  **正文/次要文字对比度 ≥ 4.5:1、强调与状态色 ≥ 3:1**（浅色与深色各算一遍）。
+- **状态三件套**（`client/parts/stateKit.js`）：
+  - `Skeleton`（卡片 / 行 / 头像，`aria-busy` + 读屏文案）；
+  - `ErrorBlock`（就地错误、重试、复制诊断，`role="alert"`）；
+  - `Empty` 升级为教学式（图标 + 标题 + 解释 + 一个主行动），旧的一行调用仍然可用。
+- **表单与保存**：`Field` 统一输入框（`:user-invalid` 触发、`aria-invalid` 同步、错误 id 只在显示时进
+  `aria-describedby`、页面级 polite 播报器）；`SaveBar` 三态（有改动 / 保存中 / 已保存），
+  保存成功后短暂显示「已保存」。
+- **落到页面**：`overview`（骨架 / 用量错误块 / 未接平台的教学空态）、`mindsettings`（骨架 / 读取错误 / 无参数）、
+  `voice`（无引擎时的教学空态）、`modules`（骨架 / 读取错误）、`logs`（骨架 / 错误块 / 教学空态）。
+- **截图与断言通道**：`scripts/ui-preview.mjs` 用真组件 + 真机快照渲染工作台（不连宿主）；
+  `scripts/ui-shot.mjs` 一条命令跑 28 个页面 + 5 页 × 加载/错误/空态 + 深色 + 窄屏，产出
+  `docs/ui-baseline/`（28 + 15 张截图）并在任一断言失败时退出码非 0。
+- 回归：1739 个测试通过（新增 9 条：token/对比度 4 条、控件 5 条）；oxlint 0 error；清单 0 待审。
+
 ## 1.6.99
 
 - B60 **song/studio.js 第四刀（收尾）：做歌流水线独立 + 改判门面**（`song/studio.js` 536 → 147 行）。

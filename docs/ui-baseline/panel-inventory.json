@@ -1,0 +1,386 @@
+[
+  {
+    "id": "overview",
+    "label": "概览",
+    "group": "home",
+    "modules": null,
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "now",
+    "label": "她现在",
+    "group": "mind",
+    "modules": null,
+    "cards": [
+      "她现在"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "mood",
+    "label": "记忆",
+    "group": "mind",
+    "modules": null,
+    "cards": [
+      "向量检索与精排",
+      "聊天流水保留"
+    ],
+    "rows": 5,
+    "folds": [
+      "memory-vectors:向量检索与精排",
+      "memory-chat-log:聊天流水保留"
+    ],
+    "empty": []
+  },
+  {
+    "id": "knowledge",
+    "label": "知识库",
+    "group": "mind",
+    "modules": null,
+    "cards": [
+      "知识库文件",
+      "全文搜索",
+      "写一篇笔记"
+    ],
+    "rows": 3,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "persona",
+    "label": "关系",
+    "group": "mind",
+    "modules": null,
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [],
+    "error": "q.trim is not a function"
+  },
+  {
+    "id": "inner",
+    "label": "念头与行动",
+    "group": "mind",
+    "modules": null,
+    "cards": [
+      "内心"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "selfmind",
+    "label": "人格与自我",
+    "group": "identity",
+    "modules": null,
+    "cards": [
+      "人格与自我"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "mindsettings",
+    "label": "设置",
+    "group": "identity",
+    "modules": null,
+    "cards": [
+      "设置"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "platforms",
+    "label": "平台连接",
+    "group": "platforms",
+    "modules": null,
+    "cards": [
+      "平台连接",
+      "Telegram"
+    ],
+    "rows": 6,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "connect",
+    "label": "连接",
+    "group": "qq",
+    "modules": null,
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [],
+    "error": "Cannot read properties of null (reading 'trim')"
+  },
+  {
+    "id": "access",
+    "label": "白名单与权限",
+    "group": "qq",
+    "modules": null,
+    "cards": [
+      "私聊与群白名单",
+      "管理员与私聊权限",
+      "DSH 授权与通知"
+    ],
+    "rows": 10,
+    "folds": [
+      "qq-owner:管理员与私聊权限",
+      "qq-notices:DSH 授权与通知"
+    ],
+    "empty": []
+  },
+  {
+    "id": "group",
+    "label": "回复规则",
+    "group": "qq",
+    "modules": null,
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [],
+    "error": "secLog.slice is not a function"
+  },
+  {
+    "id": "model",
+    "label": "聊天模型",
+    "group": "qq",
+    "modules": null,
+    "cards": [
+      "聊天用的模型",
+      "模型列表与测速"
+    ],
+    "rows": 3,
+    "folds": [
+      "qq-model-speed:模型列表与测速"
+    ],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "asr",
+    "label": "语音识别",
+    "group": "qq",
+    "modules": [
+      "voice"
+    ],
+    "cards": [
+      "听语音（语音转文字）"
+    ],
+    "rows": 7,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "diary",
+    "label": "QQ 空间",
+    "group": "qq",
+    "modules": [
+      "diary",
+      "qzone-social"
+    ],
+    "cards": [
+      "空间日记",
+      "现在写日记",
+      "发布历史"
+    ],
+    "rows": 4,
+    "folds": [
+      "diary-history:发布历史"
+    ],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "voice",
+    "label": "语音合成",
+    "group": "media",
+    "modules": [
+      "voice"
+    ],
+    "cards": [
+      "说话（文字转语音）"
+    ],
+    "rows": 8,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "stickers",
+    "label": "表情包",
+    "group": "media",
+    "modules": [
+      "stickers"
+    ],
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [],
+    "error": "(models || []).map is not a function"
+  },
+  {
+    "id": "imagegen",
+    "label": "生图",
+    "group": "media",
+    "modules": [
+      "imagegen"
+    ],
+    "cards": [
+      "让ta画图"
+    ],
+    "rows": 11,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "song",
+    "label": "翻唱",
+    "group": "media",
+    "modules": [
+      "song"
+    ],
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "video",
+    "label": "生视频",
+    "group": "media",
+    "modules": [
+      "video"
+    ],
+    "cards": [
+      "本地接口"
+    ],
+    "rows": 1,
+    "folds": [],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "logs",
+    "label": "日志",
+    "group": "system",
+    "modules": null,
+    "cards": [
+      "日志"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "backup",
+    "label": "备份与恢复",
+    "group": "system",
+    "modules": null,
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [],
+    "error": "path.trim is not a function"
+  },
+  {
+    "id": "security",
+    "label": "安全防护",
+    "group": "system",
+    "modules": null,
+    "cards": [
+      "危险命令确认",
+      "SSRF 防护",
+      "远端管理（反代部署）",
+      "其它内置防护"
+    ],
+    "rows": 4,
+    "folds": [
+      "security-download:SSRF 防护",
+      "security-remote:远端管理（反代部署）",
+      "security-basics:其它内置防护"
+    ],
+    "empty": []
+  },
+  {
+    "id": "browser",
+    "label": "浏览器",
+    "group": "system",
+    "modules": null,
+    "cards": [
+      "使用 DSH 侧边浏览器"
+    ],
+    "rows": 1,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "local",
+    "label": "本地接口",
+    "group": "system",
+    "modules": null,
+    "cards": [
+      "本地接口"
+    ],
+    "rows": 1,
+    "folds": [],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "about",
+    "label": "关于",
+    "group": "system",
+    "modules": null,
+    "cards": [
+      "AuraBot for macOS",
+      "模块来源",
+      "来源与许可"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": []
+  },
+  {
+    "id": "modules",
+    "label": "模块管理",
+    "group": "extensions",
+    "modules": null,
+    "cards": [],
+    "rows": 0,
+    "folds": [],
+    "empty": [
+      "加载中…"
+    ]
+  },
+  {
+    "id": "market",
+    "label": "模块库",
+    "group": "extensions",
+    "modules": null,
+    "cards": [
+      "AuraBot 模块库"
+    ],
+    "rows": 0,
+    "folds": [],
+    "empty": [
+      "加载中…"
+    ]
+  }
+]

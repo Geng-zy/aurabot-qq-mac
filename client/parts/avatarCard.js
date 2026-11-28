@@ -16,7 +16,8 @@
     const PSEC_SUGGEST = ['你的样子', '性格', '打字习惯', '情绪是活的', '你的生活', '和管理员的关系', '绝对禁止']
     // 每节一个颜色（跟着这一节走，挪位置颜色不变）。低饱和的雾色系，相邻的冷暖交替，深浅两种主题下都不刺眼：
     // 青瓷、雾紫、琥珀、雾蓝、藕粉、苔绿、黛蓝、赭石、橄榄、紫藤
-    const PSEC_COLORS = ['#4f9a8c', '#8a7bc0', '#c08a4a', '#5f8fc7', '#c47a90', '#6f9f68', '#5c6fae', '#b9775a', '#8d9450', '#a173b5']
+    // 每个人一个色：颜色值在 0tokens.js 里（--ab-psec-N），这里只放序号
+    const PSEC_COLORS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => 'var(--ab-psec-' + n + ')')
     let psecSeq = 0
     const psec = (title, text) => ({ k: ++psecSeq, title, text })
     const splitPersona = (body) => {

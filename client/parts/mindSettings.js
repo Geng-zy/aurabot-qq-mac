@@ -6,7 +6,9 @@
       const [exact, setExact] = useState('')
       const [pending, setPending] = useState('')
       const saving = useRef(false)
-      useEffect(() => { get('/mind/settings').then(setD) }, [])
+      const [loadErr, setLoadErr] = useState('')
+      const load = () => get('/mind/settings').then((r) => { if (r && r.ok !== false) { setD(r); setLoadErr('') } else setLoadErr(r?.message || '读不到心智参数') }).catch((e) => setLoadErr('连不上插件：' + e.message))
+      useEffect(() => { load() }, [])
       useEffect(() => {
         if (jump?.section === 'mind-local-model') {
           setGroup('local')
@@ -18,8 +20,14 @@
           if (jump.setting.advanced) setAdvanced(true)
         }
       }, [jump])
-      if (!d) return h(Card, { title: '设置' }, h('p', { className: 'ab-muted' }, '读取中…'))
-      if (!d.ok) return h(Card, { title: '设置' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      if (loadErr) return h(ErrorBlock, { title: '读不到心智参数', message: loadErr, hint: '心智核心会在插件启动后几秒内就绪。', onRetry: load })
+      if (!d) return h(Skeleton, { kind: 'card', label: '正在读心智参数' })
+      if (!d.ok) return h(Empty, {
+        icon: '🧠', title: '心智核心没起来',
+        text: d.message || '心智参数读不到，去「模块管理」看看心智核心在不在跑。',
+        action: '去模块管理', onAction: () => jump && jump('modules'),
+      })
+      if (!(d.groups || []).length) return h(Empty, { icon: '🎚️', title: '没有可调参数', text: '这个版本的心智核心没有暴露参数表。', secondary: '重新读取', onSecondary: load })
       const update = async (key, body, reset = false) => {
         if (saving.current) return
         saving.current = true

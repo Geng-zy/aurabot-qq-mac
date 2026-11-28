@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.6.99 更新
+## 1.7.0 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -142,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.6.99.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.0.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.6.99.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.0.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -162,6 +162,8 @@ local
 ## 界面导览
 
 右上角用 **⌥ K** 搜索功能和设置。再次点击当前分组可收起子页；内心日记、愿望、记忆和知识库等长列表默认收起。界面动效遵循系统的「减少动态效果」设置。
+
+每个页面在三种情况下都有明确交代：**载入中**显示骨架屏（超过 300ms 才出现，不闪）、**读不到**在页面里就地给出错误块（可重试、可复制诊断，Toast 不会被用来顶替它）、**还没有内容**给教学式空态（说清为什么空，并给一个下一步动作）。改设置时底部出现保存条：有改动 → 保存中 → 已保存，**⌘S** 随时保存；只有开关类设置即时生效。
 
 | 想做什么 | 从哪里进入 |
 | --- | --- |
@@ -182,6 +184,15 @@ local
 
 <p><strong>设置搜索</strong> · 输入「向量」，可直接到记忆页并展开「向量检索与精排」。</p>
 <img src="docs/screenshots/aurabot-search.png" alt="功能搜索" width="100%">
+
+<p><strong>工作台</strong> · 左侧按用途分组，面包屑标出当前页，顶部是功能查找与运行模式。</p>
+<img src="docs/screenshots/aurabot-workbench-overview.png" alt="工作台概览" width="100%">
+
+<p><strong>读不到时</strong> · 错误留在页面上，带「重试」和「复制诊断」，不靠 Toast 顶替。</p>
+<img src="docs/screenshots/aurabot-error-state.png" alt="错误态" width="100%">
+
+<p><strong>还没有内容时</strong> · 空态说清原因，并给一个能立刻做的动作。</p>
+<img src="docs/screenshots/aurabot-empty-state.png" alt="空态" width="100%">
 
 </details>
 

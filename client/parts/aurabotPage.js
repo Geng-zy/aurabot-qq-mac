@@ -18,6 +18,7 @@
       const [collapsedGroup, setCollapsedGroup] = useState(null)
       const [wizardOpen, setWizardOpen] = useState(false)
       const [saving, setSaving] = useState(false)
+      const [savedFlash, setSavedFlash] = useState(false)
       const toastTimer = useRef(null)
       const dirtyRef = useRef(false)
       const saveRef = useRef(null)
@@ -104,6 +105,8 @@
             setDraft(clone(r.config))
           }
           toast(r.message || '保存好了', 'ok')
+          setSavedFlash(true)
+          setTimeout(() => setSavedFlash(false), 2400)
           return true
         } finally {
           writeLock.current = false
@@ -123,8 +126,19 @@
       }, [])
 
       if (!st || !draft) {
-        return h('div', { className: 'ab-root' }, h('div', { className: 'ab-standalone' },
-          err ? h(Card, { title: '暂时无法读取 AuraBot', desc: err, right: h(Btn, { onClick: reload }, '重试') }) : h(Empty, { text: '正在读取 AuraBot…' })))
+        if (err) {
+          return h('div', { className: 'ab-root' }, h('div', { className: 'ab-standalone' },
+            h(ErrorBlock, { title: '暂时无法读取 AuraBot', message: err, hint: '插件可能正在重载；也可以去日志页看细节。', onRetry: () => reload() })))
+        }
+        // 首次加载：rail 骨架 + 内容骨架，别让用户看空白
+        return h('div', { className: 'ab-root' },
+          h('div', { className: 'ab-workspace' },
+            h('aside', { className: 'ab-rail' },
+              h('div', { className: 'ab-rail-skel' }, Array.from({ length: 8 }, (_, i) => h('div', { key: i, className: 'ab-skel ab-skel-line' })))),
+            h('div', { className: 'ab-stage' },
+              h('div', { className: 'ab-content' },
+                h(Skeleton, { kind: 'card', label: '正在读取插件状态' }),
+                h(Skeleton, { kind: 'row', rows: 4, label: '正在读取插件状态' })))))
       }
       const cfg = st.config
       const conn = st.onebot.state === 'connected' && !st.onebot.problem
@@ -132,7 +146,7 @@
         : { cls: cfg.enabled && st.onebot.state === 'connecting' ? 'warn' : cfg.enabled ? 'err' : '', text: cfg.enabled ? 'QQ 未就绪' : 'QQ 未连接' }
       const persona = st.personas.find((p) => p.id === cfg.persona.current)
       const displayName = st.onebot.login?.nickname || persona?.name || '大肥鱼'
-      const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true) }
+      const props = { st, draft, setDraft, toast, reload, go, jump, connection, displayName, openWizard: () => setWizardOpen(true), pageState: { loading: !st, error: err, retry: reload } }
       const showWizard = !cfg.setupDone || wizardOpen
 
       const mods = st.modules || []
@@ -181,14 +195,14 @@
             group.pages.length > 1 ? h(PageNav, { key: group.id, group, current, go, dirtyOf: tabDirty, expanded: collapsedGroup !== group.id }) : null,
             h('div', { key: current.id, className: 'ab-content', role: 'region', 'aria-label': current.label },
               current.id === 'overview' || current.id === 'now' ? null : h('h1', { className: 'ab-page-title' }, current.label),
-              err ? h('div', { className: 'ab-note warn', role: 'status' }, err) : null,
+              err ? h(ErrorBlock, { title: '读不到插件状态', message: err, hint: '插件可能正在重载；也可以看一下日志页。', onRetry: () => reload() }) : null,
               h(TabBoundary, { key: current.id, onHome: () => go('overview') }, h(body, { ...props, mod: current.ext, slot: current.id === 'video' ? 'video' : undefined })),
               (embeddedModules[current.id] || []).map((m) => h(Card, { key: m.id, fold: 'module-' + m.id, title: m.name },
                 h(ExtPage, { ...props, mod: m.id, embedded: true }))),
-              dirty ? h('div', { className: 'ab-savebar' }, h('span', { className: 'msg' }, '有改动还没保存'),
-                h('kbd', { className: 'ab-kbd' }, isMacLike() ? '⌘ S' : 'Ctrl S'),
-                h(Btn, { kind: 'ghost', disabled: saving, onClick: () => setDraft(clone(cfg)) }, '撤销'),
-                h(Btn, { kind: 'primary', disabled: saving, onClick: () => save() }, '保存设置')) : null))),
+              dirty ? h(SaveBar, {
+                state: saving ? 'dirty' : 'dirty', saving, isMac: isMacLike(),
+                onSave: () => save(), onReset: () => setDraft(clone(cfg)),
+              }) : savedFlash ? h(SaveBar, { state: 'saved' }) : null))),
         toastMsg ? toastView(toastMsg) : null)
     }
 

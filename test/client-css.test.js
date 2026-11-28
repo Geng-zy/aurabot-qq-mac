@@ -11,8 +11,11 @@ import { fileURLToPath } from 'node:url'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const PARTS = join(ROOT, 'client/parts')
 
+const cssFiles = () => readdirSync(PARTS).filter((n) => n.endsWith('.js') && /tokens|styles/i.test(n))
+
 function classesDefined() {
-  const styles = readFileSync(join(PARTS, 'styles.js'), 'utf8')
+  // 样式与 token 分两个文件：类名在 styles.js，颜色字面量在 0tokens.js
+  const styles = cssFiles().map((n) => readFileSync(join(PARTS, n), 'utf8')).join('\n')
   return new Set([...styles.matchAll(/\.(ab-[a-z0-9-]+)/g)].map((m) => m[1]))
 }
 
@@ -33,7 +36,9 @@ test('样式里的每个 .ab-* 类都有人用（防止删页面后样式堆积�
 
 test('变量定义不缺：用到的 --ab-* 变量都有声明', () => {
   const styles = readFileSync(join(PARTS, 'styles.js'), 'utf8')
-  const declared = new Set([...styles.matchAll(/(--ab-[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
+  // token 只在 0tokens.js 里声明，组件规则用的 var() 必须都能在里面找到
+  const tokens = readFileSync(join(PARTS, '0tokens.js'), 'utf8')
+  const declared = new Set([...tokens.matchAll(/(--ab-[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
   const used = new Set([...styles.matchAll(/var\((--ab-[a-z0-9-]+)/g)].map((m) => m[1]))
   const missing = [...used].filter((v) => !declared.has(v))
   assert.deepEqual(missing, [], `这些 CSS 变量用了但没声明：\n${missing.join(' ')}`)
