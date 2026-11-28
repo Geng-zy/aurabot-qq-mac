@@ -1,5 +1,10 @@
-    function ModOff({ name }) {
-      return h(Card, { title: name }, h('div', { className: 'ab-muted ab-small' }, '「' + name + '」模块关着，这部分用不了。要用的话去「扩展 → 模块管理」把它打开。'))
+    function ModOff({ name, go }) {
+      return h(Card, { title: name }, h(Empty, {
+        icon: '🧩', title: '「' + name + '」模块关着',
+        text: '这一页的内容由「' + name + '」模块提供；打开它以后设置会出现在这里，聊天里对应的能力也一起恢复。',
+        action: go ? '去模块管理' : undefined,
+        onAction: go ? () => go('modules') : undefined,
+      }))
     }
     /** 一个标签页出错时只坏这一页：显示原因和「回到概览」，不会整个面板白屏（也不会因为记住了这一页而一直白）。 */
     class TabBoundary extends React.Component {

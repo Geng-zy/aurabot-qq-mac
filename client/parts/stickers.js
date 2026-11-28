@@ -2,7 +2,10 @@
       const f = useField(draft, setDraft)
       const [items, setItems] = useState(null)
       const fileRef = useRef(null)
-      const load = () => get('/stickers').then((r) => setItems(r.items || []))
+      const [loadErr, setLoadErr] = useState('')
+      const load = () => get('/stickers').then((r) => {
+        if (r && r.ok !== false) { setItems(r.items || []); setLoadErr('') } else { setItems([]); setLoadErr(r?.message || '读不到表情库') }
+      }).catch((e) => { setItems([]); setLoadErr('连不上插件：' + e.message) })
       useEffect(() => { load() }, [])
       const [newName, setNewName] = useState('')
       // 起名用哪个模型：列 DSH 里已经接好的模型，能看图的标出来（AI 补全必须看图）
@@ -148,7 +151,12 @@
               ? h(Btn, { key: 'stop', small: true, kind: 'ghost', onClick: async () => { const r = await post('/sticker/caption-stop', {}); toast(r.message || '停了') } }, '停')
               : h(Btn, { key: 'ok', small: true, kind: 'ghost', onClick: () => setJob(null) }, '知道了'),
           ) : null,
-          items === null ? h(Empty, { icon: '⏳', text: '加载中…' }) : items.length === 0 ? h(Empty, { icon: '🐳', text: '表情库还是空的。别人在群里发表情包，ta会自己收；也可以点右上角上传，或者「从 QQ 收藏导入」机器人号已经收藏的表情。' }) :
+          loadErr ? h(ErrorBlock, { title: '读不到表情库', message: loadErr, hint: '表情存在数据目录 stickers/ 下。', onRetry: load })
+            : items === null ? h(Skeleton, { kind: 'row', rows: 4, label: '正在读表情库' })
+            : items.length === 0 ? h(Empty, {
+              icon: '🐳', title: '表情库还是空的',
+              text: '别人在群里发真表情包时她会自己收；也可以点右上角上传，或者「从 QQ 收藏导入」机器人号已经收藏的表情。',
+            }) :
             h('div', { className: cx('ab-stickers', picking && 'picking') },
               items.map((it) => h(StickerCell, { key: it.md5, it, onChanged: load, toast, picking, selected: picked.includes(it.md5), onToggle: toggle }))),
         ),

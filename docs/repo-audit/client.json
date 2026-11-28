@@ -929,5 +929,19 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "README.md 连接页示例图（一键诊断结果区），来自 docs/ui-baseline/pages/connect.png。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-stickers.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 表情包页示例图（真实表情库 + 批量起名），来自 docs/ui-baseline/pages/stickers.png；1.7.5 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-song.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 翻唱页示例图（六组件体检 + 一键安装进度），来自 docs/ui-baseline/pages/song.png。"
   }
 ]

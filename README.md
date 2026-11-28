@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.7.4 更新
+## 1.7.5 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -142,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.4.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.5.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.4.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.5.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -177,7 +177,7 @@ local
 | 修改人设、性格设置和后台预算 | 自我与设置 |
 | 配置 QQ 连接、白名单或空间日记 | QQ 会话（连接页可一键诊断；白名单里的号码当场校验） |
 | 配置 Telegram | 平台 → Telegram |
-| 配置语音、生图、表情或翻唱 | 表达与创作 |
+| 配置语音、生图、表情或翻唱 | 表达与创作（模块关着时页面会直接说明并给「去模块管理」） |
 | 看日志、备份或接入自定义脚本 | 系统 |
 
 <details>
@@ -209,6 +209,12 @@ local
 
 <p><strong>白名单</strong> · 不是有效号码的项当场标出、留在框里待改，不会被悄悄存进去。</p>
 <img src="docs/screenshots/aurabot-whitelist.png" alt="白名单" width="100%">
+
+<p><strong>表情包</strong> · 真实表情库，可以改名字标签，也可以让能看图的模型批量起名。</p>
+<img src="docs/screenshots/aurabot-stickers.png" alt="表情包" width="100%">
+
+<p><strong>翻唱</strong> · 六项组件体检 + 一键安装进度；缺什么一眼能看到。</p>
+<img src="docs/screenshots/aurabot-song.png" alt="翻唱" width="100%">
 
 <p><strong>读不到时</strong> · 错误留在页面上，带「重试」和「复制诊断」，不靠 Toast 顶替。</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="错误态" width="100%">

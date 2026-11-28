@@ -56,6 +56,12 @@ const STATES = [
   { page: 'asr', empty: /听语音|语音转文字/ },
   { page: 'diary', empty: /还没写过日记|空间日记/ },
   { page: 'group', empty: /群聊|回应/ },
+  // B5 表达与创作
+  { page: 'voice', empty: /还没有可用的语音引擎|说话（文字转语音）/ },
+  { page: 'stickers', empty: /表情库还是空的|表情库/ },
+  { page: 'imagegen', empty: /让ta画图|画图|生图/ },
+  { page: 'song', empty: /翻唱|聊天用的模型|还没/ },
+  { page: 'video', empty: /本地接口|生视频/ },
 ]
 
 const { chromium } = await loadPlaywright()
@@ -198,7 +204,16 @@ try {
   const modelSelect = page.locator('.ab-ctl button[aria-haspopup="listbox"], .ab-ctl [role="combobox"], .ab-ctl button').first()
   check('模型页：选择器存在', (await modelSelect.count()) > 0)
 
-  // 5) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
+  // 5) B5 两条流程：表情库有内容、翻唱六组件体检可读
+  await open('page=stickers&state=live&mode=normal')
+  const stickerCells = await page.locator('.ab-sticker').count()
+  check('表情包：真实表情渲染出来', stickerCells > 0, `格子 ${stickerCells}`)
+
+  await open('page=song&state=live&mode=normal')
+  const songText = (await page.textContent('.ab-content')) || ''
+  check('翻唱：六组件体检可读', /python|Applio|分离|ffmpeg|音色|权重/i.test(songText), songText.slice(0, 80))
+
+  // 6) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
   await open('page=logs&state=live&mode=normal')
   const toastText = await page.evaluate(async () => {
     const bus = window.__PANEL__.__panelTest.AB_TOAST
@@ -211,7 +226,7 @@ try {
   const toastTotal = await page.locator('.ab-toast').count()
   check('Toast 只有宿主层那一份', toastTotal === 1 && toastInside === 1, `总 ${toastTotal}，宿主层 ${toastInside}`)
 
-  // 6) 深色与窄屏
+  // 7) 深色与窄屏
   await open('page=overview&state=live&mode=normal&theme=dark')
   await page.screenshot({ path: join(OUT, 'theme-dark.png') })
   check('深色模式生效', await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))

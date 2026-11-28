@@ -5,7 +5,10 @@
       const [found, setFound] = useState(null)
       const [pitch, setPitch] = useState(0)
       const [acct, setAcct] = useState(null)
-      const load = () => get('/song/status').then((r) => r.ok && setS(r))
+      const [loadErr, setLoadErr] = useState('')
+      const load = () => get('/song/status').then((r) => {
+        if (r && r.ok !== false) { setS(r); setLoadErr('') } else setLoadErr(r?.message || '读不到翻唱环境')
+      }).catch((e) => setLoadErr('连不上插件：' + e.message))
       // 安装中 / 正在唱的时候每 3 秒刷新一次进度
       useEffect(() => {
         load()
@@ -14,7 +17,8 @@
         const t = setInterval(load, 3000)
         return () => clearInterval(t)
       }, [s && s.install.running, s?.profileJob?.running, s && Boolean(s.current), s && s.queue.length])
-      if (!s) return h(Empty, { icon: '⏳', text: '加载中…' })
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到翻唱环境', message: loadErr, hint: '翻唱环境装在本机数据目录；装没装都能在这一页查看。', onRetry: load }))
+      if (!s) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在检查翻唱环境' }), h(Skeleton, { kind: 'row', rows: 4, label: '正在检查翻唱环境' }))
       const search = async () => { if (!q.trim()) return; setFound(null); const r = await get('/song/search?q=' + encodeURIComponent(q)); setFound(r.list || []); if (!r.ok) toast(r.message, 'err') }
       const sing = async (song) => { const r = await post('/song/request', { songId: song.id, song: song.name, pitch }); notify(toast, r); load() }
       const voices = s.voices.map((v) => ({ value: v.id, label: v.id, desc: v.hasIndex ? '带 .index' : '' }))

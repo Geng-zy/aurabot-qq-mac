@@ -3,7 +3,11 @@
       const [imageTest, setImageTest] = useState(null)
       const [testingImage, setTestingImage] = useState(false)
       const [lastImageError, setLastImageError] = useState(null)
-      useEffect(() => { get('/image/status').then((r) => setLastImageError(r.lastError || null)).catch(() => {}) }, [])
+      const [statusErr, setStatusErr] = useState('')
+      const loadStatus = () => get('/image/status').then((r) => {
+        if (r && r.ok !== false) { setLastImageError(r.lastError || null); setStatusErr('') } else setStatusErr(r?.message || '读不到生图状态')
+      }).catch((e) => setStatusErr('连不上插件：' + e.message))
+      useEffect(() => { loadStatus() }, [])
       const testImage = async () => {
         if (!confirm('会先保存当前生图设置，再调用当前服务画一张测试图，可能消耗额度。继续？')) return
         setTestingImage(true); setImageTest(null)
@@ -32,6 +36,7 @@
       const setParams = (next) => setDraft(setPath(draft, 'imageGen.custom.params', next))
       const setP = (i, k, v) => setParams(params.map((p, j) => (j === i ? { ...p, [k]: v } : p)))
       return h('div', { className: 'ab-grid' },
+        statusErr ? h(ErrorBlock, { title: '读不到生图状态', message: statusErr, onRetry: loadStatus }) : null,
         h(Card, { title: '让ta画图', right: f.sw('imageGen.enabled'), desc: '选择生图方式。自定义生图脚本可在「系统 → 本地接口」管理。' },
           h(Row, { label: '生图方式' },
             h(Select, {

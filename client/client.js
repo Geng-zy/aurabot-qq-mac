@@ -1306,7 +1306,7 @@ window.__ModuleLoader__.load({
 
     /** 心智设置的一个输入框：失焦或回车才保存（数字留空 = 没填）。 */
 
-    function Diary({ st, draft, setDraft, toast }) {
+    function Diary({ st, draft, setDraft, toast, go }) {
     const f = useField(draft, setDraft)
     const [data, setData] = useState(null)
     const [loadErr, setLoadErr] = useState('')
@@ -1315,8 +1315,8 @@ window.__ModuleLoader__.load({
     if (r && r.ok !== false) { setData(r); setLoadErr(''); if (r.warning) toast(r.warning) } else { setData(null); setLoadErr(r?.message || '读不到日记状态') }
     }).catch((e) => setLoadErr('连不上插件：' + e.message)) : null)
     useEffect(() => { load() }, [on])
-    const social = modOn(st, 'qzone-social') ? h(QzoneSocial, { draft, setDraft, toast }) : h(ModOff, { name: '空间互动' })
-    if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记' }), social)
+    const social = modOn(st, 'qzone-social') ? h(QzoneSocial, { draft, setDraft, toast }) : h(ModOff, { name: '空间互动', go })
+    if (!on) return h('div', { className: 'ab-grid' }, h(ModOff, { name: '空间日记', go }), social)
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '空间日记', right: f.sw('diary.enabled'), desc: '她用可公开的经历和当前心情写说说。普通日记只在「仅自己可见」时自动从当天的画作或表情包里配图。' },
     h(Row, { label: '每天自动发布上限', hint: '设为 0 可暂停自动发布' }, f.num('diary.timesPerDay', { min: 0, max: 6 })),
@@ -2050,7 +2050,11 @@ window.__ModuleLoader__.load({
     const [imageTest, setImageTest] = useState(null)
     const [testingImage, setTestingImage] = useState(false)
     const [lastImageError, setLastImageError] = useState(null)
-    useEffect(() => { get('/image/status').then((r) => setLastImageError(r.lastError || null)).catch(() => {}) }, [])
+    const [statusErr, setStatusErr] = useState('')
+    const loadStatus = () => get('/image/status').then((r) => {
+    if (r && r.ok !== false) { setLastImageError(r.lastError || null); setStatusErr('') } else setStatusErr(r?.message || '读不到生图状态')
+    }).catch((e) => setStatusErr('连不上插件：' + e.message))
+    useEffect(() => { loadStatus() }, [])
     const testImage = async () => {
     if (!confirm('会先保存当前生图设置，再调用当前服务画一张测试图，可能消耗额度。继续？')) return
     setTestingImage(true); setImageTest(null)
@@ -2079,6 +2083,7 @@ window.__ModuleLoader__.load({
     const setParams = (next) => setDraft(setPath(draft, 'imageGen.custom.params', next))
     const setP = (i, k, v) => setParams(params.map((p, j) => (j === i ? { ...p, [k]: v } : p)))
     return h('div', { className: 'ab-grid' },
+    statusErr ? h(ErrorBlock, { title: '读不到生图状态', message: statusErr, onRetry: loadStatus }) : null,
     h(Card, { title: '让ta画图', right: f.sw('imageGen.enabled'), desc: '选择生图方式。自定义生图脚本可在「系统 → 本地接口」管理。' },
     h(Row, { label: '生图方式' },
     h(Select, {
@@ -3400,8 +3405,13 @@ window.__ModuleLoader__.load({
     h('p', { style: { color: 'var(--ab-sub, GrayText)', fontSize: '13px', wordBreak: 'break-word' } }, String(error?.message || error || '')))
     }
 
-    function ModOff({ name }) {
-    return h(Card, { title: name }, h('div', { className: 'ab-muted ab-small' }, '「' + name + '」模块关着，这部分用不了。要用的话去「扩展 → 模块管理」把它打开。'))
+    function ModOff({ name, go }) {
+    return h(Card, { title: name }, h(Empty, {
+    icon: '🧩', title: '「' + name + '」模块关着',
+    text: '这一页的内容由「' + name + '」模块提供；打开它以后设置会出现在这里，聊天里对应的能力也一起恢复。',
+    action: go ? '去模块管理' : undefined,
+    onAction: go ? () => go('modules') : undefined,
+    }))
     }
     /** 一个标签页出错时只坏这一页：显示原因和「回到概览」，不会整个面板白屏（也不会因为记住了这一页而一直白）。 */
     class TabBoundary extends React.Component {
@@ -4705,7 +4715,10 @@ window.__ModuleLoader__.load({
     const [found, setFound] = useState(null)
     const [pitch, setPitch] = useState(0)
     const [acct, setAcct] = useState(null)
-    const load = () => get('/song/status').then((r) => r.ok && setS(r))
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/song/status').then((r) => {
+    if (r && r.ok !== false) { setS(r); setLoadErr('') } else setLoadErr(r?.message || '读不到翻唱环境')
+    }).catch((e) => setLoadErr('连不上插件：' + e.message))
     // 安装中 / 正在唱的时候每 3 秒刷新一次进度
     useEffect(() => {
     load()
@@ -4714,7 +4727,8 @@ window.__ModuleLoader__.load({
     const t = setInterval(load, 3000)
     return () => clearInterval(t)
     }, [s && s.install.running, s?.profileJob?.running, s && Boolean(s.current), s && s.queue.length])
-    if (!s) return h(Empty, { icon: '⏳', text: '加载中…' })
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到翻唱环境', message: loadErr, hint: '翻唱环境装在本机数据目录；装没装都能在这一页查看。', onRetry: load }))
+    if (!s) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在检查翻唱环境' }), h(Skeleton, { kind: 'row', rows: 4, label: '正在检查翻唱环境' }))
     const search = async () => { if (!q.trim()) return; setFound(null); const r = await get('/song/search?q=' + encodeURIComponent(q)); setFound(r.list || []); if (!r.ok) toast(r.message, 'err') }
     const sing = async (song) => { const r = await post('/song/request', { songId: song.id, song: song.name, pitch }); notify(toast, r); load() }
     const voices = s.voices.map((v) => ({ value: v.id, label: v.id, desc: v.hasIndex ? '带 .index' : '' }))
@@ -4961,7 +4975,10 @@ window.__ModuleLoader__.load({
     const f = useField(draft, setDraft)
     const [items, setItems] = useState(null)
     const fileRef = useRef(null)
-    const load = () => get('/stickers').then((r) => setItems(r.items || []))
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/stickers').then((r) => {
+    if (r && r.ok !== false) { setItems(r.items || []); setLoadErr('') } else { setItems([]); setLoadErr(r?.message || '读不到表情库') }
+    }).catch((e) => { setItems([]); setLoadErr('连不上插件：' + e.message) })
     useEffect(() => { load() }, [])
     const [newName, setNewName] = useState('')
     // 起名用哪个模型：列 DSH 里已经接好的模型，能看图的标出来（AI 补全必须看图）
@@ -5107,7 +5124,12 @@ window.__ModuleLoader__.load({
     ? h(Btn, { key: 'stop', small: true, kind: 'ghost', onClick: async () => { const r = await post('/sticker/caption-stop', {}); toast(r.message || '停了') } }, '停')
     : h(Btn, { key: 'ok', small: true, kind: 'ghost', onClick: () => setJob(null) }, '知道了'),
     ) : null,
-    items === null ? h(Empty, { icon: '⏳', text: '加载中…' }) : items.length === 0 ? h(Empty, { icon: '🐳', text: '表情库还是空的。别人在群里发表情包，ta会自己收；也可以点右上角上传，或者「从 QQ 收藏导入」机器人号已经收藏的表情。' }) :
+    loadErr ? h(ErrorBlock, { title: '读不到表情库', message: loadErr, hint: '表情存在数据目录 stickers/ 下。', onRetry: load })
+    : items === null ? h(Skeleton, { kind: 'row', rows: 4, label: '正在读表情库' })
+    : items.length === 0 ? h(Empty, {
+    icon: '🐳', title: '表情库还是空的',
+    text: '别人在群里发真表情包时她会自己收；也可以点右上角上传，或者「从 QQ 收藏导入」机器人号已经收藏的表情。',
+    }) :
     h('div', { className: cx('ab-stickers', picking && 'picking') },
     items.map((it) => h(StickerCell, { key: it.md5, it, onChanged: load, toast, picking, selected: picked.includes(it.md5), onToggle: toggle }))),
     ),
