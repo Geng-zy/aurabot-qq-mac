@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.96
+
+- B57 **song/studio.js 第一刀：音色库独立成模块**（`song/voice-library.js` 117 行，`song/studio.js` 1137 → 1033 行）。
+  - 拆出 `listVoices`（models 目录里 `.pth` + 同名 `.index`）、`importModels`（`.pth`/`.index`/`.ckpt`/`.yaml` 与 zip 导入）、
+    `deleteVoice`、`pruneCache`、`looksLikePth`、`applioPython` / `findRubberband`（python 与 rubberband 的位置探测）。
+  - 那一支只碰文件系统，与「安装链 / 做歌编排」寿命不同，拆开后 studio 里剩下的都是编排。
+  - 模块清单同步：`src/modules/song/index.js` 的 `files` 补上 `song/voice-library.js` ——
+    复制内置模块的用例（`modules.test.js`）会按这份清单拷文件，漏了会直接跑不起来。
+- 回归：全量 1730 个测试通过；语法 654 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.95
 
 - B56 **mind/index.js 收尾：状态面板独立 + 改判组合根**（`mind/index.js` 361 → 343 行，`mind/status.js` 33 行）。

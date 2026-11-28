@@ -368,7 +368,7 @@
     "area": "song",
     "owner": "song-studio",
     "verdict": "split",
-    "evidence": "1137 行（>300）、35 个 export；被 src/modules/song/index.js import、被 src/voice/tts.js:83（动态 import 只取 defaultRoot/MAC_STACK）、test/song.test.js、test/macos.test.js、test/local.test.js 覆盖；内部依赖 9 个（core/net、core/store、core/zip、core/python、core/img、song/netease、song/local_music、song/pipeline、local/local）。五段职责：安装栈与下载校验（19-148：APPLIO_REPO/APPLIO_COMMIT 固定 commit、MAC_STACK、INSTALL_STEPS、fetchFile/ensureReadable/dirSize/defaultRoot/explainInstallError）、分离模型清单与导入（155-253：LEAP_XE/EXTRA_SEPARATORS/RUBBERBAND_MAC/SEPARATOR_FILES/separatorLinks/registerExtraSeparator/importSeparator）、音色模型资产（274-395：pathsOf/listVoices/importModels/deleteVoice/pruneCache/looksLikePth）、纯参数函数（398-423：VOCAL_MIN_DB/mixArgs/rankCandidates/clipWindow）、流程编排（489-1137：createSongStudio，安装 541-761、做一首 762-1137、convertSpeech 909、面板方法表 1124 行）。voice/tts.js 只为两个安装常量而依赖整个 1137 行文件，是拆分的第一动因。"
+    "evidence": "1137 行（>300）、35 个 export；被 src/modules/song/index.js import、被 src/voice/tts.js:83（动态 import 只取 defaultRoot/MAC_STACK）、test/song.test.js、test/macos.test.js、test/local.test.js 覆盖；内部依赖 9 个（core/net、core/store、core/zip、core/python、core/img、song/netease、song/local_music、song/pipeline、local/local）。五段职责：安装栈与下载校验（19-148：APPLIO_REPO/APPLIO_COMMIT 固定 commit、MAC_STACK、INSTALL_STEPS、fetchFile/ensureReadable/dirSize/defaultRoot/explainInstallError）、分离模型清单与导入（155-253：LEAP_XE/EXTRA_SEPARATORS/RUBBERBAND_MAC/SEPARATOR_FILES/separatorLinks/registerExtraSeparator/importSeparator）、音色模型资产（274-395：pathsOf/listVoices/importModels/deleteVoice/pruneCache/looksLikePth）、纯参数函数（398-423：VOCAL_MIN_DB/mixArgs/rankCandidates/clipWindow）、流程编排（489-1137：createSongStudio，安装 541-761、做一首 762-1137、convertSpeech 909、面板方法表 1124 行）。voice/tts.js 只为两个安装常量而依赖整个 1137 行文件，是拆分的第一动因。 B57 第一刀：把音色库那一支（列出/导入/删除/清缓存、python 与 rubberband 位置）拆成 song/voice-library.js（117 行），本文件 1137 → 1033 行；仍需再切分离器环境与安装链才能 <300。"
   },
   {
     "path": "src/voice/asr.js",
@@ -418,5 +418,12 @@
     "owner": "voice",
     "verdict": "keep",
     "evidence": "85 行；0 个内部依赖（run/outDir 由 voice/tts.js 注入）；1 处 import（voice/tts.js 再导出）；被 test/macos.test.js / test/audio-duration.test.js 经 tts 覆盖。职责：edge-tts 的私有 Python 环境（PYENV_DIR / pyExe / edgeInstalled）、用 uv + 固定版本安装（installEdge，镜像回退与缓存清理）、单次调用（edgeSynth，临时文本文件 + 输出长度校验）。B43 从 tts.js 抽出：环境一次装好、调用天天用，与六后端编排寿命不同。"
+  },
+  {
+    "path": "src/song/voice-library.js",
+    "area": "song",
+    "owner": "song",
+    "verdict": "keep",
+    "evidence": "117 行；2 个内部依赖（core/zip.js 的 readZip、node 的 fs/path）；1 处 import（song/studio.js 再导出）；被 test/macos.test.js 与 song 相关测试经 studio 覆盖。职责：音色库的文件操作——listVoices（models 目录里 .pth + 同名 .index）、importModels（.pth/.index/.ckpt/.yaml 与 zip 导入）、deleteVoice、pruneCache、looksLikePth、以及 applioPython / findRubberband 的位置探测。B57 从 song/studio.js 抽出（那一支只碰文件系统，与安装/做歌编排寿命不同）。"
   }
 ]

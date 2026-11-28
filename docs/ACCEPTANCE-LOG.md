@@ -3868,3 +3868,32 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 653 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.95.tgz  19,696,150 字节
         sha256 238f20e2d277ee0b4c1a93baddfb29520662cfe09727319abbb63acd341b2fa4
 ```
+
+---
+
+## B57 · song/studio.js 第一刀：音色库（1.6.96）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `song/studio.js` | 1137 → **1033** | 安装链、做歌编排、面板接口（仍需两刀） |
+| `song/voice-library.js`（新） | **117** | `listVoices` / `importModels` / `deleteVoice` / `pruneCache` / `looksLikePth` / `applioPython` / `findRubberband` |
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 654 文件；oxlint 0 error；清单 0 待审
+过程  踩到一次真问题：modules.test.js 的「复制内置模块来改」按 src/modules/song/index.js 的 files 清单拷文件，
+      新增的 voice-library.js 不在清单里 → 复制出来的模块 import 直接失败。补清单后 24/24 通过。
+      （这类「模块清单」以后每拆一个 song/ 模块都要同步）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.96（回滚点 ~/aurabot-release-backups/20261128-130736）、13:07:41 启动
+接口   /song/status → ok=true（voices 0，本机还没导入音色模型）
+       /song/root/check?path=/tmp → ok，freeGB 153.8（checkRoot/pathsOf 在新的 voice-library.js 那一支照常工作）
+       Purge 三工具在；13:00 后新增 error：0 条
+
+提交   B57；tag v1.6.96
+Release dsh-aurabot-qq-1.6.96.tgz  19,697,637 字节
+        sha256 8e05f69ede36e0d149c87c6aee523e898a558e9268ce4e8f3710e05d01da4bf3
+```
