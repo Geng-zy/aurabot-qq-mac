@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.7.2 更新
+## 1.7.3 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -142,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.2.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.3.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.2.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.3.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -166,6 +166,8 @@ local
 设置多的页面（白名单、回复规则、语音、生图……）在标题上方有一条**分区锚点条**：点一下就展开对应分区并滚过去，当前分区标在条上，不用在长页里滚着找。窄窗口时侧栏变顶部横条、页签与分区条都能横向滑动。动作结果（保存、试听、安装进度）由窗口层统一提示，切页或关面板也不会丢。
 
 每个页面在三种情况下都有明确交代：**载入中**显示骨架屏（超过 300ms 才出现，不闪）、**读不到**在页面里就地给出错误块（可重试、可复制诊断，Toast 不会被用来顶替它）、**还没有内容**给教学式空态（说清为什么空，并给一个下一步动作）。改设置时底部出现保存条：有改动 → 保存中 → 已保存，**⌘S** 随时保存；只有开关类设置即时生效。
+
+心智设置这类逐项保存的页面，**数字超出范围会当场标红并且不提交**（错误写在这一行上，不是弹一下就消失的提示），改回范围里立刻生效；每项都能展开看默认值和依据，也能单独恢复默认。
 
 | 想做什么 | 从哪里进入 |
 | --- | --- |
@@ -198,6 +200,9 @@ local
 
 <p><strong>心智组的空态</strong> · 还没认识谁时不是一句「暂无」，而是说明原因并给出下一步。</p>
 <img src="docs/screenshots/aurabot-mind-empty.png" alt="关系页空态" width="100%">
+
+<p><strong>心智设置</strong> · 按分类看参数，每行写着默认值与依据，可以单独恢复默认。</p>
+<img src="docs/screenshots/aurabot-mind-settings.png" alt="心智设置" width="100%">
 
 <p><strong>读不到时</strong> · 错误留在页面上，带「重试」和「复制诊断」，不靠 Toast 顶替。</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="错误态" width="100%">

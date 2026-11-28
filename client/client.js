@@ -2616,16 +2616,19 @@ window.__ModuleLoader__.load({
     h(MindLocalModel, { toast, usage: d.usage }))
     }
 
-    function MindInput({ value, label, number, min, max, step, unit, onCommit, disabled }) {
+    function MindInput({ value, label, number, min, max, step, unit, onCommit, disabled, invalid }) {
     const [v, setV] = useState(value ?? '')
     useEffect(() => { setV(value ?? '') }, [value])
     const commit = () => {
     if (String(v) === String(value ?? '')) return
-    if (number) onCommit(v === '' ? null : Number(v))
-    else onCommit(String(v))
+    if (number) {
+    const n = v === '' ? null : Number(v)
+    if (n !== null && !Number.isFinite(n)) return // 非数字：留在输入框里，由调用方标错
+    onCommit(n)
+    } else onCommit(String(v))
     }
     return h('span', { className: cx('ab-flex', number && 'ab-number-ctl'), style: { gap: 6 } },
-    h('input', { className: 'ab-input', type: number ? 'number' : 'text', 'aria-label': label, disabled, value: v, min, max, step, style: { width: number ? 120 : 280 }, onChange: (e) => setV(e.target.value), onBlur: commit, onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur() } }),
+    h('input', { className: cx('ab-input', invalid && 'bad'), type: number ? 'number' : 'text', 'aria-label': label, 'aria-invalid': invalid ? 'true' : 'false', disabled, value: v, min, max, step, style: { width: number ? 120 : 280 }, onChange: (e) => setV(e.target.value), onBlur: commit, onKeyDown: (e) => { if (e.key === 'Enter') e.target.blur() } }),
     unit ? h('span', { className: 'ab-muted' }, unit) : null)
     }
 
@@ -3089,10 +3092,19 @@ window.__ModuleLoader__.load({
     const [draft, setDraft] = useState(null)
     const [busy, setBusy] = useState(false)
     const [edit, setEdit] = useState(null)
-    const load = () => get('/mind/self').then((r) => { setD(r); if (r.ok) setDraft(Object.fromEntries(r.personality.traits.map((t) => [t.id, t.base]))) })
+    const [loadErr, setLoadErr] = useState('')
+    const [editErr, setEditErr] = useState('')
+    const load = () => get('/mind/self').then((r) => {
+    if (r && r.ok !== false) { setD(r); setLoadErr(''); setDraft(Object.fromEntries((r.personality?.traits || []).map((t) => [t.id, t.base]))) } else { setD(r || null); setLoadErr(r?.message || '读不到她的人格与自我') }
+    }).catch((e) => setLoadErr('连不上插件：' + e.message))
     useEffect(() => { load() }, [])
-    if (!d) return h(Card, { title: '人格与自我' }, h('p', { className: 'ab-muted' }, '读取中…'))
-    if (!d.ok) return h(Card, { title: '人格与自我' }, h(Empty, { text: d.message || '心智核心没起来' }))
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到她的人格与自我', message: loadErr, hint: '人格卡和特质都跟着心智核心走。', onRetry: load }))
+    if (!d) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读人格与自我' }), h(Skeleton, { kind: 'row', rows: 4, label: '正在读人格与自我' }))
+    if (!d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+    icon: '🪞', title: '心智核心没起来',
+    text: d.message || '人格卡、特质和习惯都读不到；去「模块管理」看看心智核心在不在跑。',
+    action: '重新读取', onAction: load,
+    }))
     const ps = d.personality
     const groups = [['E', '外向'], ['A', '宜人'], ['C', '尽责'], ['N', '情绪敏感'], ['O', '开放'], ['H', '诚实谦逊'], ['AT', '依恋'], ['X', '表达']]
     const restore = async (kind, id) => { if (!confirm('退回到这个版本？（会新存一个版本，写明是退回）')) return; const r = await post('/mind/self/restore', { kind, id }); toast(r.message || (r.ok ? '退回了' : '没成功')); load() }
@@ -3104,6 +3116,8 @@ window.__ModuleLoader__.load({
     }
     const saveSelf = async () => {
     if (!edit) return
+    if (!String(edit.value || '').trim()) { setEditErr('这一段不能空着'); return }
+    setEditErr('')
     const r = await post('/mind/self/change', { what: edit.what, content: edit.value, why: '管理员在面板里改的' })
     toast(r.message); setEdit(null); load()
     }
@@ -3111,7 +3125,11 @@ window.__ModuleLoader__.load({
     const BY = { owner: '你', self: '她自己', sleep: '睡觉时', migration: '迁移' }
     return h(Fragment, null,
     edit ? h(Card, { title: '改' + edit.label, desc: '会存一个版本；长文字建议在「人设」页改。' },
-    h('textarea', { className: 'ab-textarea', rows: edit.multiline ? 6 : 2, value: edit.value, onChange: (e) => setEdit({ ...edit, value: e.target.value }) }),
+    h(Field, {
+    label: edit.label, textarea: true, rows: edit.multiline ? 6 : 2, value: edit.value, error: editErr,
+    hint: '空着不保存；改完会在「性格的版本」里留一条记录。',
+    onChange: (v) => { setEdit({ ...edit, value: v }); if (editErr && v.trim()) setEditErr('') },
+    }),
     h('div', { className: 'ab-flex', style: { gap: 6 } },
     h(Btn, { small: true, kind: 'primary', onClick: saveSelf }, '保存'),
     h(Btn, { small: true, onClick: () => setEdit(null) }, '取消'))) : null,
@@ -3171,6 +3189,7 @@ window.__ModuleLoader__.load({
     const [pending, setPending] = useState('')
     const saving = useRef(false)
     const [loadErr, setLoadErr] = useState('')
+    const [fieldErr, setFieldErr] = useState({})
     const load = () => get('/mind/settings').then((r) => { if (r && r.ok !== false) { setD(r); setLoadErr('') } else setLoadErr(r?.message || '读不到心智参数') }).catch((e) => setLoadErr('连不上插件：' + e.message))
     useEffect(() => { load() }, [])
     useEffect(() => {
@@ -3198,19 +3217,37 @@ window.__ModuleLoader__.load({
     setPending(key)
     try {
     const r = await post(reset ? '/mind/settings/reset' : '/mind/settings/save', body)
-    if (!r.ok) { toast(r.message || '保存失败', 'err'); return }
+    if (!r.ok) {
+    // 服务端说不合法：把话留在这一行上，不要只弹一个会消失的提示
+    setFieldErr((old) => ({ ...old, [key]: String(r.message || '保存失败').slice(0, 160) }))
+    toast(r.message || '保存失败', 'err')
+    return
+    }
+    setFieldErr((old) => { if (!old[key]) return old; const next = { ...old }; delete next[key]; return next })
     setD((old) => ({ ...old, values: r.values, saved: r.saved }))
     toast(reset ? '已恢复默认' : '已保存', 'ok')
     } finally { saving.current = false; setPending('') }
     }
+    /** 本地先拦一道：数字必须在 min～max 之间，其他类型交给服务端。 */
+    const check = (p, x) => {
+    if (typeof x !== 'number' || !Number.isFinite(x)) return ''
+    if (p.min !== undefined && x < p.min) return `不能小于 ${p.min}${p.unit ? ' ' + p.unit : ''}`
+    if (p.max !== undefined && x > p.max) return `不能大于 ${p.max}${p.unit ? ' ' + p.unit : ''}`
+    return ''
+    }
     const show = (v) => v === null || v === undefined || v === '' ? '不填' : typeof v === 'boolean' ? (v ? '开' : '关') : String(v)
     const ctl = (p) => {
     const v = d.values[p.key]
-    const save = (x) => update(p.key, { patch: { [p.key]: x } })
+    const save = (x) => {
+    const bad = check(p, x)
+    if (bad) { setFieldErr((old) => ({ ...old, [p.key]: bad })); toast(bad, 'err'); return }
+    setFieldErr((old) => { if (!old[p.key]) return old; const next = { ...old }; delete next[p.key]; return next })
+    return update(p.key, { patch: { [p.key]: x } })
+    }
     if (typeof p.def === 'boolean') return h(Switch, { on: !!v, label: p.label, disabled: Boolean(pending), onChange: save })
     if (p.options) return h(Select, { value: v, options: p.options, ariaLabel: p.label, disabled: Boolean(pending), onChange: save })
     const number = typeof p.def === 'number' || p.min !== undefined
-    return h(MindInput, { value: v, label: p.label, disabled: Boolean(pending), number, min: p.min, max: p.max, step: p.step, unit: p.unit, onCommit: save })
+    return h(MindInput, { value: v, label: p.label, disabled: Boolean(pending), number, min: p.min, max: p.max, step: p.step, unit: p.unit, invalid: Boolean(fieldErr[p.key]), onCommit: save })
     }
     const hasAdvanced = d.params.some((p) => p.advanced)
     const words = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
@@ -3219,7 +3256,7 @@ window.__ModuleLoader__.load({
     const panels = (words.length ? groups : [current].filter(Boolean)).flatMap((g) => {
     const params = d.params.filter((p) => p.group === g.id && (advanced || !p.advanced) && (exact ? p.key === exact : words.every((word) => [g.label, p.label, p.hint, p.key].join(' ').toLowerCase().includes(word))))
     return params.length ? [h(Card, { key: g.id, title: g.label }, params.map((p) => h(Row, {
-    key: p.key, label: p.label, hint: p.hint, className: 'ab-param-row',
+    key: p.key, label: p.label, hint: p.hint, className: 'ab-param-row', error: fieldErr[p.key],
     details: h('details', { className: 'ab-param-details' }, h('summary', null, '默认值与依据'),
     h('p', null, '默认：' + show(p.def) + (p.unit && typeof p.def === 'number' ? ' ' + p.unit : '')),
     h('p', null, '依据：' + p.source), p.ownerOnly ? h('p', null, '只有你能改。') : null),
@@ -3233,7 +3270,12 @@ window.__ModuleLoader__.load({
     h('button', { key: g.id, type: 'button', 'aria-current': !words.length && current?.id === g.id ? 'true' : undefined, onClick: () => { setSearch(''); setExact(''); setGroup(g.id) } }, g.label)))),
     h('div', { className: 'ab-grid ab-settings-body' },
     !words.length && current?.id === 'local' ? h(MindLocalModel, { toast, settings: d.values }) : null,
-    panels.length ? panels : h(Card, null, h(Empty, { text: '没有找到匹配的设置' }))))
+    panels.length ? panels : h(Card, null, h(Empty, {
+    icon: '🔍', title: '没有找到匹配的设置',
+    text: search.trim() ? `没有哪个参数的名称、说明或键名里带「${search.trim()}」。` : '这个分类下暂时没有可调项。',
+    action: search.trim() ? '清空搜索' : undefined,
+    onAction: search.trim() ? () => { setSearch(''); setExact(''); setAdvanced(true) } : undefined,
+    }))))
     }
 
     function MindVersions({ versions, restore, load, toast }) {
@@ -4401,11 +4443,15 @@ window.__ModuleLoader__.load({
 
     /** 安装进度：步骤条 + 当前这一步的用时、预计、下载量和网速，一看就知道没卡住。 */
 
-    function Row({ label, hint, details, className, children }) {
+    function Row({ label, hint, details, className, children, error }) {
     const id = useId()
-    return h('div', { className: cx('ab-row', className), role: 'group', 'aria-labelledby': id, 'aria-describedby': hint ? id + '-hint' : undefined },
-    h('div', { className: 'ab-label' }, h('b', { id }, label), hint ? h('small', { id: id + '-hint' }, hint) : null, details),
-    h('div', { className: 'ab-ctl' }, children))
+    const hintId = hint ? id + '-hint' : ''
+    const errId = error ? id + '-err' : ''
+    const described = [hintId, errId].filter(Boolean).join(' ') || undefined
+    return h('div', { className: cx('ab-row', className, error && 'ab-row-error'), role: 'group', 'aria-labelledby': id, 'aria-describedby': described },
+    h('div', { className: 'ab-label' }, h('b', { id }, label), hint ? h('small', { id: hintId }, hint) : null, details),
+    h('div', { className: 'ab-ctl' }, children,
+    error ? h('small', { id: errId, className: 'ab-row-err', role: 'alert' }, error) : null))
     }
 
     function RunControls({ cfg, busy, onToggle, onMode }) {
@@ -5398,6 +5444,9 @@ window.__ModuleLoader__.load({
     .ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
     .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
     .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
+    .ab-row-err{grid-column:1/-1;color:var(--ab-err);font-size:12px;margin-top:2px}
+    .ab-row-error .ab-label b{color:var(--ab-err)}
+    .ab-input.bad,.ab-input[aria-invalid=true]{border-color:var(--ab-err)}
     .ab-row .ab-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:6px}
     .ab-row .ab-choice{padding:6px 9px;border-radius:8px}
     .ab-row .ab-choice small{margin-top:1px}

@@ -3,10 +3,19 @@
       const [draft, setDraft] = useState(null)
       const [busy, setBusy] = useState(false)
       const [edit, setEdit] = useState(null)
-      const load = () => get('/mind/self').then((r) => { setD(r); if (r.ok) setDraft(Object.fromEntries(r.personality.traits.map((t) => [t.id, t.base]))) })
+      const [loadErr, setLoadErr] = useState('')
+      const [editErr, setEditErr] = useState('')
+      const load = () => get('/mind/self').then((r) => {
+        if (r && r.ok !== false) { setD(r); setLoadErr(''); setDraft(Object.fromEntries((r.personality?.traits || []).map((t) => [t.id, t.base]))) } else { setD(r || null); setLoadErr(r?.message || '读不到她的人格与自我') }
+      }).catch((e) => setLoadErr('连不上插件：' + e.message))
       useEffect(() => { load() }, [])
-      if (!d) return h(Card, { title: '人格与自我' }, h('p', { className: 'ab-muted' }, '读取中…'))
-      if (!d.ok) return h(Card, { title: '人格与自我' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到她的人格与自我', message: loadErr, hint: '人格卡和特质都跟着心智核心走。', onRetry: load }))
+      if (!d) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读人格与自我' }), h(Skeleton, { kind: 'row', rows: 4, label: '正在读人格与自我' }))
+      if (!d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+        icon: '🪞', title: '心智核心没起来',
+        text: d.message || '人格卡、特质和习惯都读不到；去「模块管理」看看心智核心在不在跑。',
+        action: '重新读取', onAction: load,
+      }))
       const ps = d.personality
       const groups = [['E', '外向'], ['A', '宜人'], ['C', '尽责'], ['N', '情绪敏感'], ['O', '开放'], ['H', '诚实谦逊'], ['AT', '依恋'], ['X', '表达']]
       const restore = async (kind, id) => { if (!confirm('退回到这个版本？（会新存一个版本，写明是退回）')) return; const r = await post('/mind/self/restore', { kind, id }); toast(r.message || (r.ok ? '退回了' : '没成功')); load() }
@@ -18,6 +27,8 @@
       }
       const saveSelf = async () => {
         if (!edit) return
+        if (!String(edit.value || '').trim()) { setEditErr('这一段不能空着'); return }
+        setEditErr('')
         const r = await post('/mind/self/change', { what: edit.what, content: edit.value, why: '管理员在面板里改的' })
         toast(r.message); setEdit(null); load()
       }
@@ -25,7 +36,11 @@
       const BY = { owner: '你', self: '她自己', sleep: '睡觉时', migration: '迁移' }
       return h(Fragment, null,
         edit ? h(Card, { title: '改' + edit.label, desc: '会存一个版本；长文字建议在「人设」页改。' },
-          h('textarea', { className: 'ab-textarea', rows: edit.multiline ? 6 : 2, value: edit.value, onChange: (e) => setEdit({ ...edit, value: e.target.value }) }),
+          h(Field, {
+            label: edit.label, textarea: true, rows: edit.multiline ? 6 : 2, value: edit.value, error: editErr,
+            hint: '空着不保存；改完会在「性格的版本」里留一条记录。',
+            onChange: (v) => { setEdit({ ...edit, value: v }); if (editErr && v.trim()) setEditErr('') },
+          }),
           h('div', { className: 'ab-flex', style: { gap: 6 } },
             h(Btn, { small: true, kind: 'primary', onClick: saveSelf }, '保存'),
             h(Btn, { small: true, onClick: () => setEdit(null) }, '取消'))) : null,

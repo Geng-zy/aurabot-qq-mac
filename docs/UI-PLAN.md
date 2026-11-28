@@ -304,7 +304,7 @@
 | **B0 通道与地基** ✅ 1.7.0 | `scripts/ui-preview.mjs` + `scripts/ui-shot.mjs`（不依赖宿主即可截图/断言）；五个控件；token 分层与对比度守卫 | 已达成，证据见 §6.1 |
 | **B1 壳与导航** ✅ 1.7.1 | 顶部条、rail、页内锚点条、小屏页签、Toast 归 `shell.overlay` | 28 页导航断言 + 小屏快照（`ui-shot` 已覆盖） |
 | **B2 心智组** ✅ 1.7.2 | now / mood / knowledge / persona / inner | 每页三态 + Mini 数据一致（`ui-shot` 10 页 × 3 态） |
-| **B3 自我与设置** | selfmind / mindsettings（含 `settings.section` 入口评估） | 64 行表单校验与保存 |
+| **B3 自我与设置** ✅ 1.7.3 | selfmind / mindsettings | 64 行表单校验与保存（`ui-shot` 已断言校验流程；`settings.section` 入口评估结论：暂不新增，避免双入口） |
 | **B4 QQ 会话组** | connect / access / group / model / asr / diary | 连接诊断、白名单保存、模型选择 |
 | **B5 表达与创作** | voice / stickers / imagegen / song / video | 模块门控 + 真机各一次 |
 | **B6 系统组** | logs / backup / security / browser / local / about | 危险操作二次确认、备份状态 |

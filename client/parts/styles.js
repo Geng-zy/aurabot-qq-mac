@@ -344,6 +344,9 @@
 .ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
 .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
 .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
+.ab-row-err{grid-column:1/-1;color:var(--ab-err);font-size:12px;margin-top:2px}
+.ab-row-error .ab-label b{color:var(--ab-err)}
+.ab-input.bad,.ab-input[aria-invalid=true]{border-color:var(--ab-err)}
 .ab-row .ab-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:6px}
 .ab-row .ab-choice{padding:6px 9px;border-radius:8px}
 .ab-row .ab-choice small{margin-top:1px}

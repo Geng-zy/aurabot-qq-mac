@@ -4071,3 +4071,25 @@ Mini 1.7.2 安装启动（16:40:28），心智组五页数据一致：
 发布 tag v1.7.2；dsh-aurabot-qq-1.7.2.tgz 19,728,727 字节
      sha256 adbcc8330b850ba53185f1ccc1cca02583ca918f289912fb2d12e1ec38ead9a7
 ```
+
+---
+
+## B3 · 自我与设置（1.7.3）
+
+| 页 | 本批变化 |
+|---|---|
+| 设置 `mindsettings` | `Row` 支持 `error`、`MindInput` 支持 `invalid`：数字超出 min/max **当场标红且不提交**，错误留在该行；服务端拒绝也落在同一行；搜索无结果给教学空态 + 清空搜索 |
+| 人格与自我 `selfmind` | 骨架 → 就地错误块（可重试）→ 「核心没起来」空态；自我编辑改用 `Field`（空内容不保存、错误当场提示） |
+
+```text
+Air  ui-shot 通过：28 页 + 12 页 × 三态 + 深色 + 窄屏
+     新增校验流程断言：超范围标错 → 错误与该行关联（.ab-row-error .ab-row-err）→ 改回范围内错误消失
+Air  全量 1739 passed / 0 failed；oxlint 0 error；语法 669 文件；清单 0 待审
+Mini 1.7.3 安装启动（17:09:49）；真机 client.js 里 ab-row-err / ab-row-error / "不能小于" / aria-invalid / Field 都在
+     设置页真机参数 130 个、12 个分类、其中 78 个带 min/max（客户端校验真正覆盖到的范围）
+     人格页 19 特质 / 58 习惯；配置一致；Purge 三工具在；0 新增 error
+     实测：直接 POST 超范围值 body.sleepAfterMinutes=99999999 → 服务端 changed=[]（静默忽略，不报错），
+           所以「当场标红」必须由客户端拦 —— 这正是本批做的事
+发布 tag v1.7.3；dsh-aurabot-qq-1.7.3.tgz 19,731,735 字节
+     sha256 5011df546c6adeda9e3a50db1659ba8a57a82fadd2b1e9d27aaadacb1ef6887c
+```

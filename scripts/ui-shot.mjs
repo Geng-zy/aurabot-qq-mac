@@ -46,6 +46,9 @@ const STATES = [
   { page: 'knowledge', empty: /知识库还是空的|知识库文件|读不到知识库/ },
   { page: 'persona', empty: /还没认识谁|没有匹配的人|心智核心没起来/ },
   { page: 'inner', empty: /心智核心没起来|念头与行动|内心/ },
+  // B3 自我与设置
+  { page: 'selfmind', empty: /心智核心没起来|性格（19 项）|人格与自我/ },
+  { page: 'mindsettings', empty: /没有可调参数|心智核心没起来|没有找到匹配的设置/ },
 ]
 
 const { chromium } = await loadPlaywright()
@@ -142,7 +145,24 @@ try {
     check(`${id} 空态是教学式的`, empty.test(text || ''), '文案没匹配到')
   }
 
-  // 3) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
+  // 3) 设置页的字段级校验：超出范围当场标错、不发请求；改回范围内就保存
+  await open('page=mindsettings&state=live&mode=normal')
+  const num = page.locator('.ab-param-row input[type="number"]').first()
+  if (await num.count()) {
+    const limit = await num.evaluate((el) => ({ min: el.min, max: el.max }))
+    const bad = limit.max ? String(Number(limit.max) + 1) : '999999999'
+    await num.fill(bad)
+    await num.blur()
+    await wait(250)
+    check('设置页：超范围当场标错', (await page.locator('.ab-row-err').count()) > 0)
+    check('设置页：错误与该行关联', await page.evaluate(() => Boolean(document.querySelector('.ab-row-error .ab-row-err'))))
+    await num.fill(limit.min || '1')
+    await num.blur()
+    await wait(250)
+    check('设置页：改回范围内错误消失', (await page.locator('.ab-row-err').count()) === 0)
+  }
+
+  // 4) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
   await open('page=logs&state=live&mode=normal')
   const toastText = await page.evaluate(async () => {
     const bus = window.__PANEL__.__panelTest.AB_TOAST
@@ -155,7 +175,7 @@ try {
   const toastTotal = await page.locator('.ab-toast').count()
   check('Toast 只有宿主层那一份', toastTotal === 1 && toastInside === 1, `总 ${toastTotal}，宿主层 ${toastInside}`)
 
-  // 4) 深色与窄屏
+  // 5) 深色与窄屏
   await open('page=overview&state=live&mode=normal&theme=dark')
   await page.screenshot({ path: join(OUT, 'theme-dark.png') })
   check('深色模式生效', await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))

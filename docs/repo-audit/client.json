@@ -901,5 +901,19 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "README.md 空态示例图（关系页教学空态），来自 docs/ui-baseline/states/persona-empty.png；1.7.2 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-mind-settings.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 心智设置页示例图（分区导航 + 每行默认值/依据可展开），来自 docs/ui-baseline/pages/mindsettings.png；1.7.3 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-mind-settings-error.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 字段级校验示例图（超范围当场标错、不提交），来自 docs/ui-baseline/states/mindsettings-error.png。"
   }
 ]
