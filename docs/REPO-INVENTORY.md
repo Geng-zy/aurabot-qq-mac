@@ -20,9 +20,9 @@
 
 | 文件 | 类别 | 区域 | 行 | 被依赖 | 测试引用 | 结论 | 归属 | 依据 |
 |---|---|---|---|---|---|---|---|---|
-| `.github/workflows/pr-check.yml` | ci | .github | 127 | 0 | 0 | 保留 | ci | 59 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 清单闸门(node scripts/repo-inventory.mjs --write) → npm install --ignore-scripts → npm run check → npm run lint → client 构建漂移检查 → npm pack → tar 三条路径校验 → npm test；触发分支为 main 与 v* tag（历史分支 beta/v1.5.10 已移除）；2026-11-26 的 run 45678450101 双平台 success |
-| `.gitignore` | config | root | 11 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：node_modules/、*.log、*.tmp-*、__pycache__/、*.pyc、.DS_Store、**/.DS_Store；不忽略 `*.tgz`，而 CI 与自己发布都会在仓库根跑 `npm pack`（pr-check.yml 的 Pack artifact 步骤），产物会以未跟踪文件出现 |
-| `.oxlintrc.json` | config | root | 15 | 0 | 0 | 保留 | tooling-lint | 15 行；rules 只有 no-undef:error 与 no-unused-vars:warn；ignorePatterns 忽略 client/client.template.js 与 client/parts/**，被忽略的是源片段、被 lint 的反而是生成物 client/client.js；本次 `./node_modules/.bin/oxlint src client` 实测 282 个文件、165 warning / 0 error；scripts/ 与 test/ 不在 `npm run lint` 的目录参数里 |
+| `.github/workflows/pr-check.yml` | ci | .github | — | 0 | 0 | 保留 | ci | 59 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 清单闸门(node scripts/repo-inventory.mjs --write) → npm install --ignore-scripts → npm run check → npm run lint → client 构建漂移检查 → npm pack → tar 三条路径校验 → npm test；触发分支为 main 与 v* tag（历史分支 beta/v1.5.10 已移除）；2026-11-26 的 run 45678450101 双平台 success |
+| `.gitignore` | config | root | — | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：node_modules/、*.log、*.tmp-*、__pycache__/、*.pyc、.DS_Store、**/.DS_Store；不忽略 `*.tgz`，而 CI 与自己发布都会在仓库根跑 `npm pack`（pr-check.yml 的 Pack artifact 步骤），产物会以未跟踪文件出现 |
+| `.oxlintrc.json` | config | root | — | 0 | 0 | 保留 | tooling-lint | 15 行；rules 只有 no-undef:error 与 no-unused-vars:warn；ignorePatterns 忽略 client/client.template.js 与 client/parts/**，被忽略的是源片段、被 lint 的反而是生成物 client/client.js；本次 `./node_modules/.bin/oxlint src client` 实测 282 个文件、165 warning / 0 error；scripts/ 与 test/ 不在 `npm run lint` 的目录参数里 |
 | `assets/dafeiyu.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 315748 字节；署名与许可写在 THIRD-PARTY-NOTICES.md（上游原图、CC BY-NC-SA 4.0）；src/features/avatar-routes.js:16 在用户未上传头像时读它作为 /avatar 回退 |
 | `assets/panel-sea.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 148399 字节；被 src/features/avatar-routes.js:20 读作面板背景（`join(root, 'assets', 'panel-sea.jpg')`，路由 /panel/sea），属运行时资产 |
 | `assets/platform-architecture.svg` | asset | assets | 43 | 0 | 0 | 保留 | asset | 43 行 SVG / 4381 字节；README.md:21 与 README_EN.md:21 用作「平台架构」示意图 |
@@ -143,9 +143,9 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4465 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | — | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
-| `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
+| `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | — | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
 | `docs/HANDOFF.md` | doc | docs | 96 | 0 | 0 | 保留·补文档 | doc | 96 行；测试体系表（L23-28）把 6 个区域映射到入口文件与针对性测试，L30 说明 e2e/fake DSH 跑法与 `node scripts/check-syntax.mjs`；Node 版本已统一到 24（package.json engines >=24.0.0 与 pr-check.yml node 24 一致） |
 | `docs/HOST-COMPAT.md` | doc | docs | 71 | 0 | 0 | 保留 | docs | 71 行；逐条列出插件用到的宿主符号（5 个事件、6 个服务、stopReason 等）与 rc.3 安装目录里的证据文件，结论「无 rc.5 专属代码」；核对命令可复跑。 |
@@ -154,42 +154,42 @@
 | `docs/P2-MIGRATION.md` | doc | docs | 76 | 0 | 0 | 保留 | doc | 76 行；L26 记录 client 拆分结论（build-client.mjs 拼回单文件、test/client-build.test.js 校验可重建），与现存 client/parts 的 104 个片段一致；modules.js 900 行的判断属 P2 排期文档 |
 | `docs/PURGE-COMPAT.md` | doc | docs | 57 | 0 | 0 | 保留·补文档 | doc | 57 行；L3 写「适用 AuraBot 1.5.10，DSH 0.2.2-rc.3」，AuraBot 版本落后于 package.json 的 1.6.31；DSH 与 dsh-purge 1.7.20 的口径与 docs/HANDOFF.md:93 一致；建议改版本号或标注「1.5.10 起未变」 |
 | `docs/REFACTOR-PLAN.md` | doc | docs | 161 | 0 | 0 | 保留 | docs | 133 行；定义目标分层（host/core/channels/chat/panel/feature/mind/mind-adapter/media/modules/security/integration/client/tooling/test）、verdict 口径与 B0-B10 批次表；被 docs/HOST-COMPAT.md 与 docs/REPO-INVENTORY.md 引用。 |
-| `docs/repo-audit/batch0-additions.json` | doc | docs | 142 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch1-additions.json` | doc | docs | 30 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch10-moves.json` | doc | docs | 58 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch11-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch12-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch13-additions.json` | doc | docs | 23 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch14-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch15-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch16-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch17-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch18-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch19-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch2-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch20-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch21-additions.json` | doc | docs | 58 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch22-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch23-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch24-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch25-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch26-additions.json` | doc | docs | 23 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch27-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch4-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch5-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch6-additions.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch7-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch8-additions.json` | doc | docs | 1 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/batch9-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/channels.json` | doc | docs | 387 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 channels.json。 |
-| `docs/repo-audit/chat-host.json` | doc | docs | 408 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 chat-host.json。 |
-| `docs/repo-audit/client.json` | doc | docs | 1003 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
-| `docs/repo-audit/core-data.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
-| `docs/repo-audit/core-security.json` | doc | docs | 268 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
-| `docs/repo-audit/features-modules.json` | doc | docs | 289 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。 |
-| `docs/repo-audit/media-adapters.json` | doc | docs | 478 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
-| `docs/repo-audit/mind.json` | doc | docs | 464 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
-| `docs/repo-audit/tests-scripts-config.json` | doc | docs | 254 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
+| `docs/repo-audit/batch0-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch1-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch10-moves.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch11-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch12-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch13-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch14-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch15-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch16-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch17-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch18-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch19-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch2-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch20-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch21-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch22-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch23-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch24-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch25-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch26-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch27-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch4-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch5-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch6-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch7-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch8-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/batch9-additions.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/channels.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 channels.json。 |
+| `docs/repo-audit/chat-host.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 chat-host.json。 |
+| `docs/repo-audit/client.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
+| `docs/repo-audit/core-data.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
+| `docs/repo-audit/core-security.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
+| `docs/repo-audit/features-modules.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。 |
+| `docs/repo-audit/media-adapters.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 media-adapters.json。 |
+| `docs/repo-audit/mind.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 mind.json。 |
+| `docs/repo-audit/tests-scripts-config.json` | doc | docs | — | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 tests-scripts-config.json。 |
 | `docs/REPO-INVENTORY.md` | doc | docs | 1042 | 0 | 0 | 保留·生成物 | docs | 随发布更新（行数见清单「行」列）：生成物，由 scripts/repo-inventory.mjs --write 产出；手改会被下次生成覆盖。 |
 | `docs/screenshots/aurabot-backup.png` | doc | docs | — | 0 | 0 | 保留 | client-panel | README.md 备份与恢复页示例图（状态卡 + 导入走行内确认），来自 docs/ui-baseline/pages/backup.png；1.7.6 起引用。 |
 | `docs/screenshots/aurabot-connect.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 连接页示例图（一键诊断结果区），来自 docs/ui-baseline/pages/connect.png。 |
@@ -211,7 +211,7 @@
 | `docs/screenshots/aurabot-whitelist.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 白名单页示例图（号码名单校验），来自 docs/ui-baseline/pages/access.png；1.7.4 起引用。 |
 | `docs/screenshots/aurabot-workbench-overview.png` | doc | docs | — | 0 | 0 | 保留 | docs | README.md 与 README_EN.md 的面板导览直接 <img> 引用（工作台截图）；由 scripts/ui-shot.mjs 从 docs/ui-baseline/pages/overview.png 复制而来。 |
 | `docs/SESSION-HANDOFF.md` | doc | docs | 1315 | 0 | 0 | 保留 | docs | 随发布更新（行数见清单「行」列）：交接文档；含接手五步、机器与路径、部署流程、测试体系、排障 playbook（10.8.1 语音条）；test/wording.test.js 扫全仓时约束它的用词。 |
-| `docs/ui-baseline/api-fixtures.json` | doc | docs | 12303 | 0 | 0 | 保留 | docs | 真机接口抓包快照（/mind/* /modules /song/status /image/status 等 19 个接口），供 scripts/ui-preview.mjs 渲染真实形状；由 Mini 上一次性抓取，不参与产品运行。 |
+| `docs/ui-baseline/api-fixtures.json` | doc | docs | — | 0 | 0 | 保留 | docs | 真机接口抓包快照（/mind/* /modules /song/status /image/status 等 19 个接口），供 scripts/ui-preview.mjs 渲染真实形状；由 Mini 上一次性抓取，不参与产品运行。 |
 | `docs/ui-baseline/archive/1.7.7/narrow.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/archive/1.7.7/pages/about.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/archive/1.7.7/pages/access.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
@@ -351,9 +351,9 @@
 | `docs/ui-baseline/pages/stickers.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/pages/video.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/pages/voice.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
-| `docs/ui-baseline/panel-inventory.json` | doc | docs | 386 | 0 | 0 | 保留 | docs | 28 页的组件树盘点数据（卡片/表单行/空态/折叠），由 UI 规划那轮的渲染脚本产出。 |
-| `docs/ui-baseline/README.md` | doc | docs | 22 | 0 | 0 | 保留 | client-panel | 截图基线目录说明：pages/states 是滚动覆盖，archive/<版本>/ 是定格；写明生成命令（scripts/ui-shot.mjs）与归档时机。 |
-| `docs/ui-baseline/state.live.json` | doc | docs | 1 | 0 | 0 | 保留 | docs | Mini 的 /state 快照（12 个内置模块、49 人、19 特质、51 个配置键），供预览渲染；升级后由 ui-shot 重新抓取。 |
+| `docs/ui-baseline/panel-inventory.json` | doc | docs | — | 0 | 0 | 保留 | docs | 28 页的组件树盘点数据（卡片/表单行/空态/折叠），由 UI 规划那轮的渲染脚本产出。 |
+| `docs/ui-baseline/README.md` | doc | docs | — | 0 | 0 | 保留 | client-panel | 截图基线目录说明：pages/states 是滚动覆盖，archive/<版本>/ 是定格；写明生成命令（scripts/ui-shot.mjs）与归档时机。 |
+| `docs/ui-baseline/state.live.json` | doc | docs | — | 0 | 0 | 保留 | docs | Mini 的 /state 快照（12 个内置模块、49 人、19 特质、51 个配置键），供预览渲染；升级后由 ui-shot 重新抓取。 |
 | `docs/ui-baseline/states/about-empty.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/states/about-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/states/about-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
@@ -433,7 +433,7 @@
 | `docs/ui-baseline/states/voice-error.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/states/voice-loading.png` | doc | docs | — | 0 | 0 | **待审** | — | — |
 | `docs/ui-baseline/theme-dark.png` | doc | docs | — | 0 | 0 | 保留 | docs | scripts/ui-shot.mjs 产出的深色模式基线，用于对比主题 token 回归。 |
-| `docs/UI-PLAN.md` | doc | docs | 378 | 0 | 0 | 保留 | docs | UI 盘点与设计规划（Operate 模式）：现状盘点（28 页/34 卡片/64 表单行）、rc.3 slot 与 token 能力边界、设计方向、原功能→新入口→验收映射、B0–B7 分批与每批验收条件。B0 已按它落地（1.7.0），B1 进行中；由 scripts/ui-shot.mjs 的断言与 docs/ui-baseline/ 的截图共同兜底。 |
+| `docs/UI-PLAN.md` | doc | docs | — | 0 | 0 | 保留 | docs | UI 盘点与设计规划（Operate 模式）：现状盘点（28 页/34 卡片/64 表单行）、rc.3 slot 与 token 能力边界、设计方向、原功能→新入口→验收映射、B0–B7 分批与每批验收条件。B0 已按它落地（1.7.0），B1 进行中；由 scripts/ui-shot.mjs 的断言与 docs/ui-baseline/ 的截图共同兜底。 |
 | `docs/USER-MANUAL.md` | doc | docs | 190 | 0 | 0 | 保留 | doc | 188 行；面向用户的设置路径（⌥K 搜索、系统 → 备份、心智 → 记忆）与 client/client.js 的 NAV_GROUPS 和搜索索引一致，被 README.md 导航引用；不含版本号 |
 | `LICENSE` | config | root | 21 | 0 | 0 | 保留 | repo | 21 行 MIT 全文；Copyright (c) 2026 Aurabot contributors；与 package.json 的 `"license": "MIT"` 和 README.md 末尾「许可证：[MIT](LICENSE)」一致 |
 | `models/LICENSE` | vendor-model | models | 21 | 0 | 0 | 第三方 | vendor-model | 21 行 MIT 全文，Copyright (c) 2022 staoxiao —— BAAI bge-small-zh-v1.5 的模型许可；THIRD-PARTY-NOTICES.md:49 指向随包的这份文件 |
@@ -443,19 +443,19 @@
 | `models/onnxruntime/ort.wasm.bundle.min.mjs` | vendor-model | models | 9 | 0 | 0 | 第三方 | vendor-model | 压缩 ES module 77024 字节（bundle 内 `versions.web = '1.31.1'`）；src/mind-adapter/local-embedding-worker.js:78 用 `await import(pathToFileURL(...))` 加载；不在语法/lint 范围内（scripts/check-syntax.mjs 的 SKIP 含 models） |
 | `models/onnxruntime/ThirdPartyNotices.txt` | vendor-model | models | 6369 | 0 | 0 | 第三方 | vendor-model | 6369 行第三方声明清单（ONNX Runtime Web 的依赖树）；随 models/onnxruntime/ 一起分发，与 THIRD-PARTY-NOTICES.md 的「LICENSE 和 ThirdPartyNotices.txt 一同分发」对应 |
 | `models/vocab.txt` | vendor-model | models | 21128 | 0 | 0 | 第三方 | vendor-model | 词表 21128 行；src/mind-adapter/local-embedding-worker.js:81 的 `buildTokenizer(join(assetsDir, 'vocab.txt'))` 读取；同属 bge 模型资产，许可见 models/LICENSE |
-| `package.json` | config | root | 86 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：version 1.6.31、main=src/host.js、exports 6 条（`./mind/replay`→src/mind/replay.js）、engines.node >=24.0.0；scripts 6 条恰好调 scripts/ 的 5 个脚本（test/mind:replay/mind:privacy/check/lint/build:client），repo-inventory.mjs 无入口；files[] 含 models 与 3 个 replay 脚本、不含 test/，`npm run check` 在安装包里只能检查随包文件；与 README.md:221、README_EN.md:174 的 Node 要求一致 |
+| `package.json` | config | root | — | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：version 1.6.31、main=src/host.js、exports 6 条（`./mind/replay`→src/mind/replay.js）、engines.node >=24.0.0；scripts 6 条恰好调 scripts/ 的 5 个脚本（test/mind:replay/mind:privacy/check/lint/build:client），repo-inventory.mjs 无入口；files[] 含 models 与 3 个 replay 脚本、不含 test/，`npm run check` 在安装包里只能检查随包文件；与 README.md:221、README_EN.md:174 的 Node 要求一致 |
 | `personas/dafeiyu.md` | config | personas | 79 | 0 | 0 | 保留 | persona | 79 行默认人格卡；由 src/persona/personas.js 的 seedPersonas 写入数据目录，cordis.patch.yml 的 {{aurabot_persona}} 变量取它。 |
 | `README_EN.md` | config | root | 303 | 0 | 0 | 保留·补文档 | repo | 随发布更新（行数见清单「行」列）：版本 1.6.31（L44、L140）、DSH Desktop 0.2.2-rc.3（L137）与实测一致；L184「558 files syntax-checked」、L185「1572 tests passing」、L186「oxlint: 0 error / 165 warning」与本次实测一致，HEAD 版本仍是 1560/393（`git show HEAD:README_EN.md` 的 L12/L170/L171）；L54 同样指向未入库的 docs/HOST-COMPAT.md |
 | `README.md` | config | root | 336 | 0 | 0 | 保留·补文档 | repo | 随发布更新（行数见清单「行」列）：审计期间仍在被并发编辑）；版本 1.6.31（L46、L142）与实测 v1.6.31 一致；DSH Desktop 0.2.2-rc.3（L139）与实测宿主一致；L233「558 个文件语法检查通过」、L234「1572 个测试通过」、L235「oxlint 0 error / 165 warning」与本次实测一致，但 HEAD 版本仍是 1560 tests / 393 文件（`git show HEAD:README.md` 的 L12/L217/L218）；L56 链接的 docs/HOST-COMPAT.md 尚未入库（git status ??），提交前该链接 404 |
-| `scripts/build-client.mjs` | script | scripts | 12 | 0 | 2 | 保留 | tooling-build | 12 行；package.json 的 scripts.build:client 调用（`node scripts/build-client.mjs`）；被 test/client-build.test.js:8 用 execFileSync 执行并复核产物；读 client/client.template.js（L7）与 client/parts/*.js（L8 排序后拼接），写 client/client.js（L12），L11 校验残留 `@include`；职责只有拼装，无重复脚本 |
-| `scripts/check-syntax.mjs` | script | scripts | 40 | 0 | 0 | 保留 | tooling-check | 40 行；package.json 的 scripts.check 调用；.github/workflows/pr-check.yml 的 `npm run check` 步骤执行；遍历 src/scripts/client/test 四目录逐个 spawnSync `node --check`（L9 TARGETS、L29），本次实测输出 `✓ 558 个文件语法检查通过`（当时由 555 个受控 .js/.mjs 与 3 个未跟踪文件组成）；test/ 下 0 个测试文件引用 check-syntax；与 `npm test` 分工：只查语法不执行用例 |
+| `scripts/build-client.mjs` | script | scripts | — | 0 | 2 | 保留 | tooling-build | 12 行；package.json 的 scripts.build:client 调用（`node scripts/build-client.mjs`）；被 test/client-build.test.js:8 用 execFileSync 执行并复核产物；读 client/client.template.js（L7）与 client/parts/*.js（L8 排序后拼接），写 client/client.js（L12），L11 校验残留 `@include`；职责只有拼装，无重复脚本 |
+| `scripts/check-syntax.mjs` | script | scripts | — | 0 | 0 | 保留 | tooling-check | 40 行；package.json 的 scripts.check 调用；.github/workflows/pr-check.yml 的 `npm run check` 步骤执行；遍历 src/scripts/client/test 四目录逐个 spawnSync `node --check`（L9 TARGETS、L29），本次实测输出 `✓ 558 个文件语法检查通过`（当时由 555 个受控 .js/.mjs 与 3 个未跟踪文件组成）；test/ 下 0 个测试文件引用 check-syntax；与 `npm test` 分工：只查语法不执行用例 |
 | `scripts/mind-replay-report.js` | script | scripts | 54 | 1 | 0 | 保留·补文档 | tooling-replay | 54 行；全仓唯一 importer 是 scripts/replay-mind.js:4（`import { renderMindReplay }`），自身 import src/mind/personality/traits.js 的 TRAIT 表（L1）；package.json files[] 收录但无独立 script 入口；0 个测试覆盖（test/ 下 grep renderMindReplay 无命中）；纯 SVG/HTML 渲染，建议随 replay-mind 补一条快照断言；与 replay-mind.js 不重叠（只负责渲染，不做回放） |
 | `scripts/replay-mind.js` | script | scripts | 24 | 0 | 0 | 保留·补文档 | tooling-replay | 24 行；package.json 的 scripts.mind:replay + files[] 白名单；import src/mind/replay.js 的 replayMind/exampleMindReplay（L3）与 ./mind-replay-report.js 的 renderMindReplay（L4）；0 个测试覆盖（test/ 下 grep replay-mind 无命中），文档只有 --help 文本与 src/mind/README.md:58-59；建议补 `--help` 与空输入的 smoke test；与 replay-privacy.js 职责不重叠（前者回放心智曲线并出 HTML，后者只统计隐私泄漏） |
 | `scripts/replay-privacy.js` | script | scripts | 63 | 0 | 0 | 保留·补文档 | tooling-replay | 63 行；package.json 的 scripts.mind:privacy + files[]；import src/mind/index.js 的 createMind（L3），在内联 12 条合成样例（L10 起）上跑 encodeWindow/recallMore 统计泄漏；0 个测试覆盖（test/ 下 grep replay-privacy 无命中）；同类隐私契约由 test/mind-design.test.js 的 6 个分享/私密用例覆盖，脚本只做人工统计；建议补 --input 分支 smoke 断言；与 replay-mind.js 不重叠（只统计分享/泄漏，不产报告） |
-| `scripts/repo-inventory.mjs` | script | scripts | 291 | 0 | 1 | 保留·补文档 | tooling-audit | 随发布更新（行数见清单「行」列）：工作区未提交（git status ?? scripts/repo-inventory.mjs），package.json 无对应 script 入口；只被 docs/REFACTOR-PLAN.md:67、test/repo-inventory.test.js 与本次审计引用；gitFiles() 在 L36 同时读 `git ls-files -z` 与 `--others --exclude-standard`（行数/import/被依赖由此算），模式开关在 L227（--tsv/--md/--write/summary）；建议先入库并加 `npm run inventory`；与 check-syntax/lint 不重叠（只生成清单与合并结论，不改源码） |
-| `scripts/ui-preview.mjs` | script | scripts | 181 | 0 | 1 | 保留 | client-panel | 面板预览服务：用 client/client.js 的真组件 + 真机快照（docs/ui-baseline/state.live.json、api-fixtures.json）渲染整块工作台，桩掉宿主 primitives 与 /aurabot/api/*，支持 page/state/mode/theme 参数。不连宿主、不连 QQ，供 Playwright 截图与断言。 |
-| `scripts/ui-shot.mjs` | script | scripts | 349 | 0 | 2 | 保留 | client-panel | UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。 |
-| `scripts/verify-release.mjs` | script | scripts | 80 | 0 | 0 | 保留 | tooling-release | 95 行；终验脚本：① 复算全仓清单并要求 0 待审；② 把 docs/ACCEPTANCE-LOG.md 里 19 个版本的 sha256 与 GitHub Release 资产 digest 逐条比对；③ 校验 package.json 版本 = 最近 tag。只读不改仓库，任一项失败以非 0 退出；--skip-remote 可离线跑。 |
+| `scripts/repo-inventory.mjs` | script | scripts | — | 0 | 1 | 保留·补文档 | tooling-audit | 随发布更新（行数见清单「行」列）：工作区未提交（git status ?? scripts/repo-inventory.mjs），package.json 无对应 script 入口；只被 docs/REFACTOR-PLAN.md:67、test/repo-inventory.test.js 与本次审计引用；gitFiles() 在 L36 同时读 `git ls-files -z` 与 `--others --exclude-standard`（行数/import/被依赖由此算），模式开关在 L227（--tsv/--md/--write/summary）；建议先入库并加 `npm run inventory`；与 check-syntax/lint 不重叠（只生成清单与合并结论，不改源码） |
+| `scripts/ui-preview.mjs` | script | scripts | — | 0 | 1 | 保留 | client-panel | 面板预览服务：用 client/client.js 的真组件 + 真机快照（docs/ui-baseline/state.live.json、api-fixtures.json）渲染整块工作台，桩掉宿主 primitives 与 /aurabot/api/*，支持 page/state/mode/theme 参数。不连宿主、不连 QQ，供 Playwright 截图与断言。 |
+| `scripts/ui-shot.mjs` | script | scripts | — | 0 | 2 | 保留 | client-panel | UI 截图与断言脚本（.mjs）：拉起 scripts/ui-preview.mjs（随机端口）→ 28 页正常态、5 个代表页 × 加载/错误/空态、深色与窄屏；任一断言失败退出码非 0。产出 docs/ui-baseline/ 下 28 + 15 张截图。 |
+| `scripts/verify-release.mjs` | script | scripts | — | 0 | 0 | 保留 | tooling-release | 95 行；终验脚本：① 复算全仓清单并要求 0 待审；② 把 docs/ACCEPTANCE-LOG.md 里 19 个版本的 sha256 与 GitHub Release 资产 digest 逐条比对；③ 校验 package.json 版本 = 最近 tag。只读不改仓库，任一项失败以非 0 退出；--skip-remote 可离线跑。 |
 | `src/channels/adapter-facade.js` | source | channels/adapter-facade.js | 42 | 2 | 0 | 保留 | channels | 42 行、0 个内部依赖、2 处 import（src/channels/qq/adapter.js:4、src/channels/telegram/index.js）、0 个测试直接引用。成员清点：run()=start()、commitEvent()=on() 是纯改名且 src/ 下 0 调用（grep sendBySession|commitEvent 只命中本文件与 test/platform-hub.test.js:49-63），8 个 start/stop/ready/state/status/on/send/convert 是直转，实做只有 sendBySession 的 session→chatId 映射（9-15 行）和 38-40 行把 transport 其余键整表拷到 adapter。删除测试：删掉后两个 adapter 各要复制 16 行，判 keep；键拷贝同时把 qq/index.js 的 24 个非契约键暴露到 PlatformAdapter 上，是下一批收窄的入口。 |
 | `src/channels/ids.js` | source | channels/ids.js | 4 | 12 | 1 | 保留 | channels | re-export shim → src/core/ids.js（原 133 行纯 chatId 解析：parseChat/chatIdOf/normChat/parsePerson，0 依赖）。core/tasks、core/access、core/bridge 原来反向 import 它，现在都指 core。 |
 | `src/channels/index.js` | source | channels/index.js | 165 | 9 | 4 | 保留·补文档 | channels | 165 行、1 个内部依赖（ids.js）、8 处 import 含 2 个测试（test/channels-contract.test.js、test/platform-hub.test.js）；是 host.js:182 createChannelManager 的唯一上游契约面。文档缺口有实证：46-62 行 CAPS 15 个键不含 images/text/reply，而 src/chat/send-sticker.js:10 读 caps.images、src/channels/telegram/index.js:6 声明 text/reply/images；13-37 行 typedef 未写 quote/forward/sendFile/voiceWav/voiceText，这 5 个方法却被 src/chat/quote.js:24、src/chat/on-message.js:313、src/chat/send-file.js:29、src/chat/transcribe.js:14 依赖，validateChannel 也不校验。保留代码，补 CAPS 词表与方法清单。 |
@@ -830,213 +830,213 @@
 | `src/voice/rvc.js` | source | voice | 36 | 2 | 1 | 保留 | media-rvc | 36 行；被 src/channels/qq/features/voice/index.js:53 import 并把返回值 push 进 tts.js:378 的 voiceConverters（54 行）、卸载时 splice（57 行）；test/voice-rvc.test.js 覆盖 5 个 test 块（未选音色、翻唱模块没跑、正常变声、失败抛错）；内部依赖 0 个（getConfig/getSong/dataDir/log 全注入）；职责单一：把音频文件交给 song 模块的 convertSpeech，失败保留原声。 |
 | `src/voice/tts.js` | source | voice | 282 | 5 | 4 | 保留 | media-tts | 277 行（B43 后）；B34 抽出 http-synth.js（通用 HTTP 后端）、B43 抽出 edge.js（edge-tts 环境与调用），本文件只剩编排：六后端选择、macOS say 兜底、保存音频与零采样判失败、变声链。行数已 <300 且职责单一（一个合成入口），split 改判 keep。 |
 | `src/voice/wav.js` | source | voice | 4 | 8 | 6 | 保留 | media-wav | re-export shim → src/core/wav.js（原 60 行纯 WAV 解析/重采样，0 依赖）。core/media 现在直接指 core/wav。 |
-| `test/about-panel.test.js` | test | test | 38 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 38 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/adapter-facade.test.js` | test | test | 35 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 35 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/appearance.test.js` | test | test | 54 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 54 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/approval-relay.test.js` | test | test | 139 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 139 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/audio-duration.test.js` | test | test | 125 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 125 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/backup-api.test.js` | test | test | 41 | 0 | 0 | 保留 | test-backup | 45 行 3 个用例；钉住 backup.js 的 17 个导出（少一个就红）、断言每个导出都不是 undefined、并校验拆出去的三层各自只暴露本层符号（backup-publish 恰好 4 个）。用途：以后再拆 backup 时不会悄悄丢 API。 |
-| `test/backup-push-cancel.test.js` | test | test | 57 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 57 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/backup-push.test.js` | test | test | 404 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 404 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/backup-restart.test.js` | test | test | 77 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 77 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/backup-stage.test.js` | test | test | 70 | 0 | 0 | 保留 | test-backup | 70 行 6 个用例；直测恢复暂存/取消：非 zip 被拒且不留待恢复项、真备份暂存后可查到 pending、重复暂存被拒（单飞锁）、取消幂等、stageReceivedBackup 入口挡空/非 Buffer、取消后数据目录不留 .restore-* 残留。 |
-| `test/backup-webdav.test.js` | test | test | 201 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 201 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/backup.test.js` | test | test | 492 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 492 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/browser-panel.test.js` | test | test | 35 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 35 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/channels-caps.test.js` | test | test | 48 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 48 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/channels-contract.test.js` | test | test | 62 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 62 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-attention-ranking.test.js` | test | test | 75 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 75 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-final-reply.test.js` | test | test | 63 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 63 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-hub-pure.test.js` | test | test | 49 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 49 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-log.test.js` | test | test | 71 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 71 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-model.test.js` | test | test | 179 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 179 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-session-events.test.js` | test | test | 222 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 222 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/chat-wiring.test.js` | test | test | 63 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 63 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/ci-workflow.test.js` | test | test | 74 | 0 | 0 | 保留 | ci | 7 条断言把 .github/workflows/pr-check.yml 钉住：只服务 main/版本 tag/PR（无 environment/deploy）、CI 里 `npm run x` 必须在 package.json 存在、`node scripts/*.mjs` 必须真实存在、生成产物要重生成并比对（client.js + tar 布局）、UI 冒烟只跑代表页且 `--out=/tmp`、tag 上要跑 verify-release 且带 GH_TOKEN、不得出现 beta 引用或旧 Node 版本。 |
-| `test/client-build.test.js` | test | test | 23 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 23 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/client-css.test.js` | test | test | 45 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 45 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/client-form-kit.test.js` | test | test | 135 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 135 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/client-tokens.test.js` | test | test | 90 | 0 | 0 | 保留 | client-panel | 4 条守卫：颜色字面量只准在 0tokens.js；浅色与深色的正文/次要文字对比度 ≥4.5:1、强调/状态色 ≥3:1；深色不得新增 token 名。 |
-| `test/codex-auth-lifecycle.test.js` | test | test | 208 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 208 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/codex-image.test.js` | test | test | 298 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 298 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/commands.test.js` | test | test | 116 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 116 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/community.test.js` | test | test | 303 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 303 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/contacts.test.js` | test | test | 246 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 246 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/core-layering.test.js` | test | test | 45 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 45 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/creative-tasks.test.js` | test | test | 38 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 38 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/csrf-publicbase.test.js` | test | test | 176 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 176 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/danger-guard.test.js` | test | test | 206 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 206 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/danger-rules.test.js` | test | test | 197 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 197 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/debug-mode.test.js` | test | test | 53 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 53 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/diary-archive.test.js` | test | test | 132 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 132 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/diary-image.test.js` | test | test | 46 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 46 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/diary-media.test.js` | test | test | 371 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 371 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/dsml-leak.test.js` | test | test | 241 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 241 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/e2e.test.js` | test | test | 2417 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 2417 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/emotion-present.test.js` | test | test | 70 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 70 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/faces-catalog.test.js` | test | test | 54 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 54 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/faces.test.js` | test | test | 88 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 88 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/features.test.js` | test | test | 73 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 73 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/file-relay.test.js` | test | test | 77 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 77 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixes-1.2.0.test.js` | test | test | 324 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 324 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/host-routes.json` | test | test | 139 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 139 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/memory-upgrade/README.md` | test | test | 10 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 10 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/memory-upgrade/v1.1.24.config.json` | test | test | 12 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 12 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/memory-upgrade/v1.1.24.json` | test | test | 31 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 31 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/memory-upgrade/v1.2.0-beta.2.config.json` | test | test | 14 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 14 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/memory-upgrade/v1.2.0-beta.2.json` | test | test | 27 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 27 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/restore-demo/index.mjs` | test | test | 10 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 10 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/store/legacy-config.json` | test | test | 12 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 12 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/fixtures/weather/index.mjs` | test | test | 111 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 111 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/forward.test.js` | test | test | 52 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 52 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/freedom.test.js` | test | test | 63 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 63 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/gateway-resilience.test.js` | test | test | 189 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 189 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/group-context-images.test.js` | test | test | 62 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 62 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/group-identity.test.js` | test | test | 24 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 24 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/group-owner-tools.test.js` | test | test | 214 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 214 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/h01-cross-read.test.js` | test | test | 70 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 70 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/h01-mixed-owner.test.js` | test | test | 85 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 85 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/helpers/fake-dsh.js` | test | test | 188 | 26 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 188 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/helpers/mock-onebot.js` | test | test | 199 | 7 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 199 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/helpers/qq-in.js` | test | test | 4 | 11 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 4 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/her-voice.test.js` | test | test | 109 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 109 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/host-routes.test.js` | test | test | 54 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 54 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/host-tools-route.test.js` | test | test | 116 | 0 | 0 | 保留 | test-integration | 36 行 3 个用例；直接调用 registerHostRoutes 的路由函数：正常返回全局探测与维护工具清单、宿主缺 tools 服务时降级不抛错、带出最近一次挂载记录。 |
-| `test/host-tools-runtime.test.js` | test | test | 60 | 0 | 0 | 保留 | test-integration | 62 行 5 个用例；B17 的核心：describeDiscovery 给四条路径标来源、挂载时记录来源+工具+chatId/sessionId、探测失败记 unknown 且 names=null（与「空数组」区分）、probeGlobalTools 不依赖会话、recordDetection/lastDetection 读写。 |
-| `test/host-tools.test.js` | test | test | 73 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 73 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/html-fragments.test.js` | test | test | 93 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 93 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/hub-lifecycle.test.js` | test | test | 501 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 501 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/imagegen-blocks.test.js` | test | test | 100 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 100 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/imagegen-img2img.test.js` | test | test | 383 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 383 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/imagegen-shape.test.js` | test | test | 169 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 169 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/imagegen-template.test.js` | test | test | 47 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 47 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/imagegen.test.js` | test | test | 175 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 175 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/injection.test.js` | test | test | 34 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 34 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/integration-architecture.test.js` | test | test | 56 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 56 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/interim-deliver.test.js` | test | test | 80 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 80 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/interim-log.test.js` | test | test | 112 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 112 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/issue34-setup.test.js` | test | test | 39 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 39 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/knowledge.test.js` | test | test | 39 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 39 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/leak-guard.test.js` | test | test | 170 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 170 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/llm.test.js` | test | test | 118 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 118 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/local-image.test.js` | test | test | 48 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 48 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/local-trust.test.js` | test | test | 66 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 66 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/local.test.js` | test | test | 121 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 121 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/long-tasks.test.js` | test | test | 39 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 39 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/macos.test.js` | test | test | 244 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 244 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mentions.test.js` | test | test | 50 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 50 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-adapter.test.js` | test | test | 566 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 566 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-assoc.test.js` | test | test | 71 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 71 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-body-emotion.test.js` | test | test | 420 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 420 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-conversation.test.js` | test | test | 127 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 127 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-core.test.js` | test | test | 170 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 170 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-design.test.js` | test | test | 358 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 358 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-encode-busy.test.js` | test | test | 49 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 49 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-features.test.js` | test | test | 205 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 205 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-fixes.test.js` | test | test | 123 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 123 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-followup.test.js` | test | test | 123 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 123 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-forget.test.js` | test | test | 69 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 69 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-generic.test.js` | test | test | 106 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 106 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-graph.test.js` | test | test | 24 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 24 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-inner.test.js` | test | test | 588 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 588 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-layering.test.js` | test | test | 57 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 57 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-local-install.test.js` | test | test | 107 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 107 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-memory.test.js` | test | test | 302 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 302 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-migrate.test.js` | test | test | 157 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 157 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-owner-call.test.js` | test | test | 46 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 46 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-period.test.js` | test | test | 103 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 103 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-personality.test.js` | test | test | 678 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 678 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-reembed.test.js` | test | test | 78 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 78 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-rerank.test.js` | test | test | 51 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 51 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-rotate-encode.test.js` | test | test | 132 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 132 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-share.test.js` | test | test | 54 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 54 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mind-system-context.test.js` | test | test | 44 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 44 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/models-list.test.js` | test | test | 39 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 39 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/module-chat-api.test.js` | test | test | 157 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 157 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/module-copy.test.js` | test | test | 29 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 29 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/module-files-paths.test.js` | test | test | 44 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 44 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/module-lifecycle.test.js` | test | test | 371 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 371 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/module-media-api.test.js` | test | test | 53 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 53 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/module-panel-route.test.js` | test | test | 46 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 46 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/modules.test.js` | test | test | 461 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 461 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/mount-plan.test.js` | test | test | 62 | 0 | 0 | 保留 | test-chat | 70 行 6 个用例；直接钉住收窄条件、名单副本隔离、指纹四要素、授权版本变化、空输入降级。 |
-| `test/notice.test.js` | test | test | 139 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 139 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/notices.test.js` | test | test | 45 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 45 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/offpeak.test.js` | test | test | 104 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 104 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/onebot-diagnose.test.js` | test | test | 56 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 56 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/onebot-login-buffer.test.js` | test | test | 154 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 154 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/outbox.test.js` | test | test | 88 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 88 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/output-guard.test.js` | test | test | 321 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 321 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/p5-fixes.test.js` | test | test | 153 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 153 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/paintings.test.js` | test | test | 126 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 126 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/panel-access-gate.test.js` | test | test | 118 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 118 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/panel-mind.test.js` | test | test | 351 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 351 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/panel-post-only.test.js` | test | test | 102 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 102 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/persona-default.test.js` | test | test | 21 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 21 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/persona-filter-select.test.js` | test | test | 60 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 60 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/persona-hoist.test.js` | test | test | 79 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 79 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/personas.test.js` | test | test | 26 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 26 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/platform-config.test.js` | test | test | 53 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 53 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/platform-hub.test.js` | test | test | 62 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 62 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/platform-modules.test.js` | test | test | 9 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 9 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/primitives-guard.test.js` | test | test | 30 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 30 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/profile.test.js` | test | test | 385 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 385 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/pure.test.js` | test | test | 479 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 479 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/purge-preset.test.js` | test | test | 102 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 102 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/purge-scope-integration.test.js` | test | test | 44 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 44 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/purge-scope.test.js` | test | test | 166 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 166 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qq-api-guard.test.js` | test | test | 83 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 83 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qq-api.test.js` | test | test | 85 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 85 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qq-file.test.js` | test | test | 59 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 59 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qq-gate-status.test.js` | test | test | 102 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 102 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qq-outbox-flush.test.js` | test | test | 24 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 24 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qq-tools-file.test.js` | test | test | 108 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 108 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qzone-audience.test.js` | test | test | 113 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 113 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/qzone.test.js` | test | test | 297 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 297 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/react.test.js` | test | test | 140 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 140 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/recent-media.test.js` | test | test | 222 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 222 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/removed-legacy-paths.test.js` | test | test | 30 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 30 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/reply-br.test.js` | test | test | 30 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 30 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/reply-tool-text.test.js` | test | test | 39 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 39 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/reply.test.js` | test | test | 72 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 72 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/repo-inventory.test.js` | test | test | 102 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 102 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/security-channel-conflict.test.js` | test | test | 79 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 79 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/security-panel.test.js` | test | test | 47 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 47 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/security.test.js` | test | test | 121 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 121 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/send-fallback.test.js` | test | test | 166 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 166 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/session-mode.test.js` | test | test | 87 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 87 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/sl-gaps.test.js` | test | test | 407 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 407 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/song-pipeline.test.js` | test | test | 137 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 137 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/song.test.js` | test | test | 305 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 305 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/steps.test.js` | test | test | 113 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 113 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/sticker-library.test.js` | test | test | 52 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 52 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/sticker-owner.test.js` | test | test | 119 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 119 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/sticker-pick.test.js` | test | test | 138 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 138 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/sticker-record.test.js` | test | test | 46 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 46 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/stickers.test.js` | test | test | 105 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 105 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/store-atomic.test.js` | test | test | 83 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 83 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/subagent-delegation.test.js` | test | test | 251 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 251 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/system-processes.test.js` | test | test | 184 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 184 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/system-session-backoff.test.js` | test | test | 389 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 389 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/system-turn-recovery.test.js` | test | test | 197 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 197 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/telegram-channel.test.js` | test | test | 132 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 132 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/text.test.js` | test | test | 25 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 25 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/title-filter.test.js` | test | test | 74 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 74 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/tool-scope.test.js` | test | test | 62 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 62 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/turn-timeout.test.js` | test | test | 212 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 212 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/ui-navigation.test.js` | test | test | 27 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 27 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/ui-preview-guard.test.js` | test | test | 59 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 59 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/ui-shot-flags.test.js` | test | test | 43 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 43 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/usage-accounting.test.js` | test | test | 87 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 87 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/usage.test.js` | test | test | 237 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 237 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/video.test.js` | test | test | 115 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 115 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/vision-capability.test.js` | test | test | 139 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 139 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/voice-asr.test.js` | test | test | 131 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 131 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/voice-breeze.test.js` | test | test | 272 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 272 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/voice-http-synth.test.js` | test | test | 81 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 81 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/voice-http-tts.test.js` | test | test | 185 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 185 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/voice-rvc.test.js` | test | test | 46 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 46 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/wording.test.js` | test | test | 38 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 38 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/workspace-move.test.js` | test | test | 65 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 65 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/zip-readers.test.js` | test | test | 93 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 93 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/about-panel.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/adapter-facade.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/appearance.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/approval-relay.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/audio-duration.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/backup-api.test.js` | test | test | — | 0 | 0 | 保留 | test-backup | 45 行 3 个用例；钉住 backup.js 的 17 个导出（少一个就红）、断言每个导出都不是 undefined、并校验拆出去的三层各自只暴露本层符号（backup-publish 恰好 4 个）。用途：以后再拆 backup 时不会悄悄丢 API。 |
+| `test/backup-push-cancel.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/backup-push.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/backup-restart.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/backup-stage.test.js` | test | test | — | 0 | 0 | 保留 | test-backup | 70 行 6 个用例；直测恢复暂存/取消：非 zip 被拒且不留待恢复项、真备份暂存后可查到 pending、重复暂存被拒（单飞锁）、取消幂等、stageReceivedBackup 入口挡空/非 Buffer、取消后数据目录不留 .restore-* 残留。 |
+| `test/backup-webdav.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/backup.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/browser-panel.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/channels-caps.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/channels-contract.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-attention-ranking.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-final-reply.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-hub-pure.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-log.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-model.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-session-events.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/chat-wiring.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/ci-workflow.test.js` | test | test | — | 0 | 0 | 保留 | ci | 7 条断言把 .github/workflows/pr-check.yml 钉住：只服务 main/版本 tag/PR（无 environment/deploy）、CI 里 `npm run x` 必须在 package.json 存在、`node scripts/*.mjs` 必须真实存在、生成产物要重生成并比对（client.js + tar 布局）、UI 冒烟只跑代表页且 `--out=/tmp`、tag 上要跑 verify-release 且带 GH_TOKEN、不得出现 beta 引用或旧 Node 版本。 |
+| `test/client-build.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/client-css.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/client-form-kit.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/client-tokens.test.js` | test | test | — | 0 | 0 | 保留 | client-panel | 4 条守卫：颜色字面量只准在 0tokens.js；浅色与深色的正文/次要文字对比度 ≥4.5:1、强调/状态色 ≥3:1；深色不得新增 token 名。 |
+| `test/codex-auth-lifecycle.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/codex-image.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/commands.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/community.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/contacts.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/core-layering.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/creative-tasks.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/csrf-publicbase.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/danger-guard.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/danger-rules.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/debug-mode.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/diary-archive.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/diary-image.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/diary-media.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/dsml-leak.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/e2e.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/emotion-present.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/faces-catalog.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/faces.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/features.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/file-relay.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixes-1.2.0.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/host-routes.json` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/memory-upgrade/README.md` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/memory-upgrade/v1.1.24.config.json` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/memory-upgrade/v1.1.24.json` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/memory-upgrade/v1.2.0-beta.2.config.json` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/memory-upgrade/v1.2.0-beta.2.json` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/restore-demo/index.mjs` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/store/legacy-config.json` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/fixtures/weather/index.mjs` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/forward.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/freedom.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/gateway-resilience.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/group-context-images.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/group-identity.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/group-owner-tools.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/h01-cross-read.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/h01-mixed-owner.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/helpers/fake-dsh.js` | test | test | — | 26 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/helpers/mock-onebot.js` | test | test | — | 7 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/helpers/qq-in.js` | test | test | — | 11 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/her-voice.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/host-routes.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/host-tools-route.test.js` | test | test | — | 0 | 0 | 保留 | test-integration | 36 行 3 个用例；直接调用 registerHostRoutes 的路由函数：正常返回全局探测与维护工具清单、宿主缺 tools 服务时降级不抛错、带出最近一次挂载记录。 |
+| `test/host-tools-runtime.test.js` | test | test | — | 0 | 0 | 保留 | test-integration | 62 行 5 个用例；B17 的核心：describeDiscovery 给四条路径标来源、挂载时记录来源+工具+chatId/sessionId、探测失败记 unknown 且 names=null（与「空数组」区分）、probeGlobalTools 不依赖会话、recordDetection/lastDetection 读写。 |
+| `test/host-tools.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/html-fragments.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/hub-lifecycle.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/imagegen-blocks.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/imagegen-img2img.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/imagegen-shape.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/imagegen-template.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/imagegen.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/injection.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/integration-architecture.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/interim-deliver.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/interim-log.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/issue34-setup.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/knowledge.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/leak-guard.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/llm.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/local-image.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/local-trust.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/local.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/long-tasks.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/macos.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mentions.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-adapter.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-assoc.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-body-emotion.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-conversation.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-core.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-design.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-encode-busy.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-features.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-fixes.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-followup.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-forget.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-generic.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-graph.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-inner.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-layering.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-local-install.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-memory.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-migrate.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-owner-call.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-period.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-personality.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-reembed.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-rerank.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-rotate-encode.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-share.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mind-system-context.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/models-list.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/module-chat-api.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/module-copy.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/module-files-paths.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/module-lifecycle.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/module-media-api.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/module-panel-route.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/modules.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/mount-plan.test.js` | test | test | — | 0 | 0 | 保留 | test-chat | 70 行 6 个用例；直接钉住收窄条件、名单副本隔离、指纹四要素、授权版本变化、空输入降级。 |
+| `test/notice.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/notices.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/offpeak.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/onebot-diagnose.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/onebot-login-buffer.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/outbox.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/output-guard.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/p5-fixes.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/paintings.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/panel-access-gate.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/panel-mind.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/panel-post-only.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/persona-default.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/persona-filter-select.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/persona-hoist.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/personas.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/platform-config.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/platform-hub.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/platform-modules.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/primitives-guard.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/profile.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/pure.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/purge-preset.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/purge-scope-integration.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/purge-scope.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qq-api-guard.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qq-api.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qq-file.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qq-gate-status.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qq-outbox-flush.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qq-tools-file.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qzone-audience.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/qzone.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/react.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/recent-media.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/removed-legacy-paths.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/reply-br.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/reply-tool-text.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/reply.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/repo-inventory.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/security-channel-conflict.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/security-panel.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/security.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/send-fallback.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/session-mode.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/sl-gaps.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/song-pipeline.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/song.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/steps.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/sticker-library.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/sticker-owner.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/sticker-pick.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/sticker-record.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/stickers.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/store-atomic.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/subagent-delegation.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/system-processes.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/system-session-backoff.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/system-turn-recovery.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/telegram-channel.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/text.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/title-filter.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/tool-scope.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/turn-timeout.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/ui-navigation.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/ui-preview-guard.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/ui-shot-flags.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/usage-accounting.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/usage.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/video.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/vision-capability.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/voice-asr.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/voice-breeze.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/voice-http-synth.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/voice-http-tts.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/voice-rvc.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/wording.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/workspace-move.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
+| `test/zip-readers.test.js` | test | test | — | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `THIRD-PARTY-NOTICES.md` | config | root | 64 | 0 | 0 | 保留 | repo | 64 行；覆盖 assets/dafeiyu.jpg（上游 CC BY-NC-SA 4.0，L7）、外置桌宠、Mieksido/surfcore MIT（注明移植代码已删除）、BAAI bge-small-zh-v1.5（L49）、onnxruntime-web 1.31.1（L56）；与 models/ 随包的 LICENSE / ThirdPartyNotices.txt 对应 |

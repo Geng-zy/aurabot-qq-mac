@@ -30,6 +30,14 @@ export const VERDICTS = {
   delete: '删除',
 }
 
+// 发布物白名单：只有这些路径会进 npm 包（package.json 的 files）。
+// 行数只在「随包发布」的文件上记录 —— 否则像 docs/ACCEPTANCE-LOG.md 这种每轮都在追加的
+// 非发布文档，会把清单本身顶成过期，形成「清单依赖文档行数、文档又记录发布哈希」的死循环。
+const PKG = (() => {
+  try { return JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) } catch { return { files: [] } }
+})()
+const SHIPPED = (rel) => (PKG.files || []).some((entry) => rel === entry || rel.startsWith(entry.replace(/\/+$/, '') + '/'))
+
 const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.json', '.md', '.yml', '.yaml', '.txt', '.css', '.html', '.svg', '.sh', '.patch'])
 const ASSET_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.wav', '.mp3', '.onnx', '.wasm', '.bin', '.tar', '.tgz'])
 
@@ -177,7 +185,7 @@ export function buildInventory() {
       path: rel,
       kind: kindOf(rel),
       area: areaOf(rel),
-      lines: countLines(abs),
+      lines: SHIPPED(rel) ? countLines(abs) : null, // 非发布物不计行数（见 SHIPPED 的注释）
       bytes: (() => { try { return statSync(abs).size } catch { return 0 } })(),
       imports: [],
       importers: [],
