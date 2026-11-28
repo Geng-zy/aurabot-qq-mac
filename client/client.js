@@ -490,6 +490,12 @@ window.__ModuleLoader__.load({
     // 写法同 DSH 自带的「自动化任务」（order 10）和「插件」（order 0）：排在它们后面
     slots.inject('main', () => slots.register({ name: 'main', key: PANEL_ID }, AurabotPage))
     slots.inject('sidebar.panellist', () => slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, label: () => 'Aurabot' }, WhaleIcon))
+    // 动作结果挂到窗口层：切页、关面板都不会把提示留在半路上。
+    try {
+    slots.inject('shell.overlay', () => slots.register({ name: 'shell.overlay', id: PANEL_ID + '-toasts' }, Toaster))
+    } catch (error) {
+    // 宿主没有这个座位时用面板自己的 Toast（toastBus 里 hosted() 仍为 false）
+    }
     }
 
     function Asr({ draft, setDraft, toast }) {
@@ -572,6 +578,8 @@ window.__ModuleLoader__.load({
     const toast = (m, kind) => {
     const text = String(m || '')
     const k = kind || (/失败|出错|没成功|不能|读不到|连不上/.test(text) ? 'err' : '')
+    // 先交给总线（宿主有 shell.overlay 时由它渲染），再走面板自己的兜底
+    AB_TOAST.publish(text, k)
     setToastMsg({ text, kind: k })
     clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastMsg(null), 3200)
@@ -719,7 +727,7 @@ window.__ModuleLoader__.load({
     if (showWizard) {
     return h('div', { className: 'ab-root', ref: scrollRef }, h('div', { className: 'ab-standalone' },
     h(Wizard, { st, draft, setDraft, save, toast, reload, onClose: () => setWizardOpen(false) }),
-    toastMsg ? toastView(toastMsg) : null))
+    toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null))
     }
     return h('div', { className: 'ab-root', ref: scrollRef },
     h('div', { className: 'ab-workspace' },
@@ -737,6 +745,7 @@ window.__ModuleLoader__.load({
     onToggle: (enabled) => save({ enabled }, true),
     onMode: (mode) => save({ debug: mode === '调试模式', dryRun: mode !== '正式模式' }, true) }))),
     group.pages.length > 1 ? h(PageNav, { key: group.id, group, current, go, dirtyOf: tabDirty, expanded: collapsedGroup !== group.id }) : null,
+    h(SectionNav, { pageId: current.id, go, sections: FIND_SECTIONS[current.id], activeId: jump?.section }),
     h('div', { key: current.id, className: 'ab-content', role: 'region', 'aria-label': current.label },
     current.id === 'overview' || current.id === 'now' ? null : h('h1', { className: 'ab-page-title' }, current.label),
     err ? h(ErrorBlock, { title: '读不到插件状态', message: err, hint: '插件可能正在重载；也可以看一下日志页。', onRetry: () => reload() }) : null,
@@ -747,7 +756,7 @@ window.__ModuleLoader__.load({
     state: saving ? 'dirty' : 'dirty', saving, isMac: isMacLike(),
     onSave: () => save(), onReset: () => setDraft(clone(cfg)),
     }) : savedFlash ? h(SaveBar, { state: 'saved' }) : null))),
-    toastMsg ? toastView(toastMsg) : null)
+    toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null)
     }
 
     /** 硬依赖缺失时的兜底页：不渲染业务面板，只说明升级路径。 */
@@ -4378,6 +4387,23 @@ window.__ModuleLoader__.load({
     }, h('span', null, h('b', null, mode), h('small', null, description)), h('span', { className: 'ab-mode-indicator', 'aria-hidden': true }))))) : null)
     }
 
+    /**
+    * 页内分区锚点条：把 FIND_SECTIONS 里这一页的分区摆成一行可点的胶囊。
+    * 折叠分区（<details>）点一下就展开并滚到视野；用 aria-current="location" 标出当前分区。
+    * 只有一两个分区、或这一页没登记分区时不渲染 —— 免得每页都多一条没用的横条。
+    */
+    function SectionNav({ pageId, go, sections, activeId }) {
+    const list = (sections || []).filter((s) => s && s[0])
+    if (list.length < 2) return null
+    return h('nav', { className: 'ab-section-nav', 'aria-label': '本页分区' },
+    h('span', { className: 'ab-section-nav-label' }, '分区'),
+    list.map(([id, label]) => h('button', {
+    key: id, type: 'button',
+    'aria-current': activeId === id ? 'location' : undefined,
+    onClick: () => go(pageId, { section: id }),
+    }, label)))
+    }
+
     function Security({ st, draft, setDraft }) {
     const f = useField(draft, setDraft)
     const mode = (draft.security && draft.security.ssrfMode) || 'strict'
@@ -4981,6 +5007,9 @@ window.__ModuleLoader__.load({
 
     const CSS = AB_TOKENS + AB_BROWSER_UI + `
     /* AuraBot workspace：组件规则。颜色一律取自 tokens.js 的语义 token。 */
+    .ab-root{width:100%;height:100%;overflow:auto;box-sizing:border-box;container-type:inline-size;overscroll-behavior:contain;background:var(--ab-bg);color:var(--ab-text);font:13px/1.6 "Inter","PingFang SC",system-ui,sans-serif}
+    .ab-root h1,.ab-root h2{letter-spacing:-.025em;color:inherit}
+    .ab-root :focus-visible{outline:2px solid var(--ab-sky);outline-offset:3px}
     .ab-icon{display:block;width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
     .ab-workspace{display:grid;grid-template-columns:188px minmax(0,1fr);min-height:100%;align-items:start}
     .ab-rail{
@@ -5317,10 +5346,10 @@ window.__ModuleLoader__.load({
     .ab-card{border-radius:var(--ab-radius);padding:18px 20px;box-shadow:var(--ab-shadow);transition:box-shadow .15s}
     .ab-card h3{margin:0;font-size:16px;font-weight:670;color:var(--ab-text);overflow-wrap:anywhere}
     .ab-card .ab-desc{max-width:78ch;margin:0 0 14px;line-height:1.65;overflow-wrap:anywhere}
-    .ab-card:has(>.ab-row){padding-block:12px 4px;padding-inline:clamp(12px,2cqi,20px);border-radius:12px;box-shadow:none}
+    .ab-card:has(>.ab-row){padding-block:12px 4px;padding-inline:clamp(12px,2cqi,20px);border-radius:12px;box-shadow:none;background:var(--ab-card-2)}
     .ab-card:has(>.ab-row)>.ab-card-head{margin-bottom:7px}
     .ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
-    .ab-card:has(>.ab-row)>.ab-card-head h3::before{content:"";width:3px;height:14px;flex:none;border-radius:2px;background:var(--ab-sea)}
+    .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
     .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
     .ab-row .ab-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:6px}
     .ab-row .ab-choice{padding:6px 9px;border-radius:8px}
@@ -5438,6 +5467,15 @@ window.__ModuleLoader__.load({
     .ab-memory-summary .ab-ctl{justify-content:flex-end}
     .ab-memory-head .ab-privacy{display:flex;flex-direction:column;justify-content:center}
     .ab-memory-head .ab-privacy .ab-param-row .ab-ctl{align-self:center}
+    .ab-section-nav{position:sticky;top:calc(var(--dsh-frame-top-clearance,0px) + 52px);z-index:19;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px;padding:6px 0;background:var(--ab-bg)}
+    .ab-section-nav-label{font-size:11.5px;letter-spacing:.04em;color:var(--ab-dim);padding-inline-end:2px}
+    .ab-section-nav button{min-height:27px;padding:3px 10px;border:1px solid var(--ab-line-2);border-radius:999px;background:var(--ab-card);color:var(--ab-sub);font:inherit;font-size:12px;cursor:pointer}
+    .ab-section-nav button:hover{border-color:var(--ab-sea);color:var(--ab-deep)}
+    .ab-section-nav button[aria-current=location]{border-color:var(--ab-sea);background:var(--ab-foam-2);color:var(--ab-deep);font-weight:640}
+    .ab-toaster{position:fixed;inset-block-end:22px;inset-inline-end:22px;z-index:60;pointer-events:none;display:grid;gap:8px}
+    .ab-toaster>*{pointer-events:auto}
+    .ab-breadcrumb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ab-top-actions{display:flex;align-items:center;gap:8px;flex:none}
     @container (max-width:820px){.ab-memory-head{grid-template-columns:minmax(0,1fr)}}
     .ab-privacy{border-left:3px solid var(--ab-sea)}
     .ab-card.ab-settings-tools{padding:10px 12px;border-radius:12px;box-shadow:none}
@@ -5517,7 +5555,10 @@ window.__ModuleLoader__.load({
     .ab-work-nav>div{flex:1 0 auto}
     .ab-rail-collapse{display:none}
     .ab-stage-collapse{display:grid}
-    .ab-page-nav{display:flex}
+    .ab-page-nav{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:6px}
+    .ab-page-nav::-webkit-scrollbar{display:none}
+    .ab-section-nav{position:static;flex-wrap:nowrap;overflow-x:auto;padding:2px 0 8px;margin-bottom:6px}
+    .ab-section-nav-label{display:none}
     .ab-rail-item{justify-content:center;gap:4px;padding:4px 6px;min-height:34px;font-size:11.5px}
     .ab-rail-label{flex:none;gap:3px}
     .ab-build{display:none}
@@ -5531,6 +5572,7 @@ window.__ModuleLoader__.load({
     .ab-rail-item>.ab-icon{width:15px;height:15px}
     .ab-rail-label .ab-icon{width:10px;height:10px}
     .ab-stage{padding-inline:12px}
+    .ab-toaster>*{pointer-events:auto}
     .ab-topbar{gap:5px}
     .ab-top-actions{gap:5px}
     .ab-find-btn,.ab-run-btn{padding-inline:7px;min-width:0}
@@ -5665,6 +5707,52 @@ window.__ModuleLoader__.load({
     (on(gid) ? '✓ ' : '') + (nameOf(gid) || '群'), h('span', { className: 'n' }, gid))))
     : h('span', { className: 'ab-muted ab-small' }, '群白名单是空的。')),
     h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '查不到某人的头衔时（网关抽风），那条先不回，过几秒再查；成员改了头衔一分钟内生效。'))
+    }
+
+    /**
+    * Toast 总线：面板里的动作结果本来只挂在面板自己身上（切页/关面板就没了）。
+    * 宿主有 `shell.overlay` 时，把它挂到整个窗口那一层去；没有宿主时仍由面板自己渲染 —— 两种情况都不丢提示。
+    *
+    * 约定：面板只 publish，不关心谁在渲染。`hosted()` 为真时面板不再画自己的 Toast（避免两份）。
+    */
+    const AB_TOAST = (() => {
+    const listeners = new Set()
+    let hosted = false
+    let current = null
+    let timer = null
+    const emit = () => { for (const fn of listeners) fn(current) }
+    return {
+    publish(text, kind) {
+    const spoken = String(text || '')
+    if (!spoken) return
+    current = { text: spoken, kind: kind || '' }
+    clearTimeout(timer)
+    timer = setTimeout(() => { current = null; emit() }, 3200)
+    emit()
+    },
+    clear() { current = null; clearTimeout(timer); emit() },
+    current: () => current,
+    subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn) },
+    claimHost() { hosted = true },
+    hosted: () => hosted,
+    }
+    })()
+
+    /** 挂在宿主 `shell.overlay` 上的那个渲染器（没有宿主时不会出现）。 */
+    function Toaster() {
+    const [msg, setMsg] = useState(AB_TOAST.current())
+    useEffect(() => {
+    AB_TOAST.claimHost()
+    return AB_TOAST.subscribe(setMsg)
+    }, [])
+    if (!msg) return null
+    return h('div', { className: 'ab-toaster' }, h(primitives().Toast, {
+    key: msg.kind + ':' + msg.text,
+    text: msg.text,
+    tone: msg.kind === 'ok' ? 'success' : msg.kind === 'err' ? 'danger' : undefined,
+    holdMs: 2200,
+    onDone: () => AB_TOAST.clear(),
+    }))
     }
 
     function UpdateNotes({ st }) {
@@ -6063,7 +6151,7 @@ window.__ModuleLoader__.load({
     }
 
     // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
-    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field }
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

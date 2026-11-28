@@ -302,7 +302,7 @@
 | 批次 | 范围 | 独立验收 |
 |---|---|---|
 | **B0 通道与地基** ✅ 1.7.0 | `scripts/ui-preview.mjs` + `scripts/ui-shot.mjs`（不依赖宿主即可截图/断言）；五个控件；token 分层与对比度守卫 | 已达成，证据见 §6.1 |
-| **B1 壳与导航** | 顶部条、rail、页内锚点条、小屏页签、Toast 归 `shell.overlay` | 28 页导航断言 + 小屏快照 |
+| **B1 壳与导航** ✅ 1.7.1 | 顶部条、rail、页内锚点条、小屏页签、Toast 归 `shell.overlay` | 28 页导航断言 + 小屏快照（`ui-shot` 已覆盖） |
 | **B2 心智组** | now / mood / knowledge / persona / inner | 每页三态 + Mini 数据一致 |
 | **B3 自我与设置** | selfmind / mindsettings（含 `settings.section` 入口评估） | 64 行表单校验与保存 |
 | **B4 QQ 会话组** | connect / access / group / model / asr / diary | 连接诊断、白名单保存、模型选择 |

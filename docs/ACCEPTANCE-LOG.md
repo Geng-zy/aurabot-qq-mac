@@ -4027,3 +4027,24 @@ Air  全量 1739 passed / 0 failed；语法 667 文件；oxlint 0 error；清单
        dsh-aurabot-qq-1.7.0.tgz  19,720,736 字节
        sha256 f879ba59838ffcf2961ce92923ad6beaa274e4931fe32be8ba76b4fbcd4a2ffd
 ```
+
+---
+
+## B1 · 壳与导航（1.7.1）
+
+| 项 | 结果 |
+|---|---|
+| 分区锚点条 | `client/parts/sectionNav.js`，与 ⌥K 查找同源（`FIND_SECTIONS`）；点一下展开并滚过去，`aria-current="location"`；少于 2 个分区不渲染 |
+| 窄屏 | 侧栏变顶部横条，页签与分区条横向滑动、无横向溢出；修回 token 拆分时误删的 `.ab-root{container-type:inline-size}` |
+| Toast | `client/parts/toastBus.js`：先进总线；宿主有 `shell.overlay` 时挂窗口层（`apply()` 注册），没有时面板自渲染，`hosted()` 保证只有一份 |
+| craft | 去掉卡片标题旁 3px 单侧竖条（craft-floor 禁止项），改整块浅底 + 实心标题 |
+
+```text
+Air  ui-shot 断言通过：28 页（当前位置 + 分区条该有/不该有 + 分区跳转）× 5 页 × 3 态 + 深色 + 窄屏三查 + Toast 只一份
+     产出刷新 docs/ui-baseline/pages（28）、states（15）、theme-dark.png、narrow.png
+Air  全量 1739 passed / 0 failed；语法 669 文件；oxlint 0 error；清单 0 待审
+Mini 1.7.1 安装启动（16:11:24）；真机 client.js 里 SectionNav / ab-section-nav / AB_TOAST / Toaster /
+     shell.overlay / container-type 全部存在；/state version=1.7.1、12 个模块；配置一致；0 新增 error
+发布 tag v1.7.1；dsh-aurabot-qq-1.7.1.tgz 19,727,024 字节
+     sha256 37c333f80df635b1b176f75ae69f0826f04bf1f100709299e87ce3c6f0350d89
+```

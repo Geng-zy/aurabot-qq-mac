@@ -85,7 +85,7 @@ window.__ModuleLoader__ = {
 }
 </script>
 <script src="/client.js"></script>
-</head><body><div id="root"></div>
+</head><body><div id="root"></div><div id="overlay"></div>
 <script>
 const q = new URLSearchParams(location.search)
 const page = q.get('page') || 'overview'
@@ -123,6 +123,9 @@ const renderPanel = () => {
   try { localStorage.setItem('aurabot.tab', meta.id); localStorage.setItem('aurabot.persona-tab-v2', '1') } catch (e) {}
   const App = mod.AurabotPage || mod.default
   ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App))
+  // 模拟宿主的 shell.overlay 座位：Toast 由它渲染，面板自己那份就不再画
+  const Toaster = mod.__panelTest.Toaster
+  if (Toaster) ReactDOM.createRoot(document.getElementById('overlay')).render(React.createElement(Toaster))
 }
 const boot = async () => {
   window.__PREVIEW_STATE__ = await (await window.__realFetch('/state.json?state=' + state)).json()

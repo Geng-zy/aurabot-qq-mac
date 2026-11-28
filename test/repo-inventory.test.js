@@ -53,6 +53,9 @@ const git = tracked()
 const AUTO = [
   { test: (p) => p.startsWith('test/') || p.endsWith('.test.js'), why: '测试文件' },
   { test: (p) => p.startsWith('docs/repo-audit/'), why: '审计数据' },
+  // UI 截图基线：每次跑 scripts/ui-shot.mjs 整目录重写（28 页 + 5×3 态），
+  // 逐个文件写结论没有意义；目录本身在 docs/repo-audit 里有说明条目。
+  { test: (p) => p.startsWith('docs/ui-baseline/pages/') || p.startsWith('docs/ui-baseline/states/'), why: '截图基线生成物' },
 ]
 const isAuto = (p) => AUTO.some((a) => a.test(p))
 

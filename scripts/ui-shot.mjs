@@ -86,14 +86,34 @@ try {
     await wait(400)
   }
 
-  // 1) 28 个页面正常态
+  // 1) 28 个页面正常态 + 导航断言（B1）
+  // 哪些页该有分区条：直接问面板自己的 FIND_SECTIONS（≥2 个分区才显示）
+  const sectionsOf = async (id) => page.evaluate((pid) => {
+    const map = window.__PANEL__.__panelTest.FIND_SECTIONS || {}
+    return (map[pid] || []).length
+  }, id)
   for (const id of PAGES) {
     jsErrors.length = 0
     await open(`page=${id}&state=live&mode=normal`)
     await page.screenshot({ path: join(PAGE_DIR, `${id}.png`) })
     check(`页面 ${id} 渲染没有 JS 错误`, jsErrors.length === 0, jsErrors[0])
-    const title = await page.textContent('.ab-breadcrumb')
-    check(`页面 ${id} 有面包屑`, Boolean(title && title.trim()))
+    const crumb = (await page.textContent('.ab-breadcrumb')) || ''
+    check(`页面 ${id} 有面包屑`, Boolean(crumb.trim()))
+    // 导航：该页在侧栏或页签里被标成当前位置
+    const currentInNav = await page.evaluate(() => Boolean(document.querySelector('.ab-rail-item[aria-current="true"], .ab-rail-pages button[aria-current="page"], .ab-page-nav button[aria-current="page"]')))
+    check(`页面 ${id} 导航标出当前位置`, currentInNav)
+    // 分区锚点条：登记的页面必须有，没登记的不该出现
+    const chips = await page.locator('.ab-section-nav button').count()
+    const want = await sectionsOf(id)
+    if (want >= 2) check(`页面 ${id} 有分区锚点条`, chips >= 2, `只有 ${chips} 个（登记 ${want}）`)
+    else check(`页面 ${id} 不该有分区锚点条`, chips === 0, `出现 ${chips} 个`)
+    // 分区跳转：点第二个分区要展开对应的折叠块
+    if (chips >= 2) {
+      await page.locator('.ab-section-nav button').nth(1).click()
+      await wait(250)
+      const marked = await page.locator('.ab-section-nav button[aria-current="location"]').count()
+      check(`页面 ${id} 分区跳转有当前位置`, marked === 1)
+    }
   }
 
   // 2) 五个代表页的三态
@@ -116,15 +136,35 @@ try {
     check(`${id} 空态是教学式的`, empty.test(text || ''), '文案没匹配到')
   }
 
-  // 3) 深色与窄屏
+  // 3) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
+  await open('page=logs&state=live&mode=normal')
+  const toastText = await page.evaluate(async () => {
+    const bus = window.__PANEL__.__panelTest.AB_TOAST
+    bus.publish('分区已切换', 'ok')
+    await new Promise((r) => setTimeout(r, 250))
+    return document.querySelector('.ab-toaster')?.innerText || ''
+  })
+  check('Toast 渲染在宿主 overlay 层', toastText.includes('分区已切换'), toastText)
+  const toastInside = await page.evaluate(() => document.querySelectorAll('.ab-toaster .ab-toast').length)
+  const toastTotal = await page.locator('.ab-toast').count()
+  check('Toast 只有宿主层那一份', toastTotal === 1 && toastInside === 1, `总 ${toastTotal}，宿主层 ${toastInside}`)
+
+  // 4) 深色与窄屏
   await open('page=overview&state=live&mode=normal&theme=dark')
   await page.screenshot({ path: join(OUT, 'theme-dark.png') })
   check('深色模式生效', await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))
 
   await page.setViewportSize({ width: 620, height: 900 })
-  await open('page=overview&state=live&mode=normal')
+  await open('page=access&state=live&mode=normal')
   await page.screenshot({ path: join(OUT, 'narrow.png') })
   check('窄屏没有横向溢出', await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2))
+  check('窄屏显示页签', await page.locator('.ab-page-nav').isVisible())
+  check('窄屏隐藏侧栏页列表', !(await page.locator('.ab-rail-pages').first().isVisible().catch(() => false)))
+  const navWrap = await page.evaluate(() => {
+    const nav = document.querySelector('.ab-section-nav')
+    return nav ? getComputedStyle(nav).flexWrap : 'none'
+  })
+  check('窄屏分区条可横向滑动', navWrap === 'nowrap', `flex-wrap=${navWrap}`)
 
   await browser.close()
 } finally {

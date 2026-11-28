@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.7.0 highlights
+## 1.7.1 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -138,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.7.0.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.7.1.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.0.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.1.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -171,6 +171,11 @@ Use **⌥ K** to search settings. Clicking the active group again collapses its 
 | Logs, backups, custom scripts | System |
 
 
+Pages with many settings (allowlists, reply rules, voice, image generation…) carry a **section anchor bar** under the title:
+one click expands that section and scrolls to it, and the current section stays marked. In narrow windows the rail becomes
+a top row and both the page tabs and the anchor bar scroll horizontally. Action results (save, preview, install progress)
+are announced from the window layer, so switching pages never loses them.
+
 Every panel page states its condition: a **skeleton** while loading (only after 300 ms, so nothing flickers),
 an **inline error block** when data cannot be read (retry plus copy-diagnostics — a toast never stands in for it),
 and a **teaching empty state** that explains why it is empty and offers the next action. Edits collect in a bottom
@@ -178,6 +183,9 @@ save bar (dirty → saving → saved, **⌘S** anytime); only switches apply imm
 
 <p><strong>Workbench</strong> · grouped rail, breadcrumb, feature search and run mode on top.</p>
 <img src="docs/screenshots/aurabot-workbench-overview.png" alt="Workbench overview" width="100%">
+
+<p><strong>Section anchors</strong> · chips under the title jump to a section and mark the current one.</p>
+<img src="docs/screenshots/aurabot-section-nav.png" alt="Section anchors" width="100%">
 
 <p><strong>Cannot read</strong> · the error stays on the page with retry and copy-diagnostics.</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="Error state" width="100%">

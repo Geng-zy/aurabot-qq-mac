@@ -810,5 +810,61 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "窄屏（620px）截图，由 scripts/ui-shot.mjs 产出到 docs/ui-baseline/narrow.png 后复制；供 UI 规划布局与后续批次对比。"
+  },
+  {
+    "path": "docs/UI-PLAN.md",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "UI 盘点与设计规划（Operate 模式）：现状盘点（28 页/34 卡片/64 表单行）、rc.3 slot 与 token 能力边界、设计方向、原功能→新入口→验收映射、B0–B7 分批与每批验收条件。B0 已按它落地（1.7.0），B1 进行中；由 scripts/ui-shot.mjs 的断言与 docs/ui-baseline/ 的截图共同兜底。"
+  },
+  {
+    "path": "docs/ui-baseline/api-fixtures.json",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "真机接口抓包快照（/mind/* /modules /song/status /image/status 等 19 个接口），供 scripts/ui-preview.mjs 渲染真实形状；由 Mini 上一次性抓取，不参与产品运行。"
+  },
+  {
+    "path": "docs/ui-baseline/dsh-shell.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "Air 上 Playwright 拍的 DSH 宿主壳截图（参照物，不是产品资源）；生成方式见 docs/UI-PLAN.md §1 的方法表，Chromium 由 scripts/ui-shot.mjs 同一套 playwright-core 驱动。"
+  },
+  {
+    "path": "docs/ui-baseline/dsh-plugins.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "同一轮拍的宿主插件列表页截图，用于确认 rc.3 的 sidebar.panellist 座位形状；引用位置见 docs/UI-PLAN.md §3.1 的 slot 表。"
+  },
+  {
+    "path": "docs/ui-baseline/narrow.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "scripts/ui-shot.mjs 产出的窄屏（620px）基线，每批覆盖，用于对比布局回归。"
+  },
+  {
+    "path": "docs/ui-baseline/theme-dark.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "scripts/ui-shot.mjs 产出的深色模式基线，用于对比主题 token 回归。"
+  },
+  {
+    "path": "docs/ui-baseline/state.live.json",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "Mini 的 /state 快照（12 个内置模块、49 人、19 特质、51 个配置键），供预览渲染；升级后由 ui-shot 重新抓取。"
+  },
+  {
+    "path": "docs/ui-baseline/panel-inventory.json",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "28 页的组件树盘点数据（卡片/表单行/空态/折叠），由 UI 规划那轮的渲染脚本产出。"
   }
 ]

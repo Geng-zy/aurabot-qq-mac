@@ -28,6 +28,8 @@
       const toast = (m, kind) => {
         const text = String(m || '')
         const k = kind || (/失败|出错|没成功|不能|读不到|连不上/.test(text) ? 'err' : '')
+        // 先交给总线（宿主有 shell.overlay 时由它渲染），再走面板自己的兜底
+        AB_TOAST.publish(text, k)
         setToastMsg({ text, kind: k })
         clearTimeout(toastTimer.current)
         toastTimer.current = setTimeout(() => setToastMsg(null), 3200)
@@ -175,7 +177,7 @@
       if (showWizard) {
         return h('div', { className: 'ab-root', ref: scrollRef }, h('div', { className: 'ab-standalone' },
           h(Wizard, { st, draft, setDraft, save, toast, reload, onClose: () => setWizardOpen(false) }),
-          toastMsg ? toastView(toastMsg) : null))
+          toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null))
       }
       return h('div', { className: 'ab-root', ref: scrollRef },
         h('div', { className: 'ab-workspace' },
@@ -193,6 +195,7 @@
                   onToggle: (enabled) => save({ enabled }, true),
                   onMode: (mode) => save({ debug: mode === '调试模式', dryRun: mode !== '正式模式' }, true) }))),
             group.pages.length > 1 ? h(PageNav, { key: group.id, group, current, go, dirtyOf: tabDirty, expanded: collapsedGroup !== group.id }) : null,
+            h(SectionNav, { pageId: current.id, go, sections: FIND_SECTIONS[current.id], activeId: jump?.section }),
             h('div', { key: current.id, className: 'ab-content', role: 'region', 'aria-label': current.label },
               current.id === 'overview' || current.id === 'now' ? null : h('h1', { className: 'ab-page-title' }, current.label),
               err ? h(ErrorBlock, { title: '读不到插件状态', message: err, hint: '插件可能正在重载；也可以看一下日志页。', onRetry: () => reload() }) : null,
@@ -203,7 +206,7 @@
                 state: saving ? 'dirty' : 'dirty', saving, isMac: isMacLike(),
                 onSave: () => save(), onReset: () => setDraft(clone(cfg)),
               }) : savedFlash ? h(SaveBar, { state: 'saved' }) : null))),
-        toastMsg ? toastView(toastMsg) : null)
+        toastMsg && !AB_TOAST.hosted() ? toastView(toastMsg) : null)
     }
 
     /** 硬依赖缺失时的兜底页：不渲染业务面板，只说明升级路径。 */

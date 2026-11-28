@@ -1,5 +1,8 @@
     const CSS = AB_TOKENS + AB_BROWSER_UI + `
 /* AuraBot workspace：组件规则。颜色一律取自 tokens.js 的语义 token。 */
+.ab-root{width:100%;height:100%;overflow:auto;box-sizing:border-box;container-type:inline-size;overscroll-behavior:contain;background:var(--ab-bg);color:var(--ab-text);font:13px/1.6 "Inter","PingFang SC",system-ui,sans-serif}
+.ab-root h1,.ab-root h2{letter-spacing:-.025em;color:inherit}
+.ab-root :focus-visible{outline:2px solid var(--ab-sky);outline-offset:3px}
 .ab-icon{display:block;width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
 .ab-workspace{display:grid;grid-template-columns:188px minmax(0,1fr);min-height:100%;align-items:start}
 .ab-rail{
@@ -336,10 +339,10 @@
 .ab-card{border-radius:var(--ab-radius);padding:18px 20px;box-shadow:var(--ab-shadow);transition:box-shadow .15s}
 .ab-card h3{margin:0;font-size:16px;font-weight:670;color:var(--ab-text);overflow-wrap:anywhere}
 .ab-card .ab-desc{max-width:78ch;margin:0 0 14px;line-height:1.65;overflow-wrap:anywhere}
-.ab-card:has(>.ab-row){padding-block:12px 4px;padding-inline:clamp(12px,2cqi,20px);border-radius:12px;box-shadow:none}
+.ab-card:has(>.ab-row){padding-block:12px 4px;padding-inline:clamp(12px,2cqi,20px);border-radius:12px;box-shadow:none;background:var(--ab-card-2)}
 .ab-card:has(>.ab-row)>.ab-card-head{margin-bottom:7px}
 .ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
-.ab-card:has(>.ab-row)>.ab-card-head h3::before{content:"";width:3px;height:14px;flex:none;border-radius:2px;background:var(--ab-sea)}
+.ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
 .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
 .ab-row .ab-choices{grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:6px}
 .ab-row .ab-choice{padding:6px 9px;border-radius:8px}
@@ -457,6 +460,15 @@
 .ab-memory-summary .ab-ctl{justify-content:flex-end}
 .ab-memory-head .ab-privacy{display:flex;flex-direction:column;justify-content:center}
 .ab-memory-head .ab-privacy .ab-param-row .ab-ctl{align-self:center}
+.ab-section-nav{position:sticky;top:calc(var(--dsh-frame-top-clearance,0px) + 52px);z-index:19;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 12px;padding:6px 0;background:var(--ab-bg)}
+.ab-section-nav-label{font-size:11.5px;letter-spacing:.04em;color:var(--ab-dim);padding-inline-end:2px}
+.ab-section-nav button{min-height:27px;padding:3px 10px;border:1px solid var(--ab-line-2);border-radius:999px;background:var(--ab-card);color:var(--ab-sub);font:inherit;font-size:12px;cursor:pointer}
+.ab-section-nav button:hover{border-color:var(--ab-sea);color:var(--ab-deep)}
+.ab-section-nav button[aria-current=location]{border-color:var(--ab-sea);background:var(--ab-foam-2);color:var(--ab-deep);font-weight:640}
+.ab-toaster{position:fixed;inset-block-end:22px;inset-inline-end:22px;z-index:60;pointer-events:none;display:grid;gap:8px}
+.ab-toaster>*{pointer-events:auto}
+.ab-breadcrumb{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab-top-actions{display:flex;align-items:center;gap:8px;flex:none}
 @container (max-width:820px){.ab-memory-head{grid-template-columns:minmax(0,1fr)}}
 .ab-privacy{border-left:3px solid var(--ab-sea)}
 .ab-card.ab-settings-tools{padding:10px 12px;border-radius:12px;box-shadow:none}
@@ -536,12 +548,15 @@
   .ab-work-nav>div{flex:1 0 auto}
   .ab-rail-collapse{display:none}
   .ab-stage-collapse{display:grid}
-  .ab-page-nav{display:flex}
+  .ab-page-nav{display:flex;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;padding-bottom:6px}
+  .ab-page-nav::-webkit-scrollbar{display:none}
+  .ab-section-nav{position:static;flex-wrap:nowrap;overflow-x:auto;padding:2px 0 8px;margin-bottom:6px}
+  .ab-section-nav-label{display:none}
   .ab-rail-item{justify-content:center;gap:4px;padding:4px 6px;min-height:34px;font-size:11.5px}
   .ab-rail-label{flex:none;gap:3px}
   .ab-build{display:none}
   .ab-stage{padding:0 16px 24px}
-  .ab-topbar{min-height:48px}
+.ab-topbar{min-height:48px}
   .ab-persona{grid-template-columns:minmax(0,1fr)}
 }
 @container (max-width:520px){
@@ -550,7 +565,8 @@
   .ab-rail-item>.ab-icon{width:15px;height:15px}
   .ab-rail-label .ab-icon{width:10px;height:10px}
   .ab-stage{padding-inline:12px}
-  .ab-topbar{gap:5px}
+.ab-toaster>*{pointer-events:auto}
+.ab-topbar{gap:5px}
   .ab-top-actions{gap:5px}
   .ab-find-btn,.ab-run-btn{padding-inline:7px;min-width:0}
   .ab-find-btn span,.ab-find-btn kbd{display:none}

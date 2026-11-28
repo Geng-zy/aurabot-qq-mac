@@ -33,6 +33,14 @@ export const VERDICTS = {
 const TEXT_EXT = new Set(['.js', '.mjs', '.cjs', '.ts', '.json', '.md', '.yml', '.yaml', '.txt', '.css', '.html', '.svg', '.sh', '.patch'])
 const ASSET_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.wav', '.mp3', '.onnx', '.wasm', '.bin', '.tar', '.tgz'])
 
+// 生成物：每次跑 scripts/ui-shot.mjs 会整目录重写，逐个文件写结论没有意义。
+// 这里按目录前缀放行，但目录本身在 docs/repo-audit 里有一条说明性条目。
+const GENERATED_DIRS = ['docs/ui-baseline/pages/', 'docs/ui-baseline/states/']
+
+function isGenerated(path) {
+  return GENERATED_DIRS.some((prefix) => path.startsWith(prefix))
+}
+
 function gitFiles() {
   const out = execFileSync('/usr/bin/git', ['ls-files', '-z'], { cwd: ROOT, maxBuffer: 1 << 28 })
   const tracked = out.toString('utf8').split('\0').filter(Boolean)
@@ -217,7 +225,7 @@ function md({ records }, audits) {
   lines.push('|---|---|---|---|---|---|---|---|---|')
   for (const r of records.sort((a, b) => a.path.localeCompare(b.path))) {
     const a = audits.get(r.path) || r.auto
-    if (!a) missing.push(r.path)
+    if (!a && !isGenerated(r.path)) missing.push(r.path)
     lines.push(`| \`${r.path}\` | ${r.kind} | ${r.area} | ${r.lines ?? '—'} | ${r.importers.length} | ${(r.tests || []).length} | ${a ? VERDICTS[a.verdict] : '**待审**'} | ${a?.owner ?? '—'} | ${a?.evidence ?? '—'} |`)
   }
   return { md: lines.join('\n'), missing }
