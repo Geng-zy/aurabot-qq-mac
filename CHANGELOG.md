@@ -2,6 +2,18 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.93
+
+- B55 **mind/index.js 第五刀：连拆六块**（`mind/index.js` 570 → 361 行）。
+  - `mind/people.js`（74）：people 表读写、曾用名、「这两个 id 是同一个人」的合并。
+  - `mind/perception.js`（71）：感知记录（收到的消息、她说出去的话、标记已回应、管理员最后一条私聊、按可见性过滤的历史）。
+  - `mind/identity.js`（41）：她是谁（名字/小名/年龄生日/时区/专一开关）、`setOwner`/`isOwner`/唤醒词。
+  - `mind/persona.js`（52）：人格卡读写（每次存版本）、公开人格卡、`isOwnerWindow`/`isPrivateHistoryWindow`。
+  - `mind/deletion-log.js`（36）：删除记录（`deletions` 表 + `deletions.jsonl`），重启后按记录落实删除。
+  - `mind/snapshots.js`（35）：快照（保留份数、移入废纸篓、废纸篓同样只留 10 份）、整库字节导出。
+  - 全部依赖注入 + 惰性创建（这些块互相引用，构造期就建会撞 TDZ）。
+- 回归：全量 1730 个测试通过；语法 652 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.92
 
 - B54 **mind/index.js 第四刀：设置与版本历史独立成模块**（`mind/index.js` 642 → 570 行）。

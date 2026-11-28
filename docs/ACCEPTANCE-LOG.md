@@ -3784,3 +3784,38 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 646 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.92.tgz  19,691,580 字节
         sha256 81d36b4d0b48be0719d80df970397b25a30790318cc447d966b271423e1f6006
 ```
+
+---
+
+## B55 · mind/index.js 第五刀：连拆六块（1.6.93）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind/index.js` | 570 → **361** | 各层装配、预算/时钟、对外 return |
+| `mind/people.js`（新） | **74** | people 表读写、曾用名、id 合并 |
+| `mind/perception.js`（新） | **71** | 感知记录（in/out、已回应标记、管理员最后私聊、可见性过滤） |
+| `mind/persona.js`（新） | **52** | 人格卡读写与版本、公开人格卡、私密窗口判断 |
+| `mind/identity.js`（新） | **41** | 她是谁、`setOwner`/`isOwner`、唤醒词 |
+| `mind/deletion-log.js`（新） | **36** | 删除记录与重启后落实 |
+| `mind/snapshots.js`（新） | **35** | 快照与整库导出 |
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 652 文件；oxlint 0 error；清单 0 待审
+过程  自查修掉 6 处：persona 的 place/publicPersonaStyle 导入（还重复导入了一次）、
+      perception 的 getMemory 替换要跳过字符串字面量、deletion-log 里混进了 forgetting 接线（已剔回 index）、
+      以及切「备份」时把 peopleGraph 接线一起切掉了（已补回）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.93（回滚点 ~/aurabot-release-backups/20261128-122329）、12:23:34 启动
+接口   /mind/self   → ok，身份「大肥鱼」，19 项特质
+       /mind/people → ok，49 人（首位 Dr. Romantic）—— 人表与 id 合并逻辑在真机上正常
+       /mind/inner  → ok，内心日记 80 条
+配置   升级前后逐字段一致；Purge 三个工具仍在；12 点档新增 error：0 条
+
+提交   B55；tag v1.6.93
+Release dsh-aurabot-qq-1.6.93.tgz  19,695,664 字节
+        sha256 927aad47de4dc53ca840ec19b45a838d15d2a219388032710c3331a057fff4a9
+```
