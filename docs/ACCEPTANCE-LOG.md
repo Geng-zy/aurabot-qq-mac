@@ -4273,4 +4273,12 @@ Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0
 ### fork 开关启用后的验证
 
 维护者在 GitHub Actions 页点了「I understand my workflows, go ahead and enable them」。
-本条提交用来验证 **push → main 自动触发**（文件在发布包外，不动 tarball 摘要）。
+
+**结果：push → main 自动触发已通。**
+
+| 触发方式 | 证据 |
+|---|---|
+| `push` → main | run **46152853011**，`event=push`，`test (ubuntu)` ✓ 2m57s、`test (macos)` ✓ 4m47s、`ui-smoke` ✓ 45s、`release-check` 非 tag → 跳过（预期） |
+| `workflow_dispatch` | run 46151842829 / 46149928959 / 46148040376 均全绿 |
+| tag → `release-check` | 用 `--ref v1.7.10` 的 dispatch 验证过该任务本身（46149928959：✓ 29s）；**tag push 触发的真实链路要等下一次版本发布时自然覆盖**（不为验证造一次性 tag） |
+| `pull_request` | 本仓流程只用 main / 版本 tag / Release，没有 PR，故该触发面不启用也不验证 |
