@@ -56,6 +56,7 @@ import { createDeletionLog } from './deletion-log.js'
 import { createSnapshots } from './snapshots.js'
 import { createIdentity } from './identity.js'
 import { createPersona } from './persona.js'
+import { createStatus } from './status.js'
 
 export function createMind(opts) {
   const log = opts.log || noopLog
@@ -81,6 +82,8 @@ export function createMind(opts) {
   const updateSettings = (...a) => settingsOf().updateSettings(...a)
   const resetSetting = (...a) => settingsOf().resetSetting(...a)
   const tz = (...a) => settingsOf().tz(...a)
+  /** 今天哪一天（本地时区）：装配各层时就要用到，所以放在最前面。 */
+  const today = () => dayKey(now(), tz())
 
   // 她是谁在 identity.js（惰性：要读设置与 id 归一表）
   let identityApi = null
@@ -288,32 +291,11 @@ export function createMind(opts) {
   })
   applyDeletionLog()
 
-  // ---------- 给她看的「此刻」 ----------
-  function nowText() {
-    return describeNow(now(), tz())
-  }
-  function today() {
-    return dayKey(now(), tz())
-  }
-
-  function status() {
-    const id = identity()
-    return {
-      identity: id,
-      now: nowText(),
-      today: today(),
-      counts: {
-        perception: store.prep('SELECT COUNT(*) AS n FROM perception').get().n,
-        episodes: store.prep("SELECT COUNT(*) AS n FROM episodes WHERE status = 'live'").get().n,
-        people: store.prep('SELECT COUNT(*) AS n FROM people').get().n,
-        versions: store.prep('SELECT COUNT(*) AS n FROM versions').get().n,
-        vectors: store.prep('SELECT COUNT(*) AS n FROM vectors').get().n,
-        memory: memory.counts(),
-      },
-      integrity: store.check(),
-      recovered,
-    }
-  }
+  // 给她看的「此刻」在 status.js
+  const { nowText, status } = createStatus({
+    store, now, tz: (...a) => tz(...a), dayKey, describeNow, identity: (...a) => identity(...a),
+    getMemory: () => memory, getRecovered: () => recovered,
+  })
 
   // 启动时主动清掉过期的恢复区，不能只在打开面板列表时才清理。
   try { forgottenList() } catch (error) { log?.debug?.('恢复区过期清理失败：', error.message) }

@@ -3838,3 +3838,33 @@ Mini  1.6.94 安装并启动（12:31:57），/mind/self ok，Purge 三工具在
 Release dsh-aurabot-qq-1.6.94.tgz  19,696,108 字节
         sha256 bd4239705d5f46bde688dc617bdd64a525605f4b5555aee570fc35d734f54c60
 ```
+
+---
+
+## B56 · mind/index.js 收尾（1.6.95）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind/index.js` | 361 → **343**（改判 keep：组合根） | 12 处装配 + 41 行惰性包装 + 36 行门面 + 2 个小函数 |
+| `mind/status.js`（新） | **33** | `nowText`/`today`/`status`（时刻、今天、各表条数、完整性、是否从快照恢复） |
+
+改动判据（deletion test）：删掉 `mind/index.js`，30+ 个心智模块就没有装配者 —— 它的唯一职责是「把一个心智拼起来并给出门面」。
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 653 文件；oxlint 0 error；清单 751 行 / 0 待审
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.95（回滚点 ~/aurabot-release-backups/20261128-124550 之前一版 1.6.94）、12:45:59 启动
+接口   GET /mind/state → ok=true，status 来自新的 status.js：
+       now = 2026年11月28日 周六 12:46、today = 2026-11-28
+       counts = { perception 2864, episodes 366, people 49, versions 11, vectors 346, memory.live 366 }
+       integrity / recovered 为 null（库是正常打开的，没有从快照恢复）
+       GET /mind/self ok；Purge 三工具在；12:45 后新增 error：0 条
+
+提交   B56；tag v1.6.95
+Release dsh-aurabot-qq-1.6.95.tgz  19,696,150 字节
+        sha256 238f20e2d277ee0b4c1a93baddfb29520662cfe09727319abbb63acd341b2fa4
+```
