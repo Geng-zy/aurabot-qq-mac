@@ -8,8 +8,8 @@
 
 | 结论 | 文件数 |
 |---|---|
-| 保留 | 643 |
-| 待审 | 46 |
+| 保留 | 645 |
+| 待审 | 44 |
 | 保留·补文档 | 40 |
 | 保留·生成物 | 38 |
 | 拆分 | 26 |
@@ -116,7 +116,7 @@
 | `client/parts/rootPicker.js` | client-part | client | 19 | 0 | 0 | 保留 | client-components | 19 行；翻唱根目录选择（输入框、默认位置、300ms 后 check 磁盘余量）；被 song.js 引用；锁：client-build |
 | `client/parts/row.js` | client-part | client | 6 | 0 | 0 | 保留 | client-primitives | 6 行；表单行（label/hint/details/children + aria-labelledby/describedby），6 行；被 47 个片段引用；锁：panel-mind.test.js 用 panel.Row 断言 label、hint（依据：…）、details（默认：…依据：…）；client-build |
 | `client/parts/runControls.js` | client-part | client | 25 | 0 | 0 | 保留 | client-shell | 25 行；右上角运行模式弹层（总开关 Switch + 3 个模式选项 + Escape 收起），依赖 runMode/navIcon；被 aurabotPage.js 引用；锁：client-build；模式文案「正式模式/试运行/调试模式」与 aurabotPage 的 save({debug,dryRun}) 对应 |
-| `client/parts/sectionNav.js` | client-part | client | 16 | 0 | 0 | **待审** | — | — |
+| `client/parts/sectionNav.js` | client-part | client | 16 | 0 | 0 | 保留 | client-panel | 约 18 行：页内分区锚点条。数据来自 navigation.js 的 FIND_SECTIONS（与 ⌥K 查找同源），点击调 go(pageId,{section})，复用 aurabotPage 里既有的展开+滚动逻辑；aria-current="location" 标当前分区；登记分区少于两个时返回 null。被 scripts/ui-shot.mjs 的导航断言覆盖（28 页 × 分区条该有/不该有 + 分区跳转）。 |
 | `client/parts/security.js` | client-part | client | 51 | 0 | 0 | 保留 | client-pages | 51 行；安全防护页（危险命令确认、SSRF 模式、远端管理/可信反代、其它内置防护）；被 wizard.js 的 TAB_CONTENT.security 引用；锁：security-panel.test.js 断言 function Security({ st, draft, setDraft }) 签名、security.dangerConfirm、security.panelRemoteAccess、security.trustedProxy 三组字段都在 Security 函数体内；client-build |
 | `client/parts/seg.js` | client-part | client | 3 | 0 | 0 | 保留 | client-primitives | 3 行；分段按钮（ab-seg + aria-pressed）；被 12 个片段引用；锁：client-build；删除测试不通过（fan-in 12） |
 | `client/parts/select.js` | client-part | client | 45 | 0 | 0 | 保留 | client-primitives | 45 行；自定义下拉（combobox + listbox、键盘上下/Enter/Escape、分组标题、外部点击收起、blur 收起）；使用 btn.js 的 nextSelectId；被 17 个片段引用；锁：persona-filter-select.test.js 直接在 __panelTest.Select 上跑键盘序列并断言 aria-expanded/aria-label/listbox/选中后收起；panel-mind 也取 panel.Select；client-build |
@@ -129,7 +129,7 @@
 | `client/parts/styles.js` | client-part | client | 660 | 0 | 1 | 保留 | client-styles | 634 行（1.6.44 已执行：删掉 108 条规则 / 37 个死类名，739 → 634；生成物 client.js 5887 → 5783）；新增 test/client-css.test.js 防回潮。 |
 | `client/parts/switch.js` | client-part | client | 4 | 0 | 0 | 保留 | client-primitives | 4 行；宿主 Switch 的薄封装（on/onChange/disabled/label/title），4 行；被 12 个片段引用；锁：panel-mind.test.js 断言 ctlOf('单一注意力').type === panel.Switch；client-build；删除测试不通过（12 处调用点会各写一遍 primitives 契约） |
 | `client/parts/titleFilter.js` | client-part | client | 37 | 0 | 0 | 保留 | client-components | 37 行；群头衔过滤卡（开关、自动拉群头衔、分组映射）；被 group.js 引用；锁：client-build |
-| `client/parts/toastBus.js` | client-part | client | 45 | 0 | 0 | **待审** | — | — |
+| `client/parts/toastBus.js` | client-part | client | 45 | 0 | 0 | 保留 | client-panel | 约 45 行：Toast 总线 + Toaster。publish/subscribe/claimHost/hosted；Toaster 挂在宿主 shell.overlay（apply.js 注册），面板侧 aurabotPage 用 hosted() 决定是否渲染自己那份，避免两份提示。被 scripts/ui-shot.mjs 的「Toast 只一份」断言覆盖。 |
 | `client/parts/updateNotes.js` | client-part | client | 13 | 0 | 0 | 保留 | client-components | 13 行；版本更新说明卡（localStorage 记已读）；被 overview.js 引用；锁：client-build |
 | `client/parts/useField.js` | client-part | client | 53 | 0 | 0 | 保留 | client-hooks | 53 行（1.6.45 已执行：新增 secretPlaceholder / f.secret / notify 三个共享实现，把 13 处密钥占位与 21 处提示收敛）；新增 test/client-form-kit.test.js 3 个用例。 |
 | `client/parts/useStyle.js` | client-part | client | 18 | 0 | 0 | 保留 | client-hooks | 18 行；样式注入 hook（旧无主 style 先删、按 plugin 标记复用、textContent=CSS），18 行；被 aurabotPage.js 引用；锁：client-build；与 styles.js 的 CSS 常量构成唯一注入点 |
@@ -181,7 +181,7 @@
 | `docs/repo-audit/batch9-additions.json` | doc | docs | 16 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/channels.json` | doc | docs | 387 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 channels.json。 |
 | `docs/repo-audit/chat-host.json` | doc | docs | 408 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 chat-host.json。 |
-| `docs/repo-audit/client.json` | doc | docs | 870 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
+| `docs/repo-audit/client.json` | doc | docs | 884 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 client.json。 |
 | `docs/repo-audit/core-data.json` | doc | docs | 9 | 0 | 0 | 保留·生成物 | audit | 审计数据（本清单的输入）；由 scripts/repo-inventory.mjs 读取，test/repo-inventory.test.js 校验结构。 |
 | `docs/repo-audit/core-security.json` | doc | docs | 268 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 core-security.json。 |
 | `docs/repo-audit/features-modules.json` | doc | docs | 289 | 0 | 0 | 保留·生成物 | audit | 审计数据（本批由子代理产出），被 scripts/repo-inventory.mjs 与 test/repo-inventory.test.js 读取；路径 features-modules.json。 |

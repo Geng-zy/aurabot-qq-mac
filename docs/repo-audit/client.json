@@ -866,5 +866,19 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "28 页的组件树盘点数据（卡片/表单行/空态/折叠），由 UI 规划那轮的渲染脚本产出。"
+  },
+  {
+    "path": "client/parts/sectionNav.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "约 18 行：页内分区锚点条。数据来自 navigation.js 的 FIND_SECTIONS（与 ⌥K 查找同源），点击调 go(pageId,{section})，复用 aurabotPage 里既有的展开+滚动逻辑；aria-current=\"location\" 标当前分区；登记分区少于两个时返回 null。被 scripts/ui-shot.mjs 的导航断言覆盖（28 页 × 分区条该有/不该有 + 分区跳转）。"
+  },
+  {
+    "path": "client/parts/toastBus.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "约 45 行：Toast 总线 + Toaster。publish/subscribe/claimHost/hosted；Toaster 挂在宿主 shell.overlay（apply.js 注册），面板侧 aurabotPage 用 hosted() 决定是否渲染自己那份，避免两份提示。被 scripts/ui-shot.mjs 的「Toast 只一份」断言覆盖。"
   }
 ]
