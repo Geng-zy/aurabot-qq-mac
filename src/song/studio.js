@@ -26,13 +26,8 @@ export const APPLIO_COMMIT = '6f69726b140c615c8cc6831a7db8b7c5e48ba8af'
  * - env/：只装人声分离。audio-separator 0.48 在 Apple 芯片上要 torch ≥ 2.13，和 Applio 锁的 torch 2.11 装不到一起；
  *   硬装进一套会退到 audio-separator 0.45，实测 Leap Xe 等 Roformer 模型分离直接失败。
  */
-export const MAC_STACK = {
-  applioExtras: ['python-ffmpeg==2.0.12'],
-  // librosa 1.0 不再带 audioread，而 audio-separator 0.48 还在直接 import 它，所以显式补装
-  separator: ['audio-separator[cpu]==0.48.0', 'librosa==1.0.0', 'audioread==3.1.0', 'imageio-ffmpeg==0.8.1'],
-  // 语音页「安装语音组件」装的 edge-tts（2026-11-09 在 Python 3.13.18 上实测装好并念出语音）
-  edgeTts: 'edge-tts==7.3.1',
-}
+export { MAC_STACK } from './stack.js'
+import { MAC_STACK } from './stack.js'
 // RVC 推理要的预训练文件（Applio 放在 HuggingFace 上）：[远端相对路径, 本地相对 Applio 的路径]
 const PREREQS = [
   ['predictors/rmvpe.pt', 'rvc/models/predictors/rmvpe.pt'],
@@ -48,250 +43,23 @@ const FETCH_SCRIPT = fileURLToPath(new URL('./fetch_file.py', import.meta.url))
  * 下载一个预训练文件：已经有了就跳过。用翻唱环境里的 Python 下（会走系统代理），
  * 断了从断点接着下，卡住 30 秒就换下一个源，几轮都不行才算失败。
  */
-async function downloadWithMirror(python, rel, dest, note, log, onProgress) {
-  return fetchFile(python, dest, HF_HOSTS.map((host) => `${host}/IAHispano/Applio/resolve/main/Resources/${rel}`), note, log, onProgress, rel)
-}
-
-/** 默认分离模型的文件都在不在。 */
-export function separatorReady(dir, model) {
-  const files = SEPARATOR_FILES[model]
-  if (!files) return existsSync(join(dir, model))
-  const extra = EXTRA_SEPARATORS[model]
-  if (extra && !readJson(join(dir, 'extra-models.json'), () => ({}))[extra.key]) return false
-  return files.every(([name]) => fileSize(join(dir, name)) > 0)
-}
-
-/** 下载一个文件：已经有了就跳过；地址按顺序轮流试，断了接着下，走系统代理。 */
-async function fetchFile(python, dest, urls, note, log, onProgress, label = basename(dest), sha256 = '') {
-  const rel = label
-  if (fileSize(dest) > 0) return
-  // 上次没下完的（.download）会接着下
-  const part = dest + '.download'
-  note?.(fileSize(part) ? `接着下 ${rel}（上次下到 ${Math.round(fileSize(part) / 1048576)} MB）` : `下载 ${rel}`)
-  let lastPct = -1
-  await run(python, [FETCH_SCRIPT, ...(sha256 ? ['--sha256', sha256] : []), dest, ...urls], {
-    log,
-    env: { PYTHONIOENCODING: 'utf-8' },
-    timeoutMs: 2 * 3600_000,
-    onLine: (line) => {
-      const m = line.match(/^progress (\d+) (\d+)/)
-      if (m && Number(m[2])) {
-        onProgress?.(Number(m[1]), Number(m[2]))
-        const pct = Math.floor((Number(m[1]) / Number(m[2])) * 10) * 10
-        if (pct !== lastPct) { lastPct = pct; note?.(`  ${rel}：${pct}%`) }
-      } else if (/^retry /.test(line)) note?.('  ' + line.replace(/^retry /, '断了，换个源接着下：'))
-    },
-  })
-}
-
-/** 模型文件能不能读：刚下完/导入的大文件常被杀毒软件锁住几秒，等一等再试，还不行就报出是哪个文件。 */
-export async function ensureReadable(files, tries = 4, waitMs = 3000) {
-  for (const f of files) {
-    if (!existsSync(f)) continue
-    for (let i = 1; ; i++) {
-      try {
-        const fd = openSync(f, 'r')
-        try { readSync(fd, Buffer.alloc(16), 0, 16, 0) } finally { closeSync(fd) }
-        break
-      } catch (error) {
-        if (i >= tries || !/EACCES|EPERM|EBUSY/.test(error.code || '')) throw new Error(`Permission denied: '${f}'（${error.code || error.message}）`)
-        await new Promise((r) => setTimeout(r, waitMs))
-      }
-    }
-  }
-}
-
-/** 一个目录（含子目录）有多大，字节。目录不存在算 0。 */
-export function dirSize(dir) {
-  let total = 0
-  const stack = [dir]
-  while (stack.length) {
-    const d = stack.pop()
-    let names
-    try { names = readdirSync(d, { withFileTypes: true }) } catch { continue }
-    for (const e of names) {
-      const full = join(d, e.name)
-      if (e.isDirectory()) stack.push(full)
-      else try { total += statSync(full).size } catch {}
-    }
-  }
-  return total
-}
-
-/** 翻唱环境的根目录：~/Aurabot/rvc。 */
-export function defaultRoot() {
-  return join(homedir(), 'Aurabot', 'rvc')
-}
-
-/**
- * 检查安装位置：要绝对路径；中文、空格可能让一些工具出问题，提醒一下；顺便看看那个磁盘还剩多少空间（装完约 5 GB）。
- * @returns {{ok: boolean, path: string, message: string, warn: string, freeGB: number|null}}
- */
-/** 把安装时的报错翻译成人话，并告诉用户接下来怎么办。 */
-export function explainInstallError(msg) {
-  const m = String(msg || '')
-  if (/ENOENT/.test(m)) return `找不到需要的程序（${(m.match(/spawn (\S+)/) || [])[1] || '?'}）。点「重新检查 / 修复安装」再试一次；还不行就把报错发给作者`
-  if (/ENOSPC|No space|磁盘空间|not enough space/i.test(m)) return '磁盘空间不够了。换一个空间大的位置（上面「装到哪里」），或者先清出空间，保存后再装'
-  if (/timed? ?out|超时|30 秒没进度|operation timed/i.test(m)) return '网络太慢、超时了。打开「用国内镜像下载」或者开着代理，再点安装（已下好的不会重下）'
-  if (/connection|connect|reset|TLS|SSL|dns|resolve|Failed to fetch|Failed to download|error sending request|无法连接|网络/i.test(m)) return '网络连接断了。打开「用国内镜像下载」或者开着代理，再点安装（已下好的不会重下）'
-  return m.slice(0, 300)
-}
-
-/** 人声分离环境装什么（[cpu] 版：Mac 没有 NVIDIA 显卡，PyTorch 在 Apple 芯片上仍会走 MPS 加速）。 */
-export const installExtras = () => [...MAC_STACK.separator]
-
-/** 安装的几步（面板按这个画步骤条）。 */
-export const INSTALL_STEPS = ['创建 Python 环境', '下载 Applio（RVC 推理引擎）', '安装 PyTorch、RVC 和人声分离（最大的一步）',
-  '准备 ffmpeg 和 rubberband', '下载 RVC 需要的预训练文件（音高、音色特征）', '下载人声分离模型']
-
-// 默认人声分离模型要的文件：[文件名, 下载地址（按顺序试）, sha256]。提前下好，免得第一次点歌时卡着不动。
-// 原版默认的 BS-Roformer 模型 640 MB，GitHub 在国内经常下不动：先走 HuggingFace 镜像（有人转存了同一个文件，校验值一样），再试官方。
-// 下完核对 sha256，哪个源给的文件不对就换下一个；配置文件很小，随插件带着（src/song/separator/）。
-const GH_UVR = 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models'
-const GH_AS = 'https://github.com/nomadkaraoke/python-audio-separator/releases/download/model-configs'
-const HF_SEP = ['Politrees/UVR_resources/resolve/main/models/Roformer/BandSplit', 'datasets/SayanoAI/RVC-Studio/resolve/main/UVR']
-const BS_ROFORMER = 'model_bs_roformer_ep_317_sdr_12.9755'
-// macOS 默认的主分离模型：unwa 的 BS-Roformer Leap Xe（不在 audio-separator 自带清单里，从作者的 Hugging Face 仓库按固定版本下，带校验）
-export const LEAP_XE = 'bs_leap_xe_voc.ckpt'
-const LEAP_REPO = 'pcunwa/BS-Roformer-Leap/resolve/4e47d6662ae82eaa8b4ac4329fe66099a843b48e/Xe'
-const leapUrls = (name) => [`https://hf-mirror.com/${LEAP_REPO}/${name}`, `https://huggingface.co/${LEAP_REPO}/${name}`]
-/** 清单外的分离模型：选中时插件把它登记进 separator-models/extra-models.json（separator_run.py 读这个文件补清单）。 */
-export const EXTRA_SEPARATORS = {
-  [LEAP_XE]: {
-    key: 'Roformer Model: BS-Roformer Leap Xe Vocals by unwa',
-    entry: { filename: LEAP_XE, config: 'leap_xe_config_voc.yaml', sha256: 'b739c1d2d87a81cd3dd3844ed9ad0bd678708c7a0a761a03a1aaff9af79a096d', source: 'https://huggingface.co/pcunwa/BS-Roformer-Leap' },
-  },
-}
-/**
- * macOS 上翻唱增强流程要的工具：Rubber Band 官方的 macOS 命令行程序 4.0.0（苹果公证过，只依赖系统自带的库，
- * Apple 芯片 / Intel 通用）。伴奏跟着定调变调用。和 ffmpeg 一样放进安装目录的 bin/。
- */
-export const RUBBERBAND_MAC = {
-  url: 'https://breakfastquay.com/files/releases/rubberband-4.0.0-gpl-executable-macos.tar.bz2',
-  sha256: '0dc91509a31a94c1144436cc20e6f1d165bdab39fe125f9be7d46139921b733f',
-}
-export const SEPARATOR_FILES = {
-  [`${BS_ROFORMER}.ckpt`]: [
-    [`${BS_ROFORMER}.ckpt`, [
-      ...HF_SEP.map((p) => `https://hf-mirror.com/${p}/${BS_ROFORMER}.ckpt`),
-      `${GH_UVR}/${BS_ROFORMER}.ckpt`,
-      `https://huggingface.co/${HF_SEP[0]}/${BS_ROFORMER}.ckpt`,
-      `${GH_AS}/${BS_ROFORMER}.ckpt`,
-    ], '5b84f37e8d444c8cb30c79d77f613a41c05868ff9c9ac6c7049c00aefae115aa'],
-    [`${BS_ROFORMER}.yaml`, [`${GH_AS}/${BS_ROFORMER}.yaml`], '2bfdd16c656bd9519aba757cc4f8834b7ede675eb1e00ec4772d74ae1c41af7f'],
-  ],
-  [LEAP_XE]: [
-    [LEAP_XE, leapUrls(LEAP_XE), 'b739c1d2d87a81cd3dd3844ed9ad0bd678708c7a0a761a03a1aaff9af79a096d'],
-    ['leap_xe_config_voc.yaml', leapUrls('leap_xe_config_voc.yaml'), 'd3cb8c84be2e9bcbc64c1086e2256dc097ab5addebc5ce507818e90ff8cbdc25'],
-  ],
-}
-const fileSize = (file) => { try { return statSync(file, { throwIfNoEntry: false })?.size || 0 } catch { return 0 } }
-
-const BUNDLED_SEP = fileURLToPath(new URL('./separator/', import.meta.url))
-const SEPARATOR_RUN = fileURLToPath(new URL('./separator_run.py', import.meta.url))
-
-/**
- * 安装目录 bin/ 里没有 ffmpeg 时，用系统里装好的（PATH、Homebrew 等常见位置，见 core/img.js）。
- * macOS 上很多人已经用 Homebrew 装了 ffmpeg，不必再复制一份。都找不到就保持原路径（面板显示「缺 ffmpeg」）。
- */
-export function withSystemFfmpeg(p, { exists = existsSync, find = findFfmpeg } = {}) {
-  if (exists(p.ffmpeg)) return p
-  const sys = find()
-  return sys ? { ...p, ffmpeg: sys } : p
-}
-
-/**
- * 怎么调人声分离：分离模型文件夹里有 extra-models.json（登记了清单外的模型，比如 Leap Xe）时，
- * 用环境里的 Python 跑插件自带的 separator_run.py，它先把这些模型补进 audio-separator 的清单；没有就直接调 audio-separator。
- * @returns {[string, string[]]} [程序, 参数]
- */
-export function separatorCommand(p, args) {
-  return existsSync(join(p.separatorModels, 'extra-models.json')) ? [p.python, [SEPARATOR_RUN, ...args]] : [p.separatorExe, args]
-}
-
-/**
- * 手动下载用的地址（面板里给用户复制，用浏览器或下载工具下好再拖进来）。
- * 给了分离模型文件夹时只列还缺的文件（Leap Xe 要模型本体和一个配置文件，缺哪个列哪个）。
- */
-export function separatorLinks(model, dir = '') {
-  return (SEPARATOR_FILES[model] || []).filter(([name]) => !dir || fileSize(join(dir, name)) === 0)
-    .flatMap(([, urls]) => urls.slice(0, 3))
-}
-
-/** 清单外的分离模型（如 Leap Xe）登记进 extra-models.json；已登记或不是清单外的模型就什么也不做。 */
-export function registerExtraSeparator(dir, model) {
-  const extra = EXTRA_SEPARATORS[model]
-  if (!extra) return false
-  const file = join(dir, 'extra-models.json')
-  const list = readJson(file, () => ({}))
-  if (list[extra.key]) return false
-  mkdirSync(dir, { recursive: true })
-  writeJson(file, { ...list, [extra.key]: extra.entry })
-  return true
-}
-
-/**
- * 导入手动下好的分离模型或它的配置文件（.ckpt / .yaml）：核对 sha256，对得上才放进去。
- * @returns {{ok:boolean, message:string}}
- */
-export function importSeparator(dir, filename, buf) {
-  const sha = createHash('sha256').update(buf).digest('hex')
-  for (const files of Object.values(SEPARATOR_FILES)) {
-    const hit = files.find(([, , want]) => want === sha)
-    if (hit) {
-      mkdirSync(dir, { recursive: true })
-      writeFileSync(join(dir, hit[0]), buf)
-      rmSync(join(dir, hit[0] + '.download'), { force: true })
-      registerExtraSeparator(dir, hit[0])
-      return { ok: true, message: `人声分离模型导入好了（${hit[0]}）` }
-    }
-  }
-  return { ok: false, message: `「${filename}」不是插件要的人声分离模型文件（校验对不上），要的是：${Object.values(SEPARATOR_FILES).flat().map(([n]) => n).join('、')}` }
-}
-// 分离工具每次运行都要的模型清单（缺了会去 raw.githubusercontent.com 拉，国内常常连不上）
-const SEPARATOR_LIST = ['download_checks.json', ['https://raw.githubusercontent.com/TRvlvr/application_data/main/filelists/download_checks.json', 'https://cdn.jsdelivr.net/gh/TRvlvr/application_data@main/filelists/download_checks.json']]
-
-/** 面板里「装到哪里」的示例路径。 */
-export const rootExample = () => join(homedir(), 'Aurabot', 'rvc')
-
-export function checkRoot(path) {
-  const p = String(path || '').trim()
-  if (!p) return { ok: true, path: '', message: '', warn: '', freeGB: null }
-  if (!p.startsWith('/')) return { ok: false, path: p, message: `要写完整路径，比如 ${rootExample()}`, warn: '', freeGB: null }
-  const warn = /[^\x21-\x7e]/.test(p) ? '路径里有中文或空格，个别工具可能出问题，最好换成全英文、不带空格的路径' : ''
-  let freeGB = null
-  try {
-    // 往上找到第一个存在的目录来量剩余空间
-    let probe = p
-    while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe)
-    const s = statfsSync(probe)
-    freeGB = Math.round((Number(s.bavail) * Number(s.bsize)) / 1024 ** 3 * 10) / 10
-  } catch {}
-  return { ok: true, path: p, message: '', warn: warn || (freeGB !== null && freeGB < 10 ? `这个磁盘只剩 ${freeGB} GB，装完要 5 GB 左右，安装时还要临时多占几 GB` : ''), freeGB }
-}
-
-/** 翻唱环境里各个程序的位置。 */
-export function pathsOf(root) {
-  const envBin = join(root, 'env', 'bin')
-  return {
-    root,
-    python: join(envBin, 'python'),
-    separatorExe: join(envBin, 'audio-separator'),
-    applio: join(root, 'Applio'),
-    models: join(root, 'models'),
-    separatorModels: join(root, 'separator-models'),
-    bin: join(root, 'bin'),
-    ffmpeg: join(root, 'bin', 'ffmpeg'),
-    rmvpe: join(root, 'Applio', 'rvc', 'models', 'predictors', 'rmvpe.pt'),
-    contentvec: join(root, 'Applio', 'rvc', 'models', 'embedders', 'contentvec', 'pytorch_model.bin'),
-  }
-}
-
-// 音色库的文件操作（列出/导入/删除/清缓存、python 与 rubberband 的位置）在 voice-library.js
+// 音色库的文件操作（列出/导入/删除/清缓存、python 与 rubberband 位置）在 voice-library.js
 export { applioPython, findRubberband, looksLikePth, listVoices, importModels, deleteVoice, pruneCache } from './voice-library.js'
 import { applioPython, findRubberband, looksLikePth, listVoices, importModels, deleteVoice, pruneCache } from './voice-library.js'
 
-/** 人声小于这个音量（dB）就当作没有唱：纯音乐不做翻唱。 */
+// 分离器模型清单、下载、路径与命令行在 separator-env.js；跑进程的封装在 run.js
+export {
+  separatorReady, dirSize, defaultRoot, explainInstallError, withSystemFfmpeg, separatorCommand, separatorLinks,
+  registerExtraSeparator, importSeparator, checkRoot, pathsOf, SEPARATOR_FILES, EXTRA_SEPARATORS, LEAP_XE, RUBBERBAND_MAC,
+  INSTALL_STEPS, installExtras, downloadWithMirror, ensureReadable, fetchFile, BUNDLED_SEP, SEPARATOR_RUN, SEPARATOR_LIST,
+} from './separator-env.js'
+import {
+  separatorReady, dirSize, defaultRoot, explainInstallError, withSystemFfmpeg, separatorCommand, separatorLinks,
+  registerExtraSeparator, importSeparator, checkRoot, pathsOf, SEPARATOR_FILES, EXTRA_SEPARATORS, LEAP_XE, RUBBERBAND_MAC,
+  INSTALL_STEPS, installExtras, downloadWithMirror, ensureReadable, fetchFile, BUNDLED_SEP, SEPARATOR_RUN, SEPARATOR_LIST,
+} from './separator-env.js'
+import { run } from './run.js'
+
 export const VOCAL_MIN_DB = -50
 
 export function mixArgs({ vocals, inst, vol, iv, out }) {
@@ -318,57 +86,6 @@ export function clipWindow(durationSec, maxSec, start = 'auto') {
   return { start: s, length: maxSec }
 }
 
-function run(cmd, args, { cwd, env, log, onLine, timeoutMs = 30 * 60_000, signal, acceptedExitCodes = [0] } = {}) {
-  return new Promise((resolve, reject) => {
-    signal?.throwIfAborted()
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env } })
-    let tail = ''
-    let interrupted
-    let killTimer
-    const feed = (buf) => {
-      const s = String(buf)
-      tail = (tail + s).slice(-4000)
-      for (const line of s.split(/\r?\n|\r/)) if (line.trim()) onLine?.(line.trim())
-    }
-    child.stdout.on('data', feed)
-    child.stderr.on('data', feed)
-    const stop = (error) => {
-      if (interrupted) return
-      interrupted = error
-      child.kill('SIGTERM')
-      killTimer = setTimeout(() => child.kill('SIGKILL'), 1500)
-      killTimer.unref?.()
-    }
-    const abort = () => stop(signal.reason)
-    signal?.addEventListener('abort', abort, { once: true })
-    const timer = setTimeout(() => stop(new Error(`${basename(cmd)} 执行超时`)), timeoutMs)
-    const cleanup = () => {
-      clearTimeout(timer)
-      clearTimeout(killTimer)
-      signal?.removeEventListener('abort', abort)
-    }
-    child.once('error', (error) => { cleanup(); reject(interrupted || error) })
-    child.once('close', (code) => {
-      cleanup()
-      if (interrupted) reject(interrupted)
-      else if (acceptedExitCodes.includes(code)) resolve(tail)
-      else {
-        log?.debug(`${basename(cmd)} 失败（code ${code}）：${tail.slice(-800)}`)
-        reject(new Error(`${basename(cmd)} 退出码 ${code}：${tail.trim().split(/\r?\n/).slice(-2).join(' ').slice(0, 300)}`))
-      }
-    })
-  })
-}
-
-/**
- * @param {object} deps
- * @param {() => object} deps.getConfig
- * @param {object} deps.log
- * @param {(chatId: string, file: string, note: string) => Promise<any>} deps.sendVoiceFile  把做好的语音发到聊天
- * @param {(chatId: string, text: string) => Promise<any>} [deps.sendText]  没接 say 时的兜底发送
- * @param {(o: { chatId: string, title: string, query: string, why: string, error: string }) => Promise<any>} [deps.say]
- *   翻唱失败时说的话由她本人决定（模块层接模型生成），失败提示不再是一句写死的模板
- */
 /** 翻唱出错翻译成人话（给点歌的人看）。 */
 export function explainSongError(message) {
   const m = String(message || '')

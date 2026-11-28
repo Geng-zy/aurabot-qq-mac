@@ -3897,3 +3897,34 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 654 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.96.tgz  19,697,637 字节
         sha256 8e05f69ede36e0d149c87c6aee523e898a558e9268ce4e8f3710e05d01da4bf3
 ```
+
+---
+
+## B58 · song/studio.js 第二刀：分离器环境（1.6.97）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `song/studio.js` | 1033 → **750** | 一键安装链、做歌流水线、面板接口（还差两刀） |
+| `song/separator-env.js`（新） | **262** | 模型清单 / 下载（镜像轮换、断点续传、校验）/ 路径与命令行 / 找 ffmpeg / 导入手工模型 / 目录体检 |
+| `song/run.js`（新） | **57** | 跑外部命令（超时、可中断、逐行回调、失败带最后两行） |
+| `song/stack.js`（新） | **10** | 两套 Python 环境的安装清单（避免 studio ↔ separator-env 循环依赖） |
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 657 文件；oxlint 0 error；清单 0 待审
+过程  第三次踩「模块清单」：modules.test.js 复制内置模块时按 files 清单拷文件，
+      新增的 separator-env/run/stack 不在清单里 → 复制版跑不起来（已补，43/43 通过）
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.97（回滚点 ~/aurabot-release-backups/20261128-133207 之前一版 1.6.96）、13:32:13 启动
+接口   /song/status → ok（翻唱面板在）
+       /song/root/check?path=$HOME → ok，freeGB 153.8（新 separator-env.js 的 checkRoot/pathsOf 在真机工作）
+       /song/separator/models 返回「模块没开」—— 分离器子模块开关的既有行为，与本批无关
+配置   Purge 三工具在；13:20 后新增 error：0 条
+
+提交   B58；tag v1.6.97
+Release dsh-aurabot-qq-1.6.97.tgz  19,701,405 字节
+        sha256 be84f344b0cd64b4479e5bb9879eb4d721b25f7cdbebbbf852dc720ae9e3bbed
+```

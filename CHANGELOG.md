@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.97
+
+- B58 **song/studio.js 第二刀：分离器环境 + 跑进程 + 安装清单独立成模块**（`song/studio.js` 1033 → 750 行）。
+  - `song/separator-env.js`（262 行）：模型清单（UVR / BS-RoFormer / Leap / 可选 EXTRA_SEPARATORS）、
+    下载（镜像轮换 + 断点续传 + 校验）、`separatorCommand`/`pathsOf`/`checkRoot`/`withSystemFfmpeg`、
+    导入手工模型、`ensureReadable`。
+  - `song/run.js`（57 行）：跑外部命令（超时、可中断、逐行回调、失败时带最后两行）。
+  - `song/stack.js`（10 行）：两套 Python 环境各装什么的清单 —— 单独放是为了避免 studio ↔ separator-env 循环依赖。
+  - 模块清单再次同步：`src/modules/song/index.js` 的 `files` 补上这三个文件。
+- 回归：全量 1730 个测试通过；语法 657 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.96
 
 - B57 **song/studio.js 第一刀：音色库独立成模块**（`song/voice-library.js` 117 行，`song/studio.js` 1137 → 1033 行）。
