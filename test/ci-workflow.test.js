@@ -53,6 +53,7 @@ test('tag 上要校验 Release 资产的摘要', () => {
   assert.match(rel, /startsWith\(github\.ref, 'refs\/tags\/v'\)/, '只在版本 tag 上跑')
   assert.match(rel, /node scripts\/verify-release\.mjs/, '要跑发布校验入口')
   assert.match(rel, /GH_TOKEN/, '校验要读 Release，需要 token')
+  assert.match(rel, /steps\.rel\.outputs\.exists == 'true'/, 'Release 还没建时要跳过，不能因为时序变红')
 })
 
 test('官方 action 用会跑的版本（v4 跑在已弃用的 Node 20 上）', () => {

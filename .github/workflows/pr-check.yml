@@ -100,7 +100,20 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: '24'
+      - name: Does this tag have a Release yet?
+        id: rel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # tag 先推、Release 后建是常态：没有 Release 时只提示，不要让 CI 变红
+          if gh release view "$GITHUB_REF_NAME" --json tagName >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::${GITHUB_REF_NAME} 还没有 Release，跳过摘要校验（建完 Release 可手动重跑）"
+          fi
       - name: Verify release assets match repo records
+        if: steps.rel.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/verify-release.mjs

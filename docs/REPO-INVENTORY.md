@@ -20,7 +20,7 @@
 
 | 文件 | 类别 | 区域 | 行 | 被依赖 | 测试引用 | 结论 | 归属 | 依据 |
 |---|---|---|---|---|---|---|---|---|
-| `.github/workflows/pr-check.yml` | ci | .github | 106 | 0 | 0 | 保留 | ci | 59 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 清单闸门(node scripts/repo-inventory.mjs --write) → npm install --ignore-scripts → npm run check → npm run lint → client 构建漂移检查 → npm pack → tar 三条路径校验 → npm test；触发分支为 main 与 v* tag（历史分支 beta/v1.5.10 已移除）；2026-11-26 的 run 45678450101 双平台 success |
+| `.github/workflows/pr-check.yml` | ci | .github | 119 | 0 | 0 | 保留 | ci | 59 行；job test 跑 ubuntu-latest + macos-latest 矩阵、node-version 24、timeout 30min；步骤为 清单闸门(node scripts/repo-inventory.mjs --write) → npm install --ignore-scripts → npm run check → npm run lint → client 构建漂移检查 → npm pack → tar 三条路径校验 → npm test；触发分支为 main 与 v* tag（历史分支 beta/v1.5.10 已移除）；2026-11-26 的 run 45678450101 双平台 success |
 | `.gitignore` | config | root | 11 | 0 | 0 | 保留 | repo | 随发布更新（行数见清单「行」列）：node_modules/、*.log、*.tmp-*、__pycache__/、*.pyc、.DS_Store、**/.DS_Store；不忽略 `*.tgz`，而 CI 与自己发布都会在仓库根跑 `npm pack`（pr-check.yml 的 Pack artifact 步骤），产物会以未跟踪文件出现 |
 | `.oxlintrc.json` | config | root | 15 | 0 | 0 | 保留 | tooling-lint | 15 行；rules 只有 no-undef:error 与 no-unused-vars:warn；ignorePatterns 忽略 client/client.template.js 与 client/parts/**，被忽略的是源片段、被 lint 的反而是生成物 client/client.js；本次 `./node_modules/.bin/oxlint src client` 实测 282 个文件、165 warning / 0 error；scripts/ 与 test/ 不在 `npm run lint` 的目录参数里 |
 | `assets/dafeiyu.jpg` | asset | assets | — | 0 | 0 | 保留 | asset | 位图 315748 字节；署名与许可写在 THIRD-PARTY-NOTICES.md（上游原图、CC BY-NC-SA 4.0）；src/features/avatar-routes.js:16 在用户未上传头像时读它作为 /avatar 回退 |
@@ -143,7 +143,7 @@
 | `client/parts/WorkspaceNav.js` | client-part | client | 22 | 0 | 0 | 保留 | client-shell | 22 行；左侧工作区导航（品牌按钮/分组按钮/折叠页签/版本号），依赖 WhaleIcon、PageNav、navigation 的 navIcon/pageNavId/unsavedDot；被 aurabotPage.js 引用；锁：panel-mind.test.js 断言分组按钮 aria-expanded=true/false、aria-current=true 和 toggleGroup 调用顺序；client-build |
 | `client/README.md` | config | client | 15 | 0 | 0 | 保留 | client | 15 行；说明 parts 拼接构建与唯一 @include 标记，是 scripts/build-client.mjs 与 test/client-build.test.js 的说明文档。 |
 | `cordis.patch.yml` | config | root | 239 | 0 | 0 | 保留 | host | 239 行；6 个 id（aurabot 本体 + 5 个 preset：private L14 / private-long L65 / subagent L124 / social L163 / group-owner L191）；`AURABOT:PERSONA:START` 与 `{{aurabot_identity_lock}}` 各 4 处，与 test/integration-architecture.test.js 的 4/4/4 断言一致；preset 清单属 docs/REFACTOR-PLAN.md 1.1-2 契约，改动需迁移方案 |
-| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4245 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
+| `docs/ACCEPTANCE-LOG.md` | doc | docs | 4260 | 0 | 0 | 保留 | docs | 每批验收记录（自动测试/模拟网关/真实 purge/Mini 实机四类证据）；B0 段含 1575 tests、559 文件语法、627 文件清单闸门、mini 1.6.31 加载与 purge 17/17；不随包发布（package.json files 未列它），避免验收记录变化改动发布物。 |
 | `docs/DESIGN.md` | doc | docs | 34 | 0 | 0 | 保留 | doc | 34 行；讲子系统设计取舍（人设/心情/记忆进上下文、每步可插拔、安全放执行层），被 README.md 与 docs/FEATURES-AND-IMPLEMENTATION.md 的导航链接引用；不含版本号，不需随版本改 |
 | `docs/EXTERNAL-ACCEPTANCE.md` | doc | docs | 78 | 0 | 0 | 保留 | doc | 57 行；列需要真实账号/密钥/硬件的验收项，与 docs/HANDOFF.md:30「离线用例不能替代实机验收」同一口径；被 README.md 末尾导航引用 |
 | `docs/FEATURES-AND-IMPLEMENTATION.md` | doc | docs | 84 | 0 | 0 | 保留 | doc | 84 行；L3 自称以 v1.6.31 源码为准，与 package.json 的 1.6.31 一致；按「工作台与功能入口」分节给功能→文件对应，被 README.md 与 docs/HANDOFF.md 引用 |
@@ -852,7 +852,7 @@
 | `test/chat-model.test.js` | test | test | 179 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 179 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/chat-session-events.test.js` | test | test | 222 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 222 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/chat-wiring.test.js` | test | test | 63 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 63 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
-| `test/ci-workflow.test.js` | test | test | 66 | 0 | 0 | 保留 | ci | 7 条断言把 .github/workflows/pr-check.yml 钉住：只服务 main/版本 tag/PR（无 environment/deploy）、CI 里 `npm run x` 必须在 package.json 存在、`node scripts/*.mjs` 必须真实存在、生成产物要重生成并比对（client.js + tar 布局）、UI 冒烟只跑代表页且 `--out=/tmp`、tag 上要跑 verify-release 且带 GH_TOKEN、不得出现 beta 引用或旧 Node 版本。 |
+| `test/ci-workflow.test.js` | test | test | 67 | 0 | 0 | 保留 | ci | 7 条断言把 .github/workflows/pr-check.yml 钉住：只服务 main/版本 tag/PR（无 environment/deploy）、CI 里 `npm run x` 必须在 package.json 存在、`node scripts/*.mjs` 必须真实存在、生成产物要重生成并比对（client.js + tar 布局）、UI 冒烟只跑代表页且 `--out=/tmp`、tag 上要跑 verify-release 且带 GH_TOKEN、不得出现 beta 引用或旧 Node 版本。 |
 | `test/client-build.test.js` | test | test | 23 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 23 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/client-css.test.js` | test | test | 45 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 45 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
 | `test/client-form-kit.test.js` | test | test | 135 | 0 | 0 | 保留 | test | 测试文件：验证依据是全量运行（node --test "test/**/*.test.js"）；共 135 行；本行由 scripts/repo-inventory.mjs 自动生成。 |
