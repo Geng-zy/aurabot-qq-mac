@@ -344,6 +344,13 @@
 .ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
 .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
 .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
+.ab-confirm{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ab-confirm-open{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--ab-err);border-radius:10px;background:var(--ab-card-2)}
+.ab-confirm-open b{font-size:12.5px;color:var(--ab-text)}
+.ab-confirm-open small{color:var(--ab-sub);font-size:12px;line-height:1.55}
+.ab-confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+.ab-confirm-focus{display:inline-flex;border-radius:9px}
+.ab-confirm-focus:focus-visible{outline:2px solid var(--ab-sky);outline-offset:2px}
 .ab-row-err{grid-column:1/-1;color:var(--ab-err);font-size:12px;margin-top:2px}
 .ab-row-error .ab-label b{color:var(--ab-err)}
 .ab-input.bad,.ab-input[aria-invalid=true]{border-color:var(--ab-err)}

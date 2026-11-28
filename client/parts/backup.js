@@ -7,7 +7,13 @@
       const [remoteBusy, setRemoteBusy] = useState(false)
       const [checks, setChecks] = useState({})
       const fileRef = useRef(null)
-      const load = () => get('/backup/state').then(setS)
+      const [loadErr, setLoadErr] = useState('')
+      const [pendingFile, setPendingFile] = useState(null)
+      const [pendingRemote, setPendingRemote] = useState('')
+      const [confirmCancelSessions, setConfirmCancelSessions] = useState(false)
+      const load = () => get('/backup/state').then((r) => {
+        if (r && r.ok !== false) { setS(r); setLoadErr('') } else { setS(null); setLoadErr(r?.message || '读不到备份状态') }
+      }).catch((e) => setLoadErr('连不上插件：' + e.message))
       useEffect(() => { load() }, [])
       const running = Boolean(s && s.job && s.job.running)
       useEffect(() => {
@@ -19,7 +25,13 @@
       const after = (r) => { toast(r.ok ? (r.message || ('备份已导入（' + r.files + ' 个文件），重启 DSH 后换上')) : r.message, r.ok ? 'ok' : 'err'); load() }
       const upload = async (file) => {
         if (!file) return
-        if (!confirm('导入「' + file.name + '」？\n\n重启 DSH 后，这台电脑上的配置、记忆、人设等会被备份里的内容替换，原来的文件留在 backups 文件夹。' + deferredHint())) return
+        // 危险动作走行内二次确认（见页面里的 pendingFile 区块）
+        setPendingFile(file)
+      }
+      const uploadConfirmed = async () => {
+        const file = pendingFile
+        setPendingFile(null)
+        if (!file) return
         setBusy(true)
         try { after(await fetch(API + '/backup/upload', { method: 'POST', headers: { 'x-aurabot-backup': '1' }, body: file }).then((r) => r.json())) } catch (e) { toast(e.message) } finally { setBusy(false) }
       }
@@ -31,8 +43,11 @@
           else setRemoteFiles(r.files || [])
         } finally { setRemoteBusy(false) }
       }
-      const restoreRemote = async (name) => {
-        if (!confirm('从 WebDAV 拉回并导入「' + name + '」？\n\n重启 DSH 后，这台电脑上的配置、记忆、人设等会被备份里的内容替换。' + deferredHint())) return
+      const restoreRemote = async (name) => setPendingRemote(name)
+      const restoreRemoteConfirmed = async () => {
+        const name = pendingRemote
+        setPendingRemote('')
+        if (!name) return
         setBusy(true)
         try { after(await call('/backup/remote/restore', { name })) } finally { setBusy(false) }
       }
@@ -42,7 +57,7 @@
         try { after(await call('/backup/sessions/retry')) } finally { setBusy(false) }
       }
       const cancelSessions = async () => {
-        if (!confirm('取消等待中的会话恢复？已经恢复的普通数据不会撤销。')) return
+        setConfirmCancelSessions(false)
         setBusy(true)
         try { after(await call('/backup/sessions/cancel')) } finally { setBusy(false) }
       }
@@ -62,6 +77,8 @@
             h(Btn, { small: true, disabled: c.busy, onClick: () => verify(b.name) }, c.busy ? '校验中…' : '验证'),
             c.ok ? h('span', { className: 'ab-muted' }, `✓ ${c.files} 个文件 · ${c.configOnly ? '仅配置' : '完整'} · ${c.version || '版本未知'}${c.sessions ? ' · ' + c.sessions + ' 个会话' : ''}`) : c.message ? h('span', { style: { color: 'var(--ab-err)' } }, c.message) : null))
       })) : null
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到备份状态', message: loadErr, hint: '备份目录在数据目录 backups/ 下。', onRetry: load }))
+      if (!s) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读备份状态' }), h(Skeleton, { kind: 'row', rows: 3, label: '正在读备份状态' }))
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '备份', desc: '把配置、记忆、人设、表情、模块和ta的数据打成一个文件，放到新电脑上恢复。' },
           h('div', { className: 'ab-note warn', style: { marginBottom: 10 } }, '备份文件里有账号凭证和聊天记录，别发给别人，也别传到公开的地方。'),
@@ -79,16 +96,28 @@
             '还有 ' + s.deferredSessions.remaining + ' 个会话等待工作区「' + s.deferredSessions.target + '」；普通数据已经恢复。挂回外盘后可以继续补会话。',
             h('div', { className: 'ab-flex', style: { marginTop: 8 } },
               h(Btn, { small: true, kind: 'primary', disabled: busy || !s.deferredSessions.remaining, onClick: retrySessions }, busy ? '处理中…' : '继续恢复会话'),
-              h(Btn, { small: true, kind: 'ghost', disabled: busy, onClick: cancelSessions }, '取消等待'))) : null,
+              confirmCancelSessions
+                ? h(ConfirmInline, { question: '取消等待中的会话恢复？', hint: '已经恢复的普通数据不会撤销。', confirmLabel: '取消等待', onConfirm: cancelSessions, onCancel: () => setConfirmCancelSessions(false) }, '取消等待')
+                : h(Btn, { small: true, kind: 'ghost', disabled: busy, onClick: () => setConfirmCancelSessions(true) }, '取消等待'))) : null,
           s && s.pending ? h('div', { className: 'ab-note warn' }, '已导入 ' + s.pending.files + ' 个文件（备份于 ' + String(s.pending.createdAt || '').slice(0, 16).replace('T', ' ') + '），重启 DSH 后换上。',
             h('div', { style: { marginTop: 8 } }, h(Btn, { small: true, kind: 'ghost', onClick: async () => { after(await call('/backup/cancel')) } }, '取消恢复'))) : [
             h('input', { key: 'f', ref: fileRef, type: 'file', accept: '.zip', style: { display: 'none' }, onChange: (e) => { upload(e.target.files[0]); e.target.value = '' } }),
             h('div', { key: 'b', className: cx('ab-drop', over && 'over'), onClick: () => fileRef.current && fileRef.current.click(),
               onDragOver: (e) => { e.preventDefault(); setOver(true) }, onDragLeave: () => setOver(false),
               onDrop: (e) => { e.preventDefault(); setOver(false); upload(e.dataTransfer.files[0]) } }, busy ? '导入中…' : '把备份 zip 拖到这里，或点这里选择文件'),
+          pendingFile ? h(ConfirmInline, {
+            question: '导入「' + pendingFile.name + '」并替换本机数据？',
+            hint: '重启 DSH 后，这台电脑上的配置、记忆、人设等会被这份备份替换；原来的文件留在 backups 文件夹。' + (deferredHint() ? ' 注意：' + String(deferredHint()).trim() : ''),
+            confirmLabel: '导入并替换', onConfirm: uploadConfirmed, onCancel: () => setPendingFile(null),
+          }, '确认导入') : null,
             h('div', { key: 'p', className: 'ab-flex', style: { marginTop: 10 } },
               h('input', { className: 'ab-input', placeholder: '文件很大时填完整路径，如 ' + exPath('Desktop/aurabot-backup.zip'), value: path, onChange: (e) => setPath(e.target.value) }),
-              h(Btn, { small: true, disabled: busy || !path.trim(), onClick: async () => { if (!confirm('导入这个备份？重启 DSH 后会替换这台电脑上的数据。' + deferredHint())) return; setBusy(true); try { after(await call('/backup/restore-path', { path })) } finally { setBusy(false) } } }, '导入')),
+              path.trim() ? h(ConfirmInline, {
+                question: '导入「' + path.trim() + '」并替换本机数据？',
+                hint: '重启 DSH 后会替换这台电脑上的配置、记忆与人设。' + (deferredHint() ? ' 注意：' + String(deferredHint()).trim() : ''),
+                confirmLabel: '导入并替换',
+                onConfirm: async () => { setBusy(true); try { after(await call('/backup/restore-path', { path })) } finally { setBusy(false) } },
+              }, '导入') : h(Btn, { small: true, disabled: true }, '导入')),
             h('div', { key: 'r', style: { marginTop: 14 } },
               h('div', { className: 'ab-section-title' }, '从 WebDAV 恢复'),
               h('div', { className: 'ab-flex' },
@@ -99,7 +128,9 @@
                   ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '远端 aurabot-backups 里还没有备份。')
                   : h('div', { style: { marginTop: 8 } }, remoteFiles.map((name) => h('div', { key: name, className: 'ab-flex', style: { alignItems: 'center', padding: '5px 0', borderTop: '1px solid var(--ab-line)' } },
                     h('span', { className: 'ab-small', style: { flex: 1, minWidth: 0, wordBreak: 'break-all' } }, (name.startsWith('aurabot-config-') ? '仅配置 · ' : '') + name),
-                    h(Btn, { small: true, disabled: busy, onClick: () => restoreRemote(name) }, '拉回并恢复'))))),
+                    pendingRemote === name
+                      ? h(ConfirmInline, { question: '从 WebDAV 拉回「' + name + '」并恢复？', hint: '重启 DSH 后替换本机数据。', confirmLabel: '拉回并恢复', onConfirm: restoreRemoteConfirmed, onCancel: () => setPendingRemote('') }, '拉回并恢复')
+                      : h(Btn, { small: true, disabled: busy, onClick: () => restoreRemote(name) }, '拉回并恢复'))))),
           ]),
         h(Card, { fold: 'backup-exclusions', title: '备份范围', desc: '这些要在新电脑上重新弄一下。' },
           h('div', { className: 'ab-small ab-muted' }, 'DSH 自己的设置和模型密钥、QQ 网关 SnowLuma 的登录、QQ 工作区以外的 DSH 会话；外部模块的浏览器登录要重新扫码；日志和缓存不备份；翻唱环境和外部桌面模块的 Electron 要重新安装；数据目录以外的路径（比如 ffmpeg、本地图片文件夹）在新电脑上要重新填。')))

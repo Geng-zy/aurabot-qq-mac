@@ -3,7 +3,10 @@
       const [st, setSt] = useState(null)
       const [busy, setBusy] = useState('')
       const [img, setImg] = useState('')
-      const load = () => get('/local/status').then(setSt)
+      const [loadErr, setLoadErr] = useState('')
+      const load = () => get('/local/status').then((r) => {
+        if (r && r.ok !== false) { setSt(r); setLoadErr('') } else { setSt(null); setLoadErr(r?.message || '读不到本地接口状态') }
+      }).catch((e) => setLoadErr('连不上插件：' + e.message))
       useEffect(() => { load() }, [])
       const act = async (path, target, label) => {
         setBusy(target + label)
@@ -18,13 +21,19 @@
           setBusy('')
         }
       }
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到本地接口状态', message: loadErr, hint: '脚本放在数据目录 local/，改完即生效。', onRetry: load }))
       return h('div', { className: 'ab-grid' },
         slot === 'video' ? h(Card, { title: '本地视频脚本', desc: '生成视频需要可用的本机服务和接入脚本。' }) : slot ? null : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
           h('div', { className: 'ab-flex' },
             h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, st ? st.dir : '…'),
             h(Btn, { small: true, onClick: () => post('/local/open').then((r) => toast(r.message)) }, '打开文件夹')),
           h(Row, { label: 'ffmpeg 路径', hint: '语音转换与图片处理共用，留空时自动查找' }, f.text('local.ffmpegPath', { placeholder: '/opt/homebrew/bin/ffmpeg' }))),
-        !st ? h(Empty, { icon: '⏳', text: '加载中…' }) : (st.list || []).filter((x) => !slot || x.slot === slot).map((x) => h(Card, { key: x.slot, title: x.title + '（' + x.file + '）', right: f.sw('local.' + x.slot) },
+        !st ? h(Skeleton, { kind: 'row', rows: 3, label: '正在读本地接口' })
+          : (st.list || []).filter((x) => !slot || x.slot === slot).length === 0 ? h(Empty, {
+            icon: '🧰', title: '还没有本地脚本',
+            text: '语音、生图、翻唱换声、语音识别都能换成自己电脑上的模型：在这一页生成带示例的脚本，放进数据目录 local/ 后立刻生效。',
+          })
+          : (st.list || []).filter((x) => !slot || x.slot === slot).map((x) => h(Card, { key: x.slot, title: x.title + '（' + x.file + '）', right: f.sw('local.' + x.slot) },
           h('div', { className: 'ab-flex', style: { marginBottom: 8 } },
             h('span', { className: 'ab-small', style: { color: x.active ? 'var(--ab-ok)' : 'var(--ab-muted)' } },
               x.active ? '● 正在由本地脚本接管' : !x.exists ? '还没有这个脚本' : x.exists && !x.approved ? '脚本还没确认（不会执行）' : !x.enabled ? '脚本已经有了，开关没开（用内置方式）' : '用内置方式'),

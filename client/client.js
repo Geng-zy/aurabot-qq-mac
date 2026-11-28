@@ -812,7 +812,13 @@ window.__ModuleLoader__.load({
     const [remoteBusy, setRemoteBusy] = useState(false)
     const [checks, setChecks] = useState({})
     const fileRef = useRef(null)
-    const load = () => get('/backup/state').then(setS)
+    const [loadErr, setLoadErr] = useState('')
+    const [pendingFile, setPendingFile] = useState(null)
+    const [pendingRemote, setPendingRemote] = useState('')
+    const [confirmCancelSessions, setConfirmCancelSessions] = useState(false)
+    const load = () => get('/backup/state').then((r) => {
+    if (r && r.ok !== false) { setS(r); setLoadErr('') } else { setS(null); setLoadErr(r?.message || '读不到备份状态') }
+    }).catch((e) => setLoadErr('连不上插件：' + e.message))
     useEffect(() => { load() }, [])
     const running = Boolean(s && s.job && s.job.running)
     useEffect(() => {
@@ -824,7 +830,13 @@ window.__ModuleLoader__.load({
     const after = (r) => { toast(r.ok ? (r.message || ('备份已导入（' + r.files + ' 个文件），重启 DSH 后换上')) : r.message, r.ok ? 'ok' : 'err'); load() }
     const upload = async (file) => {
     if (!file) return
-    if (!confirm('导入「' + file.name + '」？\n\n重启 DSH 后，这台电脑上的配置、记忆、人设等会被备份里的内容替换，原来的文件留在 backups 文件夹。' + deferredHint())) return
+    // 危险动作走行内二次确认（见页面里的 pendingFile 区块）
+    setPendingFile(file)
+    }
+    const uploadConfirmed = async () => {
+    const file = pendingFile
+    setPendingFile(null)
+    if (!file) return
     setBusy(true)
     try { after(await fetch(API + '/backup/upload', { method: 'POST', headers: { 'x-aurabot-backup': '1' }, body: file }).then((r) => r.json())) } catch (e) { toast(e.message) } finally { setBusy(false) }
     }
@@ -836,8 +848,11 @@ window.__ModuleLoader__.load({
     else setRemoteFiles(r.files || [])
     } finally { setRemoteBusy(false) }
     }
-    const restoreRemote = async (name) => {
-    if (!confirm('从 WebDAV 拉回并导入「' + name + '」？\n\n重启 DSH 后，这台电脑上的配置、记忆、人设等会被备份里的内容替换。' + deferredHint())) return
+    const restoreRemote = async (name) => setPendingRemote(name)
+    const restoreRemoteConfirmed = async () => {
+    const name = pendingRemote
+    setPendingRemote('')
+    if (!name) return
     setBusy(true)
     try { after(await call('/backup/remote/restore', { name })) } finally { setBusy(false) }
     }
@@ -847,7 +862,7 @@ window.__ModuleLoader__.load({
     try { after(await call('/backup/sessions/retry')) } finally { setBusy(false) }
     }
     const cancelSessions = async () => {
-    if (!confirm('取消等待中的会话恢复？已经恢复的普通数据不会撤销。')) return
+    setConfirmCancelSessions(false)
     setBusy(true)
     try { after(await call('/backup/sessions/cancel')) } finally { setBusy(false) }
     }
@@ -867,6 +882,8 @@ window.__ModuleLoader__.load({
     h(Btn, { small: true, disabled: c.busy, onClick: () => verify(b.name) }, c.busy ? '校验中…' : '验证'),
     c.ok ? h('span', { className: 'ab-muted' }, `✓ ${c.files} 个文件 · ${c.configOnly ? '仅配置' : '完整'} · ${c.version || '版本未知'}${c.sessions ? ' · ' + c.sessions + ' 个会话' : ''}`) : c.message ? h('span', { style: { color: 'var(--ab-err)' } }, c.message) : null))
     })) : null
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到备份状态', message: loadErr, hint: '备份目录在数据目录 backups/ 下。', onRetry: load }))
+    if (!s) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读备份状态' }), h(Skeleton, { kind: 'row', rows: 3, label: '正在读备份状态' }))
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '备份', desc: '把配置、记忆、人设、表情、模块和ta的数据打成一个文件，放到新电脑上恢复。' },
     h('div', { className: 'ab-note warn', style: { marginBottom: 10 } }, '备份文件里有账号凭证和聊天记录，别发给别人，也别传到公开的地方。'),
@@ -884,16 +901,28 @@ window.__ModuleLoader__.load({
     '还有 ' + s.deferredSessions.remaining + ' 个会话等待工作区「' + s.deferredSessions.target + '」；普通数据已经恢复。挂回外盘后可以继续补会话。',
     h('div', { className: 'ab-flex', style: { marginTop: 8 } },
     h(Btn, { small: true, kind: 'primary', disabled: busy || !s.deferredSessions.remaining, onClick: retrySessions }, busy ? '处理中…' : '继续恢复会话'),
-    h(Btn, { small: true, kind: 'ghost', disabled: busy, onClick: cancelSessions }, '取消等待'))) : null,
+    confirmCancelSessions
+    ? h(ConfirmInline, { question: '取消等待中的会话恢复？', hint: '已经恢复的普通数据不会撤销。', confirmLabel: '取消等待', onConfirm: cancelSessions, onCancel: () => setConfirmCancelSessions(false) }, '取消等待')
+    : h(Btn, { small: true, kind: 'ghost', disabled: busy, onClick: () => setConfirmCancelSessions(true) }, '取消等待'))) : null,
     s && s.pending ? h('div', { className: 'ab-note warn' }, '已导入 ' + s.pending.files + ' 个文件（备份于 ' + String(s.pending.createdAt || '').slice(0, 16).replace('T', ' ') + '），重启 DSH 后换上。',
     h('div', { style: { marginTop: 8 } }, h(Btn, { small: true, kind: 'ghost', onClick: async () => { after(await call('/backup/cancel')) } }, '取消恢复'))) : [
     h('input', { key: 'f', ref: fileRef, type: 'file', accept: '.zip', style: { display: 'none' }, onChange: (e) => { upload(e.target.files[0]); e.target.value = '' } }),
     h('div', { key: 'b', className: cx('ab-drop', over && 'over'), onClick: () => fileRef.current && fileRef.current.click(),
     onDragOver: (e) => { e.preventDefault(); setOver(true) }, onDragLeave: () => setOver(false),
     onDrop: (e) => { e.preventDefault(); setOver(false); upload(e.dataTransfer.files[0]) } }, busy ? '导入中…' : '把备份 zip 拖到这里，或点这里选择文件'),
+    pendingFile ? h(ConfirmInline, {
+    question: '导入「' + pendingFile.name + '」并替换本机数据？',
+    hint: '重启 DSH 后，这台电脑上的配置、记忆、人设等会被这份备份替换；原来的文件留在 backups 文件夹。' + (deferredHint() ? ' 注意：' + String(deferredHint()).trim() : ''),
+    confirmLabel: '导入并替换', onConfirm: uploadConfirmed, onCancel: () => setPendingFile(null),
+    }, '确认导入') : null,
     h('div', { key: 'p', className: 'ab-flex', style: { marginTop: 10 } },
     h('input', { className: 'ab-input', placeholder: '文件很大时填完整路径，如 ' + exPath('Desktop/aurabot-backup.zip'), value: path, onChange: (e) => setPath(e.target.value) }),
-    h(Btn, { small: true, disabled: busy || !path.trim(), onClick: async () => { if (!confirm('导入这个备份？重启 DSH 后会替换这台电脑上的数据。' + deferredHint())) return; setBusy(true); try { after(await call('/backup/restore-path', { path })) } finally { setBusy(false) } } }, '导入')),
+    path.trim() ? h(ConfirmInline, {
+    question: '导入「' + path.trim() + '」并替换本机数据？',
+    hint: '重启 DSH 后会替换这台电脑上的配置、记忆与人设。' + (deferredHint() ? ' 注意：' + String(deferredHint()).trim() : ''),
+    confirmLabel: '导入并替换',
+    onConfirm: async () => { setBusy(true); try { after(await call('/backup/restore-path', { path })) } finally { setBusy(false) } },
+    }, '导入') : h(Btn, { small: true, disabled: true }, '导入')),
     h('div', { key: 'r', style: { marginTop: 14 } },
     h('div', { className: 'ab-section-title' }, '从 WebDAV 恢复'),
     h('div', { className: 'ab-flex' },
@@ -904,7 +933,9 @@ window.__ModuleLoader__.load({
     ? h('div', { className: 'ab-muted ab-small', style: { marginTop: 6 } }, '远端 aurabot-backups 里还没有备份。')
     : h('div', { style: { marginTop: 8 } }, remoteFiles.map((name) => h('div', { key: name, className: 'ab-flex', style: { alignItems: 'center', padding: '5px 0', borderTop: '1px solid var(--ab-line)' } },
     h('span', { className: 'ab-small', style: { flex: 1, minWidth: 0, wordBreak: 'break-all' } }, (name.startsWith('aurabot-config-') ? '仅配置 · ' : '') + name),
-    h(Btn, { small: true, disabled: busy, onClick: () => restoreRemote(name) }, '拉回并恢复'))))),
+    pendingRemote === name
+    ? h(ConfirmInline, { question: '从 WebDAV 拉回「' + name + '」并恢复？', hint: '重启 DSH 后替换本机数据。', confirmLabel: '拉回并恢复', onConfirm: restoreRemoteConfirmed, onCancel: () => setPendingRemote('') }, '拉回并恢复')
+    : h(Btn, { small: true, disabled: busy, onClick: () => restoreRemote(name) }, '拉回并恢复'))))),
     ]),
     h(Card, { fold: 'backup-exclusions', title: '备份范围', desc: '这些要在新电脑上重新弄一下。' },
     h('div', { className: 'ab-small ab-muted' }, 'DSH 自己的设置和模型密钥、QQ 网关 SnowLuma 的登录、QQ 工作区以外的 DSH 会话；外部模块的浏览器登录要重新扫码；日志和缓存不备份；翻唱环境和外部桌面模块的 Electron 要重新安装；数据目录以外的路径（比如 ffmpeg、本地图片文件夹）在新电脑上要重新填。')))
@@ -1176,6 +1207,36 @@ window.__ModuleLoader__.load({
     }
 
     /** 她在每个白名单群里的身份：群主 / 群管理员才能禁言踢人。 */
+
+    /**
+    * 行内二次确认：危险动作（导入备份、恢复、覆盖本机数据）不弹原生 confirm。
+    * 原生弹窗挡住整页、不能带上细节，也没法被 Playwright 稳定断言；这里改成按钮原地展开成
+    * 「确定要…吗」+ 取消/继续，焦点落在「继续」上，Esc/点「取消」撤回。
+    */
+    function ConfirmInline({ question, hint, confirmLabel = '继续', onConfirm, onCancel, children, tone = 'danger' }) {
+    const [open, setOpen] = useState(false)
+    const yesRef = useRef(null)
+    useEffect(() => {
+    if (!open) return
+    yesRef.current?.focus()
+    const onKey = (e) => { if (e.key === 'Escape') { setOpen(false); onCancel?.() } }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+    }, [open])
+    if (!open) {
+    return h('span', { className: 'ab-confirm' }, h(Btn, {
+    small: true, kind: tone === 'danger' ? 'ghost' : 'primary',
+    onClick: () => setOpen(true),
+    }, children))
+    }
+    return h('div', { className: 'ab-confirm ab-confirm-open', role: 'group', 'aria-label': question },
+    h('b', null, question),
+    hint ? h('small', null, hint) : null,
+    h('div', { className: 'ab-confirm-actions' },
+    h(Btn, { small: true, kind: 'ghost', onClick: () => { setOpen(false); onCancel?.() } }, '取消'),
+    h('span', { ref: yesRef, tabIndex: -1, className: 'ab-confirm-focus' },
+    h(Btn, { small: true, kind: 'primary', onClick: () => { setOpen(false); onConfirm?.() } }, confirmLabel))))
+    }
 
     function Connect({ st, draft, setDraft, toast, reload, openWizard }) {
     const f = useField(draft, setDraft)
@@ -2401,7 +2462,10 @@ window.__ModuleLoader__.load({
     const [st, setSt] = useState(null)
     const [busy, setBusy] = useState('')
     const [img, setImg] = useState('')
-    const load = () => get('/local/status').then(setSt)
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/local/status').then((r) => {
+    if (r && r.ok !== false) { setSt(r); setLoadErr('') } else { setSt(null); setLoadErr(r?.message || '读不到本地接口状态') }
+    }).catch((e) => setLoadErr('连不上插件：' + e.message))
     useEffect(() => { load() }, [])
     const act = async (path, target, label) => {
     setBusy(target + label)
@@ -2416,13 +2480,19 @@ window.__ModuleLoader__.load({
     setBusy('')
     }
     }
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到本地接口状态', message: loadErr, hint: '脚本放在数据目录 local/，改完即生效。', onRetry: load }))
     return h('div', { className: 'ab-grid' },
     slot === 'video' ? h(Card, { title: '本地视频脚本', desc: '生成视频需要可用的本机服务和接入脚本。' }) : slot ? null : h(Card, { title: '本地接口', desc: '想用自己电脑上的模型或服务（GPT-SoVITS 语音、SD WebUI / ComfyUI 画图、自己训练的 so-vits-svc 音色、本地语音识别……）？在这里生成一个脚本模板，照注释改，或者点「复制给 DSH」粘给 DSH，让它帮你改。脚本放在插件数据目录的 local 文件夹里，插件升级不会覆盖；改完保存就生效，不用重启。每一项要打开开关才会用，出错时语音和识别会自动退回内置方式。' },
     h('div', { className: 'ab-flex' },
     h('code', { className: 'ab-small', style: { wordBreak: 'break-all', flex: 1 } }, st ? st.dir : '…'),
     h(Btn, { small: true, onClick: () => post('/local/open').then((r) => toast(r.message)) }, '打开文件夹')),
     h(Row, { label: 'ffmpeg 路径', hint: '语音转换与图片处理共用，留空时自动查找' }, f.text('local.ffmpegPath', { placeholder: '/opt/homebrew/bin/ffmpeg' }))),
-    !st ? h(Empty, { icon: '⏳', text: '加载中…' }) : (st.list || []).filter((x) => !slot || x.slot === slot).map((x) => h(Card, { key: x.slot, title: x.title + '（' + x.file + '）', right: f.sw('local.' + x.slot) },
+    !st ? h(Skeleton, { kind: 'row', rows: 3, label: '正在读本地接口' })
+    : (st.list || []).filter((x) => !slot || x.slot === slot).length === 0 ? h(Empty, {
+    icon: '🧰', title: '还没有本地脚本',
+    text: '语音、生图、翻唱换声、语音识别都能换成自己电脑上的模型：在这一页生成带示例的脚本，放进数据目录 local/ 后立刻生效。',
+    })
+    : (st.list || []).filter((x) => !slot || x.slot === slot).map((x) => h(Card, { key: x.slot, title: x.title + '（' + x.file + '）', right: f.sw('local.' + x.slot) },
     h('div', { className: 'ab-flex', style: { marginBottom: 8 } },
     h('span', { className: 'ab-small', style: { color: x.active ? 'var(--ab-ok)' : 'var(--ab-muted)' } },
     x.active ? '● 正在由本地脚本接管' : !x.exists ? '还没有这个脚本' : x.exists && !x.approved ? '脚本还没确认（不会执行）' : !x.enabled ? '脚本已经有了，开关没开（用内置方式）' : '用内置方式'),
@@ -5520,6 +5590,13 @@ window.__ModuleLoader__.load({
     .ab-card:has(>.ab-row)>.ab-card-head h3{font-size:15px;line-height:1.4}
     .ab-card:has(>.ab-row)>.ab-card-head h3{font-weight:660}
     .ab-card:has(>.ab-row)>.ab-desc{max-width:none;margin-bottom:9px;line-height:1.5}
+    .ab-confirm{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .ab-confirm-open{display:grid;gap:6px;padding:10px 12px;border:1px solid var(--ab-err);border-radius:10px;background:var(--ab-card-2)}
+    .ab-confirm-open b{font-size:12.5px;color:var(--ab-text)}
+    .ab-confirm-open small{color:var(--ab-sub);font-size:12px;line-height:1.55}
+    .ab-confirm-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .ab-confirm-focus{display:inline-flex;border-radius:9px}
+    .ab-confirm-focus:focus-visible{outline:2px solid var(--ab-sky);outline-offset:2px}
     .ab-row-err{grid-column:1/-1;color:var(--ab-err);font-size:12px;margin-top:2px}
     .ab-row-error .ab-label b{color:var(--ab-err)}
     .ab-input.bad,.ab-input[aria-invalid=true]{border-color:var(--ab-err)}
@@ -6323,7 +6400,7 @@ window.__ModuleLoader__.load({
     }
 
     // 稳定的面板测试钩子：面板测试直接取组件，不再靠源码字符串注入。
-    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS, ListArea }
+    exports.__panelTest = { visibleTabs, TABS, TAB_CONTENT, Overview, WorkspaceNav, PageNav, MindSettings, MindMemory, MindPeople, MindSelf, MindNow, MindInner, MindLocalModel, DrawChatPermissions, Meter, MindInput, Row, Switch, Select, Card, Range, Btn, Empty, Skeleton, ErrorBlock, SaveBar, Field, SectionNav, Toaster, AB_TOAST, FIND_SECTIONS, ListArea, ConfirmInline }
     exports.apply = apply
     exports.inject = inject
     exports.AurabotPage = AurabotPage

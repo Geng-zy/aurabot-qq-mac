@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.7.5 highlights
+## 1.7.6 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -138,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.7.5.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.7.6.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.5.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.6.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -182,6 +182,9 @@ and fixing it applies immediately. Each row expands to show its default and its 
 The QQ pages validate where the mistake happens: the connection page diagnoses step by step, and allowlist entries that are
 not valid QQ numbers are flagged in place and kept in the box for editing instead of being saved silently.
 
+Destructive backup actions confirm in place instead of a full-screen browser dialog, so the page stays readable and the
+warning can carry details (what will be replaced, what stays in `backups/`).
+
 Creation pages name their dependency instead of failing silently: when a module is off the page explains that and offers
 「去模块管理」; the song page shows a six-part environment check with one-click install progress.
 
@@ -216,6 +219,9 @@ save bar (dirty → saving → saved, **⌘S** anytime); only switches apply imm
 
 <p><strong>Cover songs</strong> · six-part environment check plus one-click install progress.</p>
 <img src="docs/screenshots/aurabot-song.png" alt="Cover songs" width="100%">
+
+<p><strong>Backup</strong> · state card explains what an import will replace; destructive actions confirm in place.</p>
+<img src="docs/screenshots/aurabot-backup.png" alt="Backup" width="100%">
 
 <p><strong>Cannot read</strong> · the error stays on the page with retry and copy-diagnostics.</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="Error state" width="100%">

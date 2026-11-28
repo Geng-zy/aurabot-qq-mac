@@ -4141,3 +4141,26 @@ Mini 1.7.5 安装启动（18:16:33）；真机包内 去模块管理 / 表情库
 发布 tag v1.7.5；dsh-aurabot-qq-1.7.5.tgz 19,734,892 字节
      sha256 959688d68df8f6386a90380e70474d0e6d932c0eb18c40bcec080094a78ad8ec
 ```
+
+---
+
+## B6 · 系统组六页（1.7.6）
+
+| 页 | 本批变化 |
+|---|---|
+| 备份与恢复 `backup` | 三处危险动作改**行内二次确认**（导入 zip / 按路径导入 / WebDAV 拉回 / 取消等待会话恢复），焦点落「继续」、Esc 撤回、警告带细节；状态读取三态 |
+| 本地接口 `local` | 骨架 → 可重试错误块 → 「还没有本地脚本」教学空态 |
+| 日志 `logs` | B0 起三态；本批纳入全量 29 页断言 |
+| 安全防护 / 浏览器 / 关于 | 静态页，纳入三态与导航断言 |
+
+```text
+Air  ui-shot 通过：28 页 + 29 页 × 三态 + 深色 + 窄屏；新增两条流程断言
+     （导入前出现行内确认且取消后收起 / 本地接口脚本区块渲染）
+Air  全量 1740 passed / 0 failed；oxlint 0 error；语法 670 文件；清单 0 待审
+Mini 1.7.6 安装启动（18:46:51）；真机包内 ConfirmInline / ab-confirm-open / 导入并替换 / 还没有本地脚本 / 读不到备份状态 都在
+     backup 状态 ok（deferredSessions/job/list/pending 等键齐）；local 5 个脚本；logs 正常；配置一致；0 新增 error
+遗留 包内仍有 21 处原生 confirm（mindPeople 5、market 4、mindSelf 3、knowledge 3、persona 2、mindVersions 2、
+     mindMemory 2、voiceImport/stickers/stickerCell/remoteBackup/paintGallery 各 1），不在 B6 范围，记入 B7/收尾清理
+发布 tag v1.7.6；dsh-aurabot-qq-1.7.6.tgz 19,739,970 字节
+     sha256 b8ab00fe24763084ea57df2eb3f1076a9bcc469d00fcee3597b97e43beb18627
+```

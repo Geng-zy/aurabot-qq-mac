@@ -62,6 +62,13 @@ const STATES = [
   { page: 'imagegen', empty: /让ta画图|画图|生图/ },
   { page: 'song', empty: /翻唱|聊天用的模型|还没/ },
   { page: 'video', empty: /本地接口|生视频/ },
+  // B6 系统组
+  { page: 'logs', empty: /没有符合条件的日志/ },
+  { page: 'backup', empty: /备份|恢复|读不到备份状态/ },
+  { page: 'security', empty: /危险命令|SSRF|防护/ },
+  { page: 'browser', empty: /浏览器|侧边/ },
+  { page: 'local', empty: /本地接口|还没有本地脚本/ },
+  { page: 'about', empty: /AuraBot|许可|来源/ },
 ]
 
 const { chromium } = await loadPlaywright()
@@ -213,7 +220,31 @@ try {
   const songText = (await page.textContent('.ab-content')) || ''
   check('翻唱：六组件体检可读', /python|Applio|分离|ffmpeg|音色|权重/i.test(songText), songText.slice(0, 80))
 
-  // 6) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
+  // 6) B6 两条流程：备份危险动作走行内二次确认、本地脚本列表可读
+  await open('page=backup&state=live&mode=normal')
+  // 这个输入在折叠区里，先展开
+  const fold = page.locator('details').filter({ has: page.locator('input[placeholder*="完整路径"]') }).first()
+  if (await fold.count()) { await fold.locator('summary').first().click(); await wait(250) }
+  const pathInput = page.locator('.ab-content input[placeholder*="完整路径"]').first()
+  if (await pathInput.count()) {
+    await pathInput.fill('/tmp/backup.zip')
+    await wait(200)
+    const importBtn = page.getByRole('button', { name: '导入', exact: true }).first()
+    if (await importBtn.count()) {
+      await importBtn.click()
+      await wait(250)
+      check('备份：导入前出现行内二次确认', (await page.locator('.ab-confirm-open').count()) > 0)
+      const cancel = page.getByRole('button', { name: '取消', exact: true }).first()
+      if (await cancel.count()) { await cancel.click(); await wait(200) }
+      check('备份：取消后确认块收起', (await page.locator('.ab-confirm-open').count()) === 0)
+    }
+  }
+
+  await open('page=local&state=live&mode=normal')
+  const localCards = await page.locator('.ab-content .ab-card').count()
+  check('本地接口：脚本区块渲染出来', localCards > 0, `卡片 ${localCards}`)
+
+  // 7) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
   await open('page=logs&state=live&mode=normal')
   const toastText = await page.evaluate(async () => {
     const bus = window.__PANEL__.__panelTest.AB_TOAST
@@ -226,7 +257,7 @@ try {
   const toastTotal = await page.locator('.ab-toast').count()
   check('Toast 只有宿主层那一份', toastTotal === 1 && toastInside === 1, `总 ${toastTotal}，宿主层 ${toastInside}`)
 
-  // 7) 深色与窄屏
+  // 8) 深色与窄屏
   await open('page=overview&state=live&mode=normal&theme=dark')
   await page.screenshot({ path: join(OUT, 'theme-dark.png') })
   check('深色模式生效', await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))

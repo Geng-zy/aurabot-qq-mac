@@ -943,5 +943,26 @@
     "owner": "docs",
     "verdict": "keep",
     "evidence": "README.md 翻唱页示例图（六组件体检 + 一键安装进度），来自 docs/ui-baseline/pages/song.png。"
+  },
+  {
+    "path": "client/parts/confirmInline.js",
+    "area": "client",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "约 40 行：行内二次确认（危险动作原地展开「确定要…吗」+ 取消/继续，焦点落在继续、Esc 撤回）。取代备份页里的原生 confirm —— 原生弹窗挡整页、带不了细节、Playwright 也断不稳。被 scripts/ui-shot.mjs 的备份流程断言覆盖。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-backup.png",
+    "area": "docs",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "README.md 备份与恢复页示例图（状态卡 + 导入走行内确认），来自 docs/ui-baseline/pages/backup.png；1.7.6 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-security.png",
+    "area": "docs",
+    "owner": "client-panel",
+    "verdict": "keep",
+    "evidence": "README.md 安全防护页示例图，来自 docs/ui-baseline/pages/security.png。"
   }
 ]
