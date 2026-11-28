@@ -3928,3 +3928,34 @@ Air   全量 1730 passed / 0 failed / 0 skipped；语法 657 文件；oxlint 0 e
 Release dsh-aurabot-qq-1.6.97.tgz  19,701,405 字节
         sha256 be84f344b0cd64b4479e5bb9879eb4d721b25f7cdbebbbf852dc720ae9e3bbed
 ```
+
+---
+
+## B59 · song/studio.js 第三刀：一键安装链（1.6.98）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `song/studio.js` | 750 → **536** | 做歌流水线 + 面板接口（最后一刀） |
+| `song/installer.js`（新） | **256** | `canImport`/`runInstall`：两套 Python 环境、预训练与分离模型、ffmpeg/rubberband、断点、进度 |
+| `song/repo.js`（新） | **5** | Applio 固定版本（官方 tag 提交） |
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 659 文件；oxlint 0 error；清单 0 待审
+过程  两处自查：setInstall( 少右括号导致语法错；install.* 有 11 处引用要改成 getInstall().*（含模板串内），
+      工具跳过字符串字面量的做法这次也覆盖了反引号
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.98（回滚点 ~/aurabot-release-backups/20261128-134515）、13:45:19 启动
+接口   /song/status → ok=true、ready=true，六个组件全绿：
+       python / applio / separator / ffmpeg / weights / separatorModel = true
+       install.running=false（新 installer.js 里 installRef 初始状态正确）
+       voices=1（demo 音色）、rootCheck.freeGB=153.7
+配置   Purge 三工具在；13:35 后新增 error：0 条
+
+提交   B59；tag v1.6.98
+Release dsh-aurabot-qq-1.6.98.tgz  19,702,316 字节
+        sha256 cdc8794e52663a376bca5de7d8120ea8f79f997e2a54a1d3538be64030368825
+```

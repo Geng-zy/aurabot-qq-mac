@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.98
+
+- B59 **song/studio.js 第三刀：一键安装整链独立成模块**（`song/installer.js` 256 行，`song/studio.js` 750 → 536 行）。
+  - 拆出 `canImport` / `runInstall`（建两套 Python 环境、下预训练与分离模型、备 ffmpeg 与 rubberband、可断点、进度写进 installRef）。
+  - 进度状态由外部持有（面板要边看进度边点），因此这一支能喂假 run/fetch 测「哪一步失败、错误怎么翻译成人话」。
+  - 顺手归位：`pyEnvOf` 挪到 `separator-env.js`（安装与做歌都要用它拼子进程 PATH）；`APPLIO_REPO`/`APPLIO_COMMIT` 抽成 `song/repo.js`
+    以避免 studio ↔ installer 循环依赖。
+  - 模块清单第四次同步（`files` 补 `installer.js`、`repo.js`）。
+- 回归：全量 1730 个测试通过；语法 659 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.97
 
 - B58 **song/studio.js 第二刀：分离器环境 + 跑进程 + 安装清单独立成模块**（`song/studio.js` 1033 → 750 行）。

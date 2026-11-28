@@ -3,7 +3,7 @@
 // 从 song/studio.js 抽出来：那边是「安装 → 做歌 → 发语音」的编排，这一支是分离器自己的细节，测试也直接调它。
 
 import { existsSync, mkdirSync, openSync, readSync, closeSync, readdirSync, rmSync, statSync, statfsSync, writeFileSync } from 'node:fs'
-import { join, basename, dirname } from 'node:path'
+import { join, basename, dirname, delimiter } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { homedir } from 'node:os'
 import { createHash } from 'node:crypto'
@@ -260,3 +260,12 @@ export { applioPython, findRubberband, looksLikePth, listVoices, importModels, d
 import { applioPython, findRubberband, looksLikePth, listVoices, importModels, deleteVoice, pruneCache } from './voice-library.js'
 
 /** 人声小于这个音量（dB）就当作没有唱：纯音乐不做翻唱。 */
+
+/**
+ * 做歌/安装时给子进程的环境：把安装目录的 bin 与 ffmpeg 所在目录放进 PATH，
+ * MPLCONFIGDIR 放进安装目录（Applio 的音高模块会引 matplotlib，别往用户目录写缓存）。
+ */
+export function pyEnvOf(p) {
+  const dirs = [p.bin, ...(dirname(p.ffmpeg) !== p.bin ? [dirname(p.ffmpeg)] : [])]
+  return { PATH: [...dirs, process.env.PATH].join(delimiter), PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1', MPLCONFIGDIR: join(p.root, 'cache', 'matplotlib') }
+}
