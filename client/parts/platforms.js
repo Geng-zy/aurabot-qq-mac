@@ -15,7 +15,11 @@
           h('div', { className: 'ab-platform-actions' },
             p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null,
             p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => scrollTo('telegram') }, '配置 Telegram') : null))))
-        : h(Empty, { text: '还没有平台适配器' })
+        : h(Empty, {
+          icon: '🛰️', title: '还没有平台适配器',
+          text: '至少接一个平台她才能收到消息：QQ 在「QQ 会话 → 连接」里配网关，Telegram 在下面填 Bot Token。',
+          action: '去配 QQ', onAction: () => go('connect'),
+        })
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置；Telegram 直接在下方填写。' }, items),
         h(Card, { section: 'telegram', title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },

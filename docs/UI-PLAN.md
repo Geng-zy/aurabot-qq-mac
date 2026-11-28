@@ -308,7 +308,7 @@
 | **B4 QQ 会话组** ✅ 1.7.4 | connect / access / group / model / asr / diary | 连接诊断、白名单保存、模型选择（`ui-shot` 三条流程断言已覆盖） |
 | **B5 表达与创作** ✅ 1.7.5 | voice / stickers / imagegen / song / video | 模块门控 + 真机各一次（`ui-shot` 5 页三态 + 2 条流程断言） |
 | **B6 系统组** ✅ 1.7.6 | logs / backup / security / browser / local / about | 危险操作二次确认、备份状态（`ui-shot` 2 条流程断言 + 29 页三态） |
-| **B7 平台与扩展** | platforms / modules / market / 扩展面板外壳 | 模块增删改查、报错隔离 |
+| **B7 平台与扩展** ✅ 1.7.7 | platforms / modules / market / 扩展面板外壳 | 模块增删改查、报错隔离（`PanelBoundary` + 行内确认） |
 
 **实施顺序**：B0 → B1 → B2 → B3 → B4 → B5 → B6 → B7。B0/B1 完成后其余批次可并行（同一目录不同 part 文件）。
 
@@ -349,6 +349,9 @@
 | Toast / 复制诊断 / 错误码映射 | 日志真实内容、三个 purge 维护工具 |
 
 ---
+
+**规划状态**：B0–B7 全部完成（1.7.0 → 1.7.7）。剩余收尾项：把仓库里 20 处原生 `confirm()` 换成行内确认、
+按批归档截图基线。新的 UI 需求从这里另起规划。
 
 ## 8. 风险与开放问题
 

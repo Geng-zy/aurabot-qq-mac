@@ -1576,7 +1576,12 @@ window.__ModuleLoader__.load({
     ((m.settings || []).length || (m.errors || []).length || !m.panel) ? h(Card, { title: m.name, desc: m.description, right: h('span', { className: 'ab-badge mine' }, embedded ? '扩展模块 · ' + m.id : m.id) },
     (m.settings || []).map((s) => h(Row, { key: s.key, label: s.label || s.key, hint: s.hint }, field(s))),
     (m.settings || []).length ? h('div', { className: 'ab-small ab-muted' }, '改完点下面的「保存设置」。') : null,
-    (m.errors || []).length ? h('div', { className: 'ab-note err', style: { marginTop: 8 } }, '最近的报错：' + m.errors[0].message) : null) : null,
+    (m.errors || []).length ? h('details', { className: 'ab-param-details', style: { marginTop: 8 } },
+    h('summary', null, '最近 ' + (m.errors || []).length + ' 条报错'),
+    h('div', { className: 'ab-list' }, (m.errors || []).slice(0, 5).map((e, i) => h('div', { key: i, className: 'ab-li' },
+    h('div', { className: 'meta' }, e.at ? new Date(e.at).toLocaleString('zh-CN') : ''),
+    h('div', { className: 'body' }, String(e.message || e).slice(0, 400)))))
+    ) : null) : null,
     m.panel ? h(ExtPanel, { m, settings, draftSettings, setSettings, toast, reload }) : null)
     }
 
@@ -1586,6 +1591,23 @@ window.__ModuleLoader__.load({
     * 她的形象：导入几张她的图，她画自己（自拍、她的样子、合照里有她）时照着画。
     * 看图写的（或你写的）形象描述也会加进提示词：生图服务不收参考图时靠它画得像。
     */
+
+    /** 模块面板的报错隔离：一个模块面板崩了只坏它自己，主页面和其它模块照常。 */
+    class PanelBoundary extends React.Component {
+    constructor(p) { super(p); this.state = { error: null } }
+    static getDerivedStateFromError(error) { return { error } }
+    render() {
+    if (!this.state.error) {
+    try { return this.props.children }
+    catch (error) { this.state = { error } }
+    }
+    return h(ErrorBlock, {
+    title: '这个模块的面板出错了',
+    message: String(this.state.error && (this.state.error.message || this.state.error)),
+    hint: '只影响这个模块；右侧「模块管理」里能看到它的报错记录，也可以临时关掉它。',
+    })
+    }
+    }
 
     function ExtPanel({ m, settings, draftSettings, setSettings, toast, reload }) {
     const [src, setSrc] = useState(null)
@@ -1631,9 +1653,9 @@ window.__ModuleLoader__.load({
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
     }, [token, m.id, m.startedAt, m.routesAtRoot, get, post, toast, reload])
-    if (err) return h('div', { className: 'ab-note err' }, '面板加载失败：' + err)
-    if (!src) return h(Empty, { icon: '⏳', text: '加载中…' })
-    return h('iframe', { ref: frame, sandbox: 'allow-scripts', srcDoc: doc, title: m.name || m.id, style: { width: '100%', height, border: 0, background: 'transparent' } })
+    if (err) return h(ErrorBlock, { title: '面板加载失败', message: err, hint: '模块的 panel.js 没读出来；它自己的功能可能仍然正常。' })
+    if (!src) return h(Skeleton, { kind: 'card', label: '正在加载模块面板' })
+    return h(PanelBoundary, null, h('iframe', { ref: frame, sandbox: 'allow-scripts', srcDoc: doc, title: m.name || m.id, style: { width: '100%', height, border: 0, background: 'transparent' } }))
     }
 
     function FaceMapCard() {
@@ -2560,7 +2582,10 @@ window.__ModuleLoader__.load({
     const [q, setQ] = useState('')
     const [show, setShow] = useState('all')
     const [cat, setCat] = useState('')
-    const load = (force) => get('/modules/community' + (force ? '?force=1' : '')).then(setData)
+    const [loadErr, setLoadErr] = useState('')
+    const load = (force) => get('/modules/community' + (force ? '?force=1' : '')).then((r) => {
+    if (r && r.ok !== false) { setData(r); setLoadErr('') } else { setData(r || null); setLoadErr(r?.message || '读不到模块库') }
+    }).catch((e) => setLoadErr('连不上插件：' + e.message))
     useEffect(() => { load() }, [])
     // 一直查进度：恢复备份、老用户迁移时模块在后台装，不是从这个页面点的
     useEffect(() => {
@@ -2593,19 +2618,29 @@ window.__ModuleLoader__.load({
     await load()
     reload()
     }
-    const install = async (m) => {
+    const [pending, setPending] = useState(null)
+    const askInstall = (m) => {
     const caps = capText(m).join('、') || '无'
-    const why = '来源：' + MODULE_REPOS[m.registry] + '\n版本：' + m.version + '\n作者：' + m.author + '\n能力：' + caps + '\n\n能力声明不是沙箱：模块和插件在同一进程运行。继续吗？'
-    if (!confirm((m.installed ? '更新' : '安装') + '「' + m.name + '」？\n\n' + why)) return
-    if (m.replacesBuiltin && !confirm('「' + m.name + '」会替换同名内置模块，确定吗？')) return
+    setPending({
+    kind: m.installed ? 'update' : 'install', m,
+    why: '来源：' + MODULE_REPOS[m.registry] + ' · 版本：' + m.version + ' · 作者：' + m.author + ' · 能力：' + caps
+    + (m.replacesBuiltin ? ' · 会替换同名内置模块' : '') + '。能力声明不是沙箱：模块和插件在同一进程里运行。',
+    })
+    }
+    const doInstall = async () => {
+    const m = pending?.m
+    setPending(null)
+    if (!m) return
     setBusy(m.id)
     try { await done(await post('/modules/community/install', { id: m.id, registry: m.registry, version: m.version, confirmReplace: Boolean(m.replacesBuiltin) })) } finally { setBusy('') }
     }
-    const remove = async (m) => {
-    if (!confirm('卸载「' + m.name + '」？')) return
-    const purge = confirm('把它的数据和设置也清掉吗？\n确定 = 一起清掉；取消 = 留着，以后重装还能用')
+    const askRemove = (m) => setPending({ kind: 'uninstall', m })
+    const doRemove = async (purge) => {
+    const m = pending?.m
+    setPending(null)
+    if (!m) return
     setBusy(m.id)
-    try { await done(await post('/modules/community/remove', { id: m.id, purge })) } finally { setBusy('') }
+    try { await done(await post('/modules/community/remove', { id: m.id, purge: Boolean(purge) })) } finally { setBusy('') }
     }
     const list = (data && data.list) || []
     const counts = { all: list.length, installed: list.filter((m) => m.installed).length, update: list.filter((m) => m.update).length }
@@ -2629,12 +2664,24 @@ window.__ModuleLoader__.load({
     capText(m).length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 10 } }, '会用到：' + capText(m).join('、')) : null,
     note ? h('div', { className: 'ab-note warn', style: { marginBottom: 10 } }, note) : null,
     h('div', { className: 'ab-flex', style: { marginTop: 'auto' } },
-    !m.installed && !m.foreign && !m.delisted ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => install(m) }, busy === m.id ? progText('安装') : '安装') : null,
-    m.update ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => install(m) }, busy === m.id ? progText('更新') : '更新') : null,
+    !m.installed && !m.foreign && !m.delisted ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => askInstall(m) }, busy === m.id ? progText('安装') : '安装') : null,
+    m.update ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => askInstall(m) }, busy === m.id ? progText('更新') : '更新') : null,
     settings ? h(Btn, { small: true, onClick: settings }, '去设置') : null,
-    m.installed ? h(Btn, { small: true, kind: 'ghost', disabled: Boolean(busy), onClick: () => remove(m) }, '卸载') : null))
+    m.installed ? h(Btn, { small: true, kind: 'ghost', disabled: Boolean(busy), onClick: () => askRemove(m) }, '卸载') : null))
     }
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到模块库', message: loadErr, hint: '模块库来自 GitHub；没网络时不影响已经装好的模块。', onRetry: () => load(true) }))
     return h('div', { className: 'ab-grid' },
+    pending ? h(Card, { title: pending.kind === 'uninstall' ? '卸载「' + pending.m.name + '」' : (pending.kind === 'update' ? '更新「' : '安装「') + pending.m.name + '」' },
+    h('p', { className: 'ab-muted ab-small', style: { margin: '0 0 8px' } }, pending.why || '装好以后可以在「模块管理」里开关它。'),
+    pending.kind === 'uninstall'
+    ? h('div', { className: 'ab-flex', style: { gap: 8, flexWrap: 'wrap' } },
+    h(Btn, { small: true, kind: 'primary', onClick: () => doRemove(false) }, '卸载，保留数据'),
+    h(Btn, { small: true, onClick: () => doRemove(true) }, '卸载并清掉数据'),
+    h(Btn, { small: true, kind: 'ghost', onClick: () => setPending(null) }, '取消'))
+    : h('div', { className: 'ab-flex', style: { gap: 8 } },
+    h(Btn, { small: true, kind: 'primary', onClick: doInstall }, pending.kind === 'update' ? '更新' : '安装'),
+    h(Btn, { small: true, kind: 'ghost', onClick: () => setPending(null) }, '取消'))) : null,
+    data === null ? h(Skeleton, { kind: 'row', rows: 4, label: '正在读模块库' }) : null,
     progBar,
     h(Card, { title: 'AuraBot 模块库', desc: '这里装的是 AuraBot 自己的 .mjs 模块，不是 DSH 插件；DSH 插件请用 DSH 的插件市场管理。只安装本分支模块库；上游模块只读参考，不能安装。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
     h('div', { className: 'ab-flex' },
@@ -4375,7 +4422,11 @@ window.__ModuleLoader__.load({
     h('div', { className: 'ab-platform-actions' },
     p.platform === 'qq' ? h(Btn, { small: true, onClick: () => go('connect') }, '配置 QQ') : null,
     p.platform === 'telegram' ? h(Btn, { small: true, onClick: () => scrollTo('telegram') }, '配置 Telegram') : null))))
-    : h(Empty, { text: '还没有平台适配器' })
+    : h(Empty, {
+    icon: '🛰️', title: '还没有平台适配器',
+    text: '至少接一个平台她才能收到消息：QQ 在「QQ 会话 → 连接」里配网关，Telegram 在下面填 Bot Token。',
+    action: '去配 QQ', onAction: () => go('connect'),
+    })
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '平台连接', desc: '所有平台的适配器和能力。QQ 的详细参数在「QQ 会话 → 连接」里配置；Telegram 直接在下方填写。' }, items),
     h(Card, { section: 'telegram', title: 'Telegram', desc: '长轮询 Bot API，不需要公网端口。先在 @BotFather 创建 Bot，把 Token 填在这里。', right: h('span', { className: cx('ab-badge', tg?.state === 'connected' && 'ok') }, tg ? label(tg.state) : '未启用') },

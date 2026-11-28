@@ -5,7 +5,10 @@
       const [q, setQ] = useState('')
       const [show, setShow] = useState('all')
       const [cat, setCat] = useState('')
-      const load = (force) => get('/modules/community' + (force ? '?force=1' : '')).then(setData)
+      const [loadErr, setLoadErr] = useState('')
+      const load = (force) => get('/modules/community' + (force ? '?force=1' : '')).then((r) => {
+        if (r && r.ok !== false) { setData(r); setLoadErr('') } else { setData(r || null); setLoadErr(r?.message || '读不到模块库') }
+      }).catch((e) => setLoadErr('连不上插件：' + e.message))
       useEffect(() => { load() }, [])
       // 一直查进度：恢复备份、老用户迁移时模块在后台装，不是从这个页面点的
       useEffect(() => {
@@ -38,19 +41,29 @@
         await load()
         reload()
       }
-      const install = async (m) => {
+      const [pending, setPending] = useState(null)
+      const askInstall = (m) => {
         const caps = capText(m).join('、') || '无'
-        const why = '来源：' + MODULE_REPOS[m.registry] + '\n版本：' + m.version + '\n作者：' + m.author + '\n能力：' + caps + '\n\n能力声明不是沙箱：模块和插件在同一进程运行。继续吗？'
-        if (!confirm((m.installed ? '更新' : '安装') + '「' + m.name + '」？\n\n' + why)) return
-        if (m.replacesBuiltin && !confirm('「' + m.name + '」会替换同名内置模块，确定吗？')) return
+        setPending({
+          kind: m.installed ? 'update' : 'install', m,
+          why: '来源：' + MODULE_REPOS[m.registry] + ' · 版本：' + m.version + ' · 作者：' + m.author + ' · 能力：' + caps
+            + (m.replacesBuiltin ? ' · 会替换同名内置模块' : '') + '。能力声明不是沙箱：模块和插件在同一进程里运行。',
+        })
+      }
+      const doInstall = async () => {
+        const m = pending?.m
+        setPending(null)
+        if (!m) return
         setBusy(m.id)
         try { await done(await post('/modules/community/install', { id: m.id, registry: m.registry, version: m.version, confirmReplace: Boolean(m.replacesBuiltin) })) } finally { setBusy('') }
       }
-      const remove = async (m) => {
-        if (!confirm('卸载「' + m.name + '」？')) return
-        const purge = confirm('把它的数据和设置也清掉吗？\n确定 = 一起清掉；取消 = 留着，以后重装还能用')
+      const askRemove = (m) => setPending({ kind: 'uninstall', m })
+      const doRemove = async (purge) => {
+        const m = pending?.m
+        setPending(null)
+        if (!m) return
         setBusy(m.id)
-        try { await done(await post('/modules/community/remove', { id: m.id, purge })) } finally { setBusy('') }
+        try { await done(await post('/modules/community/remove', { id: m.id, purge: Boolean(purge) })) } finally { setBusy('') }
       }
       const list = (data && data.list) || []
       const counts = { all: list.length, installed: list.filter((m) => m.installed).length, update: list.filter((m) => m.update).length }
@@ -74,12 +87,24 @@
           capText(m).length ? h('div', { className: 'ab-small ab-muted', style: { marginBottom: 10 } }, '会用到：' + capText(m).join('、')) : null,
           note ? h('div', { className: 'ab-note warn', style: { marginBottom: 10 } }, note) : null,
           h('div', { className: 'ab-flex', style: { marginTop: 'auto' } },
-            !m.installed && !m.foreign && !m.delisted ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => install(m) }, busy === m.id ? progText('安装') : '安装') : null,
-            m.update ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => install(m) }, busy === m.id ? progText('更新') : '更新') : null,
+            !m.installed && !m.foreign && !m.delisted ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => askInstall(m) }, busy === m.id ? progText('安装') : '安装') : null,
+            m.update ? h(Btn, { small: true, kind: 'primary', disabled: Boolean(busy || m.blocked), onClick: () => askInstall(m) }, busy === m.id ? progText('更新') : '更新') : null,
             settings ? h(Btn, { small: true, onClick: settings }, '去设置') : null,
-            m.installed ? h(Btn, { small: true, kind: 'ghost', disabled: Boolean(busy), onClick: () => remove(m) }, '卸载') : null))
+            m.installed ? h(Btn, { small: true, kind: 'ghost', disabled: Boolean(busy), onClick: () => askRemove(m) }, '卸载') : null))
       }
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到模块库', message: loadErr, hint: '模块库来自 GitHub；没网络时不影响已经装好的模块。', onRetry: () => load(true) }))
       return h('div', { className: 'ab-grid' },
+        pending ? h(Card, { title: pending.kind === 'uninstall' ? '卸载「' + pending.m.name + '」' : (pending.kind === 'update' ? '更新「' : '安装「') + pending.m.name + '」' },
+          h('p', { className: 'ab-muted ab-small', style: { margin: '0 0 8px' } }, pending.why || '装好以后可以在「模块管理」里开关它。'),
+          pending.kind === 'uninstall'
+            ? h('div', { className: 'ab-flex', style: { gap: 8, flexWrap: 'wrap' } },
+              h(Btn, { small: true, kind: 'primary', onClick: () => doRemove(false) }, '卸载，保留数据'),
+              h(Btn, { small: true, onClick: () => doRemove(true) }, '卸载并清掉数据'),
+              h(Btn, { small: true, kind: 'ghost', onClick: () => setPending(null) }, '取消'))
+            : h('div', { className: 'ab-flex', style: { gap: 8 } },
+              h(Btn, { small: true, kind: 'primary', onClick: doInstall }, pending.kind === 'update' ? '更新' : '安装'),
+              h(Btn, { small: true, kind: 'ghost', onClick: () => setPending(null) }, '取消'))) : null,
+        data === null ? h(Skeleton, { kind: 'row', rows: 4, label: '正在读模块库' }) : null,
         progBar,
         h(Card, { title: 'AuraBot 模块库', desc: '这里装的是 AuraBot 自己的 .mjs 模块，不是 DSH 插件；DSH 插件请用 DSH 的插件市场管理。只安装本分支模块库；上游模块只读参考，不能安装。安装前请核对来源和能力，模块会与插件在同一进程运行。', right: h(Btn, { small: true, kind: 'ghost', onClick: () => load(true) }, '刷新') },
           h('div', { className: 'ab-flex' },

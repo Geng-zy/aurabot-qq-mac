@@ -19,7 +19,12 @@
         ((m.settings || []).length || (m.errors || []).length || !m.panel) ? h(Card, { title: m.name, desc: m.description, right: h('span', { className: 'ab-badge mine' }, embedded ? '扩展模块 · ' + m.id : m.id) },
           (m.settings || []).map((s) => h(Row, { key: s.key, label: s.label || s.key, hint: s.hint }, field(s))),
           (m.settings || []).length ? h('div', { className: 'ab-small ab-muted' }, '改完点下面的「保存设置」。') : null,
-          (m.errors || []).length ? h('div', { className: 'ab-note err', style: { marginTop: 8 } }, '最近的报错：' + m.errors[0].message) : null) : null,
+          (m.errors || []).length ? h('details', { className: 'ab-param-details', style: { marginTop: 8 } },
+            h('summary', null, '最近 ' + (m.errors || []).length + ' 条报错'),
+            h('div', { className: 'ab-list' }, (m.errors || []).slice(0, 5).map((e, i) => h('div', { key: i, className: 'ab-li' },
+              h('div', { className: 'meta' }, e.at ? new Date(e.at).toLocaleString('zh-CN') : ''),
+              h('div', { className: 'body' }, String(e.message || e).slice(0, 400)))))
+          ) : null) : null,
         m.panel ? h(ExtPanel, { m, settings, draftSettings, setSettings, toast, reload }) : null)
     }
 

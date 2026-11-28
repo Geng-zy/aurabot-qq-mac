@@ -964,5 +964,19 @@
     "owner": "client-panel",
     "verdict": "keep",
     "evidence": "README.md 安全防护页示例图，来自 docs/ui-baseline/pages/security.png。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-modules.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 模块管理页示例图（12 个内置模块 + 开关 + 报错），来自 docs/ui-baseline/pages/modules.png；1.7.7 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-platforms.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 平台连接页示例图，来自 docs/ui-baseline/pages/platforms.png。"
   }
 ]

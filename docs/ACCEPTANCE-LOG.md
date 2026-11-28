@@ -4164,3 +4164,27 @@ Mini 1.7.6 安装启动（18:46:51）；真机包内 ConfirmInline / ab-confirm-
 发布 tag v1.7.6；dsh-aurabot-qq-1.7.6.tgz 19,739,970 字节
      sha256 b8ab00fe24763084ea57df2eb3f1076a9bcc469d00fcee3597b97e43beb18627
 ```
+
+---
+
+## B7 · 平台与扩展三页 + 扩展面板外壳（1.7.7）—— 规划最后一批
+
+| 项 | 本批变化 |
+|---|---|
+| 扩展面板外壳 | 新增 `PanelBoundary`：模块自定义面板抛错只坏它自己（就地错误块），主页面与其它模块照常；加载中骨架、`panel.js` 读不到给可重试错误块 |
+| 模块报错 | 从「只显示最近一条」改成可展开的最近 5 条（带时间） |
+| 模块库 | 三态（骨架 / 可重试错误块）；安装、更新、卸载先说明来源、版本、作者、能力与「会不会替换内置模块」，再原地确认（卸载分「保留数据 / 一并清掉」），不再用原生 `confirm()` |
+| 平台连接 | 无适配器时教学空态（去配 QQ / 填 Telegram） |
+
+```text
+Air  ui-shot 通过：28 页 + 29 页 × 三态 + 深色 + 窄屏；新增两条流程断言
+     （模块列表渲染 / 安装前说明来源与能力并可取消）
+Air  全量 1740 passed / 0 failed；oxlint 0 error；语法 670 文件；清单 0 待审
+Mini 1.7.7 安装启动（19:19:56）；真机包内 PanelBoundary / 这个模块的面板出错了 / 来源： / 卸载，保留数据 都在
+     channels：qq connected（15 项能力）、telegram stopped；modules 12 个、0 个报错；
+     /modules/community 返回模块库（act-format 等）；配置一致；0 新增 error
+遗留 包内还有 31 处原生 confirm（mindPeople 5、mindSelf 3、knowledge 3、persona 2、mindVersions 2、
+     mindMemory 2，其余各 1），归入收尾清理（UI 规划 B0–B7 已完成）
+发布 tag v1.7.7；dsh-aurabot-qq-1.7.7.tgz 19,742,960 字节
+     sha256 f220a956e40307c3da03a2becaf3eae34073c671a49f5bd482b137f795689998
+```

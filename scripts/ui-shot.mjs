@@ -244,7 +244,23 @@ try {
   const localCards = await page.locator('.ab-content .ab-card').count()
   check('本地接口：脚本区块渲染出来', localCards > 0, `卡片 ${localCards}`)
 
-  // 7) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
+  // 7) B7 两条流程：模块报错可展开、模块库安装走行内确认
+  await open('page=modules&state=live&mode=normal')
+  const moduleCards = await page.locator('.ab-content .ab-card').count()
+  check('模块管理：模块列表渲染出来', moduleCards > 0, `卡片 ${moduleCards}`)
+
+  await open('page=market&state=live&mode=normal')
+  const installBtn = page.getByRole('button', { name: /安装/ }).first()
+  if (await installBtn.count()) {
+    await installBtn.click()
+    await wait(250)
+    const confirmCard = (await page.textContent('.ab-content')) || ''
+    check('模块库：安装前先说明来源与能力', /来源|能力/.test(confirmCard))
+    const cancelBtn = page.getByRole('button', { name: '取消', exact: true }).first()
+    if (await cancelBtn.count()) { await cancelBtn.click(); await wait(200) }
+  }
+
+  // 8) Toast 挂在宿主层（模拟 shell.overlay）：只出现一份，且内容正确
   await open('page=logs&state=live&mode=normal')
   const toastText = await page.evaluate(async () => {
     const bus = window.__PANEL__.__panelTest.AB_TOAST
@@ -257,7 +273,7 @@ try {
   const toastTotal = await page.locator('.ab-toast').count()
   check('Toast 只有宿主层那一份', toastTotal === 1 && toastInside === 1, `总 ${toastTotal}，宿主层 ${toastInside}`)
 
-  // 8) 深色与窄屏
+  // 9) 深色与窄屏
   await open('page=overview&state=live&mode=normal&theme=dark')
   await page.screenshot({ path: join(OUT, 'theme-dark.png') })
   check('深色模式生效', await page.evaluate(() => document.body.hasAttribute('data-ds-dark-theme')))

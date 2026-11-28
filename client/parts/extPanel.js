@@ -1,3 +1,20 @@
+    /** 模块面板的报错隔离：一个模块面板崩了只坏它自己，主页面和其它模块照常。 */
+    class PanelBoundary extends React.Component {
+      constructor(p) { super(p); this.state = { error: null } }
+      static getDerivedStateFromError(error) { return { error } }
+      render() {
+        if (!this.state.error) {
+          try { return this.props.children }
+          catch (error) { this.state = { error } }
+        }
+        return h(ErrorBlock, {
+          title: '这个模块的面板出错了',
+          message: String(this.state.error && (this.state.error.message || this.state.error)),
+          hint: '只影响这个模块；右侧「模块管理」里能看到它的报错记录，也可以临时关掉它。',
+        })
+      }
+    }
+
     function ExtPanel({ m, settings, draftSettings, setSettings, toast, reload }) {
       const [src, setSrc] = useState(null)
       const [err, setErr] = useState('')
@@ -42,7 +59,7 @@
         window.addEventListener('message', onMessage)
         return () => window.removeEventListener('message', onMessage)
       }, [token, m.id, m.startedAt, m.routesAtRoot, get, post, toast, reload])
-      if (err) return h('div', { className: 'ab-note err' }, '面板加载失败：' + err)
-      if (!src) return h(Empty, { icon: '⏳', text: '加载中…' })
-      return h('iframe', { ref: frame, sandbox: 'allow-scripts', srcDoc: doc, title: m.name || m.id, style: { width: '100%', height, border: 0, background: 'transparent' } })
+      if (err) return h(ErrorBlock, { title: '面板加载失败', message: err, hint: '模块的 panel.js 没读出来；它自己的功能可能仍然正常。' })
+      if (!src) return h(Skeleton, { kind: 'card', label: '正在加载模块面板' })
+      return h(PanelBoundary, null, h('iframe', { ref: frame, sandbox: 'allow-scripts', srcDoc: doc, title: m.name || m.id, style: { width: '100%', height, border: 0, background: 'transparent' } }))
     }
