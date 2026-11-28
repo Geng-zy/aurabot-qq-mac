@@ -3718,3 +3718,35 @@ Air   mind 相关 140 pass；全量 1730 passed / 0 failed / 0 skipped；语法 
 Release dsh-aurabot-qq-1.6.90.tgz  19,688,067 字节
         sha256 5f3eeb431955930fb85330f69f4842e950d71cb2a749904424ec2229199a00eb
 ```
+
+---
+
+## B53 · mind/index.js 第三刀（1.6.91）
+
+| 模块 | 行数 | 职责 |
+|---|---|---|
+| `mind/index.js` | 676 → **642** | 心智各层装配与对外接口 |
+| `mind/identity-map.js`（新） | **26** | `sameMap`/`canon`（跨平台 id 归一）、`getOwnerId`/`setOwnerId`、`keepOwnerPrivate` |
+| `mind/people-graph.js`（新） | **30** | 关系星图（只读记忆，不另存） |
+
+试切后回滚的三块：设置（9 个外部依赖）、版本（9 个，含 `setPersonaCard`）、感知记录（27 个，含 `createImport`/`isOwnerWindow`）。
+
+```text
+Air   全量 1730 passed / 0 failed / 0 skipped；语法 644 文件；oxlint 0 error；清单 0 待审
+过程  修掉 1 处真 bug：ownerId 原本是 let（setOwner 会重设），拆成 const 后写入静默失效，
+      3 个「同一个人/私聊可见性」用例当场抓到 → 改成 getOwnerId/setOwnerId
+```
+
+### Mini 实机 + 发布
+
+```text
+安装   1.6.91（回滚点 ~/aurabot-release-backups/20261128-110241）、11:02:46 启动
+接口   GET /mind/self → ok=true（19 项特质）
+       GET /mind/people → ok=true，list 第 1 条 qq:257859927「Dr. Romantic」，type=owner/管理员
+       （首查时我取错了键 people/edges，实际字段是 list —— 关系数据在，星图边为 0 是因为没有多人同场的记忆）
+配置   升级前后逐字段一致；Purge 三个工具仍在；11:00 之后新增 error：0 条
+
+提交   B53；tag v1.6.91
+Release dsh-aurabot-qq-1.6.91.tgz  19,689,692 字节
+        sha256 3656a7199be4fa56f320756e778daf6cde1a750916a643b8d1570c948d4e6ebf
+```

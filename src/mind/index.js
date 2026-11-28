@@ -46,6 +46,8 @@ const noopLog = { debug() {}, info() {}, warn() {}, error() {} }
  */
 import { createImport } from './import.js'
 import { createForgetting } from './forgetting.js'
+import { createIdentityMap } from './identity-map.js'
+import { createPeopleGraph } from './people-graph.js'
 
 export function createMind(opts) {
   const log = opts.log || noopLog
@@ -56,23 +58,9 @@ export function createMind(opts) {
   const deletionLog = opts.memoryDb ? '' : join(opts.dir, 'deletions.jsonl')
   const place = makePlace(opts.place)
 
-  // ---------- 同一个人在不同平台的 id ----------
-  // 管理员或朋友在 QQ、微信、飞书上各有一个 id：连起来以后都算同一个人（记忆、关系、管理员身份都通用）。
-  // kv 'person.same'：{ 别的 id → 主 id }，只有一层。
-  function sameMap() { return store.get('person.same', {}) || {} }
-  /** 这个 id 实际是谁（连过就给主 id）。 */
-  function canon(id) {
-    const k = String(id || '')
-    return (k && sameMap()[k]) || k
-  }
-  let ownerId = canon(opts.ownerId || '')
-  const privateOwners = new Set(store.get('identity.privateOwners', []))
-  function keepOwnerPrivate(id) {
-    if (!id || privateOwners.has(id)) return
-    privateOwners.add(id)
-    store.set('identity.privateOwners', [...privateOwners])
-  }
-  keepOwnerPrivate(ownerId)
+  // 同平台 id 归一在 identity-map.js
+  const identityMap = createIdentityMap({ store, opts })
+  const { sameMap, canon, getOwnerId, setOwnerId, keepOwnerPrivate, privateOwners } = identityMap
 
   // ---------- 设置 ----------
   function savedSettings() {
@@ -138,18 +126,17 @@ export function createMind(opts) {
       exclusive: s['identity.exclusive'] !== false,
       // 满 18 岁才有性欲；没填年龄按未满处理
       sexualDesire: age !== null && age >= 18,
-      ownerId,
+      get ownerId() { return getOwnerId() },
     }
   }
   function setOwner(id) {
     const next = canon(id)
-    if (next === ownerId) return
-    ownerId = next
-    keepOwnerPrivate(ownerId)
+    if (next === getOwnerId()) return
+    setOwnerId(next)
     memory.touchAudience()
   }
   function isOwner(personId) {
-    return Boolean(ownerId) && canon(personId) === ownerId
+    return Boolean(getOwnerId()) && canon(personId) === getOwnerId()
   }
   /** 名字和小名（她改名后自动跟着变），加上管理员额外加的昵称。 */
   function wakeWords(extra = []) {
@@ -304,7 +291,7 @@ export function createMind(opts) {
       const q = JSON.stringify(from)
       store.prep('UPDATE episodes SET json = replace(json, ?, ?) WHERE instr(json, ?) > 0').run(q, JSON.stringify(main), q)
     })
-    if (isOwner(main)) { ownerId = main; memory.touchAudience() }
+    if (isOwner(main)) { setOwnerId(main); memory.touchAudience() }
     log.info(`${other} 和 ${main} 连成了同一个人`)
     return { ok: true, main }
   }
@@ -337,9 +324,9 @@ export function createMind(opts) {
 
   /** 管理员的私聊来信，以感知原话的时间为准。 */
   function lastOwnerMessageAt() {
-    if (!ownerId) return 0
+    if (!getOwnerId()) return 0
     const rows = store.prep("SELECT window, MAX(at) AS at FROM perception WHERE who = ? AND dir = 'in' AND at <= ? GROUP BY window")
-      .all(ownerId, now())
+      .all(getOwnerId(), now())
     return Math.max(0, ...rows.filter((row) => isOwnerWindow(row.window)).map((row) => row.at))
   }
   /**
@@ -434,30 +421,9 @@ export function createMind(opts) {
   const forgottenList = (...a) => forgettingOf().forgottenList(...a)
   const restorePerson = (...a) => forgettingOf().restorePerson(...a)
 
-  // ---------- 关系星图 ----------
-  /**
-   * 她认识的人和他们之间的联系：点是人（越亲近越大），线是「在她的记忆里一起出现过」（次数越多越粗）。
-   * 只用她自己记得的事，不另外存一份。
-   */
-  function peopleGraph({ limit = 150 } = {}) {
-    const people = relations.list().slice(0, limit)
-    const ids = new Set(people.map((p) => p.id))
-    const pairs = new Map()
-    for (const r of store.prep(`SELECT json FROM episodes WHERE status = 'live' AND json LIKE '%"who":["%",%'`).all()) {
-      let who = []
-      try { who = JSON.parse(r.json).who || [] } catch {}
-      const list = [...new Set(who.map(String))].filter((x) => ids.has(x)).sort()
-      for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-        const k = list[i] + '|' + list[j]
-        pairs.set(k, (pairs.get(k) || 0) + 1)
-      }
-    }
-    const edges = [...pairs].map(([k, n]) => { const [a, b] = k.split('|'); return { a, b, n } }).sort((x, y) => y.n - x.n).slice(0, 400)
-    return {
-      people: people.map((p) => ({ id: p.id, name: p.name, closeness: Number(p.rel?.closeness) || 0, owner: Boolean(p.owner), type: p.type, typeLabel: p.typeLabel, noMemory: p.noMemory === true, lastSeen: p.lastSeen || 0 })),
-      edges,
-    }
-  }
+  // 关系星图在 people-graph.js
+  let peopleGraphApi = null
+  const peopleGraph = (...a) => (peopleGraphApi ||= createPeopleGraph({ store, relations })).peopleGraph(...a)
 
   // ---------- 备份 ----------
   /** 存一份快照到 dir/snapshots/，按保留份数清理旧的（移到 trashDir，不直接删）。 */

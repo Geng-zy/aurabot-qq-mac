@@ -2,6 +2,16 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.6.91
+
+- B53 **mind/index.js 第三刀：同平台 id 归一 + 关系星图独立成模块**（`mind/index.js` 676 → 642 行）。
+  - `mind/identity-map.js`（26 行）：`sameMap`/`canon`（同一个人在不同平台的 id 连起来，只一层）、
+    `ownerId`（改成 `getOwnerId`/`setOwnerId`，因为它会被 `setOwner` 重设）、`keepOwnerPrivate`。
+  - `mind/people-graph.js`（30 行）：关系星图（点是人、线是同一段记忆里一起出现过；只读已有记忆，不另存）。
+  - 「设置 / 版本 / 感知记录」三块本轮也试切了，但依赖面分别到 9/9/27 个（`paramOf`、`setPersonaCard`、
+    `createImport`、`isOwnerWindow` 等交叉引用），一轮内无法干净收口 —— 已回滚，留给后续几刀。
+- 回归：全量 1730 个测试通过；语法 644 文件；oxlint 0 error；清单 0 待审。
+
 ## 1.6.90
 
 - B52 **mind/index.js 第二刀：「忘掉一个人」整支独立成门面**（`mind/forgetting.js` 153 行，`mind/index.js` 796 → 676 行）。
