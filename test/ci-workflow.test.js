@@ -55,6 +55,11 @@ test('tag 上要校验 Release 资产的摘要', () => {
   assert.match(rel, /GH_TOKEN/, '校验要读 Release，需要 token')
 })
 
+test('官方 action 用会跑的版本（v4 跑在已弃用的 Node 20 上）', () => {
+  assert.doesNotMatch(yml, /actions\/checkout@v[0-4]\b/, 'checkout 要 >= v5')
+  assert.doesNotMatch(yml, /actions\/setup-node@v[0-4]\b/, 'setup-node 要 >= v5')
+})
+
 test('工作流里没有失效的 beta 引用', () => {
   assert.doesNotMatch(yml, /beta/i, 'CI 里不该留 beta 版本/分支引用')
   assert.doesNotMatch(yml, /node-version: '1[0-8]'/, 'Node 版本要跟本机一致（24）')
