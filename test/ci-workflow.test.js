@@ -61,6 +61,16 @@ test('清单本身过期要让 CI 红（--write 只保证待审为 0）', () => 
   assert.match(yml, /npm run inventory/, '错误提示里要告诉人怎么重新生成')
 })
 
+test('浏览器安装只用一个版本源（core 与 playwright 各自解析会错位）', () => {
+  // 回归：审查 M3 —— `playwright-core@1` 与 `npx playwright@1` 各自解析版本，
+  // 跨一次发布窗口就变成「core 期望 chromium-1223、实际装 1255」。
+  assert.match(yml, /node node_modules\/playwright-core\/cli\.js install/, '要用 core 自己的 CLI 装浏览器')
+  assert.doesNotMatch(yml, /npx --yes playwright@/, '不许再引第二个 playwright 版本源')
+  const installs = [...yml.matchAll(/npm install[^\n]*playwright[^\n]*/g)].map((m) => m[0])
+  assert.equal(installs.length, 1, 'playwright 只能由一处安装')
+  assert.match(installs[0], /playwright-core@1/)
+})
+
 test('UI 冒烟只跑代表页、产出不写回仓库基线', () => {
   const smoke = yml.slice(yml.indexOf('ui-smoke:'))
   assert.match(smoke, /scripts\/ui-shot\.mjs --pages=/, '要指定代表页，全量留给本地')

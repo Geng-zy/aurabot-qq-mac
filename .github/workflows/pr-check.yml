@@ -86,7 +86,10 @@ jobs:
         run: |
           # 预览服务要 React 18 UMD（不走 CDN，CI 里也要能离线复现）
           npm install --no-save --no-audit --no-fund playwright-core@1 react@18 react-dom@18
-          npx --yes playwright@1 install --with-deps chromium
+          # 只用 playwright-core 自己的 CLI 装浏览器：以前是 `npx playwright@1 install`，
+          # 两个包各自解析 @1 的版本，跨一次发布窗口就会出现「core 期望 chromium-1223、
+          # 实际装的是 1255」这种错位（审查 M3）。一个版本源就不会错。
+          node node_modules/playwright-core/cli.js install --with-deps chromium
       - name: Build client bundle
         run: npm run build:client
       - name: UI smoke (representative pages, no baseline writes)

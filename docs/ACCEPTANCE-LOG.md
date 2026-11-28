@@ -4577,3 +4577,48 @@ Mini 1.7.16 安装启动（02:02:48）；state version=1.7.16；Purge 三工具�
 tag v1.7.16；dsh-aurabot-qq-1.7.16.tgz 19,752,049 字节
      sha256 8ad55a84160e4e4ca5d328af35dd09340602ddf69df9968f19107e922e78d2a2
 ```
+
+---
+
+## 修复：CI 浏览器安装的两个版本源会错位（审查 M3，无发布）
+
+**为什么选它**：剩余项里 M4（archive 免审计）没有实证后果、H2 只是措辞；**M3 有确定的失败条件** ——
+`playwright-core@1` 与 `npx playwright@1` 各自解析版本，跨一次发布窗口就会出现
+「core 期望 chromium-1223、实际装的是 1255」，启动报 `Executable doesn't exist`。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.16 · 内置 Node v24.21.0 · Purge 三工具在列。
+
+**最小失败用例（修复前，基线）**
+
+```text
+# 模拟一次发布窗口：两个包各自装到不同版本
+$ npm install playwright-core@1.60.0 playwright@1
+playwright-core = 1.60.0 | playwright = 1.65.1
+core 期望 chromium 修订 = 1223
+
+# core 1.60 找的可执行文件
+$ node -e "console.log(require('/tmp/pwskew/node_modules/playwright-core').chromium.executablePath())"
+~/Library/Caches/ms-playwright/chromium-1223/chrome-mac-arm64/…/Google Chrome for Testing
+该文件存在吗: false          ← 启动即 Executable doesn't exist
+```
+
+**修复后**
+
+```text
+CI 只保留一个版本源：
+  npm install --no-save playwright-core@1 react@18 react-dom@18
+  node node_modules/playwright-core/cli.js install --with-deps chromium
+本机实跑：core CLI 下载 chromium-1255 成功；随后 ui-shot --pages=overview 通过并产出 overview.png
+```
+
+**防回归**：`test/ci-workflow.test.js` 新增一条断言 —— 必须用 `playwright-core/cli.js install`、
+不许再出现 `npx --yes playwright@`、`npm install … playwright` 只能有一处。
+反向验证：把旧写法放回去 → 该条立刻红；恢复后 10 条全绿。
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 全量测试 | 1760 passed / 0 failed（+1） |
+| 语法 / lint / 清单 | 676 文件通过 / oxlint 0 error / 488 文件 0 待审 |
+| 发布物 | **未变**：重打包哈希 `8ad55a84…` 与 1.7.16 资产一致，因此不发布 |
