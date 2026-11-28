@@ -4249,6 +4249,9 @@ Mini 1.7.9 安装启动（20:51:07）；state version=1.7.9；配置一致；Pur
 CI 二次修正（React UMD 让 ui-smoke 真跑得起来、actions 升 v5）改到了包内的 `scripts/ui-preview.mjs`，
 所以 1.7.9 的 tarball 与 HEAD 不再一致 —— 按「tag ↔ tarball ↔ Mini 三者同源」的纪律重发 1.7.10。
 
+**tag 上的真 CI 结果（run 46149928959，ref=v1.7.10）**：`release-check (tag)` ✓ 29s、`test (ubuntu)` ✓ 3m09s、
+`test (macos)` ✓ 4m52s、`ui-smoke (ubuntu)` ✓ 51s —— 四个任务全绿，发布校验任务首次真跑通过。
+
 ```text
 Air  1748 passed / 0 failed；语法 672 文件；oxlint 0 error；清单 0 待审
 Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0 新增 error
