@@ -44,7 +44,11 @@
         const timer = setTimeout(() => load(), 250)
         return () => { clearTimeout(timer); pageTicket.current++; relatedTicket.current++ }
       }, [q, status, kind])
-      if (state && !state.ok) return h(Card, { title: '记忆' }, h(Empty, { text: state.message || '心智核心没起来' }))
+      if (state && !state.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+        icon: '🧠', title: '心智核心没起来',
+        text: state.message || '记忆库读不到；去「模块管理」看看心智核心在不在跑。',
+        action: '去模块管理', onAction: () => { try { location.assign('#' + 'modules') } catch (e) {} },
+      }))
       const counts = state?.status?.counts || {}
       const mem = counts.memory || {}
       const usage = state?.usage
@@ -93,7 +97,15 @@
             h(Select, { value: kind, onChange: setKind, options: [{ value: '', label: '全部种类' }, ...Object.entries(MIND_KIND).map(([value, label]) => ({ value, label }))] })),
           sources.length ? h('p', { className: 'ab-muted ab-small' }, '来源分布 · ' + sources.map((s) => sourceLabel(s.platform) + ' ' + s.count).join(' · ')) : null,
           error ? h('p', { className: 'ab-muted' }, error) : null,
-          !items ? h('p', { className: 'ab-muted' }, loading || !error ? '读取中…' : '') : !items.length ? h(Empty, { text: q ? '没找到匹配的记忆' : status === 'archived' ? '暂无已淡忘的经历' : '还没有记下的经历' }) : h('div', { className: 'ab-list' }, items.map((m) => h('div', { key: m.id, className: 'ab-li' },
+          error ? h(ErrorBlock, { title: '读不到记忆', message: error, onRetry: () => load() })
+            : !items ? h(Skeleton, { kind: 'row', rows: 5, label: '正在读记忆' })
+            : !items.length ? h(Empty, {
+              icon: q ? '🔍' : '🌱',
+              title: q ? '没有匹配的记忆' : status === 'archived' ? '暂时没有淡忘的经历' : '还没有记下的经历',
+              text: q ? '换个词试试，或者把筛选切到「全部状态」。' : '她会在聊天和睡觉整理时自己记；也可以在这一页手动添加一条。',
+              action: q ? '清空搜索' : undefined,
+              onAction: q ? () => { setQ('') } : undefined,
+            }) : h('div', { className: 'ab-list' }, items.map((m) => h('div', { key: m.id, className: 'ab-li' },
             h('div', { className: 'meta' }, mindDay(m.at), ' · ', sourceLabel(m.platform), ' · ', MIND_KIND[m.kind] || m.kind, ' · ', MIND_LEVEL[m.level] || '想不起来了', m.emotion ? ' · ' + m.emotion.name : '', m.outdated ? ' · 已过时：' + m.outdated.now : ''),
             h('div', { className: 'body' }, m.gist, m.detail ? h('div', { className: 'ab-muted ab-small' }, m.detail) : null,
               m.original ? h('div', { className: 'ab-muted ab-small', title: '她看不到原始记录；这里给你对照' }, '原来记的：' + m.original.gist) : null),

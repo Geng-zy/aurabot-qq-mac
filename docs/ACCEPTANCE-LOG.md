@@ -4048,3 +4048,26 @@ Mini 1.7.1 安装启动（16:11:24）；真机 client.js 里 SectionNav / ab-sec
 发布 tag v1.7.1；dsh-aurabot-qq-1.7.1.tgz 19,727,024 字节
      sha256 37c333f80df635b1b176f75ae69f0826f04bf1f100709299e87ce3c6f0350d89
 ```
+
+---
+
+## B2 · 心智组五页（1.7.2）
+
+| 页 | 三态落地 |
+|---|---|
+| 她现在 `now` | 骨架 → 错误块（重试）→ 核心没起来的空态（可重新读取） |
+| 记忆 `mood` | 列表错误块（重试）；空态分「没搜到 / 无淡忘 / 还没记下」，各给下一步 |
+| 知识库 `knowledge` | 列表错误块；空库给「写第一篇笔记」并聚焦编辑区 |
+| 关系 `persona` | 错误块（重试）；没搜到给「清空搜索」，还没认识谁给「去白名单」 |
+| 念头与行动 `inner` | 骨架 → 错误块（重试）→ 核心没起来的空态 |
+
+```text
+Air  ui-shot 通过：28 页 + 10 页 × 三态 + 深色 + 窄屏（心智组五页纳入三态断言）
+     重新抓取 docs/ui-baseline/state.live.json（1.7.1 真机）与 api-fixtures.json（23 个接口）
+Air  全量 1739 passed / 0 failed；oxlint 0 error；清单 485 文件 / 0 待审
+Mini 1.7.2 安装启动（16:40:28），心智组五页数据一致：
+     now 精力 0.82 / 困 0.29 / 醒着；memory 经历 375、向量 350；knowledge 0 个文件（正好走空库教学态）；
+     people 50 人；inner 日记 80 条；配置一致；Purge 三工具在；0 新增 error
+发布 tag v1.7.2；dsh-aurabot-qq-1.7.2.tgz 19,728,727 字节
+     sha256 adbcc8330b850ba53185f1ccc1cca02583ca918f289912fb2d12e1ec38ead9a7
+```

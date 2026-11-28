@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.7.1 highlights
+## 1.7.2 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -138,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.7.1.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.7.2.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.1.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.2.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -186,6 +186,12 @@ save bar (dirty → saving → saved, **⌘S** anytime); only switches apply imm
 
 <p><strong>Section anchors</strong> · chips under the title jump to a section and mark the current one.</p>
 <img src="docs/screenshots/aurabot-section-nav.png" alt="Section anchors" width="100%">
+
+<p><strong>Her now</strong> · body, mood and current feelings in one screen; a read failure offers retry in place.</p>
+<img src="docs/screenshots/aurabot-mind-now.png" alt="Her now" width="100%">
+
+<p><strong>Mind-group empty state</strong> · not a bare "nothing here", but why it is empty and the next step.</p>
+<img src="docs/screenshots/aurabot-mind-empty.png" alt="Relationship empty state" width="100%">
 
 <p><strong>Cannot read</strong> · the error stays on the page with retry and copy-diagnostics.</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="Error state" width="100%">

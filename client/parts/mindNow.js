@@ -1,10 +1,18 @@
     function MindNow({ toast }) {
       const [d, setD] = useState(null)
       const [food, setFood] = useState('')
-      const load = () => get('/mind/now').then(setD)
+      const [err, setErr] = useState('')
+      const load = () => get('/mind/now').then((r) => {
+        if (r && r.ok !== false) { setD(r); setErr('') } else { setD(r || null); setErr(r?.message || '读不到她的状态') }
+      }).catch((e) => setErr('连不上插件：' + e.message))
       useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
-      if (!d) return h(Card, { title: '她现在' }, h('p', { className: 'ab-muted' }, '读取中…'))
-      if (!d.ok) return h(Card, { title: '她现在' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      if (err) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到她的状态', message: err, hint: '心智核心会在插件启动后几秒内就绪。', onRetry: load }))
+      if (!d) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读她的状态' }), h(Skeleton, { kind: 'row', rows: 3, label: '正在读她的状态' }))
+      if (!d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+        icon: '🧠', title: '心智核心没起来',
+        text: d.message || '她的身体与心情读不到；去「模块管理」看看心智核心在不在跑。',
+        action: '重新读取', onAction: load,
+      }))
       const b = d.body
       const act = async (path, body) => { const r = await post(path, body || {}); toast(r.message || (r.ok ? '好了' : '没成功')); load(); return r }
       const feed = async () => { if (!food.trim()) return toast('填一个吃的'); const r = await act('/mind/feed', { food: food.trim() }); if (r.ok) setFood('') }

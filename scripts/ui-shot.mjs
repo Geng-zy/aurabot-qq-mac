@@ -40,6 +40,12 @@ const STATES = [
   { page: 'voice', empty: /还没有可用的语音引擎|说话（文字转语音）/ },
   { page: 'modules', empty: /模块|还没有/ },
   { page: 'logs', empty: /没有符合条件的日志/ },
+  // B2 心智组
+  { page: 'now', empty: /心智核心没起来|她现在/ },
+  { page: 'mood', empty: /还没有记下的经历|没有匹配的记忆|心智核心没起来/ },
+  { page: 'knowledge', empty: /知识库还是空的|知识库文件|读不到知识库/ },
+  { page: 'persona', empty: /还没认识谁|没有匹配的人|心智核心没起来/ },
+  { page: 'inner', empty: /心智核心没起来|念头与行动|内心/ },
 ]
 
 const { chromium } = await loadPlaywright()

@@ -880,5 +880,26 @@
     "owner": "client-panel",
     "verdict": "keep",
     "evidence": "约 45 行：Toast 总线 + Toaster。publish/subscribe/claimHost/hosted；Toaster 挂在宿主 shell.overlay（apply.js 注册），面板侧 aurabotPage 用 hosted() 决定是否渲染自己那份，避免两份提示。被 scripts/ui-shot.mjs 的「Toast 只一份」断言覆盖。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-section-nav.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md / README_EN.md 的「分区锚点条」示例图（白名单与权限页），由 scripts/ui-shot.mjs 从 docs/ui-baseline/pages/access.png 复制；1.7.1 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-mind-now.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 心智组示例图（她现在），来自 docs/ui-baseline/pages/now.png；1.7.2 起引用。"
+  },
+  {
+    "path": "docs/screenshots/aurabot-mind-empty.png",
+    "area": "docs",
+    "owner": "docs",
+    "verdict": "keep",
+    "evidence": "README.md 空态示例图（关系页教学空态），来自 docs/ui-baseline/states/persona-empty.png；1.7.2 起引用。"
   }
 ]

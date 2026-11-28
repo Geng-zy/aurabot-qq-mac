@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.7.1 更新
+## 1.7.2 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -142,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.1.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.2.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.1.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.2.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -169,7 +169,7 @@ local
 
 | 想做什么 | 从哪里进入 |
 | --- | --- |
-| 查刚刚发生的事或调整隐私 | 心智 → 记忆 |
+| 查刚刚发生的事或调整隐私 | 心智 → 记忆（读不到时页面里直接给重试，不用刷新） |
 | 看人物关系或内心日记 | 心智 → 关系 / 念头与行动 |
 | 看资料、写笔记或控制知识可见范围 | 心智 → 知识库 |
 | 修改人设、性格设置和后台预算 | 自我与设置 |
@@ -192,6 +192,12 @@ local
 
 <p><strong>分区锚点条</strong> · 长页面顶部的分区胶囊，点一下展开并滚过去，当前分区高亮。</p>
 <img src="docs/screenshots/aurabot-section-nav.png" alt="分区锚点条" width="100%">
+
+<p><strong>她现在</strong> · 身体、心情、此刻感受一屏看完；读不到时页面里给重试。</p>
+<img src="docs/screenshots/aurabot-mind-now.png" alt="她现在" width="100%">
+
+<p><strong>心智组的空态</strong> · 还没认识谁时不是一句「暂无」，而是说明原因并给出下一步。</p>
+<img src="docs/screenshots/aurabot-mind-empty.png" alt="关系页空态" width="100%">
 
 <p><strong>读不到时</strong> · 错误留在页面上，带「重试」和「复制诊断」，不靠 Toast 顶替。</p>
 <img src="docs/screenshots/aurabot-error-state.png" alt="错误态" width="100%">

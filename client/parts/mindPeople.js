@@ -1,4 +1,4 @@
-    function MindPeople({ toast }) {
+    function MindPeople({ toast, go }) {
       const [d, setD] = useState(null)
       const [q, setQ] = useState('')
       const [open, setOpen] = useState('')
@@ -18,14 +18,23 @@
       }
       const [follows, setFollows] = useState([])
       const [impression, setImpression] = useState(null)
+      const [loadErr, setLoadErr] = useState('')
       const load = () => {
-        get('/mind/people').then(setD)
+        get('/mind/people').then((r) => {
+          if (r && r.ok !== false) { setD(r); setLoadErr('') } else { setD(r || null); setLoadErr(r?.message || '读不到关系') }
+        }).catch((e) => setLoadErr('连不上插件：' + e.message))
+        setLoadErr('')
         get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {})
         get('/mind/followups').then((r) => setFollows((r && r.list) || [])).catch(() => {})
       }
       const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); notify(toast, r); load() }
       useEffect(() => { load() }, [])
-      if (d && !d.ok) return h(Card, { title: '关系' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到关系', message: loadErr, hint: '人表跟着心智核心走。', onRetry: load }))
+      if (d && !d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+        icon: '🧠', title: '心智核心没起来',
+        text: d.message || '关系读不到；去「模块管理」看看心智核心在不在跑。',
+        action: '重新读取', onAction: load,
+      }))
       // 忘掉一个人：删除要确认两次；「以后不记」可以选要不要连以前的一起移走；都先进恢复区，30 天内能放回来
       const forget = async (p, mode) => {
         const who = (p.name || '这个人') + '（' + p.id.replace(/^qq:/, 'QQ ') + '）'
@@ -139,8 +148,10 @@
             })),
             h(Seg, { value: view, options: [{ value: 'list', label: '列表' }, { value: 'map', label: '星图' }], onChange: switchView }))),
         view === 'map' ? h(Card, null, h(StarMap, { onPick: pick, q: q.trim() }))
-          : !d ? h('p', { className: 'ab-muted', role: 'status' }, '读取中…')
-          : !shown.length ? h(Card, null, h(Empty, { text: needle ? '没有找到匹配的人' : '还没认识谁' }))
+          : !d ? h(Skeleton, { kind: 'row', rows: 6, label: '正在读关系' })
+          : !shown.length ? h(Card, null, needle
+            ? h(Empty, { icon: '🔍', title: '没有匹配的人', text: '换个名字或 QQ 号试试；也可以切到「星图」按亲近度找。', action: '清空搜索', onAction: () => setQ('') })
+            : h(Empty, { icon: '👥', title: '还没认识谁', text: '她收到消息后会自己记下这个人；也可以先把管理员 QQ 号填进「白名单与权限」。', action: '去白名单', onAction: () => go && go('access') }))
           : h('div', { className: 'ab-people-grid' }, shown.map(personCard)),
         gone.length ? h(Card, { fold: 'people-recovery', title: '恢复区', desc: '忘掉的人可以在 30 天内恢复。' },
           h('div', { className: 'ab-list' }, gone.map((g) => h('div', { key: g.id, className: 'ab-li' },

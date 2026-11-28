@@ -2172,7 +2172,10 @@ window.__ModuleLoader__.load({
     const [renaming, setRenaming] = useState(null)
     const [folderFilter, setFolderFilter] = useState('')
     const [note, setNote] = useState({ title: '', content: '', scope: 'all' })
-    const load = () => get('/knowledge/list').then((r) => setList(r.list || [])).catch(() => setList([]))
+    const [loadErr, setLoadErr] = useState('')
+    const load = () => get('/knowledge/list').then((r) => {
+    if (r && r.ok !== false) { setList(r.list || []); setLoadErr('') } else { setList([]); setLoadErr(r?.message || '读不到知识库') }
+    }).catch((e) => { setList([]); setLoadErr('连不上插件：' + e.message) })
     useEffect(() => { void load() }, [])
     const mark = (text) => {
     const needle = String(submittedQ || q || '').trim()
@@ -2294,8 +2297,13 @@ window.__ModuleLoader__.load({
     } }, '删除')))) : []
     return h('div', { className: 'ab-grid' },
     h(Card, { title: '知识库文件', desc: 'data/knowledge 下的 Markdown / 文本。scope 控制哪些会话能读。', right: h('span', { className: 'ab-flex', style: { gap: 6 } }, h(Select, { value: folderFilter, onChange: setFolderFilter, width: 170, options: [{ value: '', label: '全部目录' }, ...folders.map((f) => ({ value: f, label: f }))] }), h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新')) },
-    !list ? h('div', { className: 'ab-muted ab-small' }, '加载中…')
-    : list.length === 0 ? h('div', { className: 'ab-muted ab-small' }, '还没有文件。把资料放进 data/knowledge/raw，或让ta写笔记。')
+    loadErr ? h(ErrorBlock, { title: '读不到知识库', message: loadErr, hint: '知识库文件在数据目录 knowledge/ 下。', onRetry: load })
+    : !list ? h(Skeleton, { kind: 'row', rows: 4, label: '正在读知识库' })
+    : list.length === 0 ? h(Empty, {
+    icon: '📚', title: '知识库还是空的',
+    text: '把资料放进数据目录的 knowledge/raw（支持 Markdown 与纯文本），或者在这一页直接写一篇笔记。',
+    action: '写第一篇笔记', onAction: () => { const box = document.getElementById('ab-knowledge-new'); box?.scrollIntoView({ block: 'center' }); box?.querySelector('input,textarea')?.focus() },
+    })
     : h('table', { className: 'ab-table' }, h('tbody', null, rows))),
     h(Card, { title: '全文搜索', desc: '在 knowledge/raw 和 notes 里按关键词搜，返回命中的文件和片段。' },
     h('div', { className: 'ab-flex', style: { gap: 8 } },
@@ -2542,10 +2550,18 @@ window.__ModuleLoader__.load({
     function MindInner({ toast }) {
     const [d, setD] = useState(null)
     const [busy, setBusy] = useState('')
-    const load = () => get('/mind/inner').then(setD)
+    const [err, setErr] = useState('')
+    const load = () => get('/mind/inner').then((r) => {
+    if (r && r.ok !== false) { setD(r); setErr('') } else { setD(r || null); setErr(r?.message || '读不到内心') }
+    }).catch((e) => setErr('连不上插件：' + e.message))
     useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
-    if (!d) return h(Card, { title: '内心' }, h('p', { className: 'ab-muted' }, '读取中…'))
-    if (!d.ok) return h(Card, { title: '内心' }, h(Empty, { text: d.message || '心智核心没起来' }))
+    if (err) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到内心活动', message: err, hint: '内心活动跟着心智核心走，稍后会自动刷新。', onRetry: load }))
+    if (!d) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读内心活动' }), h(Skeleton, { kind: 'row', rows: 3, label: '正在读内心活动' }))
+    if (!d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+    icon: '💭', title: '心智核心没起来',
+    text: d.message || '念头、愿望和主动行为都读不到；去「模块管理」看看心智核心在不在跑。',
+    action: '重新读取', onAction: load,
+    }))
     const act = async (path, body, label) => { setBusy(label || path); try { const r = await post(path, body || {}); toast(r.message || (r.ok ? '好了' : '没成功')); load() } finally { setBusy('') } }
     const m = d.motivation
     const motivesByWant = new Map()
@@ -2721,7 +2737,11 @@ window.__ModuleLoader__.load({
     const timer = setTimeout(() => load(), 250)
     return () => { clearTimeout(timer); pageTicket.current++; relatedTicket.current++ }
     }, [q, status, kind])
-    if (state && !state.ok) return h(Card, { title: '记忆' }, h(Empty, { text: state.message || '心智核心没起来' }))
+    if (state && !state.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+    icon: '🧠', title: '心智核心没起来',
+    text: state.message || '记忆库读不到；去「模块管理」看看心智核心在不在跑。',
+    action: '去模块管理', onAction: () => { try { location.assign('#' + 'modules') } catch (e) {} },
+    }))
     const counts = state?.status?.counts || {}
     const mem = counts.memory || {}
     const usage = state?.usage
@@ -2770,7 +2790,15 @@ window.__ModuleLoader__.load({
     h(Select, { value: kind, onChange: setKind, options: [{ value: '', label: '全部种类' }, ...Object.entries(MIND_KIND).map(([value, label]) => ({ value, label }))] })),
     sources.length ? h('p', { className: 'ab-muted ab-small' }, '来源分布 · ' + sources.map((s) => sourceLabel(s.platform) + ' ' + s.count).join(' · ')) : null,
     error ? h('p', { className: 'ab-muted' }, error) : null,
-    !items ? h('p', { className: 'ab-muted' }, loading || !error ? '读取中…' : '') : !items.length ? h(Empty, { text: q ? '没找到匹配的记忆' : status === 'archived' ? '暂无已淡忘的经历' : '还没有记下的经历' }) : h('div', { className: 'ab-list' }, items.map((m) => h('div', { key: m.id, className: 'ab-li' },
+    error ? h(ErrorBlock, { title: '读不到记忆', message: error, onRetry: () => load() })
+    : !items ? h(Skeleton, { kind: 'row', rows: 5, label: '正在读记忆' })
+    : !items.length ? h(Empty, {
+    icon: q ? '🔍' : '🌱',
+    title: q ? '没有匹配的记忆' : status === 'archived' ? '暂时没有淡忘的经历' : '还没有记下的经历',
+    text: q ? '换个词试试，或者把筛选切到「全部状态」。' : '她会在聊天和睡觉整理时自己记；也可以在这一页手动添加一条。',
+    action: q ? '清空搜索' : undefined,
+    onAction: q ? () => { setQ('') } : undefined,
+    }) : h('div', { className: 'ab-list' }, items.map((m) => h('div', { key: m.id, className: 'ab-li' },
     h('div', { className: 'meta' }, mindDay(m.at), ' · ', sourceLabel(m.platform), ' · ', MIND_KIND[m.kind] || m.kind, ' · ', MIND_LEVEL[m.level] || '想不起来了', m.emotion ? ' · ' + m.emotion.name : '', m.outdated ? ' · 已过时：' + m.outdated.now : ''),
     h('div', { className: 'body' }, m.gist, m.detail ? h('div', { className: 'ab-muted ab-small' }, m.detail) : null,
     m.original ? h('div', { className: 'ab-muted ab-small', title: '她看不到原始记录；这里给你对照' }, '原来记的：' + m.original.gist) : null),
@@ -2809,10 +2837,18 @@ window.__ModuleLoader__.load({
     function MindNow({ toast }) {
     const [d, setD] = useState(null)
     const [food, setFood] = useState('')
-    const load = () => get('/mind/now').then(setD)
+    const [err, setErr] = useState('')
+    const load = () => get('/mind/now').then((r) => {
+    if (r && r.ok !== false) { setD(r); setErr('') } else { setD(r || null); setErr(r?.message || '读不到她的状态') }
+    }).catch((e) => setErr('连不上插件：' + e.message))
     useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
-    if (!d) return h(Card, { title: '她现在' }, h('p', { className: 'ab-muted' }, '读取中…'))
-    if (!d.ok) return h(Card, { title: '她现在' }, h(Empty, { text: d.message || '心智核心没起来' }))
+    if (err) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到她的状态', message: err, hint: '心智核心会在插件启动后几秒内就绪。', onRetry: load }))
+    if (!d) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读她的状态' }), h(Skeleton, { kind: 'row', rows: 3, label: '正在读她的状态' }))
+    if (!d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+    icon: '🧠', title: '心智核心没起来',
+    text: d.message || '她的身体与心情读不到；去「模块管理」看看心智核心在不在跑。',
+    action: '重新读取', onAction: load,
+    }))
     const b = d.body
     const act = async (path, body) => { const r = await post(path, body || {}); toast(r.message || (r.ok ? '好了' : '没成功')); load(); return r }
     const feed = async () => { if (!food.trim()) return toast('填一个吃的'); const r = await act('/mind/feed', { food: food.trim() }); if (r.ok) setFood('') }
@@ -2877,7 +2913,7 @@ window.__ModuleLoader__.load({
 
     /** 她的记忆：数量、今天花了多少、上次睡觉整理，按状态 / 种类 / 关键字翻，单条加强或删除，对照原始记录。 */
 
-    function MindPeople({ toast }) {
+    function MindPeople({ toast, go }) {
     const [d, setD] = useState(null)
     const [q, setQ] = useState('')
     const [open, setOpen] = useState('')
@@ -2897,14 +2933,23 @@ window.__ModuleLoader__.load({
     }
     const [follows, setFollows] = useState([])
     const [impression, setImpression] = useState(null)
+    const [loadErr, setLoadErr] = useState('')
     const load = () => {
-    get('/mind/people').then(setD)
+    get('/mind/people').then((r) => {
+    if (r && r.ok !== false) { setD(r); setLoadErr('') } else { setD(r || null); setLoadErr(r?.message || '读不到关系') }
+    }).catch((e) => setLoadErr('连不上插件：' + e.message))
+    setLoadErr('')
     get('/mind/people/forgotten').then((r) => setGone((r && r.list) || [])).catch(() => {})
     get('/mind/followups').then((r) => setFollows((r && r.list) || [])).catch(() => {})
     }
     const stopAsking = async (f) => { const r = await post('/mind/followups/close', { id: f.id }); notify(toast, r); load() }
     useEffect(() => { load() }, [])
-    if (d && !d.ok) return h(Card, { title: '关系' }, h(Empty, { text: d.message || '心智核心没起来' }))
+    if (loadErr) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到关系', message: loadErr, hint: '人表跟着心智核心走。', onRetry: load }))
+    if (d && !d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+    icon: '🧠', title: '心智核心没起来',
+    text: d.message || '关系读不到；去「模块管理」看看心智核心在不在跑。',
+    action: '重新读取', onAction: load,
+    }))
     // 忘掉一个人：删除要确认两次；「以后不记」可以选要不要连以前的一起移走；都先进恢复区，30 天内能放回来
     const forget = async (p, mode) => {
     const who = (p.name || '这个人') + '（' + p.id.replace(/^qq:/, 'QQ ') + '）'
@@ -3018,8 +3063,10 @@ window.__ModuleLoader__.load({
     })),
     h(Seg, { value: view, options: [{ value: 'list', label: '列表' }, { value: 'map', label: '星图' }], onChange: switchView }))),
     view === 'map' ? h(Card, null, h(StarMap, { onPick: pick, q: q.trim() }))
-    : !d ? h('p', { className: 'ab-muted', role: 'status' }, '读取中…')
-    : !shown.length ? h(Card, null, h(Empty, { text: needle ? '没有找到匹配的人' : '还没认识谁' }))
+    : !d ? h(Skeleton, { kind: 'row', rows: 6, label: '正在读关系' })
+    : !shown.length ? h(Card, null, needle
+    ? h(Empty, { icon: '🔍', title: '没有匹配的人', text: '换个名字或 QQ 号试试；也可以切到「星图」按亲近度找。', action: '清空搜索', onAction: () => setQ('') })
+    : h(Empty, { icon: '👥', title: '还没认识谁', text: '她收到消息后会自己记下这个人；也可以先把管理员 QQ 号填进「白名单与权限」。', action: '去白名单', onAction: () => go && go('access') }))
     : h('div', { className: 'ab-people-grid' }, shown.map(personCard)),
     gone.length ? h(Card, { fold: 'people-recovery', title: '恢复区', desc: '忘掉的人可以在 30 天内恢复。' },
     h('div', { className: 'ab-list' }, gone.map((g) => h('div', { key: g.id, className: 'ab-li' },

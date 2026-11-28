@@ -1,10 +1,18 @@
     function MindInner({ toast }) {
       const [d, setD] = useState(null)
       const [busy, setBusy] = useState('')
-      const load = () => get('/mind/inner').then(setD)
+      const [err, setErr] = useState('')
+      const load = () => get('/mind/inner').then((r) => {
+        if (r && r.ok !== false) { setD(r); setErr('') } else { setD(r || null); setErr(r?.message || '读不到内心') }
+      }).catch((e) => setErr('连不上插件：' + e.message))
       useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t) }, [])
-      if (!d) return h(Card, { title: '内心' }, h('p', { className: 'ab-muted' }, '读取中…'))
-      if (!d.ok) return h(Card, { title: '内心' }, h(Empty, { text: d.message || '心智核心没起来' }))
+      if (err) return h('div', { className: 'ab-grid' }, h(ErrorBlock, { title: '读不到内心活动', message: err, hint: '内心活动跟着心智核心走，稍后会自动刷新。', onRetry: load }))
+      if (!d) return h('div', { className: 'ab-grid' }, h(Skeleton, { kind: 'card', label: '正在读内心活动' }), h(Skeleton, { kind: 'row', rows: 3, label: '正在读内心活动' }))
+      if (!d.ok) return h('div', { className: 'ab-grid' }, h(Empty, {
+        icon: '💭', title: '心智核心没起来',
+        text: d.message || '念头、愿望和主动行为都读不到；去「模块管理」看看心智核心在不在跑。',
+        action: '重新读取', onAction: load,
+      }))
       const act = async (path, body, label) => { setBusy(label || path); try { const r = await post(path, body || {}); toast(r.message || (r.ok ? '好了' : '没成功')); load() } finally { setBusy('') } }
       const m = d.motivation
       const motivesByWant = new Map()

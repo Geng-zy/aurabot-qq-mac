@@ -10,7 +10,10 @@
       const [renaming, setRenaming] = useState(null)
       const [folderFilter, setFolderFilter] = useState('')
       const [note, setNote] = useState({ title: '', content: '', scope: 'all' })
-      const load = () => get('/knowledge/list').then((r) => setList(r.list || [])).catch(() => setList([]))
+      const [loadErr, setLoadErr] = useState('')
+      const load = () => get('/knowledge/list').then((r) => {
+        if (r && r.ok !== false) { setList(r.list || []); setLoadErr('') } else { setList([]); setLoadErr(r?.message || '读不到知识库') }
+      }).catch((e) => { setList([]); setLoadErr('连不上插件：' + e.message) })
       useEffect(() => { void load() }, [])
       const mark = (text) => {
         const needle = String(submittedQ || q || '').trim()
@@ -132,8 +135,13 @@
           } }, '删除')))) : []
       return h('div', { className: 'ab-grid' },
         h(Card, { title: '知识库文件', desc: 'data/knowledge 下的 Markdown / 文本。scope 控制哪些会话能读。', right: h('span', { className: 'ab-flex', style: { gap: 6 } }, h(Select, { value: folderFilter, onChange: setFolderFilter, width: 170, options: [{ value: '', label: '全部目录' }, ...folders.map((f) => ({ value: f, label: f }))] }), h(Btn, { small: true, kind: 'ghost', onClick: load }, '刷新')) },
-          !list ? h('div', { className: 'ab-muted ab-small' }, '加载中…')
-            : list.length === 0 ? h('div', { className: 'ab-muted ab-small' }, '还没有文件。把资料放进 data/knowledge/raw，或让ta写笔记。')
+          loadErr ? h(ErrorBlock, { title: '读不到知识库', message: loadErr, hint: '知识库文件在数据目录 knowledge/ 下。', onRetry: load })
+            : !list ? h(Skeleton, { kind: 'row', rows: 4, label: '正在读知识库' })
+            : list.length === 0 ? h(Empty, {
+              icon: '📚', title: '知识库还是空的',
+              text: '把资料放进数据目录的 knowledge/raw（支持 Markdown 与纯文本），或者在这一页直接写一篇笔记。',
+              action: '写第一篇笔记', onAction: () => { const box = document.getElementById('ab-knowledge-new'); box?.scrollIntoView({ block: 'center' }); box?.querySelector('input,textarea')?.focus() },
+            })
               : h('table', { className: 'ab-table' }, h('tbody', null, rows))),
         h(Card, { title: '全文搜索', desc: '在 knowledge/raw 和 notes 里按关键词搜，返回命中的文件和片段。' },
           h('div', { className: 'ab-flex', style: { gap: 8 } },

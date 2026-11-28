@@ -130,7 +130,17 @@ const renderPanel = () => {
 const boot = async () => {
   window.__PREVIEW_STATE__ = await (await window.__realFetch('/state.json?state=' + state)).json()
   window.__PREVIEW_FIXTURES__ = await (await window.__realFetch('/fixtures.json')).json()
-  window.__PREVIEW_EMPTY_API__ = { '/modules': { ok: true, list: [] }, '/mind/people': { ok: true, list: [], forgotten: [] }, '/mind/inner': { ok: true, diary: [], wants: [], actions: [] }, '/diary/history': { ok: true, list: [] }, '/logs': { ok: true, entries: [] } }
+  // 空态：这几个接口给「同样的键、空的值」，页面才会落进教学空态而不是报错
+  window.__PREVIEW_EMPTY_API__ = {
+    '/modules': { ok: true, list: [] },
+    '/mind/settings': { ok: true, groups: [] },
+    '/mind/people': { ok: true, list: [], forgotten: [] },
+    '/mind/inner': { ok: true, diary: [], wants: [], actions: [], motives: [] },
+    '/mind/now': { ok: true, body: {}, mood: {}, emotions: [], motivations: [] },
+    '/knowledge/list': { ok: true, list: [] },
+    '/diary/history': { ok: true, list: [] },
+    '/logs': { ok: true, entries: [] },
+  }
   renderPanel()
 }
 boot()
