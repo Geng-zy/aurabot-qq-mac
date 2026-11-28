@@ -4269,3 +4269,8 @@ Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0
 | 探针空提交 | 保留 | `54dae88` 是空提交，只为验证 push 触发；不影响内容，留作记录 |
 
 修复后 CI 复跑：run `46151842829` —— `test (ubuntu)` ✓ 3m07s、`test (macos)` ✓ 4m24s、`ui-smoke` ✓ 47s、`release-check` 非 tag 跳过（预期）。
+
+### fork 开关启用后的验证
+
+维护者在 GitHub Actions 页点了「I understand my workflows, go ahead and enable them」。
+本条提交用来验证 **push → main 自动触发**（文件在发布包外，不动 tarball 摘要）。
