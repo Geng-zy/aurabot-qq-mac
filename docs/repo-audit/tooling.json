@@ -1,0 +1,9 @@
+[
+  {
+    "path": "scripts/lib/release-map.mjs",
+    "area": "scripts",
+    "owner": "tooling-release",
+    "verdict": "keep",
+    "evidence": "约 25 行：把 `gh api ...releases` 的 `tag_name digest` 文本解析成 Map，并提供登记哈希与远端 digest 的比对（远端为空要明确失败而不是当通过）。抽出来是为了离线单测：真机 2026-11-29 00:21 因为逐个版本打 48 次 API 撞次级限流而整片变红，修复把调用压成 1 次批量拉取，解析逻辑由 test/release-map.test.js 的 3 条用例覆盖。"
+  }
+]

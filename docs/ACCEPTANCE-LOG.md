@@ -4528,3 +4528,52 @@ $ node --test test/ci-workflow.test.js
 |---|---|
 | 真实仓库 | 1756 passed / 0 failed；语法 674 文件；oxlint 0 error；清单 487 文件 0 待审 |
 | 发布物 | 改动只在 `test/`，重打包哈希与 1.7.15 资产**完全一致**（69ff95da…），因此不发布 |
+
+---
+
+## 修复：发布校验被次级限流整片卡死（1.7.16，遗留 R1）
+
+**为什么选它**：未解决项里 M3 无法稳定复现、M4 是策略收紧、H2 只是措辞；**这一条有本会话内的两次真实失败**
+（00:21 与 00:24 两次 `verify-release` 因 `gh api … EOF` / 限流整片变红），而且它卡的是发布闸门本身。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.15→1.7.16 · 内置 Node v24.21.0 · Purge 三工具在列。
+
+**最小失败用例（修复前，基线）**：`gh` shim —— 前 10 次 `api` 正常、第 11 次起一律 403 限流
+
+```text
+$ PATH=/tmp/ghflaky:$PATH node scripts/verify-release.mjs
+✖ 38 条（每个版本一条）        ← 重试 3 次 ×1.5s 退避救不回来
+$ echo $?  → 1
+```
+
+**修复后（同一份 shim）**
+
+```text
+✔ 远端 Release 列表：一次调用读到 220 个版本
+全部通过
+```
+
+另测「前两次调用直接 EOF」→ 重试兜住，仍 `全部通过`。
+
+**修复内容**
+
+| 项 | 内容 |
+|---|---|
+| 调用数 | 48 次逐版本 `gh api` → **1 次**批量（`--paginate --per_page=100`），本地按 tag 比对 |
+| 解析/比对 | 抽到 `scripts/lib/release-map.mjs`（空摘要明确判失败、空输入不炸、差异给出具体哈希） |
+| 测试 | 新增 `test/release-map.test.js` 3 条 |
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 全量测试 | 1759 passed / 0 failed（+3） |
+| 语法 / lint / 清单 | 676 文件通过 / oxlint 0 error / 488 文件 0 待审 |
+| 真实网络 | `verify-release` 全部通过（一次调用读到 220 个版本） |
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261129-020242（含 1.7.15 的 tgz）
+Mini 1.7.16 安装启动（02:02:48）；state version=1.7.16；Purge 三工具在；配置逐字段一致
+tag v1.7.16；dsh-aurabot-qq-1.7.16.tgz 19,752,049 字节
+     sha256 8ad55a84160e4e4ca5d328af35dd09340602ddf69df9968f19107e922e78d2a2
+```
