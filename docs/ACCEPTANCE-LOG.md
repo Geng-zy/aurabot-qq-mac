@@ -4712,3 +4712,11 @@ Mini 1.7.18 安装启动（02:55:48）；state version=1.7.18；Purge 三工具�
 tag v1.7.18；dsh-aurabot-qq-1.7.18.tgz 19,752,336 字节
      sha256 6cc6bbf72ccd800657748b50e33dc93b4315d37cb788d235d78838bca9dba65c
 ```
+
+### CI 观察：1.7.18 的 ubuntu 任务出现一次无关抖动
+
+- tag/main 两次运行里 `test (ubuntu-latest)` 失败在 `test/e2e.test.js:1703`「#6 改资料…」，
+  耗时 **20001ms** 撞到 `until()` 的 20 秒上限；macOS 与本地同样用例通过。
+- `gh run rerun --failed` 后同一作业 **3m02s 通过** → 判定为既有的 e2e 时间抖动（`until()` 上方注释已记录过
+  「8 秒偶尔不够用」并把上限放宽到 20 秒）。与本轮文档改动无关。
+- 记入下一轮候选：把该用例的等待改成「事件驱动 + 明确失败信息」，而不是继续放大秒数。
