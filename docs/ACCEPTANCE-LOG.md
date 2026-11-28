@@ -4243,3 +4243,15 @@ Mini 1.7.9 安装启动（20:51:07）；state version=1.7.9；配置一致；Pur
 发布 tag v1.7.9；dsh-aurabot-qq-1.7.9.tgz 19,749,472 字节
      sha256 f15806b68f55b91f8710defa68a4b22d98d24e7e0033f26a5028801b490e9dfd
 ```
+
+### 补发 1.7.10（包内容与 1.7.9 不同，摘要纪律要求重发）
+
+CI 二次修正（React UMD 让 ui-smoke 真跑得起来、actions 升 v5）改到了包内的 `scripts/ui-preview.mjs`，
+所以 1.7.9 的 tarball 与 HEAD 不再一致 —— 按「tag ↔ tarball ↔ Mini 三者同源」的纪律重发 1.7.10。
+
+```text
+Air  1748 passed / 0 failed；语法 672 文件；oxlint 0 error；清单 0 待审
+Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0 新增 error
+发布 tag v1.7.10；dsh-aurabot-qq-1.7.10.tgz 19,749,921 字节
+     sha256 904dc677fa62b8910cee258c8680842a480b6aac2c8694e3c772558f6272f9b5
+```

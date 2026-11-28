@@ -2,6 +2,17 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.7.10
+
+### 交付工具链 · CI 二次修正（1.7.9 首次真跑暴露的缺口）
+
+- **`ui-smoke` 缺 React**：CI 首次运行时预览服务白屏（`React is not defined`）—— 已让 CI 装 `react@18 react-dom@18`，
+  并让 `scripts/ui-preview.mjs` 在找不到 React UMD 时**直接报错退出**，而不是渲染一个白页。
+- **actions 升到 v5**：`actions/checkout@v4`、`actions/setup-node@v4` 跑在 GitHub 已弃用的 Node 20 上（运行时有弃用警告）；
+  `test/ci-workflow.test.js` 加断言禁止退回 v4。
+- 真 CI 结果：`test (ubuntu)` 3m07s ✓、`test (macos)` 4m41s ✓（此前一直 steps:0 被取消，本轮恢复）、`ui-smoke` 1m05s ✓。
+- 回归：1748 个测试通过（+1）；oxlint 0 error；清单 0 待审。
+
 ## 1.7.9
 
 ### 交付工具链 · CI 与冒烟入口
