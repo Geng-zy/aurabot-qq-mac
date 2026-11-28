@@ -992,5 +992,12 @@
     "owner": "client-panel",
     "verdict": "keep",
     "evidence": "截图基线目录说明：pages/states 是滚动覆盖，archive/<版本>/ 是定格；写明生成命令（scripts/ui-shot.mjs）与归档时机。"
+  },
+  {
+    "path": "test/ci-workflow.test.js",
+    "area": "test",
+    "owner": "ci",
+    "verdict": "keep",
+    "evidence": "7 条断言把 .github/workflows/pr-check.yml 钉住：只服务 main/版本 tag/PR（无 environment/deploy）、CI 里 `npm run x` 必须在 package.json 存在、`node scripts/*.mjs` 必须真实存在、生成产物要重生成并比对（client.js + tar 布局）、UI 冒烟只跑代表页且 `--out=/tmp`、tag 上要跑 verify-release 且带 GH_TOKEN、不得出现 beta 引用或旧 Node 版本。"
   }
 ]

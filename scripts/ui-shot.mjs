@@ -14,11 +14,6 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const OUT = join(ROOT, 'docs/ui-baseline')
-const PAGE_DIR = join(OUT, 'pages')
-const STATE_DIR = join(OUT, 'states')
-mkdirSync(PAGE_DIR, { recursive: true })
-mkdirSync(STATE_DIR, { recursive: true })
 
 async function loadPlaywright() {
   for (const p of ['playwright-core', '/tmp/pw/node_modules/playwright-core/index.mjs']) {
@@ -26,6 +21,19 @@ async function loadPlaywright() {
   }
   throw new Error('缺 playwright-core：在 /tmp/pw 里 npm i --no-save playwright-core，或在本仓库 devDependency 里装。')
 }
+
+const arg = (name, fallback = '') => {
+  const hit = process.argv.find((a) => a.startsWith('--' + name + '='))
+  return hit ? hit.slice(name.length + 3) : fallback
+}
+const ONLY = arg('pages') ? new Set(arg('pages').split(',').map((x) => x.trim()).filter(Boolean)) : null
+const WITH_STATES = arg('states', '1') !== '0'
+const OUT_ARG = arg('out')
+const OUT = OUT_ARG ? OUT_ARG : join(ROOT, 'docs/ui-baseline')
+const PAGE_DIR = join(OUT, 'pages')
+const STATE_DIR = join(OUT, 'states')
+mkdirSync(PAGE_DIR, { recursive: true })
+mkdirSync(STATE_DIR, { recursive: true })
 
 const PAGES = [
   'overview', 'now', 'mood', 'knowledge', 'persona', 'inner', 'selfmind', 'mindsettings', 'platforms',
@@ -98,7 +106,8 @@ const check = (name, ok, detail = '') => { if (!ok) failures.push(name + (detail
 
 try {
   await up()
-  const browser = await chromium.launch({ channel: 'chrome', headless: true })
+  const channel = process.env.UI_SHOT_CHANNEL || 'chrome'
+  const browser = await chromium.launch({ channel, headless: true })
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 2 })
   const page = await ctx.newPage()
   const jsErrors = []
@@ -121,7 +130,7 @@ try {
     const map = window.__PANEL__.__panelTest.FIND_SECTIONS || {}
     return (map[pid] || []).length
   }, id)
-  for (const id of PAGES) {
+  for (const id of (ONLY ? PAGES.filter((p) => ONLY.has(p)) : PAGES)) {
     jsErrors.length = 0
     await open(`page=${id}&state=live&mode=normal`)
     await page.screenshot({ path: join(PAGE_DIR, `${id}.png`) })
@@ -146,7 +155,7 @@ try {
   }
 
   // 2) 五个代表页的三态
-  for (const { page: id, empty } of STATES) {
+  for (const { page: id, empty } of (WITH_STATES ? STATES : [])) {
     // 加载态：请求挂住 → 骨架屏
     await open(`page=${id}&state=live&mode=loading`)
     await page.screenshot({ path: join(STATE_DIR, `${id}-loading.png`) })
@@ -312,5 +321,7 @@ if (failures.length) {
   console.error('UI 断言没通过：\n- ' + failures.join('\n- '))
   process.exitCode = 1
 } else {
-  console.log(`UI 截图与断言通过：${PAGES.length} 页 + ${STATES.length} 页 × 3 态 + 深浅色 + 窄屏`)
+  const scope = ONLY ? [...ONLY].join('/') : PAGES.length + ' 页'
+  const extra = WITH_STATES ? ' + ' + STATES.length + ' 页 × 3 态' : ''
+  console.log(`UI 截图与断言通过：${scope}${extra}${ONLY ? '' : ' + 深浅色 + 窄屏'}`)
 }

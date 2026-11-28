@@ -2,6 +2,23 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.7.9
+
+### 交付工具链 · CI 与冒烟入口
+
+- **`scripts/ui-shot.mjs` 支持子集**：`--pages=a,b`、`--states=0`、`--out=<目录>`，浏览器通道可用
+  `UI_SHOT_CHANNEL` 覆盖（本机 chrome、CI chromium）。全量行为不变（默认 28 页 + 三态 + 深浅色 + 窄屏）。
+- **CI 新增两个任务**：
+  - `ui-smoke`（ubuntu）：装 `playwright-core` + Chromium，跑 `overview/persona/mindsettings/modules` 四页，
+    产出写 `/tmp`，**不写回 `docs/ui-baseline`**；
+  - `release-check`（仅在 `v*` tag）：带 `GH_TOKEN` 跑 `scripts/verify-release.mjs`，核对 Release 资产摘要。
+- **工作流自身有测试**（`test/ci-workflow.test.js`，7 条）：只服务 main/版本 tag/PR、`npm run` 的脚本名必须存在、
+  指向的 `scripts/*.mjs` 必须存在、生成产物必须重生成并比对（`client.js` + tar 布局）、冒烟不得污染基线、
+  tag 必须校验发布、不得留 beta 引用或旧 Node 版本。
+- **归档目录放行**：`docs/ui-baseline/archive/` 与 `pages/`、`states/` 同性质（整目录复制/重写），
+  清单生成器与测试都放行，不为 44 张定格图逐个写结论。
+- 回归：1747 个测试通过（新增 7 条 CI 断言）；语法 672 文件；oxlint 0 error；清单 487 文件 / 0 待审。
+
 ## 1.7.8
 
 ### UI 收尾（规划 B0–B7 的尾巴）

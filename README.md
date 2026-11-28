@@ -43,7 +43,7 @@ ChannelManager
 
 平台只负责连接、消息转换和发送；QQ 专属能力收在 `src/channels/qq/features/`，不会污染通用模块。
 
-## 1.7.8 更新
+## 1.7.9 更新
 
 ### 中途换预设真的会被记录（B19）
 
@@ -142,12 +142,12 @@ local
 **需要：** Apple 芯片 Mac、[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 桌面版、DSH Desktop `0.2.2-rc.3`（当前唯一兼容目标）。QQ 还需要一套 OneBot v11 网关（如 [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)）和单独的机器人 QQ 号。
 
 1. 打开 DSH 完成初始化，并配置聊天模型。
-2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.8.tgz`。
+2. 从 [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest) 下载 `dsh-aurabot-qq-1.7.9.tgz`。
 3. 完全退出 DSH，在终端安装：
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.8.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.9.tgz" --offline
    ```
 
 4. 重开 DSH，从左栏进入 **Aurabot**。
@@ -263,6 +263,23 @@ client/                    面板 UI
 test/                      离线测试与回归
 docs/                      设计、手册、迁移与审计
 ```
+
+## 开发与 CI
+
+```bash
+node scripts/build-client.mjs          # client/parts/* + template → client/client.js
+node --test "test/**/*.test.js"        # 全量测试
+node scripts/check-syntax.mjs          # 语法
+npx oxlint src client                  # 独立 lint
+node scripts/repo-inventory.mjs --write # 全仓清单（待审必须为 0）
+node scripts/ui-shot.mjs               # 28 页 + 三态 + 深浅色 + 窄屏（本机 Chrome）
+node scripts/ui-shot.mjs --pages=overview,persona --states=0 --out=/tmp/ui-smoke  # 冒烟子集
+node scripts/verify-release.mjs        # 发布校验（Rebuild 摘要 vs 记录）
+```
+
+GitHub 上 `.github/workflows/pr-check.yml` 跑同样的东西：`test`（ubuntu + macOS，含清单/语法/lint/client.js 同步/打包布局/测试）、
+`ui-smoke`（ubuntu，装 playwright-core + Chromium，只跑代表页、产出到 `/tmp`，不写回基线）、
+`release-check`（只在 `v*` tag 上，校验 Release 资产摘要与本仓记录一致）。工作流本身也有测试守着（`test/ci-workflow.test.js`）。
 
 ## 开发与测试
 

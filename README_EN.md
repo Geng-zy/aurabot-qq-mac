@@ -41,7 +41,7 @@ Shared: chat hub / mind / memory / knowledge / stickers / voice / media
 
 A platform only handles connection, message conversion, and delivery. QQ-only capabilities live under `src/channels/qq/features/` and do not leak into shared modules.
 
-## 1.7.8 highlights
+## 1.7.9 highlights
 
 ### Mid-session preset changes are actually recorded (B19)
 
@@ -138,12 +138,12 @@ local
 **Requirements:** Apple-silicon Mac, [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) desktop, DSH Desktop `0.2.2-rc.3` (the only supported host today). QQ also needs an OneBot v11 gateway (for example [SnowLuma](https://github.com/SnowLuma/SnowLuma.Docker.Framework)) with a dedicated bot account.
 
 1. Initialize DSH and configure a chat model.
-2. Download `dsh-aurabot-qq-1.7.8.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
+2. Download `dsh-aurabot-qq-1.7.9.tgz` from [Releases](https://github.com/Geng-zy/aurabot-qq-mac/releases/latest).
 3. Quit DSH and install:
 
    ```bash
    dsh="/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh"
-   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.8.tgz" --offline
+   "$dsh" plugin --profile desktop -- add "file:$HOME/Downloads/dsh-aurabot-qq-1.7.9.tgz" --offline
    ```
 
 4. Reopen DSH and open **Aurabot**.
@@ -234,6 +234,23 @@ save bar (dirty → saving → saved, **⌘S** anytime); only switches apply imm
 
 <p><strong>Nothing yet</strong> · empty states explain the cause and offer one action.</p>
 <img src="docs/screenshots/aurabot-empty-state.png" alt="Empty state" width="100%">
+
+## Development and CI
+
+```bash
+node scripts/build-client.mjs          # client/parts/* + template → client/client.js
+node --test "test/**/*.test.js"        # full suite
+node scripts/check-syntax.mjs          # syntax
+npx oxlint src client                  # standalone lint
+node scripts/repo-inventory.mjs --write # repo inventory (unreviewed must be 0)
+node scripts/ui-shot.mjs               # 28 pages + three states + dark + narrow (local Chrome)
+node scripts/ui-shot.mjs --pages=overview,persona --states=0 --out=/tmp/ui-smoke  # smoke subset
+node scripts/verify-release.mjs        # release check (asset digest vs records)
+```
+
+CI runs the same entrypoints: `test` (ubuntu + macOS), `ui-smoke` (ubuntu, playwright-core + Chromium,
+representative pages only, output to `/tmp`), and `release-check` (only on `v*` tags, verifies release asset digests).
+The workflow itself is guarded by `test/ci-workflow.test.js`.
 
 ## Development
 

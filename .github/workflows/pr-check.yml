@@ -14,6 +14,9 @@ on:
 permissions:
   contents: read
 
+# 这个工作流只服务 main、版本 tag 与 PR：不引入环境、部署或第三方状态。
+# 生成产物（client.js、全仓清单）必须与源码一致；Release 的摘要必须与本仓记录一致。
+
 concurrency:
   group: pr-check-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -57,3 +60,46 @@ jobs:
           tar -tzf "$tgz" | grep -qx 'package/package.json'
       - name: Run tests
         run: npm test
+
+  ui-smoke:
+    name: ui-smoke (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dev tooling
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Install playwright-core and Chromium
+        run: |
+          npm install --no-save --no-audit --no-fund playwright-core@1
+          npx --yes playwright@1 install --with-deps chromium
+      - name: Build client bundle
+        run: npm run build:client
+      - name: UI smoke (representative pages, no baseline writes)
+        env:
+          UI_SHOT_CHANNEL: chromium
+        run: node scripts/ui-shot.mjs --pages=overview,persona,mindsettings,modules --states=0 --out=/tmp/ui-smoke
+
+  release-check:
+    name: release-check (tag)
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify release assets match repo records
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-release.mjs

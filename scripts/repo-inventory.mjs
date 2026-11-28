@@ -35,7 +35,7 @@ const ASSET_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.w
 
 // 生成物：每次跑 scripts/ui-shot.mjs 会整目录重写，逐个文件写结论没有意义。
 // 这里按目录前缀放行，但目录本身在 docs/repo-audit 里有一条说明性条目。
-const GENERATED_DIRS = ['docs/ui-baseline/pages/', 'docs/ui-baseline/states/']
+const GENERATED_DIRS = ['docs/ui-baseline/pages/', 'docs/ui-baseline/states/', 'docs/ui-baseline/archive/']
 
 function isGenerated(path) {
   return GENERATED_DIRS.some((prefix) => path.startsWith(prefix))

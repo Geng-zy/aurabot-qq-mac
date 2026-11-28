@@ -4209,3 +4209,25 @@ Mini 1.7.8 安装启动（20:04:39）；真机 client.js 里 AB_CONFIRM 19 处�
 发布 tag v1.7.8；dsh-aurabot-qq-1.7.8.tgz 19,747,818 字节
      sha256 85385ce7f96c3c267983d3a27ea48cb92503d20b4ab852632a7a9e4d6144e058
 ```
+
+---
+
+## 交付工具链 · CI 与冒烟入口（1.7.9）
+
+| 项 | 内容 |
+|---|---|
+| `scripts/ui-shot.mjs` | 新增 `--pages=a,b`、`--states=0`、`--out=<目录>`、`UI_SHOT_CHANNEL`（本机 chrome / CI chromium）；全量行为不变 |
+| `.github/workflows/pr-check.yml` | 新增 `ui-smoke`（ubuntu + playwright-core + Chromium，4 个代表页，产出 `/tmp`）与 `release-check`（仅 `v*` tag，带 GH_TOKEN 跑 verify-release） |
+| `test/ci-workflow.test.js` | 7 条断言守工作流：触发面、脚本存在性、生成产物比对、冒烟不污染基线、tag 校验发布、无 beta/旧 Node 引用 |
+| 清单放行 | `docs/ui-baseline/archive/` 与 `pages/`、`states/` 同性质，生成器与测试都放行 |
+
+```text
+Air  本地复跑 CI 的每个入口：
+     清单 487 文件 / 0 待审；client.js 与源码一致（git diff 空）；tar 布局三件齐（src/host.js、client/client.js、package.json）
+     语法 672 文件；oxlint 0 error；全量 1747 passed / 0 failed（新增 7 条）
+     ui-shot 子集实跑：--pages=overview,persona --states=0 --out=/tmp/ui-smoke → 通过，仅产出 2 张图
+     verify-release 本地跑（带 token）→ 全部通过（48 个版本有哈希）
+Mini 1.7.9 安装启动（20:51:07）；state version=1.7.9；配置一致；Purge 三工具在；0 新增 error
+发布 tag v1.7.9；dsh-aurabot-qq-1.7.9.tgz 19,749,472 字节
+     sha256 f15806b68f55b91f8710defa68a4b22d98d24e7e0033f26a5028801b490e9dfd
+```
