@@ -4282,3 +4282,28 @@ Mini 1.7.10 安装启动（21:27:14）；state version=1.7.10；配置一致；0
 | `workflow_dispatch` | run 46151842829 / 46149928959 / 46148040376 均全绿 |
 | tag → `release-check` | 用 `--ref v1.7.10` 的 dispatch 验证过该任务本身（46149928959：✓ 29s）；**tag push 触发的真实链路要等下一次版本发布时自然覆盖**（不为验证造一次性 tag） |
 | `pull_request` | 本仓流程只用 main / 版本 tag / Release，没有 PR，故该触发面不启用也不验证 |
+
+---
+
+## 收尾核对：交付工具链批次（1.7.10）
+
+| 项 | 值 |
+|---|---|
+| 待验收包（唯一候选） | `/tmp/dsh-aurabot-qq-1.7.10.tgz`，19,749,921 字节 |
+| SHA-256 | `904dc677fa62b8910cee258c8680842a480b6aac2c8694e3c772558f6272f9b5` |
+| Mini 实测 | 装的是**同一份**包（Mini 上 `/tmp/dsh-aurabot-qq-final21.tgz` 哈希一致），`package.json` = 1.7.10 |
+| Mini 回滚点 | `~/aurabot-release-backups/20261128-212710`（内含上一版 1.7.9 的 tgz 与当时的 desktop/package.json） |
+| main | `c203ad4`（批次提交）之后另有 4 个仅工作流/文档的提交，HEAD 的 `client/client.js` 与包内同一文件哈希一致（`384a7173…`） |
+| tag | `v1.7.10` → `c203ad4` |
+| Release | `v1.7.10`，非草稿非预发布，附件 `dsh-aurabot-qq-1.7.10.tgz`（19,749,921 字节），2026-11-28T13:29:01Z |
+| CI | push 自动触发已通：run `46153410037`（head `ef297d1`）与 `46152853011`（head `4772d2a`）全绿；tag ref 的 `release-check` 由 run `46149928959` 验过（✓ 29s） |
+
+**唯一差异（已核对，不改变结论）**
+
+1. 包内 `package.json` 的键顺序与仓库不同 —— 这是 `npm/pnpm pack` 对包内清单的规范化，不是内容差异（字段与值逐项一致）。
+2. 包内 `docs/REPO-INVENTORY.md` 比 HEAD 旧 3 行（工作流行数 106→119、验收记录行数、CI 测试行数）——
+   因为清单在打包**之后**又重生成过一次。属元数据，不是代码；下次发版自然带上，不为此重发。
+3. `v1.7.10` 这个 tag 里的工作流文件早于「release-check 时序容错」那次修改（`.github/` 不在发布物里），
+   该 tag 若手动重跑仍能通过（Release 已存在），新 tag 会带上修正。
+
+结论：包、Mini、tag、Release、CI 五方一致，无需再安装或重发。
