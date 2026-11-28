@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isGenerated } from '../scripts/repo-inventory.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const AUDIT_DIR = join(ROOT, 'docs', 'repo-audit')
@@ -54,9 +55,9 @@ const AUTO = [
   { test: (p) => p.startsWith('test/') || p.endsWith('.test.js'), why: '测试文件' },
   { test: (p) => p.startsWith('docs/repo-audit/'), why: '审计数据' },
   // UI 截图基线：每次跑 scripts/ui-shot.mjs 整目录重写（28 页 + 5×3 态），
-  // 逐个文件写结论没有意义；目录本身在 docs/repo-audit 里有说明条目。
-  { test: (p) => p.startsWith('docs/ui-baseline/pages/') || p.startsWith('docs/ui-baseline/states/'), why: '截图基线生成物' },
-  { test: (p) => p.startsWith('docs/ui-baseline/archive/'), why: '截图基线定格（整目录复制）' },
+  // 逐个文件写结论没有意义。放行规则与生成器共用 isGenerated（只认脚本真会产出的图片名），
+  // 否则往 archive/ 里丢一个手写 .md 也会被静默豁免（审查 M4）。
+  { test: isGenerated, why: '截图基线生成物' },
 ]
 const isAuto = (p) => AUTO.some((a) => a.test(p))
 
@@ -99,4 +100,15 @@ test('每个文件都有合法 verdict、归属和可核对的证据', () => {
     }
   }
   assert.deepEqual(bad, [], bad.join('\n'))
+})
+
+test('归档目录只放行生成的图片，手写文件仍要有结论', () => {
+  // 回归：审查 M4 —— 原来 archive/ 整个前缀免审计，手写说明会静默漏过。
+  assert.equal(isGenerated('docs/ui-baseline/archive/1.7.7/pages/about.png'), true)
+  assert.equal(isGenerated('docs/ui-baseline/archive/1.7.7/states/logs-error.png'), true)
+  assert.equal(isGenerated('docs/ui-baseline/archive/1.7.7/narrow.png'), true)
+  assert.equal(isGenerated('docs/ui-baseline/pages/overview.png'), true)
+  assert.equal(isGenerated('docs/ui-baseline/archive/1.7.7/handwritten-notes.md'), false, '手写文件必须进审计')
+  assert.equal(isGenerated('docs/ui-baseline/archive/1.7.7/README.txt'), false)
+  assert.equal(isGenerated('docs/ui-baseline/notes.json'), false)
 })

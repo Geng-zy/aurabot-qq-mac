@@ -4622,3 +4622,51 @@ CI 只保留一个版本源：
 | 全量测试 | 1760 passed / 0 failed（+1） |
 | 语法 / lint / 清单 | 676 文件通过 / oxlint 0 error / 488 文件 0 待审 |
 | 发布物 | **未变**：重打包哈希 `8ad55a84…` 与 1.7.16 资产一致，因此不发布 |
+
+---
+
+## 修复：归档目录整块免审计（1.7.17，审查 M4）
+
+**为什么选它**：剩余两项里 H2 只是措辞；**M4 是审计闸门上的真实漏洞**且可确定复现 ——
+`docs/ui-baseline/archive/` 整目录按前缀放行，往里丢手写文件也不会被要求审计结论。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.16→1.7.17 · 内置 Node v24.21.0 · Purge 三工具在列。
+
+**最小失败用例（修复前，基线）**
+
+```text
+$ echo '# 手写的归档说明' > docs/ui-baseline/archive/1.7.7/handwritten-notes.md
+$ git add docs/ui-baseline/archive/1.7.7/handwritten-notes.md
+$ node --test test/repo-inventory.test.js
+ℹ pass 4   ℹ fail 0        ← 手写文件被静默豁免
+```
+
+**修复后（同一份文件、同一命令）**
+
+```text
+✖ 审计结论覆盖每一个需要人工结论的文件
+  AssertionError: 这些文件还没有审计结论：docs/ui-baseline/archive/1.7.7/handwritten-notes.md
+```
+
+**修复内容**
+
+| 项 | 内容 |
+|---|---|
+| 放行规则 | 目录前缀 → **文件名模式**：只认 `pages/*.png`、`states/*.png`、`archive/<版本>/pages|states/*.png`、`archive/<版本>/{narrow,theme-dark}.png` |
+| 单一事实源 | 测试不再自带前缀白名单，`import { isGenerated } from '../scripts/repo-inventory.mjs'`，生成器与闸门共用一份规则 |
+| 新断言 | 归档里的 `.md` / `.txt` / `pages/../notes.json` 一律判「需要审计」 |
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 全量测试 | 1761 passed / 0 failed（+1） |
+| 语法 / lint / 清单 | 676 文件通过 / oxlint 0 error / 488 文件 0 待审 |
+| 复现文件 | 仅用于证明闸门生效，验证后已删除，不留在仓库 |
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261129-024100（含 1.7.16 的 tgz）
+Mini 1.7.17 安装启动（02:41:05）；state version=1.7.17；Purge 三工具在；配置逐字段一致
+tag v1.7.17；dsh-aurabot-qq-1.7.17.tgz 19,752,288 字节
+     sha256 a18ef5fdc32e500fe91d89a689f63c56a67e681e5d3470abdf4aeaa60ecd12cc
+```

@@ -43,10 +43,18 @@ const ASSET_EXT = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.w
 
 // 生成物：每次跑 scripts/ui-shot.mjs 会整目录重写，逐个文件写结论没有意义。
 // 这里按目录前缀放行，但目录本身在 docs/repo-audit 里有一条说明性条目。
-const GENERATED_DIRS = ['docs/ui-baseline/pages/', 'docs/ui-baseline/states/', 'docs/ui-baseline/archive/']
+// 只放行「脚本真的会生成的那种图片」：以前按目录前缀放行整个 archive/，
+// 于是往归档里丢一个手写 .md 也会被静默豁免（审查 M4）。
+const GENERATED_PATTERNS = [
+  /^docs\/ui-baseline\/pages\/[^/]+\.png$/,
+  /^docs\/ui-baseline\/states\/[^/]+\.png$/,
+  /^docs\/ui-baseline\/archive\/[^/]+\/pages\/[^/]+\.png$/,
+  /^docs\/ui-baseline\/archive\/[^/]+\/states\/[^/]+\.png$/,
+  /^docs\/ui-baseline\/archive\/[^/]+\/(narrow|theme-dark)\.png$/,
+]
 
-function isGenerated(path) {
-  return GENERATED_DIRS.some((prefix) => path.startsWith(prefix))
+export function isGenerated(path) {
+  return GENERATED_PATTERNS.some((re) => re.test(path))
 }
 
 function gitFiles() {
