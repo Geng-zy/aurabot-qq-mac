@@ -4358,3 +4358,52 @@ Mini 1.7.11 安装启动（22:54:00）；state version=1.7.11；Purge 三工具�
 tag v1.7.11；dsh-aurabot-qq-1.7.11.tgz 19,751,067 字节
      sha256 cc72ed54d72bf041564bab6480a0587f42aa8f535aa8dfe0c1d60422882cc1bd
 ```
+
+---
+
+## 修复：预览缺 React 白屏而不是报错（1.7.12，审查 H1）
+
+**为什么选它**：H3 已修（1.7.11），剩下未解决的两条里 H2 是记录措辞、没有行为；**H1 有可复现行为差异** ——
+`scripts/ui-preview.mjs` 缺 React 时照常起服务并回一段注释，浏览器只看到 `React is not defined` 白页，
+而 CHANGELOG（1.7.10 段）与提交 `ea51bc8` 都写着「直接报错退出」。这是 CI 首次真跑被坑掉的那条路径。
+
+**固定环境**：DSH 0.2.2-rc.3 · Aurabot 1.7.11→1.7.12 · 内置 Node v24.21.0 · Purge 三工具在列 · Mini `gengzhiyu@100.89.128.72`。
+
+**最小失败用例（修复前，基线）**
+
+```text
+$ node scripts/ui-preview.mjs --port 58195 --react /tmp/definitely-not-here &
+进程还活着: yes
+HTTP: 200
+react.development.js 前 50 字: /* 缺 React UMD：npm i --no-save react@18 react-
+```
+
+**修复后（同一命令）**
+
+```text
+$ node scripts/ui-preview.mjs --port 58196 --react /tmp/definitely-not-here
+缺 React 18 UMD：/tmp/definitely-not-here/react/umd/react.development.js
+装一下再跑：npm i --no-save react@18 react-dom@18，或用 --react <目录> 指到已有安装。
+退出码=2
+$ --react /tmp/fake-react（目录在、umd 文件不在）→ 退出码 2，提示里带具体文件路径
+$ 正常目录 → 服务起来，/vendor/react.development.js 回真实 React 源码（HTTP 200）
+```
+
+只查目录不够 —— 这是修复时补的第二道（`existsSync(react.development.js)`）。
+
+**基线对比**
+
+| 运行 | 结果 |
+|---|---|
+| 全量 `ui-shot`（走预览） | 通过：28 页 + 29 页 × 3 态 + 深浅色 + 窄屏（与基线一致） |
+| 全量测试 | 1755 passed / 0 failed（新增 3 条，`test/ui-preview-guard.test.js`） |
+| 语法 / lint / 清单 | 674 文件通过 / oxlint 0 error / 487 文件 0 待审 |
+
+**发布**（包内容只变 `docs/REPO-INVENTORY.md`；`scripts/` 不在发布物内）
+
+```text
+Mini 回滚点 ~/aurabot-release-backups/20261128-232017（含 1.7.11 的 tgz）
+Mini 1.7.12 安装启动（23:20:21）；state version=1.7.12；Purge 三工具在；配置逐字段一致；0 新增 error
+tag v1.7.12；dsh-aurabot-qq-1.7.12.tgz 19,751,486 字节
+     sha256 de2cb82e7d755b81e8ca3928ff565096ed9a91992c32ab484408d27308149ef6
+```

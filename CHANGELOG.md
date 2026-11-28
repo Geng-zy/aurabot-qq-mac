@@ -2,6 +2,19 @@
 
 1.2.1 起为 macOS 分支的版本记录。1.2.0 及以前的条目是沿用的上游历史，供查阅来源和旧版本变动。
 
+## 1.7.12
+
+### 修复：预览缺 React 白屏而不是报错（审查 H1）
+
+- 回归来源：1.7.9 的提交信息与 CHANGELOG 声称「预览缺 React UMD 时直接报错退出」，但**代码从未改过**。
+  实际行为是照常起服务、`/vendor/react.development.js` 返回一段注释，浏览器端只看到 `React is not defined` 白页 ——
+  CI 首次真跑就是被这个坑掉的。
+- 修复：`scripts/ui-preview.mjs` 在启动前检查 `react/umd/react.development.js` 是否**真实存在**（只查目录不够），
+  缺失时退出码 **2** 并打印缺的路径与安装命令；`--react` 指错目录也走同一条路径。
+- 测试：新增 `test/ui-preview-guard.test.js`（3 条）：目录缺失、目录在但文件缺、给了可用 React 时真能吐出 React 源码。
+- 回归：1755 个测试通过（+3）；全量 `ui-shot` 仍 28 页 + 29 页 × 3 态 + 深浅色 + 窄屏；语法 674 文件；oxlint 0 error；清单 0 待审。
+- 包内容变化：仅 `docs/REPO-INVENTORY.md`（`ui-preview.mjs` 行数与新测试条目）；`scripts/` 不在发布物内。
+
 ## 1.7.11
 
 ### 修复：`ui-shot` 页名写错会静默通过（审查 H3）

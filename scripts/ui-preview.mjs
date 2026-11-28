@@ -24,6 +24,15 @@ const REACT_DIR = process.argv.includes('--react')
   ? process.argv[process.argv.indexOf('--react') + 1]
   : [join(ROOT, 'node_modules'), '/tmp/pw/node_modules'].find((d) => existsSync(join(d, 'react', 'umd')))
 
+// 缺 React UMD 时直接失败：以前这里会照常起服务，/vendor/react.development.js 回一段注释，
+// 浏览器端只看到「React is not defined」白页，查起来像面板的 bug（2026-11-28 CI 首次真跑就是这么红的；审查 H1）。
+const reactUmd = REACT_DIR ? join(REACT_DIR, 'react', 'umd', 'react.development.js') : ''
+if (!REACT_DIR || !existsSync(reactUmd)) {
+  console.error(`缺 React 18 UMD：${REACT_DIR ? reactUmd : '没找到 node_modules 或 /tmp/pw/node_modules'}`)
+  console.error('装一下再跑：npm i --no-save react@18 react-dom@18，或用 --react <目录> 指到已有安装。')
+  process.exit(2)
+}
+
 function fixtures() {
   try { return JSON.parse(readFileSync(join(ROOT, 'docs/ui-baseline/api-fixtures.json'), 'utf8')) } catch { return {} }
 }
