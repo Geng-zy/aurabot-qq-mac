@@ -76,7 +76,8 @@ jobs:
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Install playwright-core and Chromium
         run: |
-          npm install --no-save --no-audit --no-fund playwright-core@1
+          # 预览服务要 React 18 UMD（不走 CDN，CI 里也要能离线复现）
+          npm install --no-save --no-audit --no-fund playwright-core@1 react@18 react-dom@18
           npx --yes playwright@1 install --with-deps chromium
       - name: Build client bundle
         run: npm run build:client
